@@ -1255,7 +1255,7 @@ paraphrased, because a paraphrase is where a strawman gets in.
 | Arm | What it is | Definition source |
 |---|---|---|
 | **A · solo** | Main session only, **enforced** — launched with `--disallowed-tools Agent Task`, both spellings. Expect zero subagent transcripts: the one arm where finding none is correct. | n/a |
-| **B · delegation reachable, no workflow** | A plain brief. Delegation is available and entirely Claude's call, decided from the agents' own `description` frontmatter, results returning as a summary. **No pipeline instruction** — B is never told to `/build`, and nothing directs it to the handoff contract. | `code.claude.com/docs/en/sub-agents` |
+| **B · delegation reachable, no workflow** | A plain brief. The `Agent`/`Task` tools are enabled and this repo's agents are advertised from their own `description` frontmatter. **No pipeline instruction** — B is never told to `/build`, and nothing directs it to the handoff contract. ⚠ **NOT a free-choice arm, and was never one** — see *The instruction that voids arm B*, below. | `code.claude.com/docs/en/sub-agents` |
 | **C · this repo's workflow** | The five tuned agents (`grounder`/`census`/`db-inspector`/`implementer`/`walker`), the handoff contract (`scripts/check-handoff-contract.mjs`), the write-scope hook, and the `/build`→`/walk`→`/wrap` sequence. | `.claude/agents/*.md`, `4-AGENT-PIPELINES.md` §9 |
 
 ⚠ **B was NOT stripped down to stock agents, and the row above said it had been until 2026-08-24.**
@@ -1264,9 +1264,47 @@ pipeline stages" — a *suppression* that was never implemented. What actually r
 comparison and weaker as a claim about stock Claude Code: **B and C are bit-identical in tree and tool
 configuration and differ ONLY in the prompt.** This repo's twelve agents are advertised to B exactly
 as they are to C. So B is not "Claude Code out of the box" — it is *this repo, without the workflow*,
-which is the contrast actually of interest, but it means B choosing `grounder` would be a legitimate
-free choice rather than a suppression failure. Corrected here rather than quietly rewritten, because
+which is the contrast actually of interest. Corrected here rather than quietly rewritten, because
 a reader who took the old row at face value would read a B result as evidence about stock behaviour.
+
+### The instruction that voids arm B — found 2026-08-25, after task 1's nine runs
+
+**Every `claude` session on this account carries the standing instruction *"Do not call the AgentTool
+unless the user requested it."*** It is injected at the account level, not by this repo: it reproduces
+in an empty scratch directory with no `CLAUDE.md` anywhere up-tree, and survives unsetting
+`CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_MESSAGING_*` and `CLAUDE_PID`.
+There is no `managed-settings.json` and no HKLM policy key on this machine. It was found by *asking a
+`claude -p` run in an empty directory to print its own instructions* — one run, free, and it should
+have been the first probe rather than the last.
+
+**So arm B was never a free-choice arm, and every B result that reads as a judgment is compliance.**
+B's brief contains no request for an agent, so the instruction binds; 0-for-6 across both tasks is
+what an instructed refusal looks like, and it is indistinguishable in the transcript from a model
+weighing the task and declining. **Arm C escapes the same instruction not by evading it but by
+satisfying it** — `/build`, `/walk` and `/wrap` are skills the user invoked, and `/build` opens with a
+`grounder` spawn, so C's delegation *is* user-requested. The consequence is sharper than a caveat:
+**the workflow's causal role in this experiment includes AUTHORISING delegation, not only sequencing
+it.** Any C÷B ratio therefore prices *authorised-and-structured* against *prohibited*, and calling
+that "the workflow's overhead" over-attributes the whole gap to structure.
+
+Two prior claims in this register are retracted by this, and both are struck at their own sites
+below: that B "declined every time" **given a free choice**, and that B's refusal is evidence about
+**model judgment**. `Task` being *enabled* was true and irrelevant — the arm was instructed not to use
+it, and reporting the enabled tool as though it made the choice free is the error.
+
+⚠ **The general form, because this is its second instance.** An arm defined by what is *absent* from
+its prompt is only a control if you have read everything present in its context — and the account-level
+system prompt is not in the prompt file, not in the repo, and not in the transcript. Both times this
+register has been wrong about arm B, the cause was the same: a claim about what B *chose*, resting on
+the assumption that the prompt file was the whole input.
+
+**The fix is to LEVEL THE AUTHORISATION, not to strip the instruction** — the instruction is real and
+stays. Task 3's arms become: **A prohibited** (`--disallowed-tools`, unchanged) · **B permitted**
+(delegation explicitly authorised, and the authorisation given through the *invocation*, not the brief,
+so the brief stays bit-identical to C's) · **C structured** (`/build`→`/walk`→`/wrap`, unchanged).
+That makes B-vs-C the comparison the design always claimed to be making. Tasks 1 and 2 are reported as
+they ran — **forced solo · constrained solo · authorised workflow** — never as "delegation vs no
+delegation".
 
 The documented behaviour arm B is being held to, verbatim from that page:
 
@@ -1738,11 +1776,18 @@ about whether C÷A is 1.98×.
 
 ### Four findings, in order of how much they constrain the conclusion
 
-**1 · Arm B never delegated — 0 for 3, with all twelve agents advertised.** B and C are bit-identical
-in tree and tool configuration; B simply was not told to run the pipeline. Given a free choice on this
-task, the model declined every time. **So A-vs-B is not delegation-vs-no-delegation** — it is two solo
-arms that differ only in whether the tool was reachable, and the experiment as designed cannot answer
-"does delegation help" from this pair.
+**1 · Arm B never delegated — 0 for 3.** B and C are bit-identical in tree and tool configuration; B
+simply was not told to run the pipeline. **So A-vs-B is not delegation-vs-no-delegation** — it is two
+solo arms that differ only in whether the tool was reachable, and the experiment as designed cannot
+answer "does delegation help" from this pair.
+
+> ⚠ **RETRACTED 2026-08-25 — the clause "given a free choice on this task, the model declined every
+> time", and the framing of this as evidence about model judgment.** B had no free choice: every
+> session on this account carries *"Do not call the AgentTool unless the user requested it"*, and B's
+> brief requests nothing. See *The instruction that voids arm B* above. The finding that survives is
+> the narrower one left standing: A-vs-B is solo-vs-solo, which is what makes it a usable negative
+> control. What does **not** survive is any reading of B's 0-for-3 as the model's own assessment of
+> the task.
 
 **2 · A÷B is therefore a floor on this harness's noise, and it is wider than a single figure suggests.**
 The honest floor is the **per-replicate** spread, not a ratio of medians and not a range across
@@ -1821,7 +1866,7 @@ direction.
 
 ---
 
-## E17 · Does the workflow's cost gap close on tasks where delegation actually pays? — **PRE-REGISTERED 2026-08-24, NOT YET RUN**
+## E17 · Does the workflow's cost gap close on tasks where delegation actually pays? — **TASK 1 RUN (9/9): the gap did NOT close, it widened — but the premise was never tested, because arm B is under a standing prohibition on delegating. Quality still UNMEASURED**
 
 ⚠ **Task selection was CONDITIONED ON E16's RESULT, and this section is written before any E17 run.**
 That is the whole reason for a separate id. E16's task 2 was a narrow read-and-classify surface where
@@ -1879,7 +1924,12 @@ largest of the three ratios and quoting it is how this result would flatter itse
 - **Gap converges AND quality equal** → the workflow is neutral.
 - **B declines to delegate anyway** → that task reverts to *solo-vs-workflow* and is REPORTED AS SUCH,
   not as delegation-vs-delegation. B delegating on tasks 1 and 3 is a **hypothesis, not a fact**: on
-  task 2, B declined with all twelve agents advertised, in every replicate.
+  task 2, B declined in every replicate.
+  **RESOLVED, and against the prediction: B declined all three times on task 1 as well — 0 for 6.**
+  The registered prediction "both delegating arms are expected to delegate here, B by judgment" is
+  **FALSIFIED**, and the reason is not the task: B is under a standing account-level prohibition it
+  was never going to break (see *The instruction that voids arm B*). The pre-registered branch above
+  therefore fires — tasks 1 and 2 are **solo-vs-workflow**, reported as such.
 
 ⚠ **The noise floor is A÷B, and it is not small.** A and B behaved identically on task 2 — neither
 delegated, in any replicate — so the spread between them is this harness's floor for a two-arm cost
@@ -1891,3 +1941,72 @@ must clear that floor before it is a finding rather than a reading.
 Three tasks **built to disagree**. How they combine is a free parameter sitting directly on the axis
 of interest, so it is fixed now: **three per-task results reported side by side, no pooled number, and
 any cross-task claim stated qualitatively.**
+
+### RESULT — task 1 (M-061), nine cells, all gates green · run 2026-08-24/25
+
+**What ran.** Baseline `1c9b6bbd`, Latin square (r1 `A B C` · r2 `B C A` · r3 `C A B`) rather than
+task 2's fixed rotation, which leaves position confounded with arm across the whole task; with n=3 a
+square removes that confound exactly, where randomisation removes it only in expectation. Strictly
+sequential throughout — one shared `node_modules` junction, and `vitest` writes `.vitest-count.json`
+into it, so two arms at once score each other's trees.
+
+Two cells were lost and replaced, both recorded rather than quietly re-run: **r2/A** was launched on
+top of a still-running r1/C by a driver whose timeout returned a code the batch loop ignored — killed,
+tree removed junction-first, transcript quarantined, re-run. **r3/B** died on *"API Error: Connection
+lost mid-response"*, retried as **r3x/B** with the void cell retained as evidence. Scored spend
+**$182.18**, plus **$12.47** on the two void cells.
+
+**Arms as they actually were: forced solo (A) · constrained solo (B) · authorised workflow (C).** B
+delegated zero times, for the reason above; this is not delegation-vs-delegation and is not reported
+as such.
+
+| measure | A | B | C | C÷A | C÷B | **A vs B — CONTROL** |
+|---|---|---|---|---|---|---|
+| **$ per min of work** | 0.72 [0.70, 0.83] | 0.66 [0.66, 0.75] | **0.60** [0.58, 0.60] | **0.83×** | **0.90×** | overlaps ✓ |
+| **model-min of work** | 19.2 [15.7, 22.9] | 22.0 [18.9, 30.1] | 52.0 [46.1, 52.7] | 2.71× | 2.36× | overlaps ✓ |
+| weighted tokens (M) | 2.21 [2.13, 2.69] | 2.40 [2.03, 3.56] | 5.09 [4.64, 5.18] | 2.30× | 2.12× | overlaps ✓ |
+| cost ($) | 13.50 [13.06, 16.49] | 14.57 [12.38, 22.61] | 30.22 [27.89, 31.46] | 2.24× | 2.07× | overlaps ✓ |
+| wall-clock (min) | 48.7 [30.2, 56.3] | 56.8 [31.1, 82.6] | 106.6 [58.0, 108.0] | 2.19× | 1.88× | overlaps ✓ |
+| main active (min) | 19.2 [15.7, 22.9] | 22.0 [18.9, 30.1] | 30.7 [26.4, 37.4] | 1.60× | 1.40× | overlaps ✓ |
+| turns | 103 [97, 129] | 119 [98, 178] | 166 [150, 198] | 1.61× | 1.39× | overlaps ✓ |
+
+**All seven measures survive the negative control on this task** — including the two that failed it on
+task 2. **Cost and turns both separate A from B on task 2 and overlap on task 1**, which is itself the
+useful reading: the control is not a property of a measure, it is a property of a measure *on a task*,
+and a measure cleared once is not cleared for good. Neither may be headlined from task 2; both are
+reportable here, with that history attached.
+
+**The registered prediction was COST CONVERGES. It did not.** The gap on this task is *wider* than
+task 2's, not narrower: C÷A on cost 2.24× against task 2's 1.98×, on work 2.71× against 2.20×. The
+prediction rested on B delegating by judgment and C's premium being the price of delegating where it
+was not warranted; with B prohibited, the comparison never tested that. **The prediction is recorded
+as falsified on the numbers and unevaluable on its premise** — those are different failures and
+collapsing them would flatter the design.
+
+**What replicates cleanly across both tasks is the price-per-unit result, and it strengthened.**
+C does more work and pays less per unit of it: **$0.60/work-min against A's $0.72 and B's $0.66**, with
+C's full range [0.58, 0.60] sitting entirely below both. Task 2 read 0.54 vs 0.58/0.62 on the same
+measure. Two tasks, two different shapes, same direction, control cleared both times.
+
+**Delegation depth tracked the task, and the wall-clock consequence is the sharper finding.** C's three
+runs spawned 2 · 3 · 6 agents (`grounder` every time; `census`×3, `implementer` and `walker` as the
+task demanded). **r3/C did the most delegation and finished FASTEST in wall-clock — 58.0 min against
+r1/C's 106.6 — at equal work and equal cost.** The difference is not efficiency, it is overlap: r1/C
+blocked 25.9 min waiting on a single awaited agent; r3/C's largest idle gap was 3.9 min. **Backgrounded
+agents overlap main work; awaited ones serialise it**, and only wall-clock can see the difference —
+work, tokens and cost are identical across the two. A pipeline that delegates more is not necessarily
+slower, and may be considerably faster.
+
+**Task 1 was census-shaped, and the transcripts say so.** An earlier reading of this register claimed
+task 1 was mis-shaped for delegation; that is **withdrawn** — r3/C's three `census` spawns carry prompts
+reading *"I need FACTS per site so I can classify"*, which is the KNOW/HOLD split applied correctly:
+delegate what you need to know, hold what you need to judge.
+
+**Still unmeasured, and it is the same hole task 2 ended in: criterion 6.** Cost is now measured twice
+and quality zero times. Two preconditions are recorded before those 18 review runs — **arm C's output
+enters review already walked**, so C must be bundled twice (pre-walk and post-walk, with the pre-walk
+state reconstructed as *final tree minus every edit postdating the walker's return*, and reconstructed
+BEFORE bundling, since re-shuffling afterwards invalidates the blind labels); and the **resolved system
+prompt must be captured per run**, which is owed anyway now that an unread system prompt has voided an
+arm once. Until criterion 6 runs, this register may state what the workflow *costs* and must not state
+what it *buys*.
