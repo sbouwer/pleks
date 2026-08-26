@@ -2254,3 +2254,66 @@ findings to a walker that had not yet run against them. That is a **reconstructi
 corpus builder, not a blind defect** — the `.handoff/` narration and register entries were written by
 earlier legs of the pipeline citing an earlier walk, and the cut point does not separate them. Any
 future C-pre/C-post comparison must either cut before that narration exists or state that it does not.
+
+### C-pre cannot be reconstructed for the file that matters — 2026-08-26
+
+The stability probe's misreads pointed at the C-pre snapshots, so the snapshots were opened. Two
+defects came out, they are independent, and **neither is the one that was being looked for.**
+
+#### 1 · Five of six C-pre cells contain POST-walk content, and `prewalk.mjs` said so at the time
+
+Every cell ships a `RECONSTRUCTION.md` giving each file its own verdict. Read back across all six C
+cells (`prewalk-out/*/RECONSTRUCTION.md`, walker-return stamps 2026-08-24/25):
+
+| cell | unsound files | which | share of bundle bytes |
+|---|---|---|---|
+| `task1-r1-C` | 1 of 22 | `docs/MECHANISABLE.md` | 46% |
+| `task1-r2-C` | 1 of 34 | `docs/MECHANISABLE.md` | 41% |
+| `task1-r3-C` | 1 of 42 | `docs/MECHANISABLE.md` | 37% |
+| `t2-r1-C` | 1 of 8 | `scripts/check-sql-conflict-target.mjs` | 9% |
+| `task2-r2-C` | **0 of 5** | — | — |
+| `task2-r3-C` | 1 of 8 | `scripts/check-sql-onconflict.mjs` | 11% |
+
+The verdict is identical in all five: *"record not provably complete AND a post-walk shell command
+writes to this file; **POST-walk content substituted, which understates the walk**."*
+
+**The root cause is that the C sessions wrote those files through bash rather than Edit/Write.** A
+transcript rewind inverts recorded mutations; a heredoc or a `sed` leaves nothing to invert. So the
+one file per cell that the walk most changed is precisely the one that cannot be rewound — not by
+coincidence, but because the biggest artefact is the one a session is most likely to write with a
+shell command.
+
+**Consequence: criterion 6's C-pre-vs-C-post comparison cannot be scored on this corpus.** For task 1
+the walk's principal output IS `MECHANISABLE.md`, unsound in all three cells and 37–46% of the bundle;
+for task 2 it is the check script, unsound in two of three. Scoring only sound files would delete the
+deliverable from task 1 entirely and leave task 2 with a single clean cell. **The instrument was
+honest and the pipeline downstream ignored it** — `bundle.mjs` correctly withholds `RECONSTRUCTION.md`
+from a blind bundle (it names the cell and the arm), but nothing else ever read it, so a per-file
+`UNSOUND` verdict travelled no further than the directory it was written in.
+
+**This binds task 3's design, which is why it was diagnosed before task 3 ran rather than after.**
+Transcript rewind is defeated by shell writes and always will be, so pre-walk state must be captured
+**live** — a `run-arm.sh` change, made before nine cells are spent, not discovered in their analysis.
+
+#### 2 · The probe's misreads are HOUSE STYLE, not walk evidence
+
+The obvious hypothesis — that the probe called C-pre bundles "post" because they contained substituted
+post-walk content — **is false, and the numbers above refute it.** `task2-r2-C` has a fully sound
+reconstruction, zero unsound files, and was still misread 3/3; `task1-r1-C` and `task1-r2-C` carry
+41–46% post-walk bytes and were called correctly. The two defects do not line up.
+
+What actually fires the probe's default is the phrase it quoted: *"Found by adversarial review."*
+Counting files carrying `adversarial review` across all 24 bundles, **every bundle in both tasks has
+at least one, including every arm A bundle** (task 1: A cells carry 3, 4 and 5 such files; task 2:
+uniformly 1–2 across all four classes). Arm A cannot spawn anything. The phrase is inherited from
+`CLAUDE.md` §6 — *"Caught by adversarial review, and the reason a new control gets one before it is
+believed"* — and every arm reads `CLAUDE.md`.
+
+**Third instance of one class**, after `the walker` (an AST walker) and `caller-ID census`: **the
+repo's own doctrine vocabulary appears in every arm's output, because every arm reads the doctrine.**
+A tell-counter matching on that vocabulary measures the baseline, not the arm — which is why the raw
+per-path tell counts overstated the spread, and why this one fooled a probe rather than a script.
+
+It also settles the reading left open yesterday. The post/pre contrast is not merely *below
+significance*; the mechanism behind its errors is now identified and it is **not the walk**. The probe
+defaults to "post" on repo idiom that carries no information about which arm produced it.
