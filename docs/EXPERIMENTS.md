@@ -2295,6 +2295,39 @@ from a blind bundle (it names the cell and the arm), but nothing else ever read 
 Transcript rewind is defeated by shell writes and always will be, so pre-walk state must be captured
 **live** — a `run-arm.sh` change, made before nine cells are spent, not discovered in their analysis.
 
+**BUILT 2026-08-26, binding task 3 onward.** `tree-snapshot.sh` records the worktree every 10s by
+staging into a **private `GIT_INDEX_FILE`** and calling `write-tree`, so it produces a real tree object
+without ever touching the session's index or lock — `git stash create` and a bare `git add -A` both
+race the session's own git commands, which is why neither is used. It reads the **filesystem**, which
+every write channel must pass through by definition, so a heredoc is as visible as an `Edit`.
+
+**The verdict is a witness, not an estimate, and that is the point.** A timer cannot land on the cut
+instant, so "nearest sample" is an approximation of unknown size — the exact species of quantity this
+experiment has twice mistaken for a measurement. But **two identical consecutive trees prove no write
+landed between them, from any channel.** `snapshot-select.mjs` therefore returns `EXACT` (tree
+unchanged across the cut — the sample *is* the pre-walk state, provably), `BRACKET` (changed, with the
+window and staleness reported so a reader can weigh it), or `NO-COVER` (no sample precedes the cut) —
+three verdicts, because collapsing "imprecise" into "absent" is exactly what made the retired
+system-prompt control useless. **The verdict is written into a `SNAPSHOT.md` that ships with the
+tree**, which is the half `prewalk.mjs` got right and the pipeline around it got wrong: an honest
+per-file `UNSOUND` that no consumer is obliged to read is a comment.
+
+**Probed on every channel and both failure directions.** Idle → identical trees; a tool write → new
+tree; **a shell heredoc → new tree** (the class that defeated the predecessor); emitting the pre-cut
+tree and grepping for the post-cut heredoc line → absent, with the two lines written *before* the
+recording still present. Selector verdicts probed at three cut instants, one per outcome.
+
+Two defects surfaced in the probing and are fixed: a `trap … EXIT INT TERM` that cleaned up **and kept
+looping**, so `kill` removed the lock and left an unlocked writer that the next run silently doubled up
+on — caught only by counting samples against the interval, since both writers emitted correct rows;
+and `git archive | tar` failing on Windows because GNU tar reads `C:/…` as a remote `host:path`,
+replaced by `ls-tree` + `cat-file` per blob, which also guarantees content comes from the object
+database rather than from a worktree the session may still be writing to.
+
+⚠ **It runs for all three arms, not only C.** A and B have no walk to cut at and nothing will consume
+their logs — but an arm-specific recording is an arm-specific difference, and this experiment has twice
+been wrecked by precisely that shape.
+
 #### 2 · The probe's misreads are HOUSE STYLE, not walk evidence
 
 The obvious hypothesis — that the probe called C-pre bundles "post" because they contained substituted
