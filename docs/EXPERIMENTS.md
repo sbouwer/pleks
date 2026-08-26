@@ -2131,3 +2131,71 @@ answered unblinded. If it proves noise, the C-pre/C-post comparison stands as cr
 the code-only variant becomes a bonus that might restore the wider one.
 
 Until that reports, criterion 6's scope is undecided and no quality claim is licensed.
+
+### The stability repeat reported — 2026-08-26. Stable, one-sided, and still unmeasured
+
+Twelve C bundles (six C-post, six C-pre), three independent passes each, 36 trials, solo probes, no
+new cells. **Errors are deterministic** — a bundle called wrong on pass 1 is called wrong on passes 2
+and 3, with one bundle per task splitting 2/3. So the 9/12 above is **not sampling noise**, and the
+first thing that follows is negative: more passes over these same bundles cannot settle anything,
+because the answers are already reproducible. Only more replicates could, and replicates mean cells.
+
+**Concentration alone does not license a leak reading, and the first cut of `stability.mjs` said it
+did.** A probe that answers the same digit for every bundle also produces perfectly stable errors —
+deterministically uninformative. The verdict line was wrong in principle before it was checked against
+this data, and is now replaced by the answer distribution per class plus a bundle-level Fisher test.
+Pooled over both tasks:
+
+| true class | answered 3 (post) | answered 4 (pre) |
+|---|---|---|
+| C-post | 18 | **0** |
+| C-pre | 11 | 7 |
+
+**Not bias — a one-sided detector.** Pure always-answer-3 would give 18/0 and 18/0; the seven `4`s
+falsify it. Every `4` call is correct: **precision 7/7 at trial level, 3/3 at bundle level, recall
+39%.** The probe has a positive test for C-pre and defaults to C-post when it does not fire.
+
+The evidence lines name both halves, and they are the same fact seen twice:
+
+- **It calls `pre` on doc/code INCONSISTENCY** — *"MECHANISABLE.md claims an in-rule
+  `CLASSIFIED_CROSS_ORG_SAFE` list and startup assertion shipped; the rule file contains neither"* ·
+  *"`maskSql` returns a string, but `conflictFindings` destructures `{ masked, unterminated }` — the
+  shipped check can never fire"*. That is the definition of C-pre: the state where the register
+  already describes fixes the code has not received.
+- **It wrongly calls `post` on walker MENTION** — *"cites applied reviewer findings: walker
+  F1/F2/F3…"* · *"Found by adversarial review"*. **C-pre bundles already carry walker-attribution
+  prose**, so mention-of-walker does not separate the two, and the probe treats it as if it does.
+
+**Statistically it does not clear the bar.** At the correct unit — the bundle, since three passes over
+one bundle are three looks at the same content — it is 9/12 majority-correct (p=0.073) and Fisher on
+the 2×2 gives p=0.091. Per task, p=0.20 and p=0.50. Nothing near 0.05, let alone the Bonferroni
+0.0125 four contrasts have already spent.
+
+#### Applying the pre-registered decision rule
+
+The rule fixed two sections above admits two outcomes: *stable AND leaking* kills option 1, *noise*
+keeps it. **The result is neither, and saying so is the finding**: stable, mechanistically explained,
+one-sided — and below significance. So the rule does not decide it, and the honest statement of where
+that leaves criterion 6 has three parts:
+
+1. **C vs A/B is dead as a blind comparison** — 24/24, p=6.0e-8, intrinsic. Unchanged.
+2. **C-post vs C-pre is not certified as leaking.** It is also **not certified as blind**, and the
+   asymmetry matters: 7/7 precision on the positive call is stronger evidence of a real channel than
+   p=0.09 admits, it is just too rare a call to prove at n=6 per class.
+3. **The channel, if real, is one criterion 6 cannot remove — because it IS what criterion 6
+   measures.** C-pre is identified by doc/code contradictions; the walk exists to remove doc/code
+   contradictions; a reviewer counting surviving defects would be reading the same lines the probe
+   reads to name the arm. Excluding `docs/**` does not help — both quoted `pre` calls above cite a
+   `.mjs` file as one side of the contradiction.
+
+**Scope decision: criterion 6 runs on C-post vs C-pre, and reports its blind as UNVERIFIED with the
+mechanism named** — not as verified, and not as broken. That is a weaker claim than the experiment was
+designed to support, and it is the strongest one the measurements license. The code-only variant is
+**not adopted**: it was built and its premise measured, and it narrows the wrong contrast (§ above)
+while leaving this one's identified channel intact.
+
+**One finding here outlives the blind question entirely.** C-pre snapshots contain prose attributing
+findings to a walker that had not yet run against them. That is a **reconstruction defect in the
+corpus builder, not a blind defect** — the `.handoff/` narration and register entries were written by
+earlier legs of the pipeline citing an earlier walk, and the cut point does not separate them. Any
+future C-pre/C-post comparison must either cut before that narration exists or state that it does not.
