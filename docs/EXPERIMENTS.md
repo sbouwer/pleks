@@ -1257,7 +1257,7 @@ paraphrased, because a paraphrase is where a strawman gets in.
 | Arm | What it is | Definition source |
 |---|---|---|
 | **A · solo** | Main session only, **enforced** — launched with `--disallowed-tools Agent Task`, both spellings. Expect zero subagent transcripts: the one arm where finding none is correct. | n/a |
-| **B · delegation reachable, no workflow** | A plain brief. The `Agent`/`Task` tools are enabled and this repo's agents are advertised from their own `description` frontmatter. **No pipeline instruction** — B is never told to `/build`, and nothing directs it to the handoff contract. ⚠ **NOT a free-choice arm, and was never one** — see *The instruction that voids arm B*, below. | `code.claude.com/docs/en/sub-agents` |
+| **B · delegation reachable, no workflow** | A plain brief. The `Agent`/`Task` tools are enabled and this repo's agents are advertised from their own `description` frontmatter. **No pipeline instruction** — B is never told to `/build`, and nothing directs it to the handoff contract. ⚠ **NOT a free-choice arm for tasks 1 and 2, and was never one** — see *The instruction that voids arm B*, below. **Becomes one from task 3**, via the levelled authorisation shipped 2026-08-26 in that same section; every B result already reported predates it. | `code.claude.com/docs/en/sub-agents` |
 | **C · this repo's workflow** | The five tuned agents (`grounder`/`census`/`db-inspector`/`implementer`/`walker`), the handoff contract (`scripts/check-handoff-contract.mjs`), the write-scope hook, and the `/build`→`/walk`→`/wrap` sequence. | `.claude/agents/*.md`, `4-AGENT-PIPELINES.md` §9 |
 
 ⚠ **B was NOT stripped down to stock agents, and the row above said it had been until 2026-08-24.**
@@ -1301,12 +1301,67 @@ register has been wrong about arm B, the cause was the same: a claim about what 
 the assumption that the prompt file was the whole input.
 
 **The fix is to LEVEL THE AUTHORISATION, not to strip the instruction** — the instruction is real and
-stays. Task 3's arms become: **A prohibited** (`--disallowed-tools`, unchanged) · **B permitted**
-(delegation explicitly authorised, and the authorisation given through the *invocation*, not the brief,
-so the brief stays bit-identical to C's) · **C structured** (`/build`→`/walk`→`/wrap`, unchanged).
-That makes B-vs-C the comparison the design always claimed to be making. Tasks 1 and 2 are reported as
-they ran — **forced solo · constrained solo · authorised workflow** — never as "delegation vs no
-delegation".
+stays. Tasks 1 and 2 are reported as they ran — **forced solo · constrained solo · authorised
+workflow** — never as "delegation vs no delegation".
+
+**SHIPPED 2026-08-26, binding task 3 onward.** `run-arm.sh` passes
+`--append-system-prompt "$(cat authorisation.txt)"` — through the *invocation*, never the brief, so the
+briefs stay bit-identical across arms — and `cmd.txt` records the file's sha256 per cell, so a silent
+edit between cells is detectable.
+
+| arm | authorisation | tools | prompt |
+|---|---|---|---|
+| **A** | identical | `--disallowed-tools Agent Task` | plain brief |
+| **B** | identical | all | plain brief |
+| **C** | identical | all | `/build` → `/walk` → `/wrap` |
+
+**Two things in that table were NOT in the plan this paragraph originally described, and both are
+corrections rather than refinements.**
+
+**1 · The authorisation goes to all three arms, not to B alone.** The plan said "A prohibited
+(`--disallowed-tools`, unchanged)". But the defect was never *"B lacked permission"* — it was *"the
+arms differed in an instruction nobody had read"*, which is this section's own general form. Levelling
+selectively re-creates that in a new place. All three now carry byte-identical text, so **A vs B differ
+by one flag and B vs C by the prompt** — one dimension each, which is what the design claimed from the
+start.
+
+**2 · The first draft of the authorisation was a nudge.** It read *"use subagents where they earn their
+keep"* — a recommendation, not a permission, and an arm told delegation earns its keep and then scored
+on whether it delegates measures compliance with the recommendation. That is this experiment's standing
+warning ("any wording that moves B measures COMPLIANCE rather than judgment") applied to the fix rather
+than to the arm, and the fix walked into it. The shipped text says the opposite in as many words: *"this
+is an authorisation, not an instruction: working solo and delegating are both fully acceptable, and
+neither is preferred."*
+
+**Probed both directions before first use, and the probe replaced its own predecessor.** The per-cell
+capture that asked each session to reproduce its system prompt is **dead as at 2026-08-26** — the same
+invocation now declines outright, *with and without* the flag, so its `NOT-REPORTED` verdict could no
+longer distinguish *the clause is gone* from *the question was refused*. A control whose negative
+reading is ambiguous cannot fail. It is replaced by a behavioural probe that asks about the **binding**
+rather than the text — *"if a step would be well served by spawning a subagent, are you permitted to do
+that without asking me first?"*:
+
+| session | reply |
+|---|---|
+| unauthorised | "**Yes** — my operating instructions for this session say **not to call the Agent tool unless you request it**, so I'd need your go-ahead first" |
+| authorised | "**Yes** — this session's authorization explicitly permits me to spawn subagents … leaving the decision of whether delegation actually helps to my judgement" |
+
+The unauthorised session names the prohibition **verbatim and unprompted** — a fourth independent
+replication, and the first from a session that refuses to quote its own prompt. **Both opened with
+"Yes", and one contradicted itself in the next clause**, so the classifier scores the REASON and never
+the verdict token; a yes/no grep would have called the defect fixed while it was still live. Three
+verdicts, not two — `AUTHORISED` / `PROHIBITED` / `UNCLEAR` — so a refusal cannot collapse into either
+answer.
+
+⚠ **One limit the probe cannot reach, and arm A cannot either.** Run with A's exact flags, the session
+replied *"this session's authorization explicitly covers spawning subagents … I can delegate at my own
+discretion."* **It has no `Agent` tool and does not know it.** So `AUTHORISED` means *permission
+granted*, never *capability present*, and no self-report can catch `--disallowed-tools` silently
+failing — the class that has now voided cells twice. The detector that can needs no model:
+`delegation-requests.mjs` counts Agent requests in the stream, so a **successful** Agent call in an
+arm-A stream means the flag did not bind and the cell is void. **Unsuccessful** attempts are expected
+under the levelled authorisation and are data, not defects — they say A wanted to delegate, a reading
+arm A could not previously produce at all.
 
 The documented behaviour arm B is being held to, verbatim from that page:
 
