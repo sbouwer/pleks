@@ -2350,3 +2350,130 @@ per-path tell counts overstated the spread, and why this one fooled a probe rath
 It also settles the reading left open yesterday. The post/pre contrast is not merely *below
 significance*; the mechanism behind its errors is now identified and it is **not the walk**. The probe
 defaults to "post" on repo idiom that carries no information about which arm produced it.
+
+### RESULT — task 3 (M-087), nine cells, all gates green · scored 2026-08-26/27
+
+Latin square (r1 `A B C` · r2 `B C A` · r3 `C A B`), strictly sequential. All nine cells completed and
+scored; `r3/C` outlived the driver's wall ceiling, self-completed at exit 0 and was scored from its own
+transcript. Medians with full ranges, per the rule above — no arm mean is quoted, because arm C's
+would describe no cell that ran.
+
+| arm | cost median | cost range | wall median | turns median | turns range | agents |
+|---|---|---|---|---|---|---|
+| A | $8.65 | $5.60 – $9.35 | 25.9 m | 78 | 50 – 83 | 0 (tool removed) |
+| B | $14.67 | $5.13 – $15.60 | 21.7 m | 75 | 51 – 149 | 0 · 2 · 0 |
+| C | $32.46 | $23.56 – $65.21 | 69.2 m | 181 | 112 – 282 | 3 · 3 · 8 |
+
+#### 1 · A and B do not separate at n=3; C does
+
+**A's range and B's range overlap across most of their span** ($5.60–$9.35 against $5.13–$15.60), and
+B's own within-arm spread is **3.04×** — larger than the 1.70× ratio between the A and B medians it
+would have to beat. The A-vs-B comparison is therefore not resolvable at this n, and no reading of it
+should be recorded as a result. **C is separated**: its cheapest cell ($23.56) exceeds the most
+expensive non-C cell in the square ($15.60) by 1.5×, so the C contrast survives the spread that
+destroys the A/B one. This is a statement about resolving power, not about which arm is better.
+
+#### 2 · The most expensive B cell is a TOOL-STRATEGY outlier, not a delegation one
+
+`r3/B` cost $15.60 over 149 turns with **zero `Agent` calls** — `reconciliation.agentCalls` = 0, so
+delegation cannot be any part of the explanation. It is the only cell in the square where `Read`
+outnumbers `Bash` (78 vs 54). `r1/B` ran the same task, same arm, same authorisation, with **3 Reads
+and 45 Bash calls in 51 turns for $5.13**. The delta is entirely in how the tree was inspected: file
+by file through `Read`, versus searching with `Bash`. Cache reads track it exactly — 24.32M against
+5.72M — which is what the cost-is-turns×context model predicts.
+
+Batching was measured as a candidate explanation and **partly cleared**. Grouping `tool_use` blocks by
+`message.id` (the raw record count is not the unit — `stream.jsonl` splits one model message across up
+to 3 records, 65 ids in `r3/B` alone): `r1/B` 1.24 calls/message, `r3/A` 1.21, `r3/B` 1.05, `r3/C`
+1.02, `r2/C` 1.01. Batching is low everywhere and lowest in the expensive cells, but the spread is far
+too small to carry a 3× cost difference. **The read-versus-search choice does; the batching does not.**
+
+#### 3 · Arm C never ran two agents at once — peak concurrency was ONE
+
+`r3/C` spawned 8 agents in **8 separate assistant messages**; sweeping the launch/return intervals
+gives a peak overlap of **1**, with 92.9 agent-minutes spread across a 206.2-minute span (ratio 0.45,
+where >1 would indicate real overlap). Part of that is structural and must stay serial — a
+verify→fix→re-verify chain cannot be parallelised, because walk N reads the tree walk N−1 changed —
+but the fan-out *within* a round was available and unused. Neither `/build` nor `/walk` had ever asked
+for it, so the arm was never measured on a capability it was not told it had. Addressed in `2d8eaa48`.
+
+#### 4 · Arm B's "never delegates" was true for six runs and is no longer true
+
+Per-cell `agentCalls`: task 1 `0, 0`; task 2 `0, 0, 0`; task 3 `0, 2, 0`. The six zeros are tasks 1
+and 2, which ran **before** the levelling authorisation was added — the same "first six runs" that
+`run-arm.sh` names in its own comment. The fix is present and wired as at 2026-08-27:
+`run-arm.sh:64` sets `EXTRA=(--append-system-prompt "$AUTH")` for B and C, `:65` adds
+`--disallowed-tools Agent Task` for A alone, and `EXTRA` reaches the invocation at `:114` and `:171`.
+Post-fix, B delegated in **one of three** cells. That is thin, and no claim about B's default rests on
+it — but "arm B has never exercised choice" is now false, and the ladder A→B→C is intact.
+
+#### 5 · The shared `node_modules` junction is a MEASUREMENT hazard, and it was checked rather than assumed
+
+`npm run check` writes `node_modules/.vitest-count.json` and reads it back in the same command
+(`package.json` writes it, `scripts/check-test-floor.mjs` reads it), and every worktree's
+`node_modules` is a junction to the main checkout's — verified same inode, and a write through a
+worktree junction was readable at the main repo path. Two concurrent runs therefore race on one
+physical file, and the dangerous direction is silent: a partially-collected run that reads the other's
+complete report goes **green**, which is exactly the failure `check-test-floor.mjs` exists to catch.
+Code failing the real gate would then sit in the corpus and read as arm C carrying more criterion-6
+defects, attributed to the workflow.
+
+Live, not theoretical: **19 subagent gate executions across 7 cells, every one an arm-C cell.** So the
+corpus was checked directly.
+
+- **Overlap analysis, corrected once.** The first pass timed `[tool_use → tool_result]` and reported
+  several walker gate runs at 0.0 m. Those were not instant — the harness **backgrounded** them, so
+  the pair timed the dispatch and not the run, making every backgrounded run invisible to an overlap
+  test. Corrected by bounding a backgrounded run at the point its output is read back into the
+  transcript. **Two real overlaps, both in `task3-r2-C`, both main-session against walker**, the
+  clearer one `10:22:27→10:23:51` against `10:22:56→10:24:29` — 55 seconds genuinely concurrent.
+  Three further flagged pairs were false positives: commands that merely *mentioned* the gate.
+- **Verdict: the corpus is clean.** `task3-r2-C` re-gated serially on 2026-08-27 at exit 0, 1371 tests
+  across 126 files — the identical count it reported at the time. Across all 27 cells every
+  full-suite run recorded `126 passed`; the only `1 failed (1)` is a single-file run in `task1/r3x/B`,
+  an ordinary test failure, not a collection failure.
+
+#### 6 · A SECOND shared channel through the same junction, found by tripping over it
+
+`node_modules/.vite/vitest` is also shared by every worktree. Running vitest in a worktree and then in
+the main checkout produced a **total collection failure** — `import 0ms`, `Tests no tests`, 126/126
+files failed — which self-repairs on the next run. Reproduced 2/2 on 2026-08-27, and it is what broke
+a push mid-session. **Recorded as a reproducible trigger, NOT as a diagnosis:** a later push failed
+and then succeeded with no intervening change, and `stdin`-at-EOF and `GIT_DIR` were both tested and
+cleared, so the cause is not isolated. `check-test-floor.mjs`'s own header names an undiagnosed
+worker-import fault; this is plausibly it, and the honest statement is that the trigger is known and
+the mechanism is not. It did not touch the corpus — see the `126 passed` sweep above.
+
+The general form is the one worth keeping: **the junction shares more than the file anybody listed.**
+The count file was reasoned about in advance; the vite cache was not, and was found only by hitting it.
+
+#### 7 · What task 3 does NOT license — criterion 6 has not been run
+
+`review/` holds `KEY.tsv`, a blind probe, two C-pass repeats and a residual-tells file for tasks 1 and
+2, and **nothing for task 3** (checked 2026-08-27). Task 3's cost side is measured and its benefit
+side is not — which is the hole `CRITERION6.md` opens by naming, now reproduced one task later. No
+conclusion about whether arm C's extra spend bought anything on M-087 is available, and the table
+above must not be read as one.
+
+### Arms redefined for the NEXT batch (Stéan, 2026-08-27)
+
+The ladder is stated explicitly, and the change is to C:
+
+- **A — control.** No agents ever (`--disallowed-tools Agent Task`). Unchanged.
+- **B — choice, standard workflow.** Free to delegate or not, no prescribed sequence.
+- **C — choice, prescribed HOW.** Free to spawn none, one or many; when it does spawn, through this
+  repo's own agents and their contracts rather than a generic agent handed a paragraph.
+
+**A→B isolates whether delegation helps at all; B→C isolates whether prescribing the sequence helps,
+given the same agents.** Agent tuning is held constant across B and C, so it is not measured — but it
+is not confounding either, and it is a third question needing its own experiment rather than a second
+variable in this one. The alternative, stripping the tuned agents from B's tree, was **rejected**: the
+CLI's agent-definition flag merges rather than replaces (probed both directions in the arm-B
+worktree at `1c9b6bbd`, recorded above), and
+editing B's tree would add a second tree difference to a one-variable design.
+
+The mandates that prevented C from expressing "none" are removed in `f75d5d45`: `/build`'s grounder
+was described as *unconditional* and `/walk` told the session to spawn a walker, so C's first
+delegation was never a judgment call. The register already recorded the cost of that — on task 2, arm
+B chose not to delegate 3/3 in agreement with this repo's own doctrine, while arm C delegated anyway.
+Grounding remains unconditional **as a precondition**; only the route is now a judgement.
