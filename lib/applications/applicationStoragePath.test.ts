@@ -41,3 +41,36 @@ describe("pathBelongsToApplication — the cross-tenant storage guard", () => {
     expect(applicationStoragePrefix(ORG, APP)).toBe(`applications/${ORG}/${APP}/`)
   })
 })
+
+/**
+ * The WRITE side (BUILD_71 D10). Every case above hands the guard a path the caller SUPPLIED — the
+ * applicant read routes. The upload route instead BUILDS the path from a caller-supplied `docKey`,
+ * so the string always starts with the right prefix and only the interior is hostile. Reads were
+ * bound and writes were not; these assert the guard holds on the constructed shape too.
+ *
+ * Why this matters more than it looks: storage-js does not normalise `..` (it only strips
+ * leading/trailing slashes), and the URL parser resolves the segments before fetch sends them — so
+ * `../../../{victimOrg}/…` lands outside the org prefix, uploaded with `upsert: true`, through the
+ * service client that bypasses RLS.
+ */
+describe("pathBelongsToApplication — the constructed-path (upload) side", () => {
+  const built = (docKey: string, ext = "jpg") => `applications/${ORG}/${APP}/${docKey}.${ext}`
+
+  it("accepts the ordinary docKeys the applicant flow sends", () => {
+    expect(pathBelongsToApplication(ORG, APP, built("id_document"))).toBe(true)
+    expect(pathBelongsToApplication(ORG, APP, built("payslip_1"))).toBe(true)
+    expect(pathBelongsToApplication(ORG, APP, built("co_abc123/id_document"))).toBe(true)
+  })
+
+  it("REJECTS a docKey that traverses to another org", () => {
+    expect(pathBelongsToApplication(ORG, APP, built(`../../../${VICTIM_ORG}/victim/id_document`))).toBe(false)
+  })
+
+  it("REJECTS a docKey that traverses out of the bucket entirely", () => {
+    expect(pathBelongsToApplication(ORG, APP, built("../../../../../../object/other-bucket/x"))).toBe(false)
+  })
+
+  it("REJECTS a bare dot-dot docKey", () => {
+    expect(pathBelongsToApplication(ORG, APP, built(".."))).toBe(false)
+  })
+})
