@@ -5,10 +5,12 @@
  *
  * Route:  /settings/compliance (rendered by page.tsx server wrapper)
  * Auth:   Rendered inside gateway-protected server wrapper; org-type guard in page.tsx
- * Data:   organisations, bank_accounts via Supabase client
+ * Data:   organisations via the Supabase browser client; bank_accounts READ via the browser client,
+ *         but CREATED through createOrgBankAccount (audited server action — see the note at handleSave).
  */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { createOrgBankAccount } from "@/lib/actions/orgBanking"
 import { useOrg } from "@/hooks/useOrg"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
@@ -327,13 +329,13 @@ function AffordabilityThresholdSection({
   )
 }
 
+// No `orgId` prop: the org is resolved server-side by createOrgBankAccount's gateway, so passing it
+// from the client would be both redundant and a caller-supplied id on a write path.
 function AddAccountForm({
   isPractitioner,
-  orgId,
   onSaved,
 }: Readonly<{
   isPractitioner: boolean
-  orgId: string
   onSaved: (acct: BankAccount) => void
 }>) {
   const defaultType = isPractitioner ? "trust" : "deposit_holding"
@@ -356,15 +358,15 @@ function AddAccountForm({
     }
     setSaving(true)
     setError(null)
-    const supabase = createClient()
-    const { data, error: dbErr } = await supabase
-      .from("bank_accounts")
-      .insert({ ...form, org_id: orgId })
-      .select()
-      .single()
+    // ⚠ NOT a browser insert. This used to be `createClient().from("bank_accounts").insert({ ...form,
+    // org_id: orgId })`, which created trust/PPRA accounts with NO audit row — the F1 payout-banking
+    // scar on the one bank-account table that was outside the audit rule. The server action audits and
+    // re-checks owner/property_manager, because it uses the service client and so no longer gets that
+    // bound from RLS. Do not "simplify" this back to a direct client write.
+    const result = await createOrgBankAccount(form)
     setSaving(false)
-    if (dbErr) { setError(dbErr.message); return }
-    onSaved(data as BankAccount)
+    if ("error" in result) { setError(result.error); return }
+    onSaved(result.account as BankAccount)
   }
 
   return (
@@ -421,15 +423,15 @@ function AddAccountForm({
   )
 }
 
+// `orgId` dropped alongside AddAccountForm's — it existed only to be threaded down to the browser
+// insert that createOrgBankAccount replaced.
 function AccountSection({
   isPractitioner,
   existing,
-  orgId,
   onSaved,
 }: Readonly<{
   isPractitioner: boolean
   existing: BankAccount[]
-  orgId: string
   onSaved: (acct: BankAccount) => void
 }>) {
   const [open, setOpen] = useState(false)
@@ -475,7 +477,6 @@ function AccountSection({
           </DialogHeader>
           <AddAccountForm
             isPractitioner={isPractitioner}
-            orgId={orgId}
             onSaved={handleSaved}
           />
         </DialogContent>
@@ -632,7 +633,6 @@ export function ComplianceSettingsClient() {
           <AccountSection
             isPractitioner={isPractitioner}
             existing={accounts}
-            orgId={orgId}
             onSaved={(acct) => setAccounts((prev) => [...prev, acct])}
           />
         </CardContent>
