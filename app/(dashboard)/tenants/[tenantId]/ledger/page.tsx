@@ -2,10 +2,13 @@
  * app/(dashboard)/tenants/[tenantId]/ledger/page.tsx — Full financial ledger for a tenant: rent invoices, payments, deposits with running balances.
  *
  * Route:  /tenants/[tenantId]/ledger
- * Auth:   createClient user check (redirects to /login); service client for cross-org data read
+ * Auth:   gatewaySSR() — authenticated agent session + org membership; every read scoped to gw.orgId
  * Data:   rent_invoices, payments, deposit_transactions via service client; tenant_view for identity
+ *
+ * Notes:  This header used to read "service client for CROSS-ORG data read", which is how the
+ *         defect below survived review — it described the hole as though it were the design.
  */
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { formatZAR } from "@/lib/constants"
@@ -107,17 +110,20 @@ export default async function TenantLedgerPage({
 }>) {
   const { tenantId } = await params
 
-  const cookieClient = await createClient()
-  const { data: { user } } = await cookieClient.auth.getUser()
-  if (!user) redirect("/login")
+  // The org comes from the SESSION, never from the row (M-061, 2026-08-28). This page used to read
+  // the tenant by its URL id on the RLS-bypassing service client and then scope the invoices,
+  // payments and deposit transactions to the FETCHED ROW's `org_id`, so any signed-in user of any
+  // agency could open /tenants/<uuid>/ledger and read another agency's tenant financial history.
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db: supabase, orgId } = gw
 
-  const supabase = await createServiceClient()
-
-  // Validate tenant exists and get basic info
+  // Validate the tenant exists IN THE CALLER'S ORG — the org filter is the boundary, not the id.
   const { data: tenant, error: tenantError } = await supabase
     .from("tenant_view")
-    .select("id, org_id, first_name, last_name, company_name, entity_type, email")
+    .select("id, first_name, last_name, company_name, entity_type, email")
     .eq("id", tenantId)
+    .eq("org_id", orgId)
     .maybeSingle()
     logQueryError("TenantLedgerPage tenant_view", tenantError)
 
@@ -129,21 +135,21 @@ export default async function TenantLedgerPage({
       .from("rent_invoices")
       .select("id, invoice_number, due_date, total_amount_cents, period_from, period_to, status")
       .eq("tenant_id", tenantId)
-      .eq("org_id", tenant.org_id)
+      .eq("org_id", orgId)
       .order("due_date", { ascending: true }),
 
     supabase
       .from("payments")
       .select("id, payment_date, amount_cents, payment_method, reference, receipt_number")
       .eq("tenant_id", tenantId)
-      .eq("org_id", tenant.org_id)
+      .eq("org_id", orgId)
       .order("payment_date", { ascending: true }),
 
     supabase
       .from("deposit_transactions")
       .select("id, created_at, transaction_type, amount_cents, direction, description, reference")
       .eq("tenant_id", tenantId)
-      .eq("org_id", tenant.org_id)
+      .eq("org_id", orgId)
       .order("created_at", { ascending: true }),
   ])
 

@@ -2,11 +2,12 @@
  * app/(dashboard)/leases/[leaseId]/page.tsx — Tabbed lease detail page (overview, details, contacts, operations, finance, communications)
  *
  * Route:  /leases/[leaseId]
- * Auth:   createClient().auth.getUser() gate; data via service client
+ * Auth:   gatewaySSR() — authenticated agent session + org membership; every read scoped to gw.orgId
  * Data:   reads leases, tenant_view, units/properties, lease_co_tenants, payments, rent_invoices, arrears_cases, landlord_view, inspections, maintenance_requests + more
  * Notes:  active tab from ?tab=; finance/communications tab data fetched only when that tab is active
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
@@ -424,11 +425,16 @@ export default async function LeaseDetailPage({
   const { tab } = await searchParams
   const activeTab: Tab = (VALID_TABS as readonly string[]).includes(tab ?? "") ? (tab as Tab) : "overview"
 
-  const cookieClient = await createClient()
-  const { data: { user } } = await cookieClient.auth.getUser()
-  if (!user) redirect("/login")
-
-  const supabase = await createServiceClient()
+  // The org comes from the SESSION, never from the row (M-061, 2026-08-28). This page used to
+  // authenticate the user, read the lease by its URL id on the RLS-bypassing service client, and
+  // then use the FETCHED ROW's `org_id` — the org of whatever row that id happened to resolve to —
+  // as the boundary for every read below. Any signed-in user of any agency could open
+  // /leases/<uuid> and read another agency's lease in full, tenant id_number included. The old
+  // `ORG_AWARE` test exempted it because the row's own org column matches `org_id` somewhere in
+  // the function, anywhere at all — including well after the read it was supposed to bound.
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db: supabase, orgId } = gw
 
   const accepted = await hasAcceptedLeaseDisclaimer()
 
@@ -440,6 +446,7 @@ export default async function LeaseDetailPage({
       units(unit_number, properties(id, name, address_line1, suburb, city, landlord_id, managing_agent_id))
     `)
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .single()
 
   if (leaseError) {
@@ -538,8 +545,8 @@ export default async function LeaseDetailPage({
     ownerIdForProperty
       ? supabase.from("landlord_view").select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, email, phone").eq("id", ownerIdForProperty).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    getLessorBankDetails(lease.org_id),
-    isDraft ? checkLeasePrerequisites(supabase, leaseId, lease.org_id).catch(() => null) : Promise.resolve(null),
+    getLessorBankDetails(orgId),
+    isDraft ? checkLeasePrerequisites(supabase, leaseId, orgId).catch(() => null) : Promise.resolve(null),
     lease.tenant_id
       ? supabase.from("tenants").select("portal_invite_sent_at, auth_user_id").eq("id", lease.tenant_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -570,13 +577,13 @@ export default async function LeaseDetailPage({
           .from("maintenance_requests")
           .select("actual_cost_cents")
           .eq("unit_id", lease.unit_id)
-          .eq("org_id", lease.org_id)
+          .eq("org_id", orgId)
           .gte("created_at", `${taxYearStart}T00:00:00Z`)
           .not("actual_cost_cents", "is", null)
       : Promise.resolve({ data: [], error: null }),
     // Primary tenant address
     tv?.contact_id != null
-      ? supabase.from("contact_addresses").select("street_line1, suburb, city, postal_code, address_type").eq("org_id", lease.org_id).eq("contact_id", tv.contact_id).in("address_type", ["physical", "postal"]).limit(2)
+      ? supabase.from("contact_addresses").select("street_line1, suburb, city, postal_code, address_type").eq("org_id", orgId).eq("contact_id", tv.contact_id).in("address_type", ["physical", "postal"]).limit(2)
       : Promise.resolve({ data: [], error: null }),
     // Managing agent name — empty string returns no rows (no ternary needed)
     supabase.from("user_profiles").select("full_name, first_name, last_name").eq("id", managingAgentId ?? "").maybeSingle(),
@@ -653,16 +660,16 @@ export default async function LeaseDetailPage({
 
   // Portfolio overview sent status for owner card
   const { sentAt: portfolioOverviewSentAt, outdated: portfolioOverviewOutdated } = ownerIdForProperty
-    ? await fetchPortfolioOverviewStatus(supabase, lease.org_id, ownerIdForProperty)
+    ? await fetchPortfolioOverviewStatus(supabase, orgId, ownerIdForProperty)
     : { sentAt: null, outdated: false }
 
   // ── Tab-specific data (fetched only when tab is active) ──────────────────
   const [financeExtras, documentsData] = await Promise.all([
     activeTab === "finance"
-      ? fetchFinanceTabExtras(supabase, leaseId, lease.org_id, propertyId, lease.unit_id ?? null, lease.deposit_amount_cents ?? null, lease.deposit_account_id ?? lease.trust_account_id ?? null, recentPayments[0]?.payment_method ?? null, today, taxYearStart)
+      ? fetchFinanceTabExtras(supabase, leaseId, orgId, propertyId, lease.unit_id ?? null, lease.deposit_amount_cents ?? null, lease.deposit_account_id ?? lease.trust_account_id ?? null, recentPayments[0]?.payment_method ?? null, today, taxYearStart)
       : Promise.resolve(null),
     activeTab === "communications"
-      ? fetchDocumentsTabData(supabase, leaseId, lease.org_id)
+      ? fetchDocumentsTabData(supabase, leaseId, orgId)
       : Promise.resolve(null),
   ])
 
@@ -774,7 +781,7 @@ export default async function LeaseDetailPage({
             tenants={allTenants}
             landlord={contactsLandlord}
             leaseId={leaseId}
-            orgId={lease.org_id}
+            orgId={orgId}
             propertyId={propertyId}
             managedBy={managedByLabel}
             portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
@@ -821,7 +828,7 @@ export default async function LeaseDetailPage({
         {activeTab === "communications" && (
           <DocumentsTab
             leaseId={leaseId}
-            orgId={lease.org_id}
+            orgId={orgId}
             signedLeasePath={lease.generated_doc_path ?? lease.external_document_path ?? null}
             communicationLog={documentsData?.communicationLog ?? []}
             leaseDocuments={documentsData?.leaseDocuments ?? []}
