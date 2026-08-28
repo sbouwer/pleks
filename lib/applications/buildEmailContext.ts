@@ -57,6 +57,7 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
 
   const { data: app, error } = await service
     .from("applications")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- the org is DISCOVERED here, not checked against: this helper is reached from the token-gated applicant API, the reminder cron and the PayFast webhook, none of which has a caller org (9 call sites verified 2026-08-28). Every value it returns is derived from THIS row and composed into an email to THIS application's applicant. M-061.
     .select("*, listings(id, public_slug, asking_rent_cents, available_from, units(unit_number, properties(name, city))), org_id")
     .eq("id", applicationId)
     .single()

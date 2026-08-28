@@ -651,6 +651,9 @@ export async function deleteLease(leaseId: string): Promise<{ error: string } | 
     .from("leases")
     .select("id, org_id, status, unit_id, tenant_id")
     .eq("id", leaseId)
+    // Bound at the QUERY, not only by the compare below (M-061). The `lease.org_id !== orgId` test
+    // is kept: it is now redundant, and redundant is the right state for an ownership check.
+    .eq("org_id", orgId)
     .single()
   logQueryError("deleteLease leases", leaseError)
   if (!lease || lease.org_id !== orgId) return { error: "Lease not found" }

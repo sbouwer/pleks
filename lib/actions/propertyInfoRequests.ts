@@ -204,6 +204,9 @@ export async function sendInfoRequestReminder(requestId: string): Promise<InfoRe
     .from("property_info_requests")
     .select("id, property_id, org_id, topic, recipient_type, recipient_email, token, status, reminder_count")
     .eq("id", requestId)
+    // Bound at the QUERY (M-061). The `req.org_id !== orgId` test below is kept and is now
+    // redundant — an ownership check should be true twice, not once.
+    .eq("org_id", orgId)
     .single()
 
   if (error || !req) return { ok: false, error: "Request not found" }
@@ -231,6 +234,7 @@ export async function sendInfoRequestReminder(requestId: string): Promise<InfoRe
       .from("property_info_requests")
       .select("reminder_count")
       .eq("id", req.id)
+      .eq("org_id", orgId)
       .single()
     logQueryError("sendInfoRequestReminder property_info_requests", currentError)
     const nextCount = (current?.reminder_count as number ?? 0) + 1

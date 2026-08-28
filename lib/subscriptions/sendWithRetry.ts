@@ -79,6 +79,7 @@ export async function drainPlatformEmailRetries(): Promise<{ resent: number; sur
   const db = await createServiceClient()
   const { data: rows, error } = await db
     .from("platform_email_retries")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- cross-org BY DESIGN: this is the platform-wide retry queue, drained hourly by the mandatory-retry cron with no caller and no session. Scoping it to one org would silently strand every other org's mandatory mail. `org_id` travels on each row to the send. M-061.
     .select("id, org_id, template_key, to_email, to_name, subject, body_html, attempt_count")
     .lte("next_attempt_at", new Date().toISOString())
     .is("surrendered_at", null)

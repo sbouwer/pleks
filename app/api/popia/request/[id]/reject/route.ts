@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const db = createServiceClient()
   const { data: request, error } = await (await db)
     .from("data_subject_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- VALIDATE-THEN-ACT. This read selects org_id for the sole purpose of testing it against the caller's membership (user.id ⨯ request.org_id); a 403 returns before the rejection is recorded. No data-subject path here. M-061.
     .select("org_id")
     .eq("id", id)
     .single()

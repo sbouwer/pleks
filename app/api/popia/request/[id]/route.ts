@@ -18,6 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const db = createServiceClient()
   const { data: request, error } = await (await db)
     .from("data_subject_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- VALIDATE-THEN-ACT, and the org filter would BREAK it: the caller may be the data SUBJECT, who is not a member of the responsible org at all, so scoping this read to the caller's org would deny the POPIA s23 access right. Authorisation is the `isSubject || isOrgMember` test below, where membership is checked as user.id ⨯ request.org_id and a 403 returns before any row reaches the response. M-061 (2026-08-28) made this visible by requiring the org signal to PRECEDE the read; here it legitimately cannot.
     .select("*")
     .eq("id", id)
     .single()
