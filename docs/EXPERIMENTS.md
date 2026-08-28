@@ -2597,3 +2597,61 @@ requires having tried to blind the comparison rather than assuming it was blinda
 measure quality is itself a result, provided it is reported as one rather than as a gap.** The blind on
 the surviving contrast reports UNVERIFIED with its mechanism named: 7/7 precision on the positive call,
 p=0.09, and a channel criterion 6 cannot remove because that channel *is* what criterion 6 measures.
+
+#### The scorer is NOT blind, so the scorer's discretion is removed instead
+
+Validating the tell distribution required joining tells to `KEY.tsv`, so the session doing the scoring
+knows which label is which arm. The reviewers remain blind and confined to one bundle each, which is
+what the measurement rests on — but the pre-registered "key opened last" step existed to protect the
+**scorer** too, and that protection is gone. It is replaced by removing the discretion it was guarding,
+fixed here before any findings file is opened:
+
+**1 · Confirmation sample — by FINDING, not by bundle.** Rank every finding across all bundles by
+`severity DESC, label ASC, file ASC, line ASC` and confirm **every `critical` plus the first ten
+`major`**. Deterministic, computable before anything is read, and with no bundle-level choice left in
+it. Sampling "every nth by label" would be equally blind but would draw from the wrong stratum:
+`minor` findings do not move the primary metric, so confirming them spends the effort where nothing
+turns on it.
+
+**2 · Rejection criteria, fixed in advance.** Knowing the key does not only bias *which* findings get
+checked — it biases *how hard one looks for a reason to reject one*. A finding is inadmissible on
+exactly two grounds: it **fails one of the rubric's four required fields**, or **executing its scenario
+against the real tree does not reproduce**. Nothing else. Not "on inspection this looks weak", not
+"the reviewer misread the intent". **If it is admissible by the rubric and it reproduces, it counts,
+whichever bundle it came from.**
+
+#### What counts as RESOLVED — the threshold, fixed before the spread is known
+
+The first three bundles returned **3, 2, 1** findings. At that magnitude the repeat is not a
+robustness nicety, it is the entire result: `t3-03` is reviewed twice over identical input, and
+
+> **a between-arm difference is reportable only if it exceeds the observed within-bundle repeat
+> spread.**
+
+If the two `t3-03` passes return, say, 1 and 4, reviewer noise dominates any plausible arm difference
+and the honest report is **unresolved at n=1 per bundle** — not a ranking with a caveat. If they
+return 1 and 1, a between-bundle difference of 2 may carry something. Fixing this now costs nothing;
+fixing it after seeing the spread is exactly the freedom the rubric closed everywhere else.
+
+**One repeat is a single pair, which is an observation of reviewer variance rather than an estimate of
+it.** If the finished corpus is uniformly low (all counts 0–3), a **second repeat on a different
+bundle** runs before scoring — about 20 minutes against a result that otherwise cannot be interpreted
+at all.
+
+#### The walker-report extraction was lossy, and the error ran in the dangerous direction
+
+Caught by a completeness check made **before** the join rather than after. The first extraction kept
+each walker's LAST assistant message; every report is written across 3–22 blocks, so it dropped
+127–5,582 bytes per report — `r2/C` lost 47% of its text, `r3/C`'s second walker 58%, and `r1/C`
+declared **six** findings while the kept text enumerated **three**.
+
+**A dropped walker finding lands in the "the reviewer found it, the walker never mentioned it" bucket
+— the one bucket that reads as a real quality effect.** So the defect would have manufactured exactly
+the result the tautology guard exists to detect. Fixed by concatenating every assistant block, which
+also errs in the safe direction: more walker text can only make *"the walker already named this"*
+easier to satisfy, biasing **against** a quality effect rather than towards one.
+
+The first version of the completeness check was itself discarded as **vacuous** — it compared against
+a delivered copy it often failed to locate, and `text.includes("")` is true, so three reports passed a
+check that could not fail. That is the rubric's own `VACUOUS_PROBE` class, occurring in the instrument
+built to apply it, and it is recorded rather than quietly replaced.
