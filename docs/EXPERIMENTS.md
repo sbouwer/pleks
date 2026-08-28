@@ -2662,7 +2662,9 @@ built to apply it, and it is recorded rather than quietly replaced.
 
 ### RESULT — criterion 6, task 3. The programme's first quality number, and it is a null
 
-Thirteen review runs plus two variance repeats, 2026-08-28. **23 findings across 12 bundles: 0
+**Fourteen review runs, 2026-08-28: the 12 bundles reviewed once each, and 2 of those reviewed a
+second time** — an earlier draft of this line said "thirteen plus two repeats", which double-counts
+the first repeat and does not reconcile to 14. **23 findings across the 12 pass-1 bundles: 0
 critical, 8 major, 15 minor.** All 8 majors were confirmed against their own trees — the full
 pre-registered sample, with no discretion in which were checked.
 
