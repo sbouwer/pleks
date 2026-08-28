@@ -500,6 +500,14 @@ and rung-4 rule files never reach an edit-blind session (E1b) — presence is no
 **Classify per site, never sweep.** Two sites identical to twenty-five others were correct for a
 reason invisible to the regex.
 
+**An agent's finding is a hypothesis until its premise is reproduced** — the §8 rule, applied where
+it bites hardest, because a report arrives already argued. The walker spine (v7, canon in
+`dev-standards`) now requires `REPRODUCED`/`UNREPRODUCED` on every finding; the mark travels to you,
+it does not license the agent to drop what it could not confirm. And **agreement between two of your
+own passes is evidence about the model, not about the code** — a walker and a reviewer are the same
+model with different briefs, so their converging on the same files is equally consistent with a
+shared blind spot.
+
 ---
 
 ## 8 · SESSION HYGIENE
@@ -528,6 +536,16 @@ should`, and settle all or say why not. A partially-fixed file looks reviewed.
 
 **Citations verified, not plausible** — a zero-hit grep is the check. Build the destination before
 citing it.
+
+**Reproduce a finding's PREMISE before acting on it** — yours or an agent's. Every finding rests on a
+claim about the tree, and the instrument that refutes it is the one you already hold: run the check,
+grep for the caller, read the config that decides. **Measured at 1 major in 8 unreproducible** on a
+blind adversarial pass, with the disproving evidence *inside the reviewer's own input*. Verification
+concentrates on the chain and skips the first link, and a sound chain feels finished — so nothing
+about a well-argued finding announces that its opening sentence is wrong. Refuting costs one grep;
+acting costs a change to code that was already correct. **Mark, never drop:** report what you could
+not reproduce as unreproduced rather than withholding it, or a false positive has been traded for a
+false negative with nobody told.
 
 **Commit ≠ push.** One coherent revertable change; interdependent files together; amend un-pushed
 fixes; pushed commits are immutable — fix forward. Reasoning about *the change* → commit message.
