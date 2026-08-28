@@ -2473,7 +2473,11 @@ cleared, so the cause is not isolated. **Third occurrence, 2026-08-27, weakens t
 further:** it fired after only `git` reads inside a worktree — `snapshot-select.mjs` taking the
 criterion-6 cuts — with no worktree vitest run at all, and self-repaired on the next invocation. So
 "vitest in a worktree, then in main" is **not necessary**, only sufficient in the two cases observed.
-The shared-`node_modules` neighbourhood is right; the mechanism remains unidentified. `check-test-floor.mjs`'s own header names an undiagnosed
+**Fourth occurrence, 2026-08-28, breaks the self-repair half:** the same 126/126 `import 0ms` failure
+fired in the main checkout with no worktree activity of any kind that session, and it did **not** clear
+on the next invocation — it cleared only after `rm -rf node_modules/.vite/vitest`. So "self-repairs on
+the next run" is also not a property of the fault, and the only intervention that has worked every time
+is deleting that directory. The shared-`node_modules` neighbourhood is right; the mechanism remains unidentified. `check-test-floor.mjs`'s own header names an undiagnosed
 worker-import fault; this is plausibly it, and the honest statement is that the trigger is known and
 the mechanism is not. It did not touch the corpus — see the `126 passed` sweep above.
 
@@ -2655,3 +2659,108 @@ The first version of the completeness check was itself discarded as **vacuous** 
 a delivered copy it often failed to locate, and `text.includes("")` is true, so three reports passed a
 check that could not fail. That is the rubric's own `VACUOUS_PROBE` class, occurring in the instrument
 built to apply it, and it is recorded rather than quietly replaced.
+
+### RESULT — criterion 6, task 3. The programme's first quality number, and it is a null
+
+Thirteen review runs plus two variance repeats, 2026-08-28. **23 findings across 12 bundles: 0
+critical, 8 major, 15 minor.** All 8 majors were confirmed against their own trees — the full
+pre-registered sample, with no discretion in which were checked.
+
+#### 1 · The tautology guard, which is the result — not the counts
+
+**Every confirmed major, in C-pre and C-post alike, sits in a file the cell's own walker had already
+named. Six of six.** The "walker never mentioned it" bucket — the only bucket that could evidence a
+quality effect — is **empty for the majors**, and on all findings it is 1 of 7 for C-post against 1 of
+6 for C-pre: identical, and essentially nothing.
+
+**The guard returning all-YES is itself a finding about the guard.** Matching is by file path, which
+over-counts "already named" and errs against detecting an effect — the safe direction, as registered —
+but at this granularity it cannot separate *the walker named this defect* from *the walker touched
+this file*. So the correct phrasing is **no effect detectable**, not *no effect*.
+
+Two readings fit the convergence, and neither is established:
+
+- **The walk looks in the right places and does not finish the job there.** Reviewer and walker,
+  briefed differently and run independently, found the same regions interesting.
+- **A shared blind spot.** Reviewer and walker are the same model. Agreement between two passes of one
+  model on which files are interesting is weak evidence about the files and strong evidence only about
+  the model.
+
+Distinguishing them needs a reviewer that is not Claude, or defect-level rather than file-level
+matching. Neither exists here, and naming both beats picking one.
+
+#### 2 · The counts, and the one that moves after confirmation
+
+| arm | all findings (3 bundles) | median | **confirmed majors** |
+|---|---|---|---|
+| A | 3, 1, 2 → 6 | 2 | 2 |
+| B | 1, 1, 2 → 4 | 1 | **0** |
+| C-post | 2, 2, 3 → 7 | 2 | **1** |
+| C-pre | 3, 1, 2 → 6 | 2 | **4** |
+
+On raw findings the walk phase shows **no gain and a nominally wrong direction** (C-post 7 against
+C-pre 6) — a total dominated by minors. On **confirmed majors it drops 4 → 1, and every C cell falls**:
+`r1-C` 1→0, `r2-C` 1→0, `r3-C` 2→1.
+
+**That reduction is exactly what §1 discounts.** All four C-pre majors were in walker-named files, so
+their disappearance from C-post is the walk removing what the walk found — the tautology the guard
+exists to catch, not evidence the pipeline builds better. It is reported because the direction is
+consistent across all three cells and somebody re-deriving this will find it; it is **not** claimed.
+
+#### 3 · The instrument: a 12.5% refutation rate, and the one that failed
+
+`t3-02`'s major was **REFUTED**. It claimed two unsuppressed `sonarjs/no-unenclosed-multiline-block`
+violations would fail lint; eslint exits **0** with zero output on that file in that tree, and
+`eslint.config.mjs:391` in the same tree records that the rule **left the `scripts/**` list on
+2026-08-26 when M-087 was ruled**. The reviewer reasoned correctly from a premise its own bundle
+contradicted.
+
+So an Opus 5 adversarial pass at this depth produced **1 unreproducible major in 8**. That is a number
+about criterion 6 as an instrument rather than about any arm, and it is the only one in this run that
+speaks to whether the measurement can work at all. It also lands where it costs most: the refuted
+major was C-post's, so the un-confirmed reading would have shown C-post with 2 majors instead of 1.
+**Confirmation changed the numbers it was run to protect.**
+
+One confirmation reproduced **verbatim**: `t3-09`'s major predicted
+`❌ 1 probe-reporter problem(s): scripts/lib/probe.mjs:60 — hand-rolled probe reporter`, and executing
+that tree's ratchet against its own tree printed exactly that. `t3-01` and `t3-11`'s CI-shallow leg
+were confirmed by mechanism rather than execution — the trigger is a host privilege state and a
+depth-1 clone — and that boundary is stated rather than blurred.
+
+#### 4 · Overriding a pre-registered threshold, with both halves stated
+
+The registered rule was *a between-arm difference is reportable only if it exceeds the observed
+within-bundle repeat spread*. **Measured spread: 0 across both pairs — which by the letter licenses
+reporting these differences. It is not accepted, and the reason is the exception rather than the sin.**
+
+The two pairs behaved differently in a way the threshold could not see. `t3-04` reproduced **the same
+defect** (`check-probe-helper.mjs:27`, both passes, same severity). `t3-03` reproduced **the same
+count** — 1 and 1 — while sharing **zero findings**: a minor at `:23` against a major at `:180`. So
+counts reproduced 2/2 and content reproduced 1/2. **A floor of 0 on the count with content unmeasured
+is not a floor of 0; agreement on volume without agreement on substance is agreement by coincidence.**
+
+The threshold was written against counts because nobody anticipated the two could diverge. Overriding
+a pre-registered rule on evidence found afterwards is normally the cardinal sin here; this is the
+exception on two conditions, both met: the evidence shows the rule **measured the wrong quantity**, and
+the override moves the verdict toward **less claimed, not more**.
+
+#### 5 · The power limitation is a property of the DESIGN, not a hedge on the result
+
+Counts of 1–3 per bundle, one pass per bundle, three bundles per arm. **At this defect density nothing
+could have separated the arms** — the design had almost no dynamic range, and that is true independent
+of how the arms actually performed. This must not be read as *the arms are equal*; it is *this
+instrument could not have told them apart*. A reader who supplies "so the workflow makes no
+difference" has drawn a conclusion the data cannot support in either direction.
+
+#### 6 · What this licenses, and the shape E17 now closes in
+
+**Criterion 6 on task 3: no arm separates, and no quality effect is detectable for the walk phase.**
+Combined with the cost result, E17's terminal statement is the one fixed above the numbers:
+
+> The cost axis compares arms; the quality axis compares C to itself; this design can never join them.
+
+Cost is measured, three arms, three tasks, C separating cleanly at 3.75×. Quality is measured once,
+within arm C, and returns a null with a documented account of why the wider comparison is
+intrinsically unblindable. **That the quality question resisted measurement is the finding** — reported
+as a result, not as a gap, and it required building the blind, the repeat, the tautology guard and the
+confirmation pass to establish rather than assume.
