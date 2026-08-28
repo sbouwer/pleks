@@ -2388,14 +2388,43 @@ to 3 records, 65 ids in `r3/B` alone): `r1/B` 1.24 calls/message, `r3/A` 1.21, `
 1.02, `r2/C` 1.01. Batching is low everywhere and lowest in the expensive cells, but the spread is far
 too small to carry a 3× cost difference. **The read-versus-search choice does; the batching does not.**
 
-#### 3 · Arm C never ran two agents at once — peak concurrency was ONE
+#### 3 · Arm C never ran two agents at once IN TASK 3 — and the first version of this finding was measured wrong
 
-`r3/C` spawned 8 agents in **8 separate assistant messages**; sweeping the launch/return intervals
-gives a peak overlap of **1**, with 92.9 agent-minutes spread across a 206.2-minute span (ratio 0.45,
-where >1 would indicate real overlap). Part of that is structural and must stay serial — a
-verify→fix→re-verify chain cannot be parallelised, because walk N reads the tree walk N−1 changed —
-but the fan-out *within* a round was available and unused. Neither `/build` nor `/walk` had ever asked
-for it, so the arm was never measured on a capability it was not told it had. Addressed in `2d8eaa48`.
+**Corrected 2026-08-27, before the criterion-6 pass, and the correction is larger than the number.**
+The first measurement swept `[tool_use → tool_result]` for each `Agent` call. For an agent launched in
+the **background** that pair times the DISPATCH, not the run: `task3-r1-C`'s walker records **19 ms**
+against a real ~11.6 minutes, its `tool_result` being the "Async agent launched" metadata. This is the
+identical fault that corrupted the gate-overlap pass two sections above, in a second place, found only
+because the criterion-6 cut needed a walker return and 19 ms is not a walk. **Timing dispatch instead
+of execution undercounts in the direction that hides concurrency**, so every span here was re-derived
+async-aware, resolving each launch to the record carrying its `agentId`.
+
+What survives, what does not, and what is now deliberately unmeasured:
+
+- **The task-3 claim holds.** All three task-3 C cells show peak overlap **1** under both candidate
+  resolution rules, so it is robust to the ambiguity below. `r3/C`'s 8 agents ran strictly one at a
+  time across a 206.2-minute span. Part of that is structural and must stay serial — a
+  verify→fix→re-verify chain cannot be parallelised, because walk N reads the tree walk N−1 changed.
+- **The GENERALISATION was wrong and is withdrawn.** The heading previously read "arm C never ran two
+  agents at once" and the body concluded the fan-out "was available and unused". False across the
+  corpus: **`task1-r3-C` ran three `census` agents concurrently** — launched 05:45:36, 05:45:45,
+  05:45:54, all returning 05:48:48, ~2.9 minutes of genuine three-way overlap. Arm C had already
+  fanned out, thirteen days before `2d8eaa48` told it to. The correct statement is narrow: *task 3's*
+  C cells did not fan out.
+- **Arm B fanned out too, unprompted.** `task3-r2-B` ran `census` (09:06:19–09:14:28) and
+  `implementer` (09:13:17–09:18:24) concurrently, 1.2 minutes of overlap — peak 2 in the arm with no
+  prescribed workflow at all. Whatever `2d8eaa48` buys arm C, it is not a capability only C has.
+- **Per-cell agent-minutes are NOT restated, and that is the finding.** Resolving an async completion
+  admits two defensible rules — the first record after dispatch carrying the `agentId`, or the last —
+  and on `task1-r1-C` they disagree by **84 agent-minutes** (6.5 vs 90.0). The record shape does not
+  settle it: a completion arrives as a `queue-operation`+`attachment` pair in one cell and as
+  `user`+`attachment` in another, with later mentions of the same id that may be follow-ups or may be
+  the notification. **Left unmeasured rather than published under an unsettled rule** — this register
+  has a scar for exactly that (328 → 29 → 21), and a fourth number is not owed here. Peak overlap is
+  reported because it is invariant across both rules; duration is not because it is not.
+
+`2d8eaa48` stands as a change to the instructions, not as a fix for an absence it now turns out was
+never total.
 
 #### 4 · Arm B's "never delegates" was true for six runs and is no longer true
 
@@ -2440,7 +2469,11 @@ the main checkout produced a **total collection failure** — `import 0ms`, `Tes
 files failed — which self-repairs on the next run. Reproduced 2/2 on 2026-08-27, and it is what broke
 a push mid-session. **Recorded as a reproducible trigger, NOT as a diagnosis:** a later push failed
 and then succeeded with no intervening change, and `stdin`-at-EOF and `GIT_DIR` were both tested and
-cleared, so the cause is not isolated. `check-test-floor.mjs`'s own header names an undiagnosed
+cleared, so the cause is not isolated. **Third occurrence, 2026-08-27, weakens the stated trigger
+further:** it fired after only `git` reads inside a worktree — `snapshot-select.mjs` taking the
+criterion-6 cuts — with no worktree vitest run at all, and self-repaired on the next invocation. So
+"vitest in a worktree, then in main" is **not necessary**, only sufficient in the two cases observed.
+The shared-`node_modules` neighbourhood is right; the mechanism remains unidentified. `check-test-floor.mjs`'s own header names an undiagnosed
 worker-import fault; this is plausibly it, and the honest statement is that the trigger is known and
 the mechanism is not. It did not touch the corpus — see the `126 passed` sweep above.
 
@@ -2477,3 +2510,90 @@ was described as *unconditional* and `/walk` told the session to spawn a walker,
 delegation was never a judgment call. The register already recorded the cost of that — on task 2, arm
 B chose not to delegate 3/3 in agreement with this repo's own doctrine, while arm C delegated anyway.
 Grounding remains unconditional **as a precondition**; only the route is now a judgement.
+
+### Criterion 6 on task 3 — PRE-REGISTERED 2026-08-27, before a bundle exists
+
+Registered in advance because a rubric written after seeing the numbers is a rationalisation, and
+because two of the four decisions below were taken specifically to stop a result reading as more than
+it is. Nothing here has been scored yet.
+
+#### Why this runs at all, when the same criterion is dead on tasks 1 and 2
+
+Criterion 6 has never produced a number in this programme. On tasks 1 and 2 it cannot: C-vs-A/B is
+dead as a blind comparison (24/24, p=6.0e-8, intrinsic), and the fallback C-post-vs-C-pre contrast is
+unscorable there because 5 of 6 C-pre snapshots contain post-walk content — a transcript rewind cannot
+invert a heredoc, and the file it fails on is each cell's principal deliverable (37–46% of task 1's
+bundle bytes).
+
+**Task 3 is the first corpus where the pre-walk state is soundly recoverable**, because `run-arm.sh`
+was changed to record the tree live at 10-second sampling before those nine cells were spent. The cut
+is taken from filesystem evidence, not transcript inference, and it is **EXACT in all three C cells** —
+where *exact* is a proof, not a proximity: identical tree shas either side of the cut instant show no
+write landed across it.
+
+| cell | cut instant (first walker's return) | tree | verdict | stale |
+|---|---|---|---|---|
+| `task3-r1-C` | 2026-08-26T08:54:13Z | `5ba00210` | EXACT | 4 s |
+| `task3-r2-C` | 2026-08-26T10:11:03Z | `baf3bd3c` | EXACT | 4 s |
+| `task3-r3-C` | 2026-08-27T06:42:00Z | `b556049e` | EXACT | 6 s |
+
+`r1/C`'s walker was launched **async**, so its `tool_result` is dispatch metadata 19 ms later and the
+real return is the completion notification 11.6 minutes on. Both instants were cut and **both yield
+tree `5ba00210`** — independently corroborated by the transcript, which shows 7 tool calls in that
+window and **zero** `Edit`/`Write`. The distinction is immaterial for this cell and is recorded because
+it will not be immaterial in the next one.
+
+Declining to score this leaves the programme with zero quality numbers, and the next batch will need
+its own blind validation which may also fail — the identifiability channel belongs to C's output, not
+to this corpus. *We could have measured it and chose not to* is a worse position than a caveated
+number.
+
+#### The cut is the FIRST walker's return, and that changes what the number is called
+
+Six walkers in one cell means the intervention is not a walk; it is a **walk phase**. Cutting at the
+first return measures the whole phase — including fixes prompted by walkers 2–6 and any re-walking
+they did — which is the honest description of what arm C actually does. Cutting at the last return
+understates it by capturing an already-mostly-fixed tree; cutting per-walker measures six different
+things across a corpus of three cells.
+
+**Stated before the numbers, because afterwards it reads as an excuse:** the quantity is *what the
+walk phase removed*, and **the phase is of variable size across cells** — one walker in `r1/C` and
+`r2/C`, six in `r3/C`. A between-cell comparison of the delta is therefore **not comparing like with
+like**. That is fine for the headline question (did the phase remove defects) and **disqualifying for
+any per-walker or per-minute efficiency claim**. No such claim may be derived from this table later.
+
+#### The tautology guard — score the OVERLAP, not the counts
+
+C-post is C-pre plus fixes for defects the walker found. **So the walk necessarily removes the defects
+it detected, and measuring that is measuring nothing** — it confirms the pipeline is wired, which was
+never in doubt. The counts alone cannot distinguish that from a quality effect.
+
+The scored quantity is therefore the **overlap between the independent reviewer's findings and the
+walker's own report**, per bundle:
+
+- Findings the reviewer raises on C-pre that the walker **also** named → the tautological component.
+  Expected to fall to near zero in C-post by construction. Reported, never counted as an effect.
+- Findings the reviewer raises that the walker **never mentioned** → the real signal. If C-post carries
+  fewer of these than C-pre, the walk phase improved the deliverable beyond its own report. If the two
+  are level, the walk did what it said and no more.
+
+The walkers' reports are already on disk in the cell transcripts, so this costs nothing beyond the
+join. Rubric classes, evidence bar and per-class reporting are unchanged from `CRITERION6.md`; this
+adds a dimension to the scoring, it does not relax one.
+
+#### The terminal shape, stated up front so no reader performs the join themselves
+
+> **The cost axis compares arms; the quality axis compares C to itself; this design can never join
+> them.**
+
+C-vs-A/B quality is intrinsically unblindable, so the surviving quality contrast is within arm C. The
+cost result compares three arms. Nothing licenses multiplying one by the other, and the sentence
+belongs above the numbers rather than in a limitations note below them.
+
+**This is not a failed experiment, and the write-up must not apologise as though it were.** A three-arm
+cost result across three tasks, with C separating cleanly at 3.75×, plus a documented account of *why*
+the obvious way to measure what that buys cannot work, is a finding — and an uncommon one, because it
+requires having tried to blind the comparison rather than assuming it was blindable. **The failure to
+measure quality is itself a result, provided it is reported as one rather than as a gap.** The blind on
+the surviving contrast reports UNVERIFIED with its mechanism named: 7/7 precision on the positive call,
+p=0.09, and a channel criterion 6 cannot remove because that channel *is* what criterion 6 measures.
