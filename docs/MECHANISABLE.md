@@ -343,17 +343,38 @@ available would have been forbidden.
 - **Sketch:** sketch: scan a migration's new `§N` section for `CREATE TABLE` without `IF NOT EXISTS`, `ADD COLUMN` without `IF NOT EXISTS`, or `CREATE INDEX` without `IF NOT EXISTS`, each a concrete syntactic pattern.
 - **Covering spec:** NEW
 
-### M-022 — flag `.upsert`/`ON CONFLICT` on `auth.users` by email
+### M-022 — flag `.upsert`/`ON CONFLICT` on `auth.users` by email — ✅ BUILT 2026-08-28
 - **Rule:** "`auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail" (`.claude/rules/schema-gotchas.md`)
 - **Where it lives:** `.claude/rules/schema-gotchas.md:17`
 - **Rung:** check · **Blast:** schema
-- **Satisfied when:** extends:check:schema-contract-scan — **for the SQL half only; the TS half is already covered (2026-08-23)**
+- **Satisfied when:** check:check-auth-users-on-conflict
 - **Sketch:** these are orientation ("known gotchas to check before writing migrations or queries") rather than a single checkable property; the closest mechanisable slice is the second bullet — flag an `.upsert`/`ON CONFLICT` call targeting `auth.users` by `email`.
 
+**Control:** `scripts/check-auth-users-on-conflict.mjs`, wired into `npm run check` beside the
+migration checks — the scan, then its `--selftest`. It reads every git-tracked `*.sql` plus SQL
+embedded in `*.ts`/`*.tsx`/`*.mts`/`*.mjs`/`*.js`/`*.cjs` strings, attributes each `ON CONFLICT`
+clause to the `INSERT INTO` that owns it, and fails when the target is `auth.users` and the arbiter
+names `email`. **Probe:** ~40 fixture cases in both directions plus three reconciliation probes.
+Clean tree exits 0 at `15 file(s), 250 INSERT statement(s), 80 ON CONFLICT clause(s)`.
+
+**⚠ THE 2026-08-23 "TS half is COVERED" LINE BELOW WAS TRUE OF ONE POPULATION AND READ AS TRUE OF
+TWO. Corrected here rather than deleted, because the entry's own wording is what nearly scoped this
+build too narrowly.** `schema-contract-scan.mjs` walks fluent PostgREST chains down to `.from(…)`;
+it has no SQL-text parser. So the TS half is covered for **call chains** and not at all for **raw
+SQL in a template literal** — and the live example is `test/db/tier.ts:64`, which seeds `auth.users`
+through `psql(\`INSERT INTO auth.users … ON CONFLICT DO NOTHING;\`)`. That site is correct today
+(an arbiter-less `DO NOTHING` needs no unique index) and it is **one hand-edit from breaking the
+whole DB test tier**. Neither the contract scan nor a `.sql`-only glob can see it, which is why the
+code-string population is in this check's scope. A sibling implementation read the same entry and
+excluded TS deliberately on the strength of that line; both readings were defensible, and the
+narrower one would have shipped green over a live blind spot.
+
 - **Measured 2026-08-23 at `73a734e6`, and the rule splits in two — the halves have different coverage, so they get different lines rather than one hedged tag:**
-  - **TS half — COVERED, and more strongly than the entry asked.** A planted `db.from("auth.users").upsert({ email }, { onConflict: "email" })` fails `schema-contract-scan.mjs` (exit 1, `[relation] auth.users.table/view does not exist`); the clean tree exits 0. The scan does not reason about `ON CONFLICT` at all — it does not need to, because PostgREST cannot reach the `auth` schema, so **every** TS expression of this gotcha is caught by the relation check, not just the `email` one. Repo-wide there are zero `.from("auth.users")` sites under `app/`/`lib/`.
-  - **SQL half — NOT covered, and the live population is zero defects.** The scan reads TS call chains, not migration SQL. Two candidate sites exist and **both are correct**: `scripts/seed-test-data-2.sql:19` INSERTs into `auth.users` using exactly the SELECT-first pattern this gotcha prescribes, and `supabase/migrations/006_seed.sql:543`'s `ON CONFLICT (email)` is on **`honeytoken_emails`**, not `auth.users`.
-- **The measurement is itself the warning about how to build the SQL half.** A naive grep for `ON CONFLICT (email)` scores 1/2 — it flags the honeytoken seed, which is legitimate and whose table does carry a unique email. The check must resolve which **table** the conflict target belongs to, which means parsing back to the `INSERT INTO`, not matching the conflict clause alone. First number is a hypothesis: here the hypothesis was two hits and the finding is none.
+  - **TS half — covered FOR POSTGREST CALL CHAINS ONLY** (see the correction above; the original claim of "every TS expression" is withdrawn). A planted `db.from("auth.users").upsert({ email }, { onConflict: "email" })` fails `schema-contract-scan.mjs` (exit 1, `[relation] auth.users.table/view does not exist`); the clean tree exits 0. The scan does not reason about `ON CONFLICT` at all — it does not need to, because PostgREST cannot reach the `auth` schema, so every `.from("auth.users")` chain is caught by the relation check. Repo-wide there are zero `.from("auth.users")` sites under `app/`/`lib/`. Raw SQL in strings is a different population and was never in that scan's reach.
+  - **SQL half — NOW COVERED by the control above; the live population remains zero defects.** Two candidate sites exist and **both are correct**: `scripts/seed-test-data-2.sql:19` INSERTs into `auth.users` using exactly the SELECT-first pattern this gotcha prescribes, and `supabase/migrations/006_seed.sql:543`'s `ON CONFLICT (email)` is on **`honeytoken_emails`**, not `auth.users`. Both are `--selftest` fixtures, so the check is pinned against the tree that made it necessary.
+- **The measurement was itself the warning about how to build the SQL half, and the build confirms it.** A naive grep for `ON CONFLICT (email)` scores 1/2 — it flags the honeytoken seed, which is legitimate and whose table does carry a unique email. The check resolves which **table** the conflict target belongs to by bounding each `INSERT INTO` at its own terminating `;`, so neither the honeytoken seed nor a following statement's clause is misattributed. First number is a hypothesis: here the hypothesis was two hits and the finding is none.
+- **Known boundary, latent rather than live:** the lexer closes a single-quoted literal on `''` doubling and does not treat a backslash as an escape, so a Postgres E-string containing `\'` would desynchronise it. No such literal exists in the tree as at 2026-08-28, and the check's reconciliation guard reports a desync as a parse failure rather than passing it as clean. Full statement in the script header.
+- **Provenance:** built by an E17 arm-A cell (`t2-r1-A`, task 2) against baseline `1c9b6bbd` and harvested 2026-08-28. Nine cells independently implemented this item; the aperture difference between them is what surfaced the TS-half correction above.
 - **Covering spec:** NEW
 
 ### M-023 — ➡ POINTER TO M-005 (SUBSUMED — do not build separately)
