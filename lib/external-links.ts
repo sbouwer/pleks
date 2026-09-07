@@ -1,23 +1,32 @@
 /**
  * lib/external-links.ts — registry of every external URL referenced across the public site
  *
- * Auth:   public (imported by legal pages and the daily link-check cron)
- * Notes:  All external links in legal documents MUST be referenced via this registry.
- *         The daily cron at /api/cron/daily HEAD-checks every URL here and emails
- *         ADMIN_EMAIL when any are unreachable. To fix a dead link: update the URL
- *         here — all pages that reference it update automatically.
+ * Auth:   public (imported by the legal pages that render these links)
+ * Notes:  All external links in legal documents MUST be referenced via this registry — it is what
+ *         the PAGES render. It is NOT what the link-check cron reads.
+ *
+ *         ⚠ TWO COPIES, ONE PAIR OF EYES. /api/cron/check-links reads the `external_links` TABLE
+ *         (seeded from 010 §20, admin-editable at /admin/external-links) — never this file. So a
+ *         URL fixed only here still shows green while the pages link somewhere else, and a URL
+ *         fixed only in the DB leaves the pages pointing at the dead one. Fixing a link means all
+ *         THREE: this constant, the 010 §20 seed (so a fresh replay is right), and the live row
+ *         (010 §53 is the pattern — a guarded UPDATE that no-ops if an admin already changed it).
+ *
+ *         Prefer the CANONICAL url — the one that answers 200 with no redirect. Every hop is a
+ *         host or slug that can rot independently: `www.sahrc.org.za` 301'd to the apex and it was
+ *         the www host that returned the 500s behind the 2026-08-31 alert (2026-09-07 sweep).
  */
 
 export const EXTERNAL_LINKS = {
   // Regulatory bodies
   informationRegulator: "https://inforegulator.org.za",
-  sahrc:                "https://www.sahrc.org.za",
+  sahrc:                "https://sahrc.org.za",
 
   // Browser cookie management guides (used in cookie-policy §05)
   chromeCookieHelp:  "https://support.google.com/chrome/answer/95647",
   firefoxCookieHelp: "https://support.mozilla.org/kb/clear-cookies-and-site-data-firefox",
-  safariCookieHelp:  "https://support.apple.com/guide/safari/manage-cookies-sfri11471",
-  edgeCookieHelp:    "https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09",
+  safariCookieHelp:  "https://support.apple.com/guide/safari/manage-cookies-sfri11471/mac",
+  edgeCookieHelp:    "https://support.microsoft.com/en-us/edge/manage-cookies-in-microsoft-edge-view-allow-block-delete-and-use",
 
   // Third-party service policies
   payfastPrivacy: "https://payfast.io/privacy-policy/",
