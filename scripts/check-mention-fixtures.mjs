@@ -91,6 +91,10 @@ export const REGISTRY = {
     searches: false,
     reason: "Register pointer in its header (M-095). It DOES read file bodies — every migration's SQL — but only for `REFERENCES <table>` and `CREATE TABLE`, a vocabulary with no overlap with the marker tokens. Reading bodies is not the risk; searching for one of THESE tokens is, and it never does.",
   },
+  "check-auth-users-on-conflict.mjs": {
+    searches: false,
+    reason: "Register pointer in its header (M-022). Like check-migration-forward-refs it DOES read file bodies — every .sql plus SQL embedded in TS/JS strings — but its vocabulary is `INSERT INTO` / `ON CONFLICT` / `auth.users`, which does not overlap the marker tokens. It has the mention problem in its OWN vocabulary and probes it there: comments and string literals are masked before the scan, with known-good cases for a comment and a $$ prose body each quoting the exact defect.",
+  },
   "prepush-scope.mjs": {
     searches: false,
     reason: "Register pointer in its header. It classifies CHANGED PATHS from a git diff, never file contents.",
