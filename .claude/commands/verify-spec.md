@@ -52,6 +52,18 @@ widen:
 > Every row carries the file you read, with a line reference where one is meaningful. A row whose
 > "file read" column is empty is not a verification.
 >
+> **A refutation may state ONLY what the read establishes.** This is the rule the whole instrument
+> exists to enforce, and it is the one most easily broken by the verification itself. *"The view's
+> CASE produces six values"* is a finding: one file, read, settled. *"These five states are never
+> set anywhere"* is a different claim about the whole system, and it needs a different search —
+> every writer of every column, not one file. The first is true; the second was appended to it
+> unchecked in the 14B pass and was **false** (the states were set across three other tables).
+>
+> A correct local observation extended into a system claim is the shape of most wrong rulings, and
+> under an anchor it is worse than an unverified spec: the block makes it look checked. So keep them
+> in separate rows. If the wider claim matters, verify it as its own row with its own search, or
+> leave it unmade — never as a clause attached to a narrower finding.
+>
 > If a claim is ambiguous enough that you cannot decide what would confirm it, record it
 > `not-found` with the ambiguity named in the claim column. Do not guess a charitable reading —
 > a claim nobody can test is a finding about the spec.
