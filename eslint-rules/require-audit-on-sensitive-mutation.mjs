@@ -61,6 +61,12 @@ const TEST_PATH = /(^|[/\\])test[/\\]|\.(test|dbtest|spec)\.[cm]?[jt]sx?$/
 const T1_TABLES = new Set([
   "contact_bank_accounts", // payout banking — mutable config, the original F1 fraud vector
   "tenant_bank_accounts",  // parallel tenant banking table (D-5) — same fraud surface, same rule
+  // The org's OWN trust / PPRA / deposit-holding / business accounts. Added 2026-08-27 (BUILD_71 D8):
+  // it is the THIRD instance of the F1 surface and was the only one outside this set, so a trust-account
+  // creation left no who/when and nothing reported it. Found while checking a mass-assignment claim that
+  // turned out to be false — the table was reachable directly from the browser, where RLS bounds WHO may
+  // write but cannot make the write leave a trace.
+  "bank_accounts",
   "leases",                // the tenancy object itself (M-004) — see the note below on what was NOT added
 ])
 const MUTATORS = new Set(["insert", "update", "delete", "upsert"])
