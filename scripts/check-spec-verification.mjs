@@ -74,15 +74,36 @@ export function parseVerificationBlock(text) {
   const utc = /anchor:[^\n]*?\butc=(\S+)/.exec(body)
 
   const rows = []
+  const unclassifiable = []
   for (const line of body.split("\n")) {
     const trimmed = line.trim()
     if (!trimmed.startsWith("|")) continue
     const cells = trimmed.replace(/^\|/, "").replace(/\|$/, "").split("|")
     if (cells.length < 5) continue
+    // A CLAIM row is identified by its leading `#` cell being a bare integer. Header rows carry
+    // `#`, separator rows carry `---`, and a table that isn't ours carries something else — those
+    // are skipped. Everything else IS a claim row and must classify.
+    if (!/^\d+$/.test(cells[0].trim())) continue
     const result = cells[cells.length - 2].trim().toLowerCase().replace(/`/g, "")
-    if (!RESULTS.has(result)) continue // header row, separator row, or a table that isn't ours
+    if (!RESULTS.has(result)) {
+      unclassifiable.push(cells[0].trim())
+      continue
+    }
     rows.push({ result, ruling: cells[cells.length - 1], claim: cells[1]?.trim() ?? "" })
   }
+  // A claim row the parser cannot classify is a HARD failure, never a silent skip. Dropping it
+  // fails toward false proof: the first real multi-spec run stamped seven specs whose refuted rows
+  // carried an explanatory clause in the Result cell ("refuted — actual set is …"), and the
+  // instrument reported one of them FRESH, "15 claims — 15 confirmed", on a table of 20 rows
+  // holding 3 refutations. The Result cell is a TOKEN; explanation belongs in the Claim cell or
+  // in prose beneath the table.
+  if (unclassifiable.length > 0)
+    return {
+      malformed:
+        `${unclassifiable.length} claim row(s) carry a Result cell that is not exactly ` +
+        `confirmed / refuted / not-found — row(s) ${unclassifiable.join(", ")}. ` +
+        `Put the bare token in Result and the explanation elsewhere.`,
+    }
   if (rows.length === 0) return { malformed: "block parsed but contains no claim rows" }
 
   return { sha: sha[1], utc: utc ? utc[1] : null, rows }
@@ -175,6 +196,14 @@ ${rows}
     ["unruled: a not-found row with an empty cell", block(head, "| 1 | x | `a.ts` | not-found |  |"), EXIT.UNRULED],
     ["fresh: refuted row that CARRIES a ruling", block(head, "| 1 | x | `a.ts` | refuted | gap-filed:M-106 |"), EXIT.FRESH],
     ["fresh: mixed, every refutation ruled", block(head, "| 1 | x | `a.ts` | confirmed | — |\n| 2 | y | `b.ts` | refuted | spec-corrected |\n| 3 | z | `c.ts` | not-found | intent-not-observation |"), EXIT.FRESH],
+    // The regression this check exists for. A refuted row that explains itself IN the Result cell
+    // used to be dropped on the floor, so a spec with three refutations reported FRESH and
+    // "15 claims — 15 confirmed". Found by the first seven-spec run, not by a probe — which is the
+    // point of writing this one down.
+    ["absent: a claim row whose Result cell is prose, not a token", block(head, "| 1 | x | `a.ts` | confirmed | — |\n| 2 | y | `b.ts` | refuted — actual set is wider | — |"), EXIT.ABSENT],
+    // The pass direction of that same rule: a row that is NOT a claim (no integer in `#`) is still
+    // ignored rather than failing the block, so a notes row under the table costs nothing.
+    ["fresh: a stray non-claim table row is ignored, not failed", block(head, "| 1 | x | `a.ts` | confirmed | — |\n| n/a | note | — | see above | — |"), EXIT.FRESH],
   ]
 
   const names = Object.fromEntries(Object.entries(EXIT).map(([k, v]) => [v, k]))

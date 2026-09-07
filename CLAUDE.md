@@ -470,6 +470,17 @@ section that never mentioned joint applications).
   exemption is a per-file directive carrying its reason **at the site** — not a path-list entry,
   which is invisible in the diff when somebody later adds a new read under one of those paths.
 
+- **2026-09-07 · the spec verifier reported all-confirmed on a spec with three refutations.**
+  `check-spec-verification.mjs` skipped any table row whose Result cell it could not classify,
+  treating it as a header or a foreign table. The first seven-spec run wrote the explanation INTO
+  that cell ("refuted — actual set is wider"), so every refutation was silently dropped and one
+  spec returned **FRESH, "15 claims — 15 confirmed", on a table of 20 rows holding 3 refutations**.
+  A verifier that discards what it cannot parse fails toward false proof, which is worse than no
+  verifier: the stamp is the artefact people trust later. A claim row is now identified by its `#`
+  cell and MUST classify, or the whole block is rejected. Both probe directions added.
+  **The prediction that caught it was Stéan's, made before the tool existed** — *"if it returns
+  all-confirmed, that's a red flag about the verifier, not a green light on the spec"* — and it
+  fired on the tool built to honour it.
 - **2026-07-02 · the site-content hole.** A write gated with bare `gateway()` was
   indistinguishable from a write whose gate was forgotten. Narrative in `.claude/rules/data-access.md`.
 - **Payout-banking fraud vector (F1).** Swapping a bank account left no who/when.
