@@ -108,6 +108,46 @@ const SELF_SCOPED_TABLES = new Set(["organisations", "user_profiles"])
 const IDENTITY_SCOPED = new Set(["user_passkeys", "passkey_challenges", "passkey_aal_grants"])
 
 /**
+ * Platform-level reference data with NO `org_id` COLUMN — an org filter is not "missing" here, it is
+ * unrepresentable, and `.eq("org_id", …)` against one of these errors rather than scoping anything.
+ *
+ * Distinct from SELF_SCOPED_TABLES, which are also org_id-less but are bounded by SESSION IDENTITY.
+ * These are bounded by nothing and need to be: they are shared seed rows, identical for every org.
+ *
+ * `lease_clause_library` — `CREATE TABLE … ` under the comment "Lease clause library (platform-level,
+ * read-only)" at `supabase/migrations/004_leases_financials.sql:167`, columns read at `1c9b6bbd`; no
+ * migration adds `org_id` to it. Per-org divergence lives in `org_lease_clause_defaults` /
+ * `unit_clause_defaults`, which DO carry `org_id` and are org-scoped at every call site that reads
+ * the library beside them.
+ *
+ * ADD TO THIS SET ONLY AFTER READING THE MIGRATION. A table that HAS `org_id` and is merely read
+ * unscoped today is debt, not a global — putting it here would convert a finding into a permanent
+ * exemption, which is the baseline-widening failure wearing a different hat.
+ */
+const GLOBAL_REFERENCE_TABLES = new Set(["lease_clause_library"])
+
+/**
+ * Tables bounded by the CALLER'S OWN IDENTITY rather than by an org — and `user_orgs` is the one
+ * that matters, because it is the read that ANSWERS "which org is the caller in".
+ *
+ * Demanding `.eq("org_id", …)` on the org-resolution read is circular: the filter would have to
+ * supply the very value the query exists to discover. Sixteen sites across the dashboard and the API
+ * surface are this one query (measured at `1c9b6bbd`, M-061) — every one of them
+ * `.from("user_orgs").select("org_id[, …]").eq("user_id", user.id)` immediately after
+ * `auth.getUser()`, feeding the `.eq("org_id", orgId)` on everything below it.
+ *
+ * ⚠ THE EXEMPTION IS CONDITIONAL, AND THE CONDITION IS THE POINT. A BARE `user_orgs` read is a
+ * genuine cross-org read — it is the membership table for the whole platform. The exemption fires
+ * only when the chain carries an `.eq("user_id", …)`, which bounds the result to ONE person's
+ * memberships. STATED COVERAGE LIMIT: that proves the read is bounded to a single user, NOT that the
+ * id is the session's — an `.eq("user_id", someoneElseId)` is exempted here and would leak which
+ * orgs that person belongs to. Binding the value to the session is a dataflow question this rule
+ * does not answer for ANY of its filters (`.eq("org_id", orgId)` has the identical hole), so closing
+ * it here alone would be a boundary in one rule pretending to be a boundary in the class.
+ */
+const SESSION_SCOPED_TABLES = new Map([["user_orgs", "user_id"]])
+
+/**
  * Validate-then-act signals ONLY: an org-scoped filter elsewhere in the function, or a JS ownership
  * compare on a fetched row.
  *
@@ -116,14 +156,32 @@ const IDENTITY_SCOPED = new Set(["user_passkeys", "passkey_challenges", "passkey
  * every read in any function that also inserted. That is how `duplicateTemplateToOrg` would still
  * have passed even after the discriminator was fixed.
  *
- * ⚠ STILL LOOSE, KNOWINGLY, AND MEASURED — this is tested against the WHOLE enclosing function, so
- * an org signal that appears AFTER the read exempts it, and one org-scoped fetch at the bottom of a
- * 200-line page component exempts every read above it. Requiring the signal to precede the read
- * gives 57 findings across 35 files; additionally exempting functions that TAKE `orgId` as a
- * parameter (org-bound by contract) gives 52 across 33 — measured 2026-08-19 before proposing
- * anything, since a check's first number is a hypothesis. Not shipped here: 52 sites is a
- * classification job, and shipping it would have meant baselining 33 files unread, which is the one
- * thing a baseline may never be used for. Tracked as **M-061** in `docs/MECHANISABLE.md`.
+ * ⚠ ORDER-SENSITIVE SINCE 2026-08-28 (M-061, the classification half). This used to be tested
+ * against the WHOLE enclosing function, so an org signal appearing AFTER the read exempted it, and
+ * one org-scoped fetch at the bottom of a 200-line page component exempted every read above it. It
+ * is now tested against the text from the function's start UP TO the read only.
+ *
+ * The 57-across-35 / 52-across-33 measured on 2026-08-19 were hypotheses, and the classification
+ * was always the deliverable. Re-measured at `1c9b6bbd` it was **53 findings across 34 files**,
+ * matching neither. Classifying every one of them found:
+ *   • THREE LIVE CROSS-ORG READS — the lease detail page, the lease communications page and the
+ *     tenant ledger page each read a row by its URL id on the service client and then used THAT
+ *     ROW's `org_id` as the boundary for everything below, so any signed-in user of any agency
+ *     could read another agency's lease, correspondence, documents and tenant financials by uuid.
+ *     Tenant `id_number` was in one of those selects. The loose test hid all three, because the
+ *     row's own `org_id` matched `ORG_AWARE` further down the function.
+ *   • TWO DEFECTS IN THIS RULE — `GLOBAL_REFERENCE_TABLES` and `SESSION_SCOPED_TABLES`, 21 of the
+ *     53 between them, both of which were demanding a filter that is impossible or circular.
+ *   • six unscoped reads worth hardening, and five genuine exemptions, each carrying its reason at
+ *     the site rather than in a path list. NOTHING was baselined.
+ *
+ * ⚠ STATED COVERAGE BOUNDARY, because order-sensitivity is not per-read scoping. What this catches
+ * is every unscoped read PRECEDING the enclosing function's first org signal. A read AFTER one — a
+ * long component whose first fetch is org-scoped and whose tenth is not — is still exempt. That
+ * residual is the same aperture as before, one signal earlier; closing it needs per-read dataflow,
+ * not a text test over a prefix, and is NOT claimed here. The three cross-org reads fixed in this
+ * pass were all in the prefix, which is why the prefix was worth shipping first — not evidence that
+ * the suffix is clean. Tracked as **M-061** in `docs/MECHANISABLE.md`.
  */
 const ORG_AWARE = /\.eq\(\s*["'`]org_id["'`]|org_id\s*[!=]==?\s*|orgId\s*[!=]==?\s*/
 
@@ -221,8 +279,14 @@ function functionHasParam(fn, name) {
   return !!fn && fn.params.some((p) => p.type === "Identifier" && p.name === name)
 }
 
-/** Does the chain AFTER the read carry `.eq("org_id", …)` (or org_id inside `.match({…})`)? */
-function chainHasOrgScope(readCall) {
+/**
+ * Does the chain AFTER the read carry `.eq("<column>", …)` (or that column inside `.match({…})`)?
+ *
+ * Parameterised on the column so the SESSION_SCOPED_TABLES test (`user_id`) reuses the method gate
+ * below rather than re-deriving it. A second copy would drift, and the thing it would drift on is
+ * exactly what this function was fixed for once already: `.neq("user_id", x)` is not a bound.
+ */
+function chainHasColumnScope(readCall, column = "org_id") {
   let current = readCall
   let depth = 0
   while (depth < 60) {
@@ -236,12 +300,12 @@ function chainHasOrgScope(readCall) {
       // The METHOD matters, not just the column. Accepting any method whose first argument is
       // "org_id" treated `.neq("org_id", orgId)` — a read of every OTHER org's rows — and
       // `.order("org_id")` as org-scoped. Only equality-shaped filters bound a read to an org.
-      if (a0?.type === "Literal" && a0.value === "org_id" && SCOPING_METHODS.has(member.property.name)) return true
+      if (a0?.type === "Literal" && a0.value === column && SCOPING_METHODS.has(member.property.name)) return true
       // The object form takes the SAME method gate as the literal form. It did not, so
       // `.order({ org_id: true })`-shaped calls — anything whose first argument merely mentions the
       // column — counted as org-scoping. `.match({...})` is the only scoping method that takes an
       // object, so the gate costs nothing and closes the asymmetry.
-      if (SCOPING_METHODS.has(member.property.name) && a0?.type === "ObjectExpression" && a0.properties.some((p) => p.type === "Property" && ((p.key.type === "Identifier" && p.key.name === "org_id") || (p.key.type === "Literal" && p.key.value === "org_id")))) return true
+      if (SCOPING_METHODS.has(member.property.name) && a0?.type === "ObjectExpression" && a0.properties.some((p) => p.type === "Property" && ((p.key.type === "Identifier" && p.key.name === column) || (p.key.type === "Literal" && p.key.value === column)))) return true
     }
     current = call
   }
@@ -291,18 +355,22 @@ const rule = {
         const fromCall = fromCallOf(node)
         if (!fromCall) return
         if (isReturningClause(node)) return
-        if (chainHasOrgScope(node)) return
+        if (chainHasColumnScope(node)) return
 
         const tableArg = fromCall.arguments[0]
-        if (tableArg?.type === "Literal" && (SELF_SCOPED_TABLES.has(tableArg.value) || IDENTITY_SCOPED.has(tableArg.value))) return
+        if (tableArg?.type === "Literal" && (SELF_SCOPED_TABLES.has(tableArg.value) || IDENTITY_SCOPED.has(tableArg.value) || GLOBAL_REFERENCE_TABLES.has(tableArg.value))) return
+        // The org-RESOLUTION read, and ONLY when it is bounded to one person — see SESSION_SCOPED_TABLES.
+        if (tableArg?.type === "Literal" && SESSION_SCOPED_TABLES.has(tableArg.value) && chainHasColumnScope(node, SESSION_SCOPED_TABLES.get(tableArg.value))) return
 
         const fn = enclosingFunction(node)
         // Injectable core: the client is a PARAMETER, so the caller owns the org context.
         const client = fromCall.callee.object
         if (client.type === "Identifier" && functionHasParam(fn, client.name)) return
 
-        const fnText = fn ? sourceCode.getText(fn) : sourceCode.getText()
-        if (ORG_AWARE.test(fnText)) return
+        // ⚠ ORDER MATTERS — the text from the function's start UP TO the read, never the whole
+        // function. See ORG_AWARE's header (M-061).
+        const start = fn ? fn.range[0] : 0
+        if (ORG_AWARE.test(sourceCode.getText().slice(start, node.range[0]))) return
 
         context.report({ node: node.callee.property, messageId: "unscoped" })
       },

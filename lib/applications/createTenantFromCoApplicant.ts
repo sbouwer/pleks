@@ -33,6 +33,7 @@ export async function createTenantFromCoApplicant(
 
   const { data: co, error: coError } = await supabase
     .from("application_co_applicants")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- the org is DISCOVERED from this row, as the header above states: an applicant is not an org member, so there is no caller org to filter by. Authority is the link-account route (the applicant's own session + their fill token); `co.org_id` is then the boundary for every write below. M-061.
     .select("id, org_id, first_name, last_name, applicant_email, applicant_phone, id_type, id_number, id_number_hash, date_of_birth, employer_name, stage1_consent_given_at, tenant_id")
     .eq("id", coApplicantId)
     .single()

@@ -90,6 +90,9 @@ export async function generateLeaseDocument(
       tenant_view(*)
     `)
     .eq("id", leaseId)
+    // This function TAKES orgId, and the lease was not bound to it — a caller passing a foreign
+    // leaseId with its own orgId generated a document from another org's lease. M-061.
+    .eq("org_id", orgId)
     .single()
     logQueryError("generateLeaseDocument leases", leaseError)
 
@@ -107,8 +110,8 @@ export async function generateLeaseDocument(
   const leaseType = lease.lease_type ?? "residential"
   const [libraryRes, coTenantsRes, leaseSelectionsRes, orgCustomRes, orgDefaultsRes] = await Promise.all([
     supabase.from("lease_clause_library").select("*").in("lease_type", [leaseType, "both"]).order("sort_order"),
-    supabase.from("lease_co_tenants").select("tenant_id", { count: "exact", head: true }).eq("lease_id", leaseId),
-    supabase.from("lease_clause_selections").select("clause_key, enabled, custom_body").eq("lease_id", leaseId),
+    supabase.from("lease_co_tenants").select("tenant_id", { count: "exact", head: true }).eq("lease_id", leaseId).eq("org_id", orgId),
+    supabase.from("lease_clause_selections").select("clause_key, enabled, custom_body").eq("lease_id", leaseId).eq("org_id", orgId),
     supabase.from("lease_clause_selections").select("clause_key, enabled, custom_body").eq("org_id", orgId).is("lease_id", null),
     supabase.from("org_lease_clause_defaults").select("clause_key, enabled").eq("org_id", orgId),
   ])

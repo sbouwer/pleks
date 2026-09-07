@@ -44,6 +44,7 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
   // Load all org + system templates for the selector
   const { data: rawTemplates, error: rawTemplatesError } = await db
     .from("document_templates")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- ALREADY org-scoped, via `.or(scope.eq.system, org_id.eq.${orgId})` below: platform template masters plus this org's own. The rule reads `.eq`/`.match`/`.in` only, and deliberately does NOT learn `.or` — `.or` is a DISJUNCTION, so a general acceptance would let a widening filter read as a bound. Session-derived orgId (gatewaySSR). M-061.
     .select(
       "id, scope, template_type, name, description, category, body_html, subject, whatsapp_body, body_variants, legal_flag, merge_fields, usage_count, last_used_at, is_deletable, created_at, comms_class, customised_from"
     )

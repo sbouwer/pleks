@@ -73,7 +73,6 @@
   "lib/screening/sendCreditReport.ts",
   "lib/sms/sendSMS.ts",
   "lib/statements/generateOwnerStatement.ts",
-  "lib/supabase/gateway.ts",
   "lib/trust/invariants.ts",
   "lib/whatsapp/sendWhatsApp.ts",
   "lib/work/teams.ts"

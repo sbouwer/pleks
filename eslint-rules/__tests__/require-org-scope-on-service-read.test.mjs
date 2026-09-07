@@ -95,4 +95,89 @@ describe("pleks/require-org-scope-on-service-read", () => {
       ],
     })
   })
+
+  /**
+   * M-061, 2026-08-28. Three changes ship together and each is probed BOTH directions, because the
+   * two table classes are EXEMPTIONS — a broken exemption fails open, and an exemption whose probe
+   * only checks the quiet direction cannot tell "correctly exempt" from "rule stopped running".
+   */
+  it("ORDER-SENSITIVITY: an org signal AFTER the read no longer exempts it", () => {
+    tester.run("require-org-scope-on-service-read", rule, {
+      valid: [
+        {
+          // Validate-then-act, correctly ordered: the org is known BEFORE the read.
+          name: "an org signal BEFORE the read still exempts it",
+          filename: FILE,
+          code: `async function f(id, orgId) {\n  const db = await createServiceClient()\n  const own = await db.from("units").select("id").eq("org_id", orgId)\n  return db.from("leases").select("id").eq("id", id)\n}\n`,
+        },
+      ],
+      invalid: [
+        {
+          // THE DEFECT M-061 EXISTS FOR, and the exact shape of the three live cross-org reads this
+          // pass fixed: read the row by a caller-supplied id, then use the FETCHED ROW's own org as
+          // the boundary for everything below. The old whole-function test read `row.org_id` as an
+          // org signal and exempted the read it was supposed to bound.
+          name: "the row's OWN org_id, used after the read, does not exempt it",
+          filename: FILE,
+          code: `async function f(id) {\n  const db = await createServiceClient()\n  const row = await db.from("leases").select("id, org_id").eq("id", id).single()\n  return db.from("payments").select("id").eq("org_id", row.org_id)\n}\n`,
+          errors: [{ messageId: "unscoped" }],
+        },
+      ],
+    })
+  })
+
+  it("GLOBAL_REFERENCE_TABLES: a table with no org_id column is exempt; a neighbouring one is not", () => {
+    tester.run("require-org-scope-on-service-read", rule, {
+      valid: [
+        {
+          name: "lease_clause_library has no org_id column — nothing to scope to",
+          filename: FILE,
+          code: `async function f(t) {\n  const db = await createServiceClient()\n  return db.from("lease_clause_library").select("clause_key").in("lease_type", [t])\n}\n`,
+        },
+      ],
+      invalid: [
+        {
+          // The exemption is keyed on the TABLE, so the probe that matters is the adjacent table
+          // that DOES carry org_id. If the set were ever widened to a prefix or a path, this passes
+          // silently — which is how a reason-bearing exemption decays into a hole.
+          name: "org_lease_clause_defaults DOES carry org_id and still fires",
+          filename: FILE,
+          code: `async function f() {\n  const db = await createServiceClient()\n  return db.from("org_lease_clause_defaults").select("clause_key")\n}\n`,
+          errors: [{ messageId: "unscoped" }],
+        },
+      ],
+    })
+  })
+
+  it("SESSION_SCOPED_TABLES: user_orgs is exempt ONLY when bounded to one user", () => {
+    tester.run("require-org-scope-on-service-read", rule, {
+      valid: [
+        {
+          // The org-RESOLUTION read: filtering it by org would have to supply the value the query
+          // exists to discover. 16 live sites are this one query.
+          name: "the org-resolution read, bounded by .eq(\"user_id\", …)",
+          filename: FILE,
+          code: `async function f(user) {\n  const db = await createServiceClient()\n  return db.from("user_orgs").select("org_id").eq("user_id", user.id)\n}\n`,
+        },
+      ],
+      invalid: [
+        {
+          // THE CONDITION IS THE POINT. A bare user_orgs read is the platform's whole membership
+          // table; without this case the exemption would be a table-shaped hole in the org boundary.
+          name: "a BARE user_orgs read is a cross-org read and fires",
+          filename: FILE,
+          code: `async function f() {\n  const db = await createServiceClient()\n  return db.from("user_orgs").select("org_id, user_id")\n}\n`,
+          errors: [{ messageId: "unscoped" }],
+        },
+        {
+          // `.neq` is not a bound — the same defect this rule was fixed for once already on org_id,
+          // now reachable through the parameterised column. Reuses chainHasColumnScope's method gate.
+          name: ".neq(\"user_id\", …) does not bound user_orgs either",
+          filename: FILE,
+          code: `async function f(user) {\n  const db = await createServiceClient()\n  return db.from("user_orgs").select("org_id").neq("user_id", user.id)\n}\n`,
+          errors: [{ messageId: "unscoped" }],
+        },
+      ],
+    })
+  })
 })

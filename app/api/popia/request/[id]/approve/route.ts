@@ -31,6 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const db = createServiceClient()
   const { data: request, error } = await (await db)
     .from("data_subject_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- VALIDATE-THEN-ACT. The row must be read before the caller's org can be tested against it: authorisation is membership of user.id ⨯ request.org_id, and a 403 returns before any approval happens (erasure/nuke additionally require an admin role). Stricter than the sibling GET — there is no data-subject path here at all. M-061.
     .select("*")
     .eq("id", id)
     .single()

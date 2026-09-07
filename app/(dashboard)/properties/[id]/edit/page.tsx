@@ -43,6 +43,10 @@ export default async function EditPropertyPage({
         "id, name, type, address_line1, address_line2, suburb, city, province, postal_code, is_sectional_title, managing_scheme_id, levy_amount_cents, levy_account_number, erf_number, sectional_title_number, notes, landlord_id, managing_agent_id"
       )
       .eq("id", id)
+      // Session-derived orgId (getServerOrgMembership above), not the row's. Redundant under RLS
+      // on the cookie client, load-bearing if this read ever moves to `service` — which is the
+      // same file, one variable away. M-061.
+      .eq("org_id", orgId)
       .is("deleted_at", null)
       .single(),
 

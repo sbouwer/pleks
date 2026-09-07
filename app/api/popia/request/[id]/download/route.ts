@@ -26,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Load the request
   const { data: request, error } = await (await db)
     .from("data_subject_requests")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- VALIDATE-THEN-ACT, same as the sibling GET: the data SUBJECT is not an org member, so an org filter here would deny the POPIA s23 access right it exists to serve. `isSubject || membership` (user.id ⨯ request.org_id) 403s before the export is streamed. M-061.
     .select("org_id, subject_user_id, subject_email, export_id")
     .eq("id", id)
     .single()
