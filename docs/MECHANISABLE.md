@@ -2000,3 +2000,98 @@ The author identified the hazard, and defended the single field in front of them
 - **Probe both directions:** a `SELECT` as `db-inspector` must PASS, an `UPDATE`/`DROP` as `db-inspector` must FAIL, and the same `UPDATE` from the **main session** must still reach the ordinary ask rather than being denied — without that third case, a deny that blocks everyone scores green.
 - **Provenance:** CD agentic-setup audit, 2026-09-07.
 - **Covering spec:** NEW
+
+### M-099 — the pre-push drift tail evaluates the CHECKED-OUT branch, not the ref being pushed
+
+- **Rule:** `.githooks/pre-push` gates what is *being pushed*. Both of its arms — the scope decision and the schema-drift tail — must reason about the pushed ref, not about whatever happens to be checked out.
+- **Where it lives:** `.githooks/pre-push:58-64` (the `$DRIFT` tail) · `scripts/check-drift-if-sql-changed.mjs:143-146` (`@{u}...HEAD`) · `scripts/prepush-scope.mjs:45-56,136-152` (`refsToRange`, the arm that WAS fixed).
+- **Rung:** hook · **Blast:** other
+- **Satisfied when:** `check-drift-if-sql-changed.mjs` bounds its committed-range window by the pushed ref when the hook supplies one, and a probe asserts a cross-branch push is not reported clean
+- **Observed 2026-09-07, in-session, at `c2e41210`.** `git push origin chore/canonicalise-external-links` while checked out on `chore/check-deps-installed` printed **"No migration SQL in commits vs origin/main"**. That was true of the checkout and false of the pushed ref — `010_platform_features.sql` was in the pushed range. The drift arm therefore reported clean about a branch it never looked at.
+- **This is a HALF-FIXED class, which is why it is worth an entry rather than a note.** `prepush-scope.mjs` was hardened for exactly this bug: it parses git's pre-push stdin and its own header says so — *"the scope was computed for the CURRENT BRANCH rather than for what was actually being pushed"*. The fix stopped at that file. The drift tail is invoked at the END of the same hook, after the stdin has already been consumed by the pipe at line 22, and `check-drift-if-sql-changed.mjs` reads no stdin at all — it resolves `@{u}` of HEAD. **One hook, two arms, one of them fixed.** Same shape as **M-072** (a consolidation that did not propagate to its neighbours), now on the hook the consolidation was written for.
+- **Why the existing probes cannot see it.** `check-git-hooks.mjs` drives the tail through `PLEKS_DRIFT_CMD`, which substitutes the command and therefore never exercises the range computation. The script's own `--selftest` asserts *"with an upstream, the window includes the committed range"* — true, and silent on **whose** committed range. Neither probe is wrong; neither is about this property.
+- **Sketch.** `pre-push` reads its stdin once into a variable and passes the ranges to BOTH arms (`prepush-scope.mjs` already accepts them on stdin; the drift script gains the same input, falling back to `@{u}` when run by hand). Escalate on absence exactly as `refsToRange` already does — a new branch or an unbounded range means RUN, never SKIP.
+- **Probe both directions:** a cross-branch push of a migration-bearing ref must report the migration (not "no migration SQL"), and a plain same-branch push must still hit the throttle stamp rather than being escalated into a live drift run on every push. The second is the one that decides whether the fix survives — a drift arm that runs unconditionally reaches the network on every push and gets deleted.
+- **Provenance:** observed while pushing the #276/#278 batch, 2026-09-07. Not caused by that work; surfaced by it.
+- **Covering spec:** NEW
+
+### M-100 — the Trivy strictness gate keys on the manifest PATH, so a `scripts` edit inherits main's strictness
+
+- **Rule:** the CVE gate fails the build on `main` and on any PR that could introduce a dependency, and stays advisory elsewhere — so an unfixable upstream disclosure cannot block unrelated work. The rationale is written at `.github/workflows/ci.yml:4-6`.
+- **Where it lives:** `.github/workflows/ci.yml:215-220` (`grep -qE '^(package\.json|package-lock\.json)$'` → `code=1`).
+- **Rung:** ci · **Blast:** other
+- **Satisfied when:** the gate goes strict on a change that can actually alter the dependency graph, and stays advisory on a manifest edit that cannot
+- **Observed 2026-09-07.** `origin/main`, #276 and #278 all carried lockfile `d3e63a95` — byte-identical. #276 passed (advisory: no manifest touched) and #278 **failed strict, minutes later**, on six HIGH findings that were published between the two runs. #278's only `package.json` change was to `scripts` — adding `check-deps-installed.mjs` to the check chain. A `scripts` edit cannot introduce a CVE; the gate matched the file's *path*, not the part of it that changed.
+- **Strict is the safe direction to be wrong in, which is why this is an entry and not an incident.** But the cost is exactly what the `else` branch exists to prevent: any `scripts`/`engines`/`version` edit now inherits main's strictness and can be blocked by an unrelated upstream disclosure landing between two runs — while the lockfile it is being judged on is unchanged from the `main` that is already green.
+- **Sketch.** Narrow the strict arm to a change that can move the dependency graph: `package-lock.json` changing at all, OR a `package.json` diff touching the `dependencies` / `devDependencies` / `optionalDependencies` / `peerDependencies` / `overrides` / `resolutions` keys. `git diff` plus a `jq` comparison of those subtrees between `$BASE_SHA` and `$HEAD_SHA` decides it — no parsing of the diff text.
+- **Probe both directions, and the second is the load-bearing one:** a `scripts`-only edit must stay ADVISORY, and an `overrides` edit with an unchanged lockfile must still go STRICT. Without the second, "narrower" quietly becomes "off for package.json", which is a worse gate than the over-broad one it replaces.
+- **Not to be confused with a suppression.** `.trivyignore` is for an architectural exception we intend to keep, with a rationale and a review date. Narrowing *when the gate is strict* is a different act from deleting a finding, and this entry is only the former.
+- **Provenance:** diagnosed while clearing the 6 HIGH findings (PR #280), 2026-09-07. Reported in that PR body as an observation; filed here so it does not live only in a merged description.
+- **Covering spec:** NEW
+
+### M-101 — `external_links` is written in three places and nothing asserts they agree
+
+- **Rule:** an external URL must be identical in the constant the pages render, the seed a fresh replay applies, and the row the link-check cron reads.
+- **Where it lives:** `lib/external-links.ts:28-44` (`EXTERNAL_LINKS`) · `supabase/migrations/010_platform_features.sql` §20 (the `ON CONFLICT (key) DO NOTHING` seed) · §53 (the guarded UPDATE that moves live rows) · `app/api/cron/check-links` (reads the TABLE, never the constant).
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** a check parses the constant and the §20 seed and fails when a key's URL differs between them
+- **The hazard is already written down and that is the problem.** `lib/external-links.ts:8-13` carries a ⚠ block naming all three copies and the failure mode in both directions — *"a URL fixed only here still shows green while the pages link somewhere else, and a URL fixed only in the DB leaves the pages pointing at the dead one."* That is a well-written comment with **no mechanism behind it**, in a file whose whole reason for existing is that the copies drift. Prose at the site is the right rung for the ORDER rule below it (a sequencing judgement); it is the wrong rung for an equality that a parser can decide.
+- **Two of the three copies are statically comparable; the third is not, and the split matters.** The constant and the §20 seed are both in the tree — a parse-and-diff is exact. The **live row is not in the tree** and deliberately diverges: §53's UPDATE is guarded so it no-ops if an admin has already edited the row via `/admin/external-links`, which is a feature. So the check covers code-vs-seed only, and the DB copy stays a runtime concern. Recording that boundary is the point — a check claiming to cover "all three" would be asserting something it cannot observe, and would read as covering the case it does not.
+- **Sketch.** Parse `EXTERNAL_LINKS` from the constant (it is a flat `as const` object literal) and the §20 `INSERT ... VALUES` rows from the migration, join on `key`, and fail on any key present in one and not the other, or present in both with different URLs. Same shape as the `SEAM_VARS` parity assertion built for M-096 — read both sides from their real sources, restate neither.
+- **Probe both directions:** a planted mismatch (constant moved, seed not) must FAIL, and the tree as it stands after the §53 sweep must PASS. Add a third: a key added to the constant with no seed row must FAIL, because that is the shape the 2026-09-07 sweep would have taken had a link been *added* rather than corrected.
+- **Provenance:** the 2026-09-07 canonicalisation sweep (PR #276) had to touch all three copies by hand, guided only by the comment. Nothing would have caught missing one.
+- **Covering spec:** NEW
+
+### M-102 — `/_\d$/` strips ONE digit, so a two-digit slot index silently becomes a different document type
+
+- **Rule:** a stored document's type is recovered from its `docKey` by stripping the slot index. `payslips_12` is the twelfth payslip, not the first.
+- **Where it lives:** `app/api/applications/[id]/detect-document/route.ts` (the PDF branch's `body.docKey.replace(/_\d$/, "")`) · `lib/applications/docCategories.ts` (`categoryForFilename`, which does this correctly with a longest-key-first scan).
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** no call site recovers a category from a docKey with a single-digit-anchored regex; the SSOT helper is the only path
+- **Observed 2026-09-07 at `3cc8edbd`.** `"payslips_12".replace(/_\d$/, "")` returns `"payslips_1"` — a string that is neither the category nor a real slot. `\d` matches exactly one character, so the strip only works for indices 0–9. The returned value becomes `documentType` in the response, so a two-digit upload is reported as a different document than it is.
+- **Not fixed where it was found, deliberately.** It surfaced inside a security PR (BUILD_71 D10, the docKey allowlist). Changing extraction behaviour there would have mixed a data-correctness fix into a boundary fix and made the security diff harder to review — the commit-granularity rule in CLAUDE.md §5, applied to a case where the two concerns happen to touch adjacent lines.
+- **The real remedy is not a longer regex.** `categoryForFilename` in `docCategories.ts` already solves exactly this problem, correctly, by scanning the known keys longest-first instead of pattern-matching the suffix. A second, weaker implementation of the same mapping is the finding; `/_\d+$/` would fix the symptom and leave two implementations to drift.
+- **Probe both directions:** `payslips_12` must recover `payslips`, and a key with a legitimate underscore in its name (`bank_main`, `proof_of_address`) must NOT be truncated at that underscore — the second is what a naive `split("_")[0]` would break, and it is why the scan is longest-first.
+- **Provenance:** found while building the docKey allowlist for PR #268, 2026-09-07. Not caused by it.
+- **Covering spec:** NEW
+
+### M-103 — a structural exemption dissolves a baseline entry, and a file-level baseline then silences the whole file forever
+
+- **Rule:** a baseline entry means *read and classified*, never *exempt*, and baselines only shrink (CLAUDE.md §4). An entry whose finding no longer exists is not a shrunk baseline — it is a live suppression with nothing behind it.
+- **Where it lives:** `eslint-rules/require-org-scope-on-service-read.mjs` (`SESSION_SCOPED_TABLES`, and `create()`'s file-level `if (BASELINE.has(rel)) return {}`) · its baseline JSON · `lib/supabase/gateway.ts` (the dissolved entry).
+- **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** a baseline entry that no longer corresponds to any finding fails the gate as stale, the way an unused eslint-disable directive does
+- **Observed 2026-09-07 on PR #269 (walker pass, branch head `5d4c947a`).** That PR adds `SESSION_SCOPED_TABLES`, which structurally exempts a `user_orgs` read bounded by `.eq("user_id", …)`. `lib/supabase/gateway.ts` is baselined, and its only two service reads are exactly that shape — so the entry now suppresses nothing, while continuing to suppress the entire file.
+- **The compounding half is the file-level aperture.** `create()` returns `{}` for a baselined path, so the rule does not run on that file at all — not on the baselined sites, not on anything added later. `gateway.ts` is the module that *defines* the org boundary. An unscoped read added there would never be seen, and the gate would stay green.
+- **"The baseline did not grow" is the wrong half of the ratchet.** Growth is already forbidden and already checked. This is the first pass that made the baseline able to *shrink* without anyone noticing it should — and a ratchet that only resists one direction drifts in the other.
+- **Sketch.** After a run, assert every baselined path still produces at least one finding when the baseline is ignored; report the ones that do not as stale and fail. Mechanically the same as ESLint's own `--report-unused-disable-directives`, applied to this repo's baseline files rather than to inline directives. The rule already computes both halves — it needs to compare them, not to gain a new analysis.
+- **Probe both directions:** a genuinely-still-violating baselined file must PASS (not be reported stale), and a baselined file whose violations have been fixed must FAIL until its entry is removed. Without the first, the check reports every file the moment any unrelated exemption lands.
+- **Provenance:** adversarial walk of PR #269, 2026-09-07.
+- **Covering spec:** NEW
+
+### M-104 — `saveOrgBusinessAccount` edits the management-fee payout account with no role check and no audit row
+
+- **Rule:** changing the bank account an organisation is paid into is a payout-banking mutation. The F1 scar (`eslint:pleks/require-audit-on-sensitive-mutation`) exists because swapping a bank account left no who/when; the sibling path `createOrgBankAccount` carries an owner/property_manager check for the same reason.
+- **Where it lives:** `lib/actions/orgBanking.ts` (`saveOrgBusinessAccount`) · `lib/auth/server.ts` (`requireAgentWriteAccess`, and `ACTION_CAPABILITY`) · `eslint-rules/require-audit-on-sensitive-mutation.mjs`.
+- **Rung:** eslint · **Blast:** money
+- **Satisfied when:** the RBAC arm cannot silently no-op on an unregistered action name, and a `bank_accounts` write on this path either carries a role check or fails the gate
+- **Observed 2026-09-07 at `3cc8edbd`.** `saveOrgBusinessAccount` gates with `requireAgentWriteAccess("save_org_business_account")` and nothing else — no role check, no audit write. Its sibling `createOrgBankAccount` has both. Any member of the org (`agent`, `accountant`, `maintenance_manager`) can therefore rewrite the account management fees are received into; RLS `bank_accounts_org_update` would refuse the same write.
+- **The typing is what makes it invisible.** `save_org_business_account` is absent from `ACTION_CAPABILITY`, so `reqCap` is `undefined` and the capability arm short-circuits rather than denying. The parameter is typed `AgentWriteAction | string`, so an unregistered action name is not a compile error — the `| string` arm turns a missing registration into a silent pass. **A gate that accepts an unknown action name and allows it is a fail-open with a gate's shape**, which is why this is filed at the mechanism rather than as a one-line fix.
+- **Pre-existing, and deliberately not closed inside PR #268.** #268 fixes a storage-path boundary; adding a role check here would change who can perform an existing action, which is a product decision with its own blast radius and belongs in its own change. The header at the site was corrected in #268 because it *claimed* the check existed — a false header is worse than none — but the behaviour was left alone.
+- **Sketch.** Two independent halves, and the first is the general one: make an action name absent from `ACTION_CAPABILITY` a hard failure inside `requireAgentWriteAccess` (or drop the `| string` arm so the compiler rejects it), so no future call can gate on a name nothing knows about. Then extend `require-audit-on-sensitive-mutation`'s table set to cover this write, which its T1 list already reaches for `bank_accounts`.
+- **Probe both directions:** an unregistered action name must be REJECTED (today it passes), and every currently-registered action must still pass unchanged — the second is what decides whether the first can ship without breaking every gated write in the repo.
+- **Provenance:** adversarial walk of PR #268, 2026-09-07; the header half corrected in that PR, the behaviour half filed here.
+- **Covering spec:** NEW
+
+### M-105 — the lease documents tab links to a route that does not exist
+
+- **Rule:** a rendered link to an internal API route resolves. A document list that cannot fetch its documents is a broken contract, not a styling issue.
+- **Where it lives:** `app/(dashboard)/leases/[leaseId]/DocumentsTab.tsx` (four links to `/api/documents/lease?path=…`) · `app/api/documents/` (holds only `[jobId]/print/route.ts`).
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** a static check resolves every internal API path referenced from app code against the route manifest and fails on a miss
+- **Observed 2026-09-07 (walker pass on PR #269, branch head `5d4c947a`).** `/api/documents/lease` has no route file, no catch-all that would match it, and no rewrite; `git log --diff-filter=D` shows it was never deleted, so it appears never to have existed. Signed in as the owning org, opening a lease's communications tab and clicking any listed document returns a 404.
+- **Why it is worth a mechanism and not just a fix.** `architecture-audit.mjs` already verifies the link graph in the *other* direction — `checkCrossOriginLinks` forbids a `<Link>` to a path a redirect would send to another subdomain, and `checkRouteManifest` checks manifest/origin consistency. Neither asserts that a referenced API path **exists**. The existing machinery reads the same two inputs this check needs; the gap is an assertion, not an analysis.
+- **This is the counterpart half of what PR #269 hardened.** That PR bound the document LIST to the session org. The FETCH those listings point at is a route that isn't there — so the surface was made correct on the half that works and left broken on the half that doesn't, which is exactly the split-aperture shape the 2026-08-19 scar records.
+- **Probe both directions:** a link to a nonexistent API path must FAIL, and every currently-rendered link (including dynamic segments and query strings) must PASS — the second is the load-bearing one, because a checker that cannot resolve `[jobId]`-style segments reports the whole app and gets deleted.
+- **Provenance:** adversarial walk of PR #269, 2026-09-07. Pre-existing; not introduced by that PR.
+- **Covering spec:** NEW
