@@ -1362,14 +1362,14 @@ CREATE TRIGGER trg_external_links_updated_at
 
 INSERT INTO external_links (key, url, label, category) VALUES
   ('informationRegulator', 'https://inforegulator.org.za',        'Information Regulator of SA',  'regulatory'),
-  ('sahrc',                'https://www.sahrc.org.za',             'SA Human Rights Commission',   'regulatory'),
+  ('sahrc',                'https://sahrc.org.za',                 'SA Human Rights Commission',   'regulatory'),
   ('chromeCookieHelp',     'https://support.google.com/chrome/answer/95647',
                            'Chrome â€” manage cookies',              'browser_help'),
   ('firefoxCookieHelp',    'https://support.mozilla.org/kb/clear-cookies-and-site-data-firefox',
                            'Firefox â€” manage cookies',             'browser_help'),
-  ('safariCookieHelp',     'https://support.apple.com/guide/safari/manage-cookies-sfri11471',
+  ('safariCookieHelp',     'https://support.apple.com/guide/safari/manage-cookies-sfri11471/mac',
                            'Safari â€” manage cookies',              'browser_help'),
-  ('edgeCookieHelp',       'https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09',
+  ('edgeCookieHelp',       'https://support.microsoft.com/en-us/edge/manage-cookies-in-microsoft-edge-view-allow-block-delete-and-use',
                            'Edge â€” manage cookies',                'browser_help'),
   ('payfastPrivacy',       'https://payfast.io/privacy-policy/',   'PayFast Privacy Policy',       'service_policy'),
   ('statusPage',           'https://status.pleks.co.za',           'Pleks Status Page',            'infrastructure')
@@ -4143,3 +4143,42 @@ ALTER TABLE whatsapp_template_variants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "whatsapp_template_variants_service_role_only" ON whatsapp_template_variants;
 CREATE POLICY "whatsapp_template_variants_service_role_only" ON whatsapp_template_variants
   FOR ALL USING (false) WITH CHECK (false);
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §53  Canonicalise the three external_links that answered via a 301 (2026-09-07)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The §20 seed above is ON CONFLICT (key) DO NOTHING — deliberately, because these rows are
+-- admin-editable at /admin/external-links and a re-seed must never stomp an operator's fix. That
+-- also means editing the seed literals corrects a FRESH replay and nothing else: every existing
+-- database keeps the old URL. This section is the other half.
+--
+-- WHY CANONICALISE. check-links follows redirects, so a 301 never failed the check — the cost is
+-- that each hop is a host or slug that rots on its own schedule, invisibly. `www.sahrc.org.za`
+-- 301'd to the apex, and it was the www host returning the HTTP 500s behind the 2026-08-31 alert
+-- and the 2026-09-01 digest. Microsoft's Edge article had moved TWICE (microsoft-edge/delete-… →
+-- windows/manage-… → edge/manage-…): live only because two stacked redirects still held.
+--
+-- The WHERE clause is the whole safety property, and it buys BOTH properties at once:
+--   · idempotent — a second run matches nothing, so this is safe to replay with the file.
+--   · non-stomping — it fires only while the row still holds the exact stale string. If an admin
+--     has since edited that link, their value is not the old one, and this leaves it alone. That
+--     is why it is written as three targeted UPDATEs and not a re-seed with DO UPDATE.
+-- Verified 2026-09-07: each replacement answers 200 with no further Location header.
+--
+-- ORDER: this section runs AFTER lib/external-links.ts has shipped, never before. The cron watches
+-- the TABLE, so applying this first would leave it checking the corrected URL while users are still
+-- served the stale one — green, and the green has stopped meaning anything. Shipping the code first
+-- inverts that: users get the new URL while the cron still checks the old one, so it goes red only
+-- if the old one has genuinely broken. Prefer a false alarm over a false all-clear. This is a VALUE
+-- correction, so it follows the code; a SCHEMA addition would precede it, because additive DDL
+-- unblocks code rather than contradicting it. Full rule in lib/external-links.ts's header.
+UPDATE external_links SET url = 'https://sahrc.org.za'
+ WHERE key = 'sahrc' AND url = 'https://www.sahrc.org.za';
+
+UPDATE external_links SET url = 'https://support.apple.com/guide/safari/manage-cookies-sfri11471/mac'
+ WHERE key = 'safariCookieHelp' AND url = 'https://support.apple.com/guide/safari/manage-cookies-sfri11471';
+
+UPDATE external_links SET url = 'https://support.microsoft.com/en-us/edge/manage-cookies-in-microsoft-edge-view-allow-block-delete-and-use'
+ WHERE key = 'edgeCookieHelp'
+   AND url = 'https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09';
