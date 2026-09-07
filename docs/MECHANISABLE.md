@@ -1933,3 +1933,46 @@ The author identified the hazard, and defended the single field in front of them
 - **Related:** M-067 (the fix whose landing produced the defect) · M-094 (the other blind spot found on the same path, structure-vs-contents rather than order)
 - **Provenance:** found 2026-08-24 by CI's `db-tests` job on PR #265, on the second push of the M-067 fix. Nothing local reported it; the entry exists because the failure was read rather than retried.
 - **Covering spec:** NEW
+
+### M-096 — the hook probe seam is an ungated `--no-verify` equivalent, and it is documented in the file the denial sends you to read
+
+- **Rule:** the commit gate is not bypassable. `bash-gate.js` denies `--no-verify` outright, and CLAUDE.md §3 states the reason: no gate downstream can see a hook that did not run.
+- **Where it lives:** `.claude/hooks/bash-gate.js` (the deny) · `.githooks/pre-commit:42-43` (the seam) · `.githooks/pre-commit:53` (the marker write) · `.githooks/prepare-commit-msg` (the marker read) · `scripts/check-bash-gate.mjs:107-111` (five probes on the denial).
+- **Rung:** hook · **Blast:** other
+- **Satisfied when:** hook:bash-gate probes a `PLEKS_*` assignment token at command position, both directions
+- **Measured 2026-09-07 (CD audit, verified in-session at `919c2c38`).** `PLEKS_HOOK_PROBE=1 PLEKS_PRECOMMIT_CMD=true git commit` takes the seam at `.githooks/pre-commit:42`, and that path **still reaches line 53**, which writes the gate-ok marker. `prepare-commit-msg` then matches that marker and skips its own chain. **Both rungs gone from one command** — a strictly larger bypass than `--no-verify`, which only skips the one hook. Same shape for `PLEKS_PREPUSH_CMD` and the `PLEKS_DRIFT_CMD` tail.
+- **Why this is not a duplicate of the calibration already in the register.** The seam is discussed at `docs/MECHANISABLE.md:963` — but as a *design note under the default-branch-guard entry*, arguing that two variables make the act deliberate rather than convenient. The CD audit reported it as absent from the register; it is present, and reading it strengthens the finding rather than closing it. That note **already carries its own ⚠ retraction**: the seam shipped a defect once (the guard fired during an ordinary `npm run check` — the exact outcome the note said the seam prevented). A design whose stated safety property has been retracted once is not a control.
+- **The calibration is right for a person and inverted for an agent.** "Two variables is not security; it is the difference between a deliberate act and a convenient one" holds when the actor has to *learn* the seam. An agent denied on `--no-verify` reads the hook to find out why — and the seam is defined in that same file, in a comment explaining what it is for. The loud door is locked and the quiet one beside it is labelled.
+- **Sketch.** Add a DENY to `bash-gate.js` matching an **environment-assignment token at command position** — `PLEKS_(HOOK_PROBE|PRECOMMIT_CMD|PREPUSH_CMD|DRIFT_CMD|BRANCH_PROBE)=` as a leading token of a command — the same token-matching discipline that makes the force-push deny survive `git -C`, an absolute path, or an alias.
+- **Probe both directions, and the second is the one that matters:** `PLEKS_PRECOMMIT_CMD=true git commit` must FAIL, and `grep PLEKS_HOOK_PROBE .githooks/pre-commit` must PASS. A substring match on the variable name reproduces **M-069** — the `-n`-read-as-`--no-verify` false deny — in a new place, and a deny that fires on *reading* the hook is a deny that gets deleted within a day.
+- **Open question, Stéan's not CC's:** `check-git-hooks.mjs` NEEDS the seam to drive both directions without a two-minute run per probe. Decide whether the deny carves out the check script by name, or the check invokes the hooks by a path `bash-gate` does not observe. Do not build until this is settled — a deny that breaks `npm run check` is the "gate that makes the gate unrunnable" failure this file keeps recording.
+- **Bearing on the 2026-09-07 25-second commit:** the seam is the only path found that produces a commit 25 seconds after checkout without tripping `bash-gate`. **Not claimed as the cause** — the actual cause was established independently (dependencies declared by the lockfile and absent from `node_modules`, so the chain could not have run). Recorded because the two are indistinguishable after the fact, which is itself part of the finding.
+- **Provenance:** CD agentic-setup audit, 2026-09-07. Found by reading the denial and then reading the file it points at.
+- **Covering spec:** NEW
+
+### M-097 — the MCP namespace is written in four places and nothing asserts they agree
+
+- **Rule:** every Supabase MCP mutation passes a gate. `.claude/hooks/mcp-ddl-gate.js` shows the statement before asking; `.claude/settings.json` carries the coarse twin for when the hook is dead.
+- **Where it lives:** `.claude/hooks/mcp-ddl-gate.js:29` (`@matcher`) · `.claude/settings.json` PreToolUse matcher · the settings `ask` entries (from line 17) · `scripts/check-mcp-ddl-gate.mjs:18`. **No `.mcp.json` in the repo** — verified 2026-09-07; the namespace is set by user-scope config, outside version control.
+- **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** check:check-mcp-ddl-gate asserts the four namespace copies agree
+- **Measured 2026-09-07 (CD audit, four copies confirmed in-session).** The hook's header reasons that the settings ask-list answers *"if this hook is dead"*. **True for hook death, false for a namespace change:** the `@matcher` and the ask-list stop matching *together*, silently, and every Supabase MCP call then runs ungated **and** unprompted. The hook cites L-01 for exactly this class, but its prefix-match mitigation covers renames *within* the prefix, not the prefix itself.
+- **Not hypothetical.** The same server surfaces as `mcp__Supabase__*` in a different client — observed 2026-09-07. The prefix is client-derived, so it can change without anyone editing this repo, which is what makes a four-way copy dangerous rather than merely redundant.
+- **Sketch.** Assert the four copies agree — hook `@matcher`, settings matcher, settings `ask` prefix, and the check's own constant — resolved from one source and compared, so a prefix change is a red build rather than four silent agreements to stop matching.
+- **Probe both directions:** a deliberately divergent copy must FAIL, and the four in agreement must PASS. Add the degenerate guard this file makes routine: a parse yielding **zero** namespace copies must FAIL, never read as four-way agreement.
+- **Coverage boundary, stated rather than discovered.** The static half cannot tell you the namespace is *currently correct* — only that the copies agree with each other. Four copies agreeing on a stale prefix passes. The live half needs a periodic re-probe (the 2026-08-19 one is the precedent); it wants a **cadence**, not a date, and this entry is not satisfied by the static check alone.
+- **Provenance:** CD agentic-setup audit, 2026-09-07.
+- **Covering spec:** NEW
+
+### M-098 — `db-inspector` is documented as SELECT-only and is not
+
+- **Rule:** CLAUDE.md §7 lists `db-inspector` as *"read-only, SELECT"*, and the brief tells a session to treat its runs as the authority on live state.
+- **Where it lives:** `.claude/agents/db-inspector.md:4` (grants `mcp__claude_ai_Supabase__execute_sql`) · `.claude/hooks/mcp-ddl-gate.js` · CLAUDE.md §7 agent table.
+- **Rung:** hook · **Blast:** data-boundary
+- **Satisfied when:** hook:mcp-ddl-gate denies non-read statements when `agent_type` is `db-inspector`
+- **Measured 2026-09-07 (CD audit, grant confirmed in-session).** `db-inspector` holds `execute_sql`. `mcp-ddl-gate` treats `execute_sql` as **ask**, with DDL/DML/read-shaped as a *label on the prompt* — never a deny. So the agent can mutate production on an approved prompt, and "read-only" is prose with no mechanism behind it.
+- **Why this is worth closing rather than restating in prose, which is the whole point.** The brief instructs a session to treat a `db-inspector` run as authoritative about live state. That makes it easy to slide from *"read-only agent"* to *"its runs cannot have changed anything"* — a claim the reader never consciously adopted and that nothing would contradict. The risk is not a rogue agent; it is a correct-looking audit trail that quietly assumes an isolation property the setup does not provide.
+- **Sketch.** `mcp-ddl-gate` reads `agent_type` and denies DDL/DML when it is `db-inspector`. The field is known to arrive — `agent-write-scope` already decides on it per tool call — so this is a discriminator this repo has already proven, applied to a second gate.
+- **Probe both directions:** a `SELECT` as `db-inspector` must PASS, an `UPDATE`/`DROP` as `db-inspector` must FAIL, and the same `UPDATE` from the **main session** must still reach the ordinary ask rather than being denied — without that third case, a deny that blocks everyone scores green.
+- **Provenance:** CD agentic-setup audit, 2026-09-07.
+- **Covering spec:** NEW
