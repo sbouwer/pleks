@@ -275,6 +275,60 @@ function isNoVerify(command) {
   return false;
 }
 
+/**
+ * The `.githooks` PROBE SEAM, set as a shell assignment. An ungated `--no-verify` by another name.
+ *
+ * `.githooks/pre-commit` substitutes `$PLEKS_PRECOMMIT_CMD` for `npm run check` when
+ * `PLEKS_HOOK_PROBE=1` — so `PLEKS_HOOK_PROBE=1 PLEKS_PRECOMMIT_CMD=true git commit -m x` runs the
+ * hook, runs `true` as the gate, and then reaches `git write-tree > …/pleks-gate-ok`, which also
+ * satisfies `prepare-commit-msg`. The commit gate is skipped end to end, and unlike `--no-verify`
+ * it leaves a marker saying the gate PASSED. `PLEKS_PREPUSH_CMD` and `PLEKS_DRIFT_CMD` do the same
+ * to `pre-push`. `PLEKS_BRANCH_PROBE` is a SECOND, INDEPENDENT vehicle and needs no master switch:
+ * `pre-commit:25` reads `BRANCH="${PLEKS_BRANCH_PROBE:-$(git branch --show-current)}"` before the
+ * guard tests it, so setting it alone spoofs the branch name and defeats the default-branch guard.
+ * Hence all five are denied, not just `PLEKS_HOOK_PROBE`.
+ *
+ * WHY THIS NEEDS NO CARVE-OUT FOR THE CHECK THAT DRIVES THE SEAM, which was the apparent dilemma
+ * (M-096): an exemption would publish the bypass string inside the control, and a path this hook
+ * cannot see would be a deliberate blind spot. Neither is necessary. `check-git-hooks.mjs` sets
+ * these through `spawnSync`'s `env` OBJECT, in-process — it never constructs a shell assignment,
+ * and neither does `check-prepush-composition.mjs:111`. A rule keyed on shell assignment syntax is
+ * therefore structurally invisible to both, with nothing exempted. That is the whole design: deny
+ * the only spelling reachable through the Bash tool, and the legitimate driver is not spelling it.
+ *
+ * AT COMMAND POSITION, not anywhere in the string — this is M-069/M-072's trap, and the rule that
+ * cost this file four separate false-denies is *match the token at a position, never the string*.
+ * `grep PLEKS_HOOK_PROBE .githooks/pre-commit` must stay allowed: writing about the seam, or
+ * grepping for it, is not setting it. A shell assignment is only an assignment while it PRECEDES
+ * the command word, so the scan stops at the first token that is not one — everything after that
+ * is an argument. `export`/`env` are the two verbs that put the assignment one token later.
+ *
+ * ONE ACCEPTED FALSE-DENY, found while writing this rule's own commit message and recorded rather
+ * than worked around. `segments()` splits on newlines, so a HEREDOC BODY line that BEGINS with the
+ * assignment (`git commit -F - <<'MSG'` … a line starting `PLEKS_HOOK_PROBE=1 git commit` …) is
+ * tokenised as a command and denied, though nothing executes it. Same class as the M-072 case this
+ * file already records: a gate that forbids writing down the rule it enforces. NOT fixed by masking
+ * heredoc bodies — `cat <<EOF` would then become a universal envelope for anything, which is the
+ * hole the quoted-`--no-verify` ruling twenty lines up refused for exactly this reason. The cost is
+ * one word of prose before the example on the line, and the rule stays a rule rather than a shape
+ * anyone can wrap their way out of. Probed, so the cost stays visible instead of being rediscovered.
+ */
+const SEAM_VARS = ["PLEKS_HOOK_PROBE", "PLEKS_PRECOMMIT_CMD", "PLEKS_PREPUSH_CMD", "PLEKS_DRIFT_CMD", "PLEKS_BRANCH_PROBE"];
+
+function isHookSeamAssignment(command) {
+  for (const tokens of segments(command)) {
+    let i = 0;
+    if (tokens[0] === "export" || tokens[0] === "env") i = 1;
+    for (; i < tokens.length; i++) {
+      const eq = tokens[i].indexOf("=");
+      // Not an assignment → this is the command word. Anything further right is an argument.
+      if (eq <= 0) break;
+      if (SEAM_VARS.includes(tokens[i].slice(0, eq))) return true;
+    }
+  }
+  return false;
+}
+
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {
@@ -324,6 +378,16 @@ process.stdin.on("end", () => {
       // was never carried across to its neighbours. Rationale and the no-bypass boundary (a quoted
       // `--no-verify` is still a flag) are at `isNoVerify` / `maskMessageText`.
       [isNoVerify, "--no-verify (or -n on commit/push) skips the commit gate and is forbidden"],
+      // The same class as the line above, wearing a different spelling: the .githooks probe seam
+      // substitutes the gate command outright, and unlike --no-verify it leaves a marker claiming
+      // the gate PASSED. Denied rather than asked, for the same reason — the whole point of the
+      // assignment is to replace the gate the ask would be protecting.
+      // @no-twin `Bash(PLEKS_*)` would cover ONLY the bare leading-assignment spelling; settings
+      // matches a command PREFIX, so `export PLEKS_HOOK_PROBE=1; git commit` and an assignment
+      // sitting behind another (`FOO=1 PLEKS_HOOK_PROBE=1 git commit`) both pass it. Recorded as a
+      // hole rather than written as a twin that reads like cover and matches one shape in three.
+      // Rationale, the no-carve-out design and the command-position boundary: see the function.
+      [isHookSeamAssignment, "the .githooks probe seam substitutes the commit/push gate and is forbidden"],
     ];
     const ASK = [
       // @twin Bash(git push*)
