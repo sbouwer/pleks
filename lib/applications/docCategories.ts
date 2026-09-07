@@ -129,6 +129,55 @@ export function deriveDocCategories(positiveIncomeKeys: Set<string>, employmentT
   return cats
 }
 
+/** Every category key `deriveDocCategories` can EVER return, DERIVED by enumerating its branch space
+ *  rather than hand-listed — a new slot joins the set the moment it is added above, with no second
+ *  copy to drift. This is the guard vocabulary for a caller-supplied `docKey` (see
+ *  `parseDocKey` in `applicationStoragePath.ts`).
+ *
+ *  ⚠ NOT to be confused with `VALID_DOC_TYPES` in `lib/extraction/documentTypeClassifier.ts`. That set
+ *  is what the CLASSIFIER may return (hyphenated: `id-document`, `bank-statement`); this one is what an
+ *  UPLOADER may send (underscored: `id`, `bank_main`). The two vocabularies are disjoint, so guarding
+ *  an upload with the classifier's set would reject every legitimate docKey, and vice versa.
+ *
+ *  Memoised: the enumeration is pure and its inputs are compile-time constants, but `companyAgeYears`
+ *  reads the current year, so the set is built on first use rather than at module load. */
+let allKeysMemo: ReadonlySet<string> | null = null
+export function allDocCategoryKeys(): ReadonlySet<string> {
+  if (allKeysMemo) return allKeysMemo
+  const keys = new Set<string>()
+  // Every income key that can switch on a conditional slot, all at once — the slots are independent,
+  // so the union needs one pass with all of them rather than the power set.
+  const income = new Set(["rental", "savings_interest", "dividends", "maintenance", "alimony"])
+  const year = new Date().getFullYear()
+  const employments = ["permanent", "contract", "commission", "part_time", "self_employed", "freelance", "retired", "grant", ""]
+  const idTypes = [null, "sa_id", "passport"]
+  const applicantTypes = [null, "individual", "company"]
+  // A JURISTIC type takes the company branch; an unincorporated one falls through to the personal set.
+  const companyTypes = [null, "pty_ltd", "sole_prop"]
+  const sarsStates = [null, "yes", "no"]
+  // The three AFS age bands (registered this year / 1-2 years / 3+ or unknown) — all yield key `afs`,
+  // enumerated anyway so a future age-specific key cannot slip out of the set.
+  const companyRegs = [null, `${year}/000000/07`, `${year - 1}/000000/07`, `${year - 5}/000000/07`]
+  for (const [employmentType, idType, applicantType, companyType, sarsRegistered, companyReg] of cartesian([
+    employments, idTypes, applicantTypes, companyTypes, sarsStates, companyRegs,
+  ])) {
+    for (const cat of deriveDocCategories(income, employmentType ?? "", idType, applicantType, companyType, sarsRegistered, companyReg)) {
+      keys.add(cat.key)
+    }
+  }
+  allKeysMemo = keys
+  return keys
+}
+
+/** Every combination of the given lists, one value from each, in order. Kept separate so the enumeration
+ *  above reads as "for each combination" rather than as six nested loops. */
+function cartesian(lists: (string | null)[][]): (string | null)[][] {
+  return lists.reduce<(string | null)[][]>(
+    (acc, list) => acc.flatMap((combo) => list.map((value) => [...combo, value])),
+    [[]],
+  )
+}
+
 /** Map a stored filename back to its doc category — paths are `{categoryKey}.ext` or `{categoryKey}_{id}.ext`. */
 export function categoryForFilename(name: string, cats: DocCategory[]): string {
   const base = name.replace(/\.[^.]+$/, "")
