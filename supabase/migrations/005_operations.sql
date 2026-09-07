@@ -3331,3 +3331,25 @@ BEGIN
   END IF;
 END $$;
 
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- § applications.entity_type — SET NOT NULL, matching contacts.entity_type (2026-09-07)
+--
+-- The column was added at §(above) as `text DEFAULT 'individual'` with no NOT NULL, while its
+-- sibling `contacts.entity_type` (002_contacts.sql:29) is `text NOT NULL DEFAULT 'individual'`.
+-- That asymmetry is load-bearing, not cosmetic. `app/api/billing/screening/route.ts` derives the
+-- juristic marker as `entity_type ?? applicant_type`; with a nullable column the right-hand branch
+-- is reachable for any row holding NULL, so the surety-party gate would fire for SOME applications
+-- and not others. Nothing writes NULL today, but that is the ABSENCE OF A WRITER, not a constraint
+-- — and a state-dependent gate presents as "works for some applications", which is the shape that
+-- survives investigation.
+--
+-- NOT NULL makes the collapse total and honest instead of conditional. It does NOT make the gate
+-- fire: that still requires entity_type to be written at intake, or the call site to stop
+-- preferring it. See M-108 (the tolerant helper defeated at its only consumer) and M-109.
+--
+-- The UPDATE is a safety net, not an expected no-op path: `ADD COLUMN … DEFAULT` backfills existing
+-- rows, so every row should already hold 'individual'. Both statements are re-runnable.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+UPDATE applications SET entity_type = 'individual' WHERE entity_type IS NULL;
+ALTER TABLE applications ALTER COLUMN entity_type SET NOT NULL;

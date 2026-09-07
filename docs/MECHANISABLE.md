@@ -2141,3 +2141,28 @@ The author identified the hazard, and defended the single field in front of them
 - **Probe both directions:** a `??` whose left operand is a defaulted, never-written column must fail; a `??` over a genuinely nullable column must pass.
 - **Provenance:** found 2026-09-07 walking the `entity_type` gap. Named as a class at Stéan's direction — *"a defence defeated at its only consumer, which is a class worth naming beyond this instance."*
 - **Covering spec:** NEW
+
+### M-109 — 14B's orchestration layer is built and unwired, and nobody recorded whether that was deliberate
+
+- **Rule:** `declareDirectors` / `replaceDirector` / the director-invite path in `lib/applications/commercial.ts` are the commercial orchestration layer. They are written, correct as far as they go, and have **zero callers**.
+- **Where it lives:** `lib/applications/commercial.ts:44-48,272-274` (the `@knipignore … gate-before-wiring … unwired today` comments) · `docs/DEAD-CODE-QUEUE.md:143-144,288-291` (zero importers, two independent sweeps) · `ADDENDUM_14B_COMMERCIAL_APPLICATIONS.md` header, corrected 2026-09-07.
+- **Rung:** n/a — this is a DECISION to record, not a control to build · **Blast:** money
+- **Satisfied when:** the repo records whether the wiring was deferred deliberately (and on what) or dropped, and — if deferred — what unblocks it.
+- **The reason this is filed rather than just fixed.** The `@knipignore … unwired today` comment proves somebody knew at the time. It does not say whether wiring was **deferred** behind something (14G's entry flow, the `entity_type` writer, a pricing ruling) or simply **dropped**. Those have opposite remedies and identical evidence, and the difference is currently in nobody's head. Filing forces the answer instead of letting the next reader inherit the ambiguity. Ruled by Stéan 2026-09-07: *"built-but-not-wired is either a deferred decision or a forgotten one and nobody has recorded which."*
+- **What it blocks.** ADDENDUM_14G and ADDENDUM_14S both carry `dependency-unmet:14B` rows against this. They are explained, not resolved — a builder must not start either until this is answered.
+- **Note the interaction with M-108.** Even wired, the surety gate cannot fire while nothing writes `applications.entity_type`; the two gaps compound rather than substitute.
+- **Provenance:** ADDENDUM_14B SPEC-VERIFIED row 35, anchored at `1b684408`.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS
+
+### M-110 — a cross-spec dependency cites the dependency's PROSE STATUS, not its verification
+
+- **Rule:** when spec A declares a dependency on spec B, it must cite B's verification anchor, not B's prose status line. A spec whose dependency is UNRULED, or whose depended-on row is itself refuted, is blocked.
+- **Where it lives:** `scripts/check-spec-verification.mjs` (already parses the blocks this needs) · every `Dependencies:` / `§10 cross-reference` line in `brief/build/_ADDENDUM/*.md`.
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** a spec cannot report FRESH while a spec it declares a dependency on is ABSENT, STALE or UNRULED, or while the specific row it relies on is refuted.
+- **The measurement that justifies it: THREE SPECS WERE WRONG FROM ONE ROOT.** 14B's header claimed "Shipped — orchestration layer complete". 14G's header said "gated on 14B having shipped (it has)"; 14G §10 repeated it; 14S listed 14B among its shipped dependencies. All three inherited a false status because each cited 14B's PROSE rather than checking it — and 14S's row is the sharpest illustration: it verified that 14B *said* shipped, which was true, rather than that 14B *was*, which was not. **A verification that confirms the citation exists, rather than that the cited claim holds, is the fabricated-citation class operating between specs** — the same failure CLAUDE.md already names for code citations (`JOINT_APPLICATION_FEE_CENTS` citing a rate-card section that never mentioned joint applications), one level up.
+- **Why it is cheap NOW and was not before.** This needed the blocks to exist. They do: seven commercial specs carry anchored, machine-checkable `SPEC-VERIFIED` blocks as of 2026-09-07, and the instrument already parses the anchor, the rows and the rulings. This is **one more relation over data it already reads** — resolve a named dependency to its file, run the same evaluation, and refuse to report FRESH above a non-FRESH dependency. The only new input is a machine-readable dependency declaration, which the headers already carry in prose.
+- **Why prose cannot hold it.** Every one of the three specs was written by someone who believed the status line. A rule saying "check your dependencies" is exactly the rung-4 instruction that produced this. Ruled by Stéan 2026-09-07: *"without it, the next 14G repeats exactly this."*
+- **Probe both directions:** a spec whose dependency is UNRULED must not report FRESH; a spec whose dependencies are all FRESH must report FRESH untouched — the second is load-bearing, since a dependency check that blocks everything is removed in a week.
+- **Provenance:** found 2026-09-07 by the seven-spec verification pass; the cascade was visible only because all three specs were verified in the same run.
+- **Covering spec:** NEW
