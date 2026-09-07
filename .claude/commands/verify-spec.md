@@ -87,6 +87,15 @@ anchor: sha=<short sha> · utc=<ISO-8601 Z> · verifier=grounder
 Both anchor values are **read, never recalled** — `git rev-parse --short HEAD` and
 `date -u +%Y-%m-%dT%H:%M:%SZ`, at the moment of writing. A remembered SHA anchors nothing.
 
+**Verify on `main` wherever you can, and if you cannot, say what you substituted.** This repo
+squash-merges, so a feature-branch HEAD stops being an ancestor of `main` the moment the branch
+lands — the block would go stale on merge with nothing having changed, which trains people to
+ignore staleness. Found on the first real run (2026-09-07, ADDENDUM_57I). If you must verify from a
+branch, anchor to the newest commit that will survive (`git merge-base origin/main HEAD`) **only
+after proving the substitution is honest**: `git diff --name-only <that sha> HEAD` must not touch a
+single file the verification read. Print that proof into the block. An anchor that misreports which
+tree was read is this mechanism's own failure mode, so the substitution is never silent.
+
 Then run the instrument and paste its verdict into your report:
 
 ```
