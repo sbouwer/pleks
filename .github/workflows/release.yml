@@ -70,7 +70,7 @@ jobs:
       #
       # Substring matching on purpose — the full names carry parentheses that would need escaping,
       # and an escaping mistake fails silently in the permissive direction.
-      - uses: lewagon/wait-on-check-action@v1.9.0
+      - uses: lewagon/wait-on-check-action@v1.9.1
         with:
           ref: ${{ github.sha }}
           check-regexp: '(Lint & Typecheck|Marketing consistency|DB integration tier|Dependency CVE scan)'

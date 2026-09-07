@@ -19,7 +19,7 @@
  * Real subprocess, real stdin payload — the hook has no exported function, deliberately (L-06).
  */
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 
 const HOOK = ".claude/hooks/bash-gate.js"
 
@@ -123,6 +123,35 @@ const CASES = [
   // The flag belonging to a LATER git command in the chain. The segment split must not lose it.
   ["a chained commit is still a commit", bash('npm run check && git commit --no-verify -m "x"'), "deny"],
 
+  // The .githooks probe seam (M-096). `PLEKS_HOOK_PROBE=1 PLEKS_PRECOMMIT_CMD=true git commit`
+  // runs the hook, runs `true` as the gate, and writes the pleks-gate-ok marker — a --no-verify
+  // that also leaves evidence claiming the gate passed. The ALLOW half is at the bottom of this
+  // suite and is the load-bearing one: it proves the rule reads a token at a POSITION rather than
+  // a string, which is the trap that cost this file four false-denies (M-069, M-072).
+  ["the seam's master switch with a substituted gate", bash("PLEKS_HOOK_PROBE=1 PLEKS_PRECOMMIT_CMD=true git commit -m x"), "deny"],
+  ["the master switch alone", bash("PLEKS_HOOK_PROBE=1 git commit -m x"), "deny"],
+  ["the pre-push seam", bash("PLEKS_HOOK_PROBE=1 PLEKS_PREPUSH_CMD=true git push origin main"), "deny"],
+  ["the drift seam", bash("PLEKS_HOOK_PROBE=1 PLEKS_DRIFT_CMD=true git push origin main"), "deny"],
+  // PLEKS_BRANCH_PROBE needs NO master switch — pre-commit:25 reads it into $BRANCH before the
+  // default-branch guard tests it, so it is an independent vehicle, not a companion to the others.
+  ["the branch-guard seam needs no master switch", bash("PLEKS_BRANCH_PROBE=feature/x git commit -m x"), "deny"],
+  // Every spelling that still puts the assignment at command position. A settings twin catches the
+  // first of these and none of the rest, which is why the rule is token-positional and the twin is
+  // recorded as absent rather than written.
+  ["export then a chained commit", bash("export PLEKS_HOOK_PROBE=1; git commit -m x"), "deny"],
+  ["env as the assignment verb", bash("env PLEKS_HOOK_PROBE=1 git commit -m x"), "deny"],
+  ["hiding behind an innocent assignment", bash("FOO=1 PLEKS_HOOK_PROBE=1 git commit -m x"), "deny"],
+  ["in the second command of a chain", bash("npm run check && PLEKS_HOOK_PROBE=1 git commit -m x"), "deny"],
+  ["a quoted assignment is still an assignment", bash('"PLEKS_HOOK_PROBE=1" git commit -m x'), "deny"],
+  // THE ACCEPTED FALSE-DENY, asserted rather than left to be rediscovered. A heredoc body line that
+  // BEGINS with the assignment is tokenised as a command, though nothing executes it — the same
+  // class as M-072's "a gate that forbids writing down the rule it enforces". Masking heredoc
+  // bodies would make `cat <<EOF` a universal envelope, which is the hole the quoted-`--no-verify`
+  // ruling refused. The cost is one word of prose before the example; the mitigation is the ALLOW
+  // probe below it. If this probe ever flips to allow, check what was widened to achieve it.
+  ["ACCEPTED cost: a heredoc line STARTING with the assignment is denied as prose", bash("git commit -F - <<'MSG'\nPLEKS_HOOK_PROBE=1 git commit is the bypass\nMSG"), "deny"],
+  ["…and the mitigation: any word first makes it prose again", bash("git commit -F - <<'MSG'\nThe bypass is PLEKS_HOOK_PROBE=1 git commit\nMSG"), "allow"],
+
   // ── ASK ─────────────────────────────────────────────────────────────────────────────────────
   ["an ordinary push reaches a human", bash("git push origin feature-branch"), "ask"],
   ["reading a .env file", bash("cat .env.local"), "ask"],
@@ -224,6 +253,24 @@ const CASES = [
   // `rm` inside a FILENAME is not the `rm` command. This shipped as a real false-deny risk the
   // moment the rule started matching `\brm\b`, since `-` is a word boundary.
   ["rm inside a filename is not the command", bash("node scripts/rm-perf.mjs"), "allow"],
+  // THE DISCRIMINATING HALF of the probe-seam rule, and the one it exists to get right. Naming the
+  // seam is not setting it: an assignment is only an assignment while it PRECEDES the command word,
+  // so a seam name appearing as an ARGUMENT is prose. Getting this wrong would reproduce M-069's
+  // `-n` false-deny in a new place — and would make the gate forbid reading the hooks it enforces.
+  ["grepping for the seam is not setting it", bash("grep PLEKS_HOOK_PROBE .githooks/pre-commit"), "allow"],
+  ["…nor is grepping for the assignment spelling", bash("rg PLEKS_HOOK_PROBE=1 docs/"), "allow"],
+  ["…nor prose about it in a commit message", bash('git commit -m "docs: explain the PLEKS_HOOK_PROBE=1 seam"'), "allow"],
+  // The legitimate driver, and the reason no carve-out was needed: check-git-hooks.mjs sets the
+  // seam through spawnSync's `env` object, in-process, so it never spells a shell assignment. If
+  // this probe ever goes deny, the rule has stopped being structurally invisible to its own check
+  // and someone has reached for an exemption instead — which is the horn M-096 was avoiding.
+  ["the check that DRIVES the seam runs untouched", bash("node scripts/check-git-hooks.mjs"), "allow"],
+  ["…and its pre-push sibling", bash("node scripts/check-prepush-composition.mjs"), "allow"],
+  // A PLEKS_-prefixed variable that is not a seam. The deny list is five named vehicles, not the
+  // namespace — `PLEKS_BRANDING` already exists in this tree as an unrelated identifier, and a
+  // prefix rule would deny shapes nobody has a reason to forbid.
+  ["an unrelated PLEKS_ variable is not the seam", bash("PLEKS_BRANDING=1 node scripts/x.mjs"), "allow"],
+  ["an ordinary env-prefixed command", bash("NODE_ENV=test npm run check"), "allow"],
   // THE DISCRIMINATING HALF of the per-segment reset, and the reason it is a fix rather than a
   // weakening. A chain operator starts a new command, so a lethal-looking token after one is not the
   // `rm`'s target. Both of these were DENIED by the unsegmented cut, which recorded the cost in a
@@ -239,6 +286,48 @@ for (const [name, payload, want] of CASES) {
   const ok = decision === want
   if (!ok) failed++
   console.log(`  ${ok ? "✓" : "✗"} must ${want.padEnd(5)} — ${name}${ok ? "" : `\n      got ${decision}: ${reason}`}`)
+}
+
+// PARITY: the hook's SEAM_VARS must equal the PLEKS_* variables the hooks actually consume.
+//
+// The deny list is five NAMED vehicles rather than the `PLEKS_*` namespace, because the namespace
+// already holds unrelated identifiers (`PLEKS_BRANDING`) and a prefix rule would forbid shapes
+// nobody has a reason to forbid. The cost of naming them is drift: a sixth seam variable added to
+// `.githooks/` later would be a bypass the deny list has never heard of, and every probe above
+// would still be green — the exact shape of the 2026-08-19 scar, where a rule's own probes all
+// passed while it silently skipped the surface that mattered.
+//
+// So the allowlist is READ FROM the hooks rather than restated here, the same way
+// check-migration-integrity reads its org_id exemptions out of the rule file that documents them.
+// There is no second copy to disagree. Adding a seam variable now fails this check until the deny
+// list covers it, which is the only moment anyone is in a position to classify it.
+{
+  // Relative, matching this file's existing `HOOK` convention (it runs from the repo root under
+  // `npm run check`). A wrong cwd throws here rather than reporting an empty, passing comparison.
+  const hookDir = ".githooks"
+  const consumed = new Set()
+  for (const f of readdirSync(hookDir)) {
+    const body = readFileSync(`${hookDir}/${f}`, "utf8")
+    // Consumption, not mention: `$PLEKS_X` or `${PLEKS_X…}`. A name that appears only in a comment
+    // is prose about the seam, not a variable the hook reads, and must not inflate the deny list.
+    for (const m of body.matchAll(/\$\{?(PLEKS_[A-Z0-9_]+)/g)) consumed.add(m[1])
+  }
+  const declared = new Set(
+    (readFileSync(HOOK, "utf8").match(/const SEAM_VARS = \[([^\]]*)\]/)?.[1] ?? "")
+      .split(",")
+      .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+      .filter(Boolean),
+  )
+  const unguarded = [...consumed].filter((v) => !declared.has(v))
+  const stale = [...declared].filter((v) => !consumed.has(v))
+  const ok = unguarded.length === 0 && stale.length === 0 && declared.size > 0
+  if (!ok) failed++
+  console.log(
+    `  ${ok ? "✓" : "✗"} must match — SEAM_VARS covers every PLEKS_* the .githooks read (${declared.size})` +
+      (unguarded.length ? `\n      UNGUARDED (a live bypass the deny list has never heard of): ${unguarded.join(", ")}` : "") +
+      (stale.length ? `\n      stale (denied but no hook reads it): ${stale.join(", ")}` : "") +
+      (declared.size === 0 ? `\n      SEAM_VARS could not be parsed out of the hook — the parity check is degenerate` : ""),
+  )
 }
 
 // The reason text must NAME the offending command class, or an approval prompt tells the human
