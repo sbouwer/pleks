@@ -3,8 +3,15 @@
 /**
  * lib/actions/orgBanking.ts — the organisation's own bank accounts (Organisation › Details → Banking)
  *
- * Auth:   getOrgBanking → gateway (read); saveOrgBusinessAccount and createOrgBankAccount →
- *         requireAgentWriteAccess + an owner/property_manager role check + audited.
+ * Auth:   getOrgBanking → gateway (read).
+ *         createOrgBankAccount → requireAgentWriteAccess + an owner/property_manager role check + audited.
+ *         saveOrgBusinessAccount → requireAgentWriteAccess ONLY. It has NO role check and NO audit write,
+ *         and it edits the account management fees are paid into. `save_org_business_account` is also absent
+ *         from ACTION_CAPABILITY, so `reqCap` is undefined and the RBAC arm short-circuits — the
+ *         `AgentWriteAction | string` parameter type hides that from the compiler. Any member of the org can
+ *         therefore rewrite the payout account, which RLS `bank_accounts_org_update` would refuse.
+ *         Pre-existing, NOT introduced by BUILD_71 D8; recorded here rather than closed inside a fix for a
+ *         different bug. Tracked as M-104.
  * Data:   bank_accounts (org-scoped). The BUSINESS (operating) account is where management fees are
  *         received — distinct from the TRUST account. saveOrgBusinessAccount is scoped to type='business';
  *         createOrgBankAccount is the audited path for the trust / PPRA / deposit-holding rows.
