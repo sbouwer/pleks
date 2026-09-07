@@ -12,6 +12,14 @@
  *         THREE: this constant, the 010 §20 seed (so a fresh replay is right), and the live row
  *         (010 §53 is the pattern — a guarded UPDATE that no-ops if an admin already changed it).
  *
+ *         ⚠ ORDER: CODE FIRST, DB LAST. When two copies must agree and cannot move atomically,
+ *         move the MONITORED copy last. The cron watches the table, so DB-first means it checks
+ *         the corrected URL while users are still served the stale one — green, and the green has
+ *         stopped meaning anything. Code-first means users get the new URL while the cron still
+ *         checks the old one, so it goes red only if the old one has genuinely broken. Prefer a
+ *         false alarm over a false all-clear. Scope: VALUE corrections follow the code; SCHEMA
+ *         additions precede it, because additive DDL unblocks code rather than contradicting it.
+ *
  *         Prefer the CANONICAL url — the one that answers 200 with no redirect. Every hop is a
  *         host or slug that can rot independently: `www.sahrc.org.za` 301'd to the apex and it was
  *         the www host that returned the 500s behind the 2026-08-31 alert (2026-09-07 sweep).

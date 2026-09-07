@@ -4165,6 +4165,14 @@ CREATE POLICY "whatsapp_template_variants_service_role_only" ON whatsapp_templat
 --     has since edited that link, their value is not the old one, and this leaves it alone. That
 --     is why it is written as three targeted UPDATEs and not a re-seed with DO UPDATE.
 -- Verified 2026-09-07: each replacement answers 200 with no further Location header.
+--
+-- ORDER: this section runs AFTER lib/external-links.ts has shipped, never before. The cron watches
+-- the TABLE, so applying this first would leave it checking the corrected URL while users are still
+-- served the stale one — green, and the green has stopped meaning anything. Shipping the code first
+-- inverts that: users get the new URL while the cron still checks the old one, so it goes red only
+-- if the old one has genuinely broken. Prefer a false alarm over a false all-clear. This is a VALUE
+-- correction, so it follows the code; a SCHEMA addition would precede it, because additive DDL
+-- unblocks code rather than contradicting it. Full rule in lib/external-links.ts's header.
 UPDATE external_links SET url = 'https://sahrc.org.za'
  WHERE key = 'sahrc' AND url = 'https://www.sahrc.org.za';
 
