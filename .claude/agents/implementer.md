@@ -214,6 +214,32 @@ whose gloss contradicts its state is a real failure and it is invisible in a bar
 schema-contract scan + the marker audit + tests. Run `npx tsc --noEmit` after the bulk pass and
 after every fix; `npm run check` before you report.
 
+### A spec you were briefed from must carry a fresh verification
+
+If your brief cites a spec under `brief/` — a `BUILD_XX`, an `ADDENDUM_XXY`, any file whose
+present-tense claims about this tree are the reason you are making a particular edit — run this
+before the first edit:
+
+```
+node scripts/check-spec-verification.mjs <spec path>
+```
+
+Exit `0` is the only one you may build on. `1` (stale anchor) · `2` (no verification block) ·
+`3` (refuted rows with no ruling) all end the same way: **stop and return `⚠️ decision-needed`**,
+naming the spec and the exit state, having written nothing. Say that `/verify-spec <spec>` is the
+unblocking action. Do **not** verify it yourself — extraction and ruling are not mechanical work,
+and a refuted claim has three possible dispositions of which only one is "the spec was wrong".
+
+**Why this is on the receiving end rather than the authoring end.** A spec written from a thin
+grounding pass is textually indistinguishable from one written from a thorough one, and the author
+is the one person who cannot tell the difference — that judgement is precisely what fails. So the
+check sits where it fires without the author's cooperation. One-sided is how a gap reads as
+covered.
+
+It is **guidance, not a gate**: nothing in the tooling forces this step to run, and a session that
+skips it leaves no trace. That limit is filed as **M-106** — do not read this section as
+enforcement.
+
 ### Non-negotiables that bind even mechanical work
 
 - **Never create a new numbered migration file.** Amend-forward into 001–012; 007 and 008 are
