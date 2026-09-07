@@ -102,7 +102,13 @@ to walk before it lands. Trivial commits (typo/docs) skip the announcement, neve
 push red; never force-push.
 
 **Hook-denied** (`.claude/hooks/bash-gate.js`): force-push · `git reset --hard` · `rm -rf` on
-root or home · `--no-verify`. **Hook-ask:** `git push` · `.env` files · prod database operations.
+root or home · `--no-verify` · **the `.githooks` probe seam set as a shell assignment** (M-096 —
+`PLEKS_HOOK_PROBE=1 PLEKS_PRECOMMIT_CMD=true git commit` substitutes the gate command AND still
+writes the gate-ok marker, so it is `--no-verify` that also leaves evidence claiming the gate
+passed; `PLEKS_BRANCH_PROBE` defeats the default-branch guard on its own). The deny is keyed on
+assignment syntax at command position, so `check-git-hooks.mjs` — which sets the seam through
+`spawnSync`'s `env` object, never a shell assignment — needs no exemption and is not carved out.
+**Hook-ask:** `git push` · `.env` files · prod database operations.
 **Settings twins** (`.claude/settings.json`, coarse, consulted only when the hook is dead): the
 Supabase MCP mutation tools, plus deny entries for force-push and hard-reset.
 
