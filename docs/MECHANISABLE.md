@@ -2166,3 +2166,17 @@ The author identified the hazard, and defended the single field in front of them
 - **Probe both directions:** a spec whose dependency is UNRULED must not report FRESH; a spec whose dependencies are all FRESH must report FRESH untouched — the second is load-bearing, since a dependency check that blocks everything is removed in a week.
 - **Provenance:** found 2026-09-07 by the seven-spec verification pass; the cascade was visible only because all three specs were verified in the same run.
 - **Covering spec:** NEW
+
+### M-111 — a screening line that throws is stranded in `running` forever, paid and consented
+
+- **Rule:** a cron that claims a row optimistically must be able to RELEASE the claim when its work fails, or the claim is a permanent lock held by a process that is no longer running.
+- **Where it lives:** `app/api/cron/screening-line-runner/route.ts:53-57` (the catch), `:92,101` (the claim), `:131,136` (the only status writes) · `app/api/cron/screening-portal-reminders/route.ts:39` (the filter that also cannot see it).
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** a line whose run throws returns to a re-claimable status, or moves to a terminal status something else sweeps — and either way stops being reported to the applicant as in-progress.
+- **The failure, concretely.** The runner claims a line with `UPDATE … WHERE searchworx_check_status IN ('pending','not_run') RETURNING id`, setting `'running'`. On success it writes `'complete'`. On failure it writes NOTHING to the database: it increments a local counter, puts `failed: <msg>` into the HTTP response body, and calls `Sentry.captureException`. The row stays `'running'` — which the claim predicate can never match again. The line is now invisible to the runner (not `pending`/`not_run`), invisible to the reminder cron (its view state is `ready_to_run`, not one of the three states that cron filters on), and rendered to the multi-party portal as still in progress. **The applicant has paid and consented, and nothing will ever run their check or tell anyone.** One transient SearchWorx timeout is sufficient.
+- **The route's own header is wrong about this** (`:9` — "marks 'complete' or 'failed'"), which is why it reads as handled. `'failed'` appears in the file five times and never as a database write. A header asserting behaviour the body lacks is the file-header class CLAUDE.md §5 already names as unenforceable.
+- **Why no mechanism catches it.** Nothing models "a status a claim predicate cannot re-match", and Sentry receiving the exception makes it look observed — but Sentry sees the throw, not the stranded row, and no alert fires on a line sitting in `running` past a threshold. This is the fail-open shape `/walk` step 3 hunts for: the system fails toward "the line looks fine".
+- **The tractable slice:** two independent halves, either of which closes the hole. Write a terminal status in the catch, and add a sweep for rows in `running` older than N minutes — the second also covers a process killed mid-run, which the first cannot.
+- **Probe both directions:** a line whose run throws must become re-claimable or terminal; a line that succeeds must be untouched by the sweep.
+- **Provenance:** found 2026-09-07 while checking whether ADDENDUM_14B §6.2's retry/backoff spec was aspirational. The spec row (14B row 28) recorded "no retry, failures logged to Sentry, line left as-is" — accurate, but it did not notice that *left as-is* means *left unreclaimable*.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.2
