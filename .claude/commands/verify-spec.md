@@ -79,8 +79,8 @@ anchor: sha=<short sha> · utc=<ISO-8601 Z> · verifier=grounder
 
 | # | Claim (§) | File read | Result | Ruling |
 |---|---|---|---|---|
-| 1 | the cookie is display-only, never entitlement (§0) | `lib/tier/getOrgTierCanonical.ts:40` | confirmed | — |
-| 2 | `canDowngradeTo` refuses over-cap (§0) | `lib/tier/canDowngradeTo.ts:61` | refuted | — |
+| 1 | the cookie is display-only, never entitlement (§0) | `lib/tier/getOrgTier.ts:11-17` | confirmed | — |
+| 2 | periods follow PayFast, never local arithmetic (§0) | `webhooks/payfast/subscription/route.ts:118` | refuted | — |
 <!-- /SPEC-VERIFIED -->
 ```
 

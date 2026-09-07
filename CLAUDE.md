@@ -209,7 +209,7 @@ TS/TSX format:
    to drift. Pre-existing tables without `org_id` are baselined with a stated reason each in
    `scripts/migration-integrity.baseline.json` (`orgIdTables`) — read it there; the baseline only shrinks.
 - RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
-- audit_log on every state change — **for the tables the rule covers** (`contact_bank_accounts`, `tenant_bank_accounts`, `leases`): a module that mutates one must write an audit row in the same module. <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
+- audit_log on every state change — **for the tables the rule covers**, which are the `T1_TABLES` constant in `eslint-rules/require-audit-on-sensitive-mutation.mjs` and are read there, never restated here: a module that mutates one must write an audit row in the same module. (This line listed three tables until 2026-09-07; the constant had held four since 2026-08-27. A restated set is an observation, and §8 says this file does not carry those.) <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
 - Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
    encrypted at rest everywhere (AES-256-GCM `iv:ct:tag`, random IV) via `idNumberColumns(raw)` /
    `encryptIdNumber(raw)` — the write helper bundles the ciphertext + a RAW-derived `id_number_hash` (the

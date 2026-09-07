@@ -210,9 +210,15 @@ whose gloss contradicts its state is a real failure and it is invisible in a bar
 
 ### The green bar
 
-`npm run check` — `tsc --noEmit` + `eslint . --max-warnings 0` + the architecture audit + the
-schema-contract scan + the marker audit + tests. Run `npx tsc --noEmit` after the bulk pass and
-after every fix; `npm run check` before you report.
+`npm run check` — a long serial chain (`tsc --noEmit`, `eslint . --max-warnings 0`, the architecture
+audit, the schema-contract scan, the marker audit, the migration checks, tests, and roughly two
+dozen more, many with their own `--selftest` arm). **Read `package.json` for the current set rather
+than any summary, here or elsewhere** — it grows, and a partial list phrased as a definition is how
+a doc starts lying without anyone editing it.
+
+Run `npx tsc --noEmit` after the bulk pass and after every fix; `npm run check` before you report.
+It is serial and fails fast, so the first red hides everything behind it — never read a failure as
+the only one.
 
 ### A spec you were briefed from must carry a fresh verification
 
@@ -254,6 +260,11 @@ enforcement.
 ### Lint baselines here
 
 Generate from ground truth (lint the tree, collect real violators); never hand-write, never widen.
-Live baselines: `eslint-rules/no-cookie-client-from.baseline.json`,
-`file-headers.baseline.json`. Re-probe after emptying — the rule must fire on a planted positive
-AND stay quiet on the clean tree.
+Re-probe after emptying — the rule must fire on a planted positive AND stay quiet on the clean tree.
+
+**Enumerate them, do not trust a list here.** They live in two places —
+`eslint-rules/*.baseline.json` (per-rule, beside the rule) and `scripts/**/*.baseline.json` (the
+check-owned ones: file headers, import cycles, invariant callers, migration integrity, schema
+contract, PII classification, test floor). This section named exactly two of them until 2026-09-07,
+when there were twenty-two — an implementer sent to fill baselines from that list would have missed
+most of them and reported done. A naming convention survives; an inventory does not.
