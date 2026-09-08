@@ -482,15 +482,24 @@ section that never mentioned joint applications).
   all-confirmed, that's a red flag about the verifier, not a green light on the spec"* — and it
   fired on the tool built to honour it.
 - **2026-09-07 · two unwired halves whose failure modes INVERT — and the only safe orderings.**
-  `applications.entity_type` and `application_co_applicants.is_surety_director` have exactly one
-  writer each, and it is the same unwired function (`declareDirectors`). Today nothing writes
-  `entity_type`, so the juristic branch in `app/api/billing/screening/route.ts` never fires and the
-  surety-party gate is **silently OPEN**. Wire `entity_type` alone and the gate fires, `suretyCount`
-  counts `is_surety_director = true`, nothing writes it, the count is 0, and **every juristic
-  application is blocked at payment** — silently CLOSED. A change that reads as a bug fix converts a
-  dormant flow into a customer-facing outage.
+  `application_co_applicants.is_surety_director` has exactly one writer, the unwired
+  `declareDirectors`. `applications.entity_type` has **NO writer at all** — corrected 2026-09-08;
+  this scar first claimed `declareDirectors` wrote both, and it writes only the former. Today
+  nothing writes `entity_type`, so the juristic branch in `app/api/billing/screening/route.ts`
+  never fires and the surety-party gate is **silently OPEN**. Make `entity_type` carry a value —
+  by wiring a writer, or by "fixing" the `??` that its column DEFAULT renders unreachable (M-108) —
+  and the gate fires, `suretyCount` counts `is_surety_director = true`, nothing writes it, the
+  count is 0, and **every juristic application is blocked at payment** — silently CLOSED. A change
+  that reads as a bug fix converts a dormant flow into a customer-facing outage.
   **Safe orderings: both halves in ONE change, or `is_surety_director` first — harmless while the
   gate is open — and `entity_type` second. NEVER the reverse.**
+  **The correction MOVED THIS HAZARD, it did not retire it — and it is worth knowing which way.**
+  Wiring `declareDirectors` now touches only the safe half, so the ordering holds structurally
+  rather than by discipline. But the unsafe half no longer needs anyone to write a director flow:
+  a one-line null-handling tidy at the `??` reaches it, from a file that mentions no director at
+  all. **The dangerous edit got smaller and moved further from the work that would make you
+  careful.** Understating a hazard is the safe direction to be wrong in, and this correction runs
+  the other way — which is why it was made explicitly rather than quietly.
   This is L-31's shape (hardening one half of a two-sided protocol breaks the other) with a twist
   worth naming: here BOTH halves are unwired, so either one alone breaks the system, in opposite
   directions. **Fixing half of this is worse than fixing none.** → M-108 · M-109
