@@ -64,6 +64,24 @@ widen:
 > in separate rows. If the wider claim matters, verify it as its own row with its own search, or
 > leave it unmade — never as a clause attached to a narrower finding.
 >
+> **A `not-found` may state ONLY that the searched terms were absent.** It may not conclude the
+> capability is absent. That is the refutation rule's exact counterpart, and it went unguarded a
+> pass longer: the not-found door had no lock while the refutation door did.
+>
+> Before recording `not-found`, search the **capability**, not only the symbol the spec happened to
+> name — the domain concept, the addendum reference, and the table or column it would persist to.
+> Two cheap tells would have caught ADDENDUM_04A, recorded absent because `cpa_applicable`,
+> `cpaApplicable` and `classifyCpa` do not exist: the shipped module's header names `ADDENDUM_04A`,
+> and the schema carries `cpa_applies_at_signing`. **A spec's reference number and its persisted
+> columns are searchable when its symbol names are not — and both survive a rename, which is
+> exactly the failure mode here.** Grep the addendum id across the tree, and grep the columns the
+> claim implies, before you write the token.
+>
+> **"I did not open it" is not `not-found` either.** A claim you could not reach is unverified, and
+> the row must say so in the claim column rather than borrowing a result token that reads as a
+> finding downstream. 14S row 9 recorded `not-found` for a dependency spec that was simply outside
+> the pass, while row 4 of the same block had already read the file that answered it.
+>
 > If a claim is ambiguous enough that you cannot decide what would confirm it, record it
 > `not-found` with the ambiguity named in the claim column. Do not guess a charitable reading —
 > a claim nobody can test is a finding about the spec.
@@ -117,17 +135,40 @@ node scripts/check-spec-verification.mjs <spec path>
 ## 5 · Take the refuted rows to Stéan — do not resolve them
 
 Every `refuted` and `not-found` row leaves the `Ruling` column as `—` until he rules on it. There
-are **three** dispositions and only one of them touches the spec:
+are **four** dispositions and only one of them touches the spec:
 
 | Ruling | Means |
 |---|---|
 | `spec-corrected` | the spec was wrong — correct the claim |
 | `gap-filed:<ref>` | the **code** is wrong — keep the claim, file the gap (M-register / issue) |
 | `intent-not-observation` | the claim was mislabelled — it is authored intent, mark it and stop treating it as a fact |
+| `verification-corrected` | the **finding** was wrong — re-record the row, and explain the miss |
 
 **The third one is why a verifier may never rewrite a spec.** A refuted claim that was actually a
 requirement reads exactly like a wrong fact, and "fixing" it deletes the requirement. This nearly
 happened to `SPEC_TIER_CHANGE`.
+
+**The fourth belongs in the taxonomy rather than beside it, because the first three all assume the
+finding was sound and only ask which artefact is wrong.** A verifier that cannot record its own
+errors does not stop making them — it launders them into whichever of the other three it is forced
+into, and the block then carries a wrong finding wearing a correct-looking disposition. So the
+state is represented, not excepted.
+
+It carries **two** fields, never one:
+
+1. **the corrected result** — what a proper read establishes, with the file, the callers and the
+   persistence, exactly as a first-pass row would have carried them
+2. **why the original miss happened** — the search that was actually run, and why it failed
+
+The second field is what makes this more than an erratum. It is the only place the verifier's own
+failure modes accumulate, and every entry in it is a candidate rule for §2 above — the not-found
+rule got there that way.
+
+**And it is the one disposition that obliges a re-check of its neighbours.** A `not-found` produced
+by a symbol-name miss is very unlikely to be unique: every other `not-found` in that pass came out
+of the same method, on the same day, from the same agent. When a row takes this ruling, say
+explicitly which sibling rows were re-checked and which were not — an un-re-checked sibling is a
+known-unknown, and silence turns it into an assumed-good.
 
 Present the rows, recommend nothing, and wait.
 
