@@ -8,10 +8,13 @@
  *         Surety directors use application_co_applicants with is_surety_director = true.
  *         D-14B-01: directors must consent individually — no proxy consent.
  *         D-14B-05: replace-director refund is flagged for manual processing by agent (14C).
+ *         orgId and the per-director fee are BOTH derived server-side and are not parameters —
+ *         see resolveApplicationOrg below and M-115. Do not reintroduce either as an argument.
  */
 "use server"
 
 import { createServiceClient } from "@/lib/supabase/server"
+import { APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
@@ -22,6 +25,39 @@ import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 const DIRECTOR_TOKEN_TTL_DAYS = 14
 
+/**
+ * Verifies the applicant credential against this application AND returns the application's own org.
+ *
+ * These two steps are fused deliberately. Every function below writes rows stamped with an org_id,
+ * and until 2026-09-08 that org_id was a PARAMETER — the shape of the 2026-07-06 cross-org IDOR
+ * scar, where a caller-supplied identifier was used as the write scope. The token proves which
+ * application the caller may act on; the org must therefore be read FROM that application, never
+ * accepted alongside it. Returning them from one call means a future caller cannot verify the token
+ * and then scope the write to something else.
+ *
+ * The `applications` read carries no `.eq("org_id", …)` because it is the query that ESTABLISHES
+ * org_id — there is nothing to scope it by yet. It is bounded instead by the token check above it,
+ * which pins `id` to an application the caller has proven access to. (This file sits in the
+ * `require-org-scope-on-service-read` baseline at file level, so the rule would not have flagged
+ * this read either way — the reason is recorded here rather than relying on that.)
+ */
+async function resolveApplicationOrg(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  token: string,
+  applicationId: string,
+): Promise<string | null> {
+  if (!(await verifyApplicantToken(service, token, applicationId))) return null
+
+  const { data, error } = await service
+    .from("applications")
+    .select("org_id")
+    .eq("id", applicationId)
+    .maybeSingle()
+  logQueryError("resolveApplicationOrg applications", error)
+
+  return data?.org_id ?? null
+}
+
 export interface DirectorDeclaration {
   firstName: string
   lastName: string
@@ -29,7 +65,6 @@ export interface DirectorDeclaration {
   email: string
   phone?: string
   isSigningSurety: boolean
-  feeCents: number
 }
 
 interface DeclareDirectorsResult {
@@ -42,21 +77,22 @@ interface DeclareDirectorsResult {
  * For surety directors, also creates an application_co_applicants row and sends an invite.
  * Called from Step 1.5 of the commercial application flow.
  * @knipignore Mid-build commercial-applicant flow, gate-before-wiring (verifyApplicantToken is CALLED, not
- * merely described). WARNING for whoever wires it: this takes orgId as a caller-supplied parameter
- * and uses it as the write scope — the shape of the 2026-07-06 cross-org IDOR scar. Derive it at
- * wiring time.
+ * merely described). The caller-supplied-orgId hazard this docstring used to warn about was CLOSED on
+ * 2026-09-08: the org is now derived from the token-verified application. This was the most dangerous
+ * of the three functions here, because its org_id reached INSERTs with nothing pinning the row first —
+ * a caller could stamp new director and co-applicant rows into any org on the platform.
  */
 export async function declareDirectors(
   applicationId: string,
-  orgId: string,
   directors: DirectorDeclaration[],
   token: string,
 ): Promise<DeclareDirectorsResult> {
   const service = await createServiceClient()
 
-  // Auth: applicant token bound to this application. Gate-before-wiring — unwired today; when wired to the
-  // commercial flow (Step 1.5), this blocks unauthenticated director declaration for an arbitrary application.
-  if (!(await verifyApplicantToken(service, token, applicationId))) {
+  // Auth + scope in one step. Gate-before-wiring — unwired today; when wired to the commercial flow
+  // (Step 1.5), this blocks unauthenticated director declaration for an arbitrary application.
+  const orgId = await resolveApplicationOrg(service, token, applicationId)
+  if (!orgId) {
     return { directors: [], invited: 0 }
   }
 
@@ -103,7 +139,10 @@ export async function declareDirectors(
         applicant_phone:        director.phone ?? null,
         ...idNumberColumns(director.idNumber), // encrypted at rest + lookup hash (matches the apply-flow co-applicant writes)
         is_surety_director:     true,
-        individual_fee_cents:   director.feeCents,
+        // Derived from the SSOT, never supplied (M-115). This column is read back as `expectedCents`
+        // by the PayFast director webhook, so a caller-supplied value would be both the amount
+        // charged AND the amount its own mismatch detector validates against — reconciling clean.
+        individual_fee_cents:   APPLICATION_FEE_CENTS,
         access_token_expires:   tokenExpires,
       })
       .select("id, access_token")
@@ -210,15 +249,18 @@ async function sendDirectorInvite(ctx: InviteContext): Promise<void> {
 export async function resendDirectorInvite(
   coApplicantId: string,
   applicationId: string,
-  orgId: string,
   token: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const service = await createServiceClient()
 
   // Auth: the primary applicant's token bound to this application (was ungated — anyone with a valid
   // (coApplicantId, applicationId) pair could regenerate a director's access_token, invalidating the live
-  // invite link (DoS) and re-firing the invite email).
-  if (!(await verifyApplicantToken(service, token, applicationId))) {
+  // invite link (DoS) and re-firing the invite email). orgId comes from the application, not the caller:
+  // this is the one function here with a LIVE caller, and it was passing org_id down through a client
+  // component. That was fail-closed (the id filters already pinned the row, so a foreign org matched
+  // nothing) — but fail-closed by accident of filter order is not a boundary.
+  const orgId = await resolveApplicationOrg(service, token, applicationId)
+  if (!orgId) {
     return { ok: false, error: "Invalid or expired token" }
   }
 
@@ -260,7 +302,6 @@ export interface ReplacementDirector {
   idNumber?: string
   email: string
   phone?: string
-  feeCents: number
 }
 
 /**
@@ -270,19 +311,19 @@ export interface ReplacementDirector {
  * 3. Creates new application_directors + application_co_applicants rows
  * 4. Sends invite to replacement director
  * @knipignore See declareDirectors above. Additionally touches application_screening_payments and a
- * manual-refund flag, and carries the same caller-supplied-orgId warning.
+ * manual-refund flag; the caller-supplied-orgId hazard it shared was closed at the same time.
  */
 export async function replaceDirector(
   oldCoApplicantId: string,
   applicationId: string,
-  orgId: string,
   replacement: ReplacementDirector,
   token: string,
 ): Promise<{ ok: boolean; newCoApplicantId?: string; error?: string }> {
   const service = await createServiceClient()
 
-  // Auth: applicant token bound to this application (gate-before-wiring — unwired today).
-  if (!(await verifyApplicantToken(service, token, applicationId))) {
+  // Auth + scope (gate-before-wiring — unwired today).
+  const orgId = await resolveApplicationOrg(service, token, applicationId)
+  if (!orgId) {
     return { ok: false, error: "Invalid or expired token" }
   }
 
@@ -353,7 +394,7 @@ export async function replaceDirector(
       applicant_phone:        replacement.phone ?? null,
       ...idNumberColumns(replacement.idNumber), // encrypted at rest + lookup hash (matches apply-flow co-applicant writes)
       is_surety_director:     true,
-      individual_fee_cents:   replacement.feeCents,
+      individual_fee_cents:   APPLICATION_FEE_CENTS, // SSOT, never supplied (M-115) — see declareDirectors
       access_token_expires:   tokenExpires,
     })
     .select("id, access_token")

@@ -14,7 +14,6 @@ import { RefreshCw } from "lucide-react"
 interface Props {
   coApplicantId: string
   applicationId: string
-  orgId: string
   token: string
 }
 
@@ -27,12 +26,14 @@ function buttonLabel(s: ButtonState): string {
   return "Resend invitation"
 }
 
-export function ResendInviteButton({ coApplicantId, applicationId, orgId, token }: Props) {
+export function ResendInviteButton({ coApplicantId, applicationId, token }: Props) {
   const [state, setState] = useState<ButtonState>("idle")
 
   async function handleResend() {
     setState("sending")
-    const result = await resendDirectorInvite(coApplicantId, applicationId, orgId, token)
+    // No orgId: the action derives it from the token-verified application. Passing an org through a
+    // client component made the write scope caller-supplied — the 2026-07-06 IDOR shape.
+    const result = await resendDirectorInvite(coApplicantId, applicationId, token)
     setState(result.ok ? "sent" : "error")
     if (result.ok) {
       setTimeout(() => setState("idle"), 4000)

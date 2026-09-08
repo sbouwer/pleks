@@ -18,7 +18,9 @@ import { ResendInviteButton } from "./ResendInviteButton"
 
 interface ScreeningLine {
   application_id: string
-  org_id: string
+  // No org_id. It was selected here only to hand to ResendInviteButton, which sent it back to a
+  // server action as the write scope; the action now derives the org from the token-verified
+  // application. Not re-adding it keeps the org off this applicant-facing surface entirely.
   subject_type: string
   subject_id: string
   subject_name: string
@@ -85,7 +87,7 @@ export default async function CoPartiesPage({
   // Fetch all screening lines for this application
   const { data: lines, error: linesErr } = await service
     .from("v_application_screening_lines")
-    .select("application_id, org_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state")
+    .select("application_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state")
     .eq("application_id", applicationId)
 
   if (linesErr) {
@@ -188,7 +190,6 @@ export default async function CoPartiesPage({
                   <ResendInviteButton
                     coApplicantId={coApp.id}
                     applicationId={applicationId}
-                    orgId={line.org_id}
                     token={token}
                   />
                 </div>
