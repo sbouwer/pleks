@@ -44,6 +44,15 @@ widen:
 > - `confirmed` — the file says what the spec says it says
 > - `refuted` — the file exists and contradicts the claim, in whole or in the part that matters
 > - `not-found` — the file, symbol, table or section named does not exist
+> - `undecidable` — the claim's truth cannot be established BY ANY READ
+>
+> **`undecidable` is not a softer `not-found`, and it is not a place to put claims you did not
+> chase.** If a longer search would settle it, it is not undecidable. It exists for one real shape:
+> a citation into `brief/`, which is a OneDrive symlink **outside version control**. Rot (true when
+> written, decayed since) and fabrication (wrong at authoring) are distinguishable only by dating
+> the citation against history, and there is no history there. Every CODE citation in the first
+> seven-spec pass was classifiable on exactly that basis; the `brief/`-internal ones were not, and
+> recording one `not-found` asserted a determination no read can make.
 >
 > **Return one row per claim and nothing else.** No rewriting of the spec. No recommendations. No
 > ranking. No opinion on whether a refutation matters. A row that editorialises is a row that has
@@ -131,6 +140,29 @@ Then run the instrument and paste its verdict into your report:
 ```
 node scripts/check-spec-verification.mjs <spec path>
 ```
+
+**`MISCITED` (exit 5) means the block and the M-register disagree**, in either direction: a Ruling
+cites an `M-NNN` with no entry, or an entry names this spec as its `Covering spec:` and no row cites
+it back. **Filing a gap and marking the row are two acts**, and the 25A pass did one of them — M-107
+was written and its row's Ruling cell left `—`, so the block reported UNRULED over a gap that was
+already filed. That direction merely overstates the outstanding work. The inverse does not: a row
+reading `gap-filed:M-113` over an M-113 nobody wrote is a fabricated citation *inside the instrument
+built to catch fabricated citations*, and it reads as closed.
+
+---
+
+## 4a · Never cite `brief/` as evidence
+
+A spec's grounding sections may cite `lib/`, `app/`, `supabase/`, `scripts/` — anything git can
+date. **They must not cite another `brief/` document as evidence for a claim.** That tree is
+unversioned, undateable and outside CI's reach, so a citation into it can never be classified, and
+under an anchor it acquires a credibility the artefact cannot support. ADDENDUM_02B cites
+`LEGAL_NOTE_PLATFORM_LIABILITY.md Part B`, which does not exist and may never have.
+
+**If a document is load-bearing for a build, it belongs in the tracked tree.** This is the same
+conclusion CLAUDE.md §1 reaches from the other side — *"anything the tooling depends on belongs in
+the tracked tree instead"* — and the same one that put `MECHANISABLE.md` and `EXPERIMENTS.md` in
+`docs/` while the specs stayed outside it. Three independent routes, one answer.
 
 ## 5 · Take the refuted rows to Stéan — do not resolve them
 

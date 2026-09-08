@@ -69,6 +69,7 @@ export const REGISTRY = {
   "check-file-headers.mjs": { searches: true },
   "check-rules-tracked.mjs": { searches: true },
   "check-server-action-exports.mjs": { searches: true },
+  "check-spec-verification.mjs": { searches: true },
 
   // ── references a token without searching for it ─────────────────────────────────────────────
   "check-hook-registration.mjs": {

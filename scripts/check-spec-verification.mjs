@@ -29,8 +29,10 @@
  *           0  FRESH     block present, anchor is an ancestor of HEAD, no unruled refutations
  *           1  STALE     anchor is not an ancestor of HEAD (or names no commit in this clone)
  *           2  ABSENT    no verification block, or one that cannot be parsed
- *           3  UNRULED   fresh, but refuted / not-found rows carry no ruling
+ *           3  UNRULED   fresh, but refuted / not-found / undecidable rows carry no ruling
  *           4  USAGE     bad invocation, unreadable file
+ *           5  MISCITED  a ruling cites an M-entry that does not exist, or an M-entry names this
+ *                        spec as its covering spec and no row cites it back
  *
  *         `--selftest` probes all of these BOTH directions on temporary fixtures.
  */
@@ -39,11 +41,24 @@ import { execFileSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-export const EXIT = { FRESH: 0, STALE: 1, ABSENT: 2, UNRULED: 3, USAGE: 4 }
+export const EXIT = { FRESH: 0, STALE: 1, ABSENT: 2, UNRULED: 3, USAGE: 4, MISCITED: 5 }
 
-/** Results a row may carry. `confirmed` needs no ruling; the other two do. */
-const NEEDS_RULING = new Set(["refuted", "not-found"])
-const RESULTS = new Set(["confirmed", "refuted", "not-found"])
+/**
+ * Results a row may carry. `confirmed` needs no ruling; the other three do.
+ *
+ * `undecidable` exists because `not-found` was making a determination it could not support.
+ * A citation into `brief/` — a OneDrive symlink outside version control — cannot be classified
+ * as rot (true when written, decayed since) or as fabrication (wrong at authoring), because there
+ * is no history to date it against. Every CODE citation in the first seven-spec pass was
+ * classifiable on exactly that basis; the `brief/`-internal ones were not, and recording them
+ * `not-found` put an unverifiable claim under an anchor that made it look checked.
+ *
+ * Use it for a claim whose truth cannot be established BY ANY READ — not for one that is merely
+ * hard, and not as a hiding place for a claim you did not chase. If a longer search would settle
+ * it, it is not undecidable.
+ */
+const NEEDS_RULING = new Set(["refuted", "not-found", "undecidable"])
+const RESULTS = new Set(["confirmed", "refuted", "not-found", "undecidable"])
 
 /**
  * A ruling is present when the cell is anything other than an em-dash / hyphen / empty.
@@ -130,7 +145,70 @@ function ancestryOf(sha, cwd) {
   }
 }
 
-export function evaluate(text, cwd) {
+/**
+ * Both directions of the row↔register correspondence.
+ *
+ * Filing a gap and marking the row are TWO acts, and doing one leaves the other artefact lying.
+ * The 25A pass did exactly that: M-107 was written into the register and its row's Ruling cell
+ * stayed `—`, so the block reported UNRULED over a gap that was already filed. Harmless in that
+ * direction — it overstates the outstanding work. The INVERSE is not harmless: a row reading
+ * `gap-filed:M-113` over an M-113 that was never written is a fabricated citation inside the very
+ * instrument built to catch fabricated citations, and it reads as closed.
+ *
+ * Direction A  a Ruling citing `M-NNN` requires a `### M-NNN` heading in the register.
+ * Direction B  a register entry whose `Covering spec:` names THIS spec requires a row citing it.
+ *
+ * An unreadable register is a FINDING, never a skip — "the register could not be read" must not
+ * resolve to "the citations are fine", which is the vacuous-pass shape probed for across this repo.
+ */
+export function citationFindings(rows, specPath, registerText) {
+  if (registerText === null) return ["the M-register could not be read, so no citation could be checked"]
+
+  const entries = new Map()
+  let current = null
+  for (const line of registerText.split("\n")) {
+    const heading = /^#{2,4}\s+(M-\d+[a-z]?)\b/.exec(line)
+    if (heading) {
+      current = heading[1]
+      if (!entries.has(current)) entries.set(current, null)
+      continue
+    }
+    // Greedy `(\S.*)` + trim(), NOT a lazy `(.+?)\s*$` — the lazy form backtracks super-linearly
+    // on a long line, which sonarjs/super-linear-regex caught on this script's first commit.
+    const covering = /^\s*-\s+\*\*Covering spec:\*\*\s*(\S.*)$/.exec(line)
+    if (covering && current) entries.set(current, covering[1].trim())
+  }
+
+  const cited = new Set()
+  for (const r of rows) for (const m of r.ruling.matchAll(/\bM-\d+[a-z]?\b/g)) cited.add(m[0])
+
+  const findings = []
+  for (const id of [...cited].sort())
+    if (!entries.has(id)) findings.push(`a ruling cites ${id}, which has no entry in the register`)
+
+  // The spec's own identity as the register spells it — `ADDENDUM_25A_COMPANY_CONTACTS §7` must
+  // match a path ending `ADDENDUM_25A_COMPANY_CONTACTS.md`. Compared on the stem so a section
+  // suffix, a `.md` and a directory prefix all fall away.
+  const stem = specPath.replace(/\\/g, "/").split("/").pop().replace(/\.md$/i, "").toLowerCase()
+  for (const [id, covering] of entries) {
+    if (!covering || covering.toUpperCase() === "NEW") continue
+    const coveringStem = covering.split(/\s+/)[0].replace(/\.md$/i, "").toLowerCase()
+    if (coveringStem !== stem) continue
+    if (!cited.has(id))
+      findings.push(`${id} names this spec as its covering spec, but no row's ruling cites it back`)
+  }
+  return findings
+}
+
+const readRegister = (cwd) => {
+  try {
+    return readFileSync(join(cwd, "docs", "MECHANISABLE.md"), "utf8")
+  } catch {
+    return null
+  }
+}
+
+export function evaluate(text, cwd, specPath = "") {
   const parsed = parseVerificationBlock(text)
   if (parsed === null) return { code: EXIT.ABSENT, message: "UNVERIFIED — no SPEC-VERIFIED block" }
   if (parsed.malformed) return { code: EXIT.ABSENT, message: `UNVERIFIED — ${parsed.malformed}` }
@@ -141,6 +219,19 @@ export function evaluate(text, cwd) {
   const unruled = parsed.rows.filter((r) => NEEDS_RULING.has(r.result) && !isRuled(r.ruling))
   const counts = parsed.rows.reduce((acc, r) => ({ ...acc, [r.result]: (acc[r.result] ?? 0) + 1 }), {})
   const tally = `${parsed.rows.length} claims — ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ")}`
+
+  // Citation integrity PREEMPTS the unruled count, because it is a defect in the block itself
+  // rather than work not yet done, and because it names the specific row to fix. The tally rides
+  // along so the unruled figure is not lost while the miscite is being corrected.
+  const miscited = citationFindings(parsed.rows, specPath, readRegister(cwd))
+  if (miscited.length > 0) {
+    return {
+      code: EXIT.MISCITED,
+      message: `MISCITED — ${tally}; ${miscited.map((f) => `\n  · ${f}`).join("")}`,
+      miscited,
+      ...parsed,
+    }
+  }
 
   if (unruled.length > 0) {
     return {
@@ -204,6 +295,61 @@ ${rows}
     // The pass direction of that same rule: a row that is NOT a claim (no integer in `#`) is still
     // ignored rather than failing the block, so a notes row under the table costs nothing.
     ["fresh: a stray non-claim table row is ignored, not failed", block(head, "| 1 | x | `a.ts` | confirmed | — |\n| n/a | note | — | see above | — |"), EXIT.FRESH],
+    // `undecidable` — a claim no read can settle. A `brief/`-internal citation is the founding case:
+    // that tree is a OneDrive symlink outside version control, so rot and fabrication are
+    // indistinguishable there. It NEEDS a ruling like the other two.
+    ["unruled: an undecidable row with an em-dash", block(head, "| 1 | x | `brief/legal/X.md` | undecidable | — |"), EXIT.UNRULED],
+    ["fresh: an undecidable row that CARRIES a ruling", block(head, "| 1 | x | `brief/legal/X.md` | undecidable | intent-not-observation |"), EXIT.FRESH],
+    // …and it is a TOKEN like the rest: the near-miss spelling must not be quietly accepted.
+    ["absent: `undecideable` is not the token", block(head, "| 1 | x | `a.ts` | undecideable | — |"), EXIT.ABSENT],
+    // MISCITED end-to-end, through evaluate against the REAL register: M-106 exists, M-99999 does not.
+    ["fresh: a ruling citing a real register entry passes", block(head, "| 1 | x | `a.ts` | refuted | gap-filed:M-106 |"), EXIT.FRESH],
+    ["miscited: a ruling citing an M-entry that does not exist", block(head, "| 1 | x | `a.ts` | refuted | gap-filed:M-99999 |"), EXIT.MISCITED],
+  ]
+
+  // Citation correspondence, probed HERMETICALLY against a fixture register — the evaluate-level
+  // probes above ride on the live one, which proves the wiring but would drift with the register.
+  const reg = [
+    "### M-500 — a thing",
+    "- **Covering spec:** ADDENDUM_TEST_SPEC §4",
+    "### M-501 — another thing",
+    "- **Covering spec:** NEW",
+    "### M-502 — a third",
+    "- **Covering spec:** ADDENDUM_OTHER_SPEC",
+  ].join("\n")
+  const row = (ruling) => [{ result: "refuted", ruling, claim: "x" }]
+  const P = "brief/build/_ADDENDUM/ADDENDUM_TEST_SPEC.md"
+  const cite = [
+    ["cite: KNOWN-GOOD — a ruling citing an existing entry, cited back", citationFindings(row("gap-filed:M-500"), P, reg), 0],
+    // Direction A ISOLATED — M-500 is cited so direction B is satisfied, leaving only the bad cite.
+    ["cite: A RULING CITING A NONEXISTENT ENTRY FAILS — fabrication inside the anti-fabrication tool", citationFindings(row("gap-filed:M-500 and M-999"), P, reg), 1],
+    ["cite: AN ENTRY NAMING THIS SPEC WITH NO ROW CITING BACK FAILS — the 25A shape, M-107 filed and the row left `—`", citationFindings(row("spec-corrected"), P, reg), 1],
+    ["cite: KNOWN-GOOD — `Covering spec: NEW` binds to no spec and is never demanded", citationFindings(row("gap-filed:M-500"), "ADDENDUM_TEST_SPEC.md", reg), 0],
+    ["cite: KNOWN-GOOD — an entry covering ANOTHER spec is not this spec's business", citationFindings(row("gap-filed:M-500"), P, reg), 0],
+    ["cite: both directions are reported together, not just the first", citationFindings(row("gap-filed:M-999"), "x/ADDENDUM_OTHER_SPEC.md", reg), 2],
+    ["cite: AN UNREADABLE REGISTER IS A FINDING, never a silent pass", citationFindings(row("gap-filed:M-500"), P, null), 1],
+    ["cite: a section suffix in `Covering spec` does not defeat the match", citationFindings(row("x"), P, reg), 1],
+    // mention-fixture: this script SEARCHES text for `M-NNN`, so it owns the mention problem in its
+    // own vocabulary — an M-number written in prose must not be mistaken for a declaration or a
+    // citation. Both directions of the parser have that exposure and both are pinned here.
+    [
+      "mention-fixture: an M-number in a register entry's BODY PROSE does not declare an entry — only a heading that opens with one",
+      citationFindings(
+        row("gap-filed:M-500"),
+        P,
+        "### M-500 — a thing\n- **Covering spec:** ADDENDUM_TEST_SPEC\n- see also M-777, which is only mentioned here\n",
+      ),
+      0,
+    ],
+    [
+      "mention-fixture: an M-number in the CLAIM cell is not a citation — only the Ruling cell cites",
+      citationFindings(
+        [{ result: "refuted", ruling: "spec-corrected", claim: "the header cites M-999 as its basis" }],
+        "x/ADDENDUM_UNCOVERED.md",
+        "### M-500 — a thing\n- **Covering spec:** ADDENDUM_OTHER_SPEC\n",
+      ),
+      0,
+    ],
   ]
 
   const names = Object.fromEntries(Object.entries(EXIT).map(([k, v]) => [v, k]))
@@ -213,6 +359,12 @@ ${rows}
     const pass = got === want
     if (!pass) failed++
     console.log(`  ${pass ? "ok  " : "FAIL"}  ${name} — want ${names[want]}, got ${names[got]}`)
+  }
+
+  for (const [name, got, want] of cite) {
+    const pass = got.length === want
+    if (!pass) failed++
+    console.log(`  ${pass ? "ok  " : "FAIL"}  ${name} — want ${want} finding(s), got ${got.length}`)
   }
 
   // One end-to-end run through argv + the filesystem, so the probes above cannot pass while the
@@ -241,7 +393,7 @@ function runFile(path, cwd, quiet = false) {
     if (!quiet) console.error(`cannot read ${path}: ${e.message}`)
     return EXIT.USAGE
   }
-  const r = evaluate(text, cwd)
+  const r = evaluate(text, cwd, path)
   if (!quiet) {
     console.log(`${r.message}\n  spec: ${path}`)
     for (const row of r.unruled ?? []) console.log(`  awaiting ruling: [${row.result}] ${row.claim}`)
