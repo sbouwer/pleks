@@ -53,6 +53,29 @@ export function requiresSuretyParty(orgMarker: unknown, companyType: unknown): b
   return isOrg && isJuristicCompanyType(companyType)
 }
 
+/**
+ * Collapse an application row's TWO org markers into the one `requiresSuretyParty` reads.
+ *
+ * `requiresSuretyParty` accepts either marker precisely so a caller holding the "wrong" one cannot
+ * bypass the gate — but a caller holding BOTH has to choose, and `entity_type ?? applicant_type` is
+ * the wrong choice: `applications.entity_type` carries a column DEFAULT of 'individual', so it is
+ * never NULL and `??` never falls through. A company application read that way is an individual.
+ *
+ * This resolver treats the default as absent: a marker that already means "not an individual" wins,
+ * and only then does the other one get consulted. Passing the row through here is what makes the
+ * two-marker design (M-118) behave as one predicate.
+ *
+ * ⚠ ORDERING — do NOT retrofit this into `app/api/billing/screening/route.ts` on its own. That call
+ * site's `??` is what currently holds the surety gate OPEN; closing it while nothing writes
+ * `is_surety_director` 409s every juristic application at payment (CLAUDE.md §6, M-108/M-109). The
+ * declaration pane that writes `is_surety_director` must be live and reachable FIRST.
+ */
+export function orgMarkerFrom(entityType: unknown, applicantType: unknown): unknown {
+  if (entityType === "organisation" || entityType === "company") return entityType
+  if (applicantType === "organisation" || applicantType === "company") return applicantType
+  return entityType ?? applicantType
+}
+
 export interface JuristicPartyValidation {
   readonly ok: boolean
   /** Applicant-facing, already using the right word for the entity type. */

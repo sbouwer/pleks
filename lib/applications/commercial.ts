@@ -65,6 +65,14 @@ export interface DirectorDeclaration {
   email: string
   phone?: string
   isSigningSurety: boolean
+  /**
+   * Director 1 — the primary contact, who is already inside the flow (14G §3.4(5)). Their surety
+   * co-applicant row is created exactly like anyone else's; only the invitation email is skipped,
+   * because emailing "here is your private link" to the person who just submitted the form reads as
+   * a phishing test. It suppresses ONE side effect and nothing else — in particular it grants no
+   * rights and skips no gate, so a caller lying about it gains nothing but a missing email.
+   */
+  isPrimaryContact?: boolean
 }
 
 interface DeclareDirectorsResult {
@@ -75,12 +83,17 @@ interface DeclareDirectorsResult {
 /**
  * Creates application_directors rows for all declared directors.
  * For surety directors, also creates an application_co_applicants row and sends an invite.
- * Called from Step 1.5 of the commercial application flow.
- * @knipignore Mid-build commercial-applicant flow, gate-before-wiring (verifyApplicantToken is CALLED, not
- * merely described). The caller-supplied-orgId hazard this docstring used to warn about was CLOSED on
- * 2026-09-08: the org is now derived from the token-verified application. This was the most dangerous
- * of the three functions here, because its org_id reached INSERTs with nothing pinning the row first —
- * a caller could stamp new director and co-applicant rows into any org on the platform.
+ * Called from Step 1.5 of the commercial application flow — WIRED on 2026-09-08 via
+ * `app/api/applications/director-declaration/route.ts`, which is why the `@knipignore` that stood
+ * here is gone: the tag existed only because nothing reached this function, and knip now finds a
+ * caller. That route's gate is deliberately NARROWER than this one's — it accepts the lead
+ * application token only, while `verifyApplicantToken` below also accepts a co-applicant's
+ * access_token (the 14R peer model). Any new caller must decide which of the two it wants.
+ *
+ * The caller-supplied-orgId hazard this docstring used to warn about was CLOSED on 2026-09-08: the
+ * org is now derived from the token-verified application. This was the most dangerous of the three
+ * functions here, because its org_id reached INSERTs with nothing pinning the row first — a caller
+ * could stamp new director and co-applicant rows into any org on the platform.
  */
 export async function declareDirectors(
   applicationId: string,
@@ -161,18 +174,22 @@ export async function declareDirectors(
       .eq("id", directorRow.id)
       .eq("org_id", orgId) // org-scope guard (caller-ID census)
 
-    // Send invitation email
-    await sendDirectorInvite({
-      orgId,
-      applicationId,
-      coApplicantId: coApp.id,
-      token: coApp.access_token,
-      directorEmail: director.email,
-      directorFirstName: director.firstName,
-    })
+    // Send invitation email — except to the primary contact, who is already in the flow (14G §3.4(5)).
+    // `invited` counts emails SENT, not surety rows created, so the two diverge here by design: the
+    // caller uses it to tell the applicant how many people were contacted.
+    if (!director.isPrimaryContact) {
+      await sendDirectorInvite({
+        orgId,
+        applicationId,
+        coApplicantId: coApp.id,
+        token: coApp.access_token,
+        directorEmail: director.email,
+        directorFirstName: director.firstName,
+      })
+      invited++
+    }
 
     results.push({ directorId: directorRow.id, coApplicantId: coApp.id })
-    invited++
   }
 
   return { directors: results, invited }
