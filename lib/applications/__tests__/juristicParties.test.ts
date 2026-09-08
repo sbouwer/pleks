@@ -11,11 +11,13 @@
  */
 import { describe, it, expect } from "vitest"
 import {
+  isSuretyParty,
   MIN_SURETY_PARTIES,
   orgMarkerFrom,
   requiresSuretyParty,
   suretyPartyLabel,
   suretyPartyLabelPlural,
+  SURETY_PARTY_OR_FILTER,
   validateJuristicParties,
 } from "@/lib/applications/juristicParties"
 import { screeningFeeCents, screeningFeeLineCount, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
@@ -160,5 +162,39 @@ describe("orgMarkerFrom collapses the two org markers without losing the juristi
     // sole_prop / partnership ARE the human — companyType still decides, marker or no marker.
     expect(requiresSuretyParty(orgMarkerFrom("individual", "company"), "sole_proprietor")).toBe(false)
     expect(requiresSuretyParty(orgMarkerFrom("organisation", null), "partnership")).toBe(false)
+  })
+})
+
+describe("isSuretyParty is the one predicate both writers satisfy", () => {
+  it("accepts the director-declaration marker", () => {
+    expect(isSuretyParty({ is_surety_director: true, role: "co_applicant" })).toBe(true)
+  })
+
+  it("accepts the apply-flow roster marker — the WIRED writer the fee gate used to miss", () => {
+    expect(isSuretyParty({ role: "guarantor", is_surety_director: false })).toBe(true)
+    expect(isSuretyParty({ role: "guarantor" })).toBe(true)
+    expect(isSuretyParty({ role: "guarantor", is_surety_director: null })).toBe(true)
+  })
+
+  it("rejects an ordinary co-applicant", () => {
+    expect(isSuretyParty({ role: "co_applicant", is_surety_director: false })).toBe(false)
+    expect(isSuretyParty({ role: null, is_surety_director: null })).toBe(false)
+    expect(isSuretyParty({})).toBe(false)
+  })
+
+  it("is not satisfied by a truthy-but-not-true marker", () => {
+    // The column is boolean; a string "false" arriving from anywhere must not read as surety.
+    expect(isSuretyParty({ is_surety_director: false, role: "guarantor_pending" })).toBe(false)
+  })
+
+  it("keeps the query filter naming the same two markers as the predicate", () => {
+    // The divergence M-118 records was a COUNT and a predicate disagreeing, so the filter string is
+    // asserted against the predicate's own inputs rather than against a copy of itself.
+    for (const marker of ["is_surety_director.eq.true", "role.eq.guarantor"]) {
+      expect(SURETY_PARTY_OR_FILTER.split(",")).toContain(marker)
+    }
+    expect(SURETY_PARTY_OR_FILTER.split(",")).toHaveLength(2)
+    expect(isSuretyParty({ is_surety_director: true })).toBe(true)
+    expect(isSuretyParty({ role: "guarantor" })).toBe(true)
   })
 })

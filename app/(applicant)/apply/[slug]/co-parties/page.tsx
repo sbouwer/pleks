@@ -11,6 +11,7 @@
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
+import { SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Clock, AlertCircle, Building2, User } from "lucide-react"
@@ -39,6 +40,7 @@ interface CoApplicant {
   access_token_expires: string | null
   declined_at: string | null
   is_surety_director: boolean
+  role: string | null
 }
 
 function StateChip({ state }: { state: string }) {
@@ -98,9 +100,13 @@ export default async function CoPartiesPage({
   // Fetch co-applicant rows for director details (status only — no results)
   const { data: coApps, error: coErr } = await service
     .from("application_co_applicants")
-    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director")
+    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director, role")
     .eq("primary_application_id", applicationId)
-    .eq("is_surety_director", true)
+    // Both surety markers (M-118). This is the lookup that gives each director line its email,
+    // expiry and resend button; filtered on `is_surety_director` alone, a surety added through the
+    // apply flow's roster (which writes `role`) rendered as a card with no contact and no way to
+    // re-invite them.
+    .or(SURETY_PARTY_OR_FILTER)
 
   if (coErr) {
     console.error("co-parties: co-applicants query failed:", coErr.message)

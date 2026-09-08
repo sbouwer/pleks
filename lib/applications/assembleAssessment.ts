@@ -13,6 +13,7 @@
  */
 import { freeAssessment, type FreeApplicantInput, type FreeAssessmentResult, type FreeAssessmentOptions, type DocSlot } from "@/lib/applications/freeAssessment"
 import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
+import { isSuretyParty } from "@/lib/applications/juristicParties"
 import { companyAgeYears } from "@/lib/applications/docCategories"
 import { decryptIdNumber, decryptDob } from "@/lib/crypto/idNumber"
 
@@ -114,7 +115,10 @@ export function assembleAssessment(p: Readonly<{
       complete: true,
     },
     ...p.coRows.map((c): FreeApplicantInput => ({
-      role: c.role === "guarantor" || c.is_surety_director === true ? "guarantor" : "co_applicant",
+      // The union of both surety markers, resolved through the SSOT predicate rather than re-tested
+      // here. This site read the set correctly; the fee gate did not, and one of them being right by
+      // hand is what let them drift (M-118).
+      role: isSuretyParty(c) ? "guarantor" : "co_applicant",
       declaredIncomeCents: c.gross_monthly_income_cents ?? 0,
       declaredObligationsCents: c.declared_monthly_obligations_cents ?? null,
       idType: c.id_type ?? null, idNumber: decryptIdNumber(c.id_number ?? null),

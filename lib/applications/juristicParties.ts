@@ -76,6 +76,39 @@ export function orgMarkerFrom(entityType: unknown, applicantType: unknown): unkn
   return entityType ?? applicantType
 }
 
+/**
+ * THE surety-party predicate. Every consumer of "is this person standing surety" resolves it here.
+ *
+ * `application_co_applicants` denotes the role TWICE, and the two markers have different writers:
+ *
+ *   - `is_surety_director = true` — written by `declareDirectors` / `replaceDirector`, i.e. the
+ *     14G director-declaration page.
+ *   - `role = 'guarantor'`        — written by the apply flow's roster ("A guarantor / surety (backs
+ *     the rent)"), through `POST /api/applications/[id]/co-applicant`.
+ *
+ * Both are real, both are wired, and both mean the same thing. Reading only the narrower one is not
+ * stricter, it is BLIND: before this, the payment gate counted `is_surety_director` alone while
+ * `assembleAssessment` accepted either, so a director added through the roster was a guarantor to
+ * the assessment engine and invisible to the fee gate — `suretyCount` 0, and the applicant refused
+ * at payment for a person they had already declared and invited, with no way to satisfy the gate.
+ * (M-118.)
+ *
+ * Which of the two SURFACES should survive is an open product question; that this predicate is one
+ * predicate is not, and it is what makes the answer safe to change later.
+ */
+export function isSuretyParty(row: Readonly<{ role?: string | null; is_surety_director?: boolean | null }>): boolean {
+  return row.is_surety_director === true || row.role === "guarantor"
+}
+
+/**
+ * The same set as a PostgREST `.or(...)` filter, for counting sureties without loading their rows.
+ *
+ * It exists so a COUNT and an in-memory test cannot drift apart — the divergence M-118 records was
+ * precisely a query filter and a predicate disagreeing. Combine it with the caller's other filters
+ * (`.eq("primary_application_id", …).is("declined_at", null)`), which AND with it as usual.
+ */
+export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guarantor"
+
 export interface JuristicPartyValidation {
   readonly ok: boolean
   /** Applicant-facing, already using the right word for the entity type. */

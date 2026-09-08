@@ -156,8 +156,15 @@ export async function POST(req: NextRequest) {
 
   const result = await declareDirectors(applicationId, directors, token)
 
-  if (result.directors.length === 0) {
-    return NextResponse.json({ error: "Failed to record the directors. Please try again." }, { status: 500 })
+  // PARTIAL is a failure, not a success. `declareDirectors` logs and continues past a director whose
+  // INSERT fails, so a board can come back short — and a short board is exactly what the surety gate
+  // and the fee are computed from. Reporting ok on a partial write would tell the applicant their
+  // declaration is complete while a director they named does not exist.
+  if (result.directors.length !== directors.length) {
+    console.error(
+      `[director-declaration] partial write: ${result.directors.length}/${directors.length} declared for ${applicationId}`,
+    )
+    return NextResponse.json({ error: "Failed to record every director. Please try again." }, { status: 500 })
   }
 
   return NextResponse.json({
