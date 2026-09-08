@@ -42,6 +42,16 @@ action, mid-build decisions. Read it before asking; it survives compaction becau
 completed", set the next action to the exact thing to do, record mid-build decisions the spec does
 not carry, files not to touch, and bugs found along the way. A file that is only ever read goes
 stale in one session and then misleads the next.
+**CEILING: 8 KB, hard** (BRIEF-STANDARD §2.1). This file is READ at the start of every session, so
+its size is a per-session tax paid forever — the only always-read artefact whose growth nobody
+notices, because each session adds one block. **Writing it means CLEARING it too:** a finished
+decision goes to `DECISIONS`, a finished step to `INDEX.md`, and the rest goes nowhere. On
+2026-09-08 it was 156 KB and 1,974 lines, and the size was the lesser defect — it held TWO blocks
+both dated 2026-09-07, 1,870 lines apart, one saying *"Read this first, supersedes the block below"*
+and the other *"supersedes the block above"*, with both stale by the time anyone reached them.
+**A journal that grows does not merely cost tokens; it stops having a current entry.** The whole
+journal is preserved at `_SUPERSEDED_CURRENT_journal-to-2026-09-07.md`. Appending a new dated block
+instead of replacing the head is the failure mode — do not do it.
 `brief/build/INDEX.md` is the build-status source of truth and its "Known open work" is confirmed
 gaps, not ideas. **`brief/` is a symlink to OneDrive and is NOT version-controlled** — anything the
 tooling depends on belongs in the tracked tree instead.
