@@ -48,7 +48,15 @@ function StateChip({ state }: { state: string }) {
     case "complete":
       return <Badge className="bg-green-500/10 text-green-700 border-green-500/20">Complete</Badge>
     case "ready_to_run":
+    // A claimed line reads as in-flight to the applicant, same as a queued one — the distinction is
+    // the runner's, not theirs. Both are honest here BECAUSE the sweep now bounds how long a claim
+    // can sit; before it, "Processing" on a stranded row was a claim nothing stood behind (M-111).
+    case "running":
       return <Badge className="bg-blue-500/10 text-blue-700 border-blue-500/20">Processing</Badge>
+    case "failed":
+      // Distinct from "Expired", which means the person did not act. This one is ours: they paid and
+      // consented and the check did not run. The agency is the one who must do something about it.
+      return <Badge className="bg-red-500/10 text-red-700 border-red-500/20">Check failed — contact the agency</Badge>
     case "paid_pending_consent":
       return <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">Awaiting consent</Badge>
     case "consented_pending_payment":

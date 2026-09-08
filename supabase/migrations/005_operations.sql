@@ -2074,6 +2074,16 @@ SELECT
   CASE
     WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
          AND app.searchworx_check_status = 'complete'                            THEN 'complete'
+    -- 'running' and 'failed' are matched EXPLICITLY, ahead of everything below, because the ELSE arm
+    -- is 'pending_both' — so without these a claimed line and a failed line both read as "this person
+    -- has not paid or consented". Both HAVE. The reminder cron owns pending_both, so a line stranded
+    -- mid-run was being chased with "your portion is still outstanding" emails and then declined at
+    -- T+14 with decline_reason 'expired_no_completion' and a refund flagged, recording the applicant's
+    -- failure to complete something they had completed. See M-111.
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'running'                             THEN 'running'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'failed'                              THEN 'failed'
     WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
          AND app.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
     WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
@@ -2104,6 +2114,13 @@ SELECT
   CASE
     WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
          AND caa.searchworx_check_status = 'complete'                            THEN 'complete'
+    -- Same two arms as the company branch above, for the same reason (M-111). This is the branch the
+    -- reminder cron actually reads — it filters subject_type = 'co_applicant' — so the wrong-email
+    -- and wrong-refund cascade described there was reachable here and only here.
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'running'                             THEN 'running'
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'failed'                              THEN 'failed'
     WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
          AND caa.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
     WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
@@ -3400,3 +3417,48 @@ END $$;
 -- ─────────────────────────────────────────────────────────────────────────────────────────────────
 UPDATE applications SET entity_type = 'individual' WHERE entity_type IS NULL;
 ALTER TABLE applications ALTER COLUMN entity_type SET NOT NULL;
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § screening-line-runner recovery: 'running' is a legal status, and a stranded claim is reclaimable
+--   (M-111 · 2026-09-08)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- THE CLAIM COULD NEVER SUCCEED ON A COMPANY SUBJECT. The runner claims a line by writing
+-- searchworx_check_status = 'running', but this table's CHECK constraint has only ever allowed
+-- ('not_run','pending','complete','failed') — so every company claim raised 23514, the route logged
+-- it and treated the empty result as "another runner owns this line", and reported the batch ok.
+-- application_co_applicants has no CHECK at all, so the co-applicant half of the same code worked.
+-- One status column, two tables, two different behaviours, and the constraint is the reason.
+--
+-- 'running' is added rather than removed from the code because it is a REAL state that the sweep
+-- below needs to see. A claim that leaves no trace cannot be recovered.
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_searchworx_check_status_check;
+ALTER TABLE applications ADD CONSTRAINT applications_searchworx_check_status_check
+  CHECK (searchworx_check_status IN ('not_run','pending','running','complete','failed'));
+
+-- The same CHECK on the sibling, which had none. The value set is now stated once per table instead
+-- of being enforced on one and implied on the other; without it, the next typo'd status on a
+-- co-applicant is a silently unmatched row rather than an error.
+ALTER TABLE application_co_applicants DROP CONSTRAINT IF EXISTS application_co_applicants_searchworx_check_status_check;
+ALTER TABLE application_co_applicants ADD CONSTRAINT application_co_applicants_searchworx_check_status_check
+  CHECK (searchworx_check_status IN ('not_run','pending','running','complete','failed'));
+
+-- WHEN the claim was taken. searchworx_checked_at records completion and is null while running, so
+-- nothing in the schema could tell a claim taken ninety seconds ago from one abandoned in April.
+-- The sweep needs an age, and updated_at is the wrong clock — any unrelated write moves it.
+ALTER TABLE applications                ADD COLUMN IF NOT EXISTS searchworx_run_started_at timestamptz;
+ALTER TABLE application_co_applicants   ADD COLUMN IF NOT EXISTS searchworx_run_started_at timestamptz;
+
+COMMENT ON COLUMN applications.searchworx_run_started_at IS
+  'Set when the screening-line-runner claims this subject; the age the stranded-claim sweep measures. Null once complete.';
+COMMENT ON COLUMN application_co_applicants.searchworx_run_started_at IS
+  'Set when the screening-line-runner claims this subject; the age the stranded-claim sweep measures. Null once complete.';
+
+-- The partial index the sweep reads. Claims are a handful of rows at a time and terminal rows are
+-- every row that ever ran, so the predicate is what keeps this small.
+CREATE INDEX IF NOT EXISTS idx_applications_screening_running
+  ON applications(searchworx_run_started_at)
+  WHERE searchworx_check_status = 'running';
+CREATE INDEX IF NOT EXISTS idx_co_applicants_screening_running
+  ON application_co_applicants(searchworx_run_started_at)
+  WHERE searchworx_check_status = 'running';

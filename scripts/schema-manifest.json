@@ -185,7 +185,8 @@
       "current_address",
       "spouse_info",
       "started_at",
-      "tenant_id"
+      "tenant_id",
+      "searchworx_run_started_at"
     ],
     "application_directors": [
       "id",
@@ -521,7 +522,8 @@
       "resulting_lease_id",
       "fitscore_band_at_decision",
       "approve_below_band",
-      "approve_below_band_note"
+      "approve_below_band_note",
+      "searchworx_run_started_at"
     ],
     "arrears_actions": [
       "id",
@@ -4139,6 +4141,10 @@
       "table": "application_co_applicants",
       "def": "CHECK (((salary_reconciliation_status IS NULL) OR (salary_reconciliation_status = ANY (ARRAY['pass'::text, 'fail'::text, 'pending'::text, 'not_attempted'::text]))))"
     },
+    "application_co_applicants_searchworx_check_status_check": {
+      "table": "application_co_applicants",
+      "def": "CHECK ((searchworx_check_status = ANY (ARRAY['not_run'::text, 'pending'::text, 'running'::text, 'complete'::text, 'failed'::text])))"
+    },
     "application_co_applicants_verification_integrity_grade_check": {
       "table": "application_co_applicants",
       "def": "CHECK (((verification_integrity_grade IS NULL) OR (verification_integrity_grade = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text, 'limited'::text]))))"
@@ -4325,7 +4331,7 @@
     },
     "applications_searchworx_check_status_check": {
       "table": "applications",
-      "def": "CHECK ((searchworx_check_status = ANY (ARRAY['not_run'::text, 'pending'::text, 'complete'::text, 'failed'::text])))"
+      "def": "CHECK ((searchworx_check_status = ANY (ARRAY['not_run'::text, 'pending'::text, 'running'::text, 'complete'::text, 'failed'::text])))"
     },
     "applications_stage1_status_check": {
       "table": "applications",
