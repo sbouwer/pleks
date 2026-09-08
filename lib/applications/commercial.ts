@@ -357,6 +357,27 @@ export async function replaceDirector(
     return { ok: false, error: "Failed to decline original director line" }
   }
 
+  // Mark the DECLARATION row too, not just the screening line. Until 2026-09-08 this half did not
+  // exist: `application_directors` had no decline marker at all, so a replacement left two live
+  // `is_signing_surety` rows for the same board seat and no natural key could tell them apart —
+  // which is why M-116's "just add a UNIQUE" remedy was inapplicable. The row is kept rather than
+  // deleted because "X was declared and then declined" is the true history, and the partial unique
+  // index (uq_app_directors_live_email) excludes it by exactly this column.
+  const { error: dirDeclineErr } = await service
+    .from("application_directors")
+    .update({ declined_at: new Date().toISOString(), decline_reason: "replaced" })
+    .eq("application_id", applicationId)
+    .eq("co_applicant_id", oldCoApplicantId)
+    .eq("org_id", orgId) // org-scope guard (caller-ID census)
+    .is("declined_at", null)
+
+  if (dirDeclineErr) {
+    // Fail closed: continuing would attempt an INSERT the unique index must reject, and a partial
+    // failure here leaves a board with two live rows for one seat — the state this exists to prevent.
+    console.error("replaceDirector — failed to decline director declaration:", dirDeclineErr.message)
+    return { ok: false, error: "Failed to supersede the original director declaration" }
+  }
+
   // Flag any existing payment for manual refund (14C will surface this to agent)
   const { data: existingPayment, error: existingPaymentError } = await service
     .from("application_screening_payments")

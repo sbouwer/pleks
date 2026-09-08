@@ -202,7 +202,9 @@
       "cipc_verified",
       "cipc_verified_at",
       "cipc_match_confidence",
-      "created_at"
+      "created_at",
+      "declined_at",
+      "decline_reason"
     ],
     "application_documents": [
       "id",

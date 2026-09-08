@@ -1805,6 +1805,10 @@ CREATE INDEX IF NOT EXISTS idx_co_applicants_contact_id ON application_co_applic
 CREATE INDEX IF NOT EXISTS idx_co_applicants_surety     ON application_co_applicants(primary_application_id)
   WHERE is_surety_director = true;
 
+-- The surety-line unique index that belongs beside these lives further down the file instead, keyed
+-- to `uq_co_applicants_live_surety_email` — it reads `role`, which is not added until §2996, and a
+-- forward reference here aborts the whole migration at apply time (42703).
+
 COMMENT ON COLUMN application_co_applicants.is_surety_director IS
   'TRUE = director of juristic applicant signing personal surety (commercial).
    FALSE = joint residential co-applicant (spouse, partner).
@@ -1829,9 +1833,29 @@ CREATE TABLE IF NOT EXISTS application_directors (
   created_at            timestamptz NOT NULL DEFAULT now()
 );
 
+-- Decline markers, mirroring application_co_applicants (M-116, 2026-09-08). replaceDirector marks the
+-- superseded co-applicant row declined but had NOTHING to mark on the director row, so a replacement
+-- left two live is_signing_surety rows for the same person and the natural key below was inapplicable.
+-- Amended forward rather than added to the CREATE, so an already-created table gets them too.
+ALTER TABLE application_directors ADD COLUMN IF NOT EXISTS declined_at    timestamptz;
+ALTER TABLE application_directors ADD COLUMN IF NOT EXISTS decline_reason text;
+
 CREATE INDEX IF NOT EXISTS idx_app_directors_application ON application_directors(application_id);
 CREATE INDEX IF NOT EXISTS idx_app_directors_surety      ON application_directors(application_id)
   WHERE is_signing_surety = true;
+
+-- One live declaration per person per application. PARTIAL on two axes, and both are load-bearing:
+--   declined_at IS NULL — a replaced director's row stays as the record that they WERE declared, so
+--     the key must not see it; without this the replacement is rejected.
+--   email IS NOT NULL   — email is nullable here and a director with no email cannot be invited
+--     anyway. Postgres treats NULLs as distinct, so this predicate is documentation of that fact
+--     rather than behaviour; it is written out because the fact is easy to get wrong.
+-- lower(email) because a case-different address is the same mailbox and would otherwise buy a second
+-- billable screening line for one human. (M-116 — the re-enterable step whose commit is an
+-- unconditional INSERT: the apply flow explicitly supports re-entering the company sign-off.)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_directors_live_email
+  ON application_directors(application_id, lower(email))
+  WHERE declined_at IS NULL AND email IS NOT NULL;
 
 ALTER TABLE application_directors ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_app_directors" ON application_directors;
@@ -2956,6 +2980,29 @@ ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_consent_t
 -- a column to land in â€” so a resumed roster couldn't tell them apart. Persist it.
 ALTER TABLE application_co_applicants
   ADD COLUMN IF NOT EXISTS role text CHECK (role IN ('co_applicant','guarantor')) DEFAULT 'co_applicant';
+
+-- One live SURETY line per person per application (M-116 + M-118, 2026-09-08).
+--
+-- HERE, not up beside the table's other co-applicant indexes, because the predicate reads `role` —
+-- the column added immediately above. Placed there first, this aborted the entire migration at apply
+-- time with 42703, and `check-migration-forward-refs` did not catch it: an index predicate is not one
+-- of the shapes it walks. That is a gap in the checker, not a reason to move the column up.
+--
+-- SCOPE IS THE POINT, and it is narrower than "no duplicate co-applicants". The hazard this closes is
+-- a duplicated CHARGE: screeningFeeCents multiplies APPLICATION_FEE_CENTS by the surety count, so a
+-- second row for the same human is real money and a real invitation email to a real portal. That
+-- hazard attaches to SURETY parties, so the predicate names exactly the set that is separately
+-- billable — and it names it with BOTH markers, because both have live writers: is_surety_director
+-- from the director-declaration page, role='guarantor' from the apply flow's roster. Keep this
+-- predicate in step with isSuretyParty()/SURETY_PARTY_OR_FILTER in lib/applications/juristicParties.ts.
+--
+-- Plain role='co_applicant' rows (the residential joint flow) are DELIBERATELY NOT COVERED. A
+-- duplicate there is a data-quality wart, not a double charge — joint pricing is a flat two-person
+-- fee, not per head — and that flow is the busiest live path in the app; constraining it is a
+-- separate decision with a separate blast radius, not a free extension of this one.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_co_applicants_live_surety_email
+  ON application_co_applicants(primary_application_id, lower(applicant_email))
+  WHERE declined_at IS NULL AND (is_surety_director = true OR role = 'guarantor');
 
 ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;
