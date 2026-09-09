@@ -13,7 +13,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## MANDATORY: Read before starting any work
 
 Read in this order every session (including after compaction):
-1. `brief/build/CURRENT.md` — what step is active, what was just done, what's next
+1. `brief/CURRENT.md` — what step is active, what was just done, what's next
 2. `brief/build/INDEX.md` — full queue, build status, known open work
 3. The relevant spec file in `brief/build/_BUILDS/` or `brief/build/_ADDENDUM/`
 
@@ -36,7 +36,7 @@ This runs TypeScript type checking + ESLint. **If it fails, fix the errors befor
 
 ## MANDATORY: Update CURRENT.md after every step
 
-After completing any meaningful step, update `brief/build/CURRENT.md`:
+After completing any meaningful step, update `brief/CURRENT.md`:
 - Active build and step number
 - What was just completed (one line per item)
 - Exact next action

@@ -36,7 +36,7 @@ git fetch && git log --oneline HEAD..origin/main
 git pull
 ```
 
-**Session state:** `brief/build/CURRENT.md` — what step is active, what was just done, the next
+**Session state:** `brief/CURRENT.md` — what step is active, what was just done, the next
 action, mid-build decisions. Read it before asking; it survives compaction because it is on disk.
 **And WRITE it — after every meaningful step, before committing:** move finished items to "just
 completed", set the next action to the exact thing to do, record mid-build decisions the spec does

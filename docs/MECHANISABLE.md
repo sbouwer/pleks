@@ -344,7 +344,7 @@ available would have been forbidden.
 - **Covering spec:** NEW
 
 ### M-022 — flag `.upsert`/`ON CONFLICT` on `auth.users` by email — ✅ BUILT 2026-08-28
-- **Rule:** "`auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail" (`.claude/rules/schema-gotchas.md`)
+- **Rule:** "`auth.users` carries a PARTIAL unique index on email — a bare `ON CONFLICT (email)` will fail" (`.claude/rules/schema-gotchas.md`). ⚠ Quoted here as "has no unique constraint on email" until 2026-09-09; the real object is `users_email_partial_key`, `UNIQUE (email) WHERE (is_sso_user = false)`, verified live. **The check's behaviour is unaffected** — inference cannot resolve to a partial index without repeating the predicate, so the 42P10 it guards is real either way; only the stated cause was wrong. See **M-122** for what the partial index means beyond `ON CONFLICT`
 - **Where it lives:** `.claude/rules/schema-gotchas.md:17`
 - **Rung:** check · **Blast:** schema
 - **Satisfied when:** check:check-auth-users-on-conflict
@@ -664,6 +664,19 @@ files. **A reconciliation is only a control while its two sides can disagree.**
 - **Covering spec:** NEW
 
 **Retained 2026-08-21:** the shrink-only property is doctrine CLAUDE.md §4 calls load-bearing — *"never widen one to make CI green — that deletes the finding"* — and three scripts already implement it privately for their own baselines. This is the generic form of a ratchet the repo has already decided it wants, not a new proposal.
+
+
+### M-123 — the hook probes report BLOCKING when no hook ran at all
+- **Rule:** "each hook blocks on failure and passes on success" — the property **M-007** states its probe establishes.
+- **Where it lives:** `scripts/check-git-hooks.mjs:76` (and the same shape at the two seam blocks below it)
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** `check-git-hooks.mjs` establishes that the probe process actually launched before reading its status — a spawn that never ran is reported as its own finding, naming the missing interpreter, rather than counted as a block. Probed both directions: a launchable seam still blocks on failure, and an unlaunchable one fails loudly instead of passing.
+- **Sketch:** the blocking direction is `ok(run("false") !== 0, …)`, and `spawnSync` returns `status: null` when the binary cannot be launched at all. `null !== 0` is true, so **a hook that never executed satisfies the assertion**. Observed 2026-09-09 at `a3f1db55`: `sh` is absent from the PATH the PowerShell tool hands node, every `spawnSync("sh", [hook])` returned `{ status: null, error: ENOENT }`, and all four "BLOCKS when … fails" probes passed without a single hook running. Fix: check `r.error === undefined && r.status !== null` before interpreting the status, and surface a launch failure as a distinct finding.
+- **Covering spec:** NEW
+
+**Why this is filed while the suite still goes red.** It is **not false-green today**, and the entry would be dishonest if it implied otherwise: each blocking probe is paired with `ok(run("true") === 0, …)`, which `null === 0` fails, so the suite fails overall — on 2026-09-09 it reported **24 wrong probes** on a tree whose hooks were fine. Two things make that worth a mechanism anyway. The red **misattributes**: it names the four hooks rather than the absent shell, and `CURRENT.md` now carries a "run the gates from Git Bash" line that exists only because this cost twenty minutes to diagnose. And the two directions are load-bearing **as a pair** while nothing anywhere says so — the pass-direction is the half that fails on a Windows PATH, so it is exactly the half a future session is tempted to relax as environment-dependent. Relax it and the blocking direction goes silently green on a machine where no hook can run at all, which is the false proof M-007 is the entry for.
+
+Same class as the non-vacuous guards already shipping in `test/credential-mint-census.test.ts` and `check-auth-users-on-conflict.mjs` (`scanned > 0`): assert the scan found something, or a moved root reports safety.
 
 
 ## MONEY (continued — remaining band entries, ranked after M-003)
@@ -2455,3 +2468,32 @@ The author identified the hazard, and defended the single field in front of them
   being declared a public holiday. It had not — and answering *why* meant reading the witnesses
   rather than the design, which is what surfaced that one of the two had never run.
 - **Covering spec:** ADDENDUM_70K Phase C (D-7d — the auditor is a skeptic, never an authority)
+
+### M-122 — a session is minted BY EMAIL, and only a partial index makes that unambiguous
+
+- **Rule:** an identity lookup must be unique by construction, not by a predicate that happens to
+  hold. `mintSupabaseSessionForUser` resolves a user by **email** and mints a full Supabase session
+  for whoever comes back; that is single-valued only because `auth.users` carries
+  `users_email_partial_key`, `UNIQUE (email) WHERE (is_sso_user = false)`.
+- **Where it lives (the instance):** `lib/auth/passkeys/mint-session.ts:26-29` (the
+  `admin.generateLink({ type: "magiclink", email })` step) · its one caller
+  `app/api/auth/passkeys/auth-verify/route.ts:34`.
+- **Rung:** check · **Blast:** auth
+- **Satisfied when:** either the platform asserts it has no SSO users, or minting is bound to
+  `userId` end-to-end so the email lookup is never the identity step.
+- **LATENT, NOT LIVE — and the distinction is the whole entry.** Verified live 2026-09-09 against
+  project `noexjtlrffkzzclibvbq`:
+  `SELECT count(*) FILTER (WHERE is_sso_user) FROM auth.users` returns **0 of 2 users**, and
+  `SELECT indexdef FROM pg_indexes WHERE schemaname='auth' AND tablename='users'` confirms the
+  partial index verbatim. So nothing is exploitable today. The moment one SSO user shares an email
+  with a non-SSO user, the uniqueness the mint relies on stops holding, and the function picks a
+  row rather than *the* row — while every test still passes, because the tests have no SSO user
+  either.
+- **Why the existing control does not reach it.** `PRIVILEGED_MINT_CALLERS` in
+  `test/credential-mint-census.test.ts` pins WHO may call the minter, which is a different
+  question. A pinned, correct, passkey-verifying caller still hands over a `userId`, and the minter
+  still throws that away in favour of an email round-trip. The caller pin cannot see inside.
+- **Provenance:** CD ruling 2026-09-09, precondition (c) on ADDENDUM_62F §24.5. Surfaced while
+  ruling on `mint-session.ts`'s classification in PR #288 — the file was being read for a different
+  reason, which is how the email round-trip was noticed at all.
+- **Covering spec:** ADDENDUM_62F §24.5 (preconditions), §3.1(a)
