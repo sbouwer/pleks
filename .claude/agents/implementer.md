@@ -210,9 +210,41 @@ whose gloss contradicts its state is a real failure and it is invisible in a bar
 
 ### The green bar
 
-`npm run check` — `tsc --noEmit` + `eslint . --max-warnings 0` + the architecture audit + the
-schema-contract scan + the marker audit + tests. Run `npx tsc --noEmit` after the bulk pass and
-after every fix; `npm run check` before you report.
+`npm run check` — a long serial chain (`tsc --noEmit`, `eslint . --max-warnings 0`, the architecture
+audit, the schema-contract scan, the marker audit, the migration checks, tests, and roughly two
+dozen more, many with their own `--selftest` arm). **Read `package.json` for the current set rather
+than any summary, here or elsewhere** — it grows, and a partial list phrased as a definition is how
+a doc starts lying without anyone editing it.
+
+Run `npx tsc --noEmit` after the bulk pass and after every fix; `npm run check` before you report.
+It is serial and fails fast, so the first red hides everything behind it — never read a failure as
+the only one.
+
+### A spec you were briefed from must carry a fresh verification
+
+If your brief cites a spec under `brief/` — a `BUILD_XX`, an `ADDENDUM_XXY`, any file whose
+present-tense claims about this tree are the reason you are making a particular edit — run this
+before the first edit:
+
+```
+node scripts/check-spec-verification.mjs <spec path>
+```
+
+Exit `0` is the only one you may build on. `1` (stale anchor) · `2` (no verification block) ·
+`3` (refuted rows with no ruling) all end the same way: **stop and return `⚠️ decision-needed`**,
+naming the spec and the exit state, having written nothing. Say that `/verify-spec <spec>` is the
+unblocking action. Do **not** verify it yourself — extraction and ruling are not mechanical work,
+and a refuted claim has three possible dispositions of which only one is "the spec was wrong".
+
+**Why this is on the receiving end rather than the authoring end.** A spec written from a thin
+grounding pass is textually indistinguishable from one written from a thorough one, and the author
+is the one person who cannot tell the difference — that judgement is precisely what fails. So the
+check sits where it fires without the author's cooperation. One-sided is how a gap reads as
+covered.
+
+It is **guidance, not a gate**: nothing in the tooling forces this step to run, and a session that
+skips it leaves no trace. That limit is filed as **M-106** — do not read this section as
+enforcement.
 
 ### Non-negotiables that bind even mechanical work
 
@@ -228,6 +260,11 @@ after every fix; `npm run check` before you report.
 ### Lint baselines here
 
 Generate from ground truth (lint the tree, collect real violators); never hand-write, never widen.
-Live baselines: `eslint-rules/no-cookie-client-from.baseline.json`,
-`file-headers.baseline.json`. Re-probe after emptying — the rule must fire on a planted positive
-AND stay quiet on the clean tree.
+Re-probe after emptying — the rule must fire on a planted positive AND stay quiet on the clean tree.
+
+**Enumerate them, do not trust a list here.** They live in two places —
+`eslint-rules/*.baseline.json` (per-rule, beside the rule) and `scripts/**/*.baseline.json` (the
+check-owned ones: file headers, import cycles, invariant callers, migration integrity, schema
+contract, PII classification, test floor). This section named exactly two of them until 2026-09-07,
+when there were twenty-two — an implementer sent to fill baselines from that list would have missed
+most of them and reported done. A naming convention survives; an inventory does not.

@@ -41,6 +41,7 @@ export const PUBLIC_ALLOWLIST = {
   "/api/applications/[id]/submit": "applicant token-gated (credential SSOT)",
   "/api/applications/[id]/submit-to-agent": "applicant token-gated (credential SSOT)",
   "/api/applications/director-consent": "director access_token is the credential",
+  "/api/applications/director-declaration": "primary applicant's application_tokens row is the credential — LEAD token only, deliberately narrower than the peer model (14G §3.1)",
   "/api/applications/director-status/[token]": "director access_token is the credential",
   "/api/applications/invite-consent": "invite token is the credential",
   // Token-gated party actions — token possession is the credential (Cat-4 / Cat-12).

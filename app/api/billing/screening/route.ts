@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildApplicationFeeForm } from "@/lib/payfast/forms"
 import { screeningFeeCents } from "@/lib/constants"
-import { requiresSuretyParty, validateJuristicParties } from "@/lib/applications/juristicParties"
+import { requiresSuretyParty, validateJuristicParties, SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
@@ -68,16 +68,34 @@ export async function POST(req: NextRequest) {
   // so screening the company without a surety human screens nothing — hence at least one is REQUIRED, and
   // the sureties are not left to pay separately afterwards. Consent stays per-person (D-14B-01).
   const companyType = (application.company_info as Record<string, unknown> | null)?.companyType
+  // ⚠ DO NOT "FIX" THIS `??` ON ITS OWN. It reads wrong and it is load-bearing that it stays.
+  //   `applications.entity_type` carries a column DEFAULT of 'individual' and has ZERO writers, so
+  //   it is never NULL and `applicant_type` — the marker the live flow actually writes — is never
+  //   consulted. `juristic` is therefore false for every application today, which is what holds the
+  //   surety gate below OPEN. `lib/applications/juristicParties.ts` exports `orgMarkerFrom`, which
+  //   resolves both markers correctly and is used by the director-declaration page; swapping it in
+  //   here flips the gate CLOSED, and every juristic application 409s at payment until a surety
+  //   party exists for it. That is a one-line null-handling tidy that reads as a bug fix and lands
+  //   as a customer-facing outage (CLAUDE.md §6 · M-108 · M-109).
+  //   The precondition for the swap is that a company applicant is ROUTED to a surety-declaring
+  //   surface as part of the flow — the /apply/[slug]/directors page exists but nothing links to it
+  //   yet, and the roster's guarantor option is optional. Make that true first, then change this.
   const orgMarker = application.entity_type ?? application.applicant_type
   const juristic = requiresSuretyParty(orgMarker, companyType)
 
   let suretyCount = 0
   if (juristic) {
+    // BOTH surety markers, via the SSOT filter. This counted `is_surety_director` alone until
+    // 2026-09-08, which made it blind to the only WIRED writer of a surety party: the apply flow's
+    // roster, which offers "A guarantor / surety (backs the rent)" and writes `role`, never
+    // `is_surety_director`. A director declared and invited that way counted 0, so the gate below
+    // refused the application at payment for a person the applicant had already added — with no
+    // action available that would satisfy it. (M-118.)
     const { count, error: suretyError } = await supabase
       .from("application_co_applicants")
       .select("id", { count: "exact", head: true })
       .eq("primary_application_id", application.id)
-      .eq("is_surety_director", true)
+      .or(SURETY_PARTY_OR_FILTER)
       .is("declined_at", null)
     logQueryError("POST application_co_applicants surety count", suretyError)
     if (suretyError) {

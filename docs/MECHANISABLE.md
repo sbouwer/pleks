@@ -2100,3 +2100,346 @@ The author identified the hazard, and defended the single field in front of them
 - **Probe both directions:** a link to a nonexistent API path must FAIL, and every currently-rendered link (including dynamic segments and query strings) must PASS — the second is the load-bearing one, because a checker that cannot resolve `[jobId]`-style segments reports the whole app and gets deleted.
 - **Provenance:** adversarial walk of PR #269, 2026-09-07. Pre-existing; not introduced by that PR.
 - **Covering spec:** NEW
+
+### M-106 — nothing forces a build to check that the spec it is building from was verified
+
+- **Rule:** a spec's present-tense claims about the tree are observations, and an implementer briefed from a spec that is unverified, or whose anchor is stale, returns `decision-needed` rather than building (CLAUDE.md §8's anchor rule, applied at the receiving end).
+- **Where it lives:** `scripts/check-spec-verification.mjs` (the instrument) · `.claude/commands/verify-spec.md` (the brief that produces the block) · `.claude/commands/build.md` step 2 · `.claude/agents/implementer.md` project surface (the two places that are supposed to call it).
+- **Rung:** hook · **Blast:** other
+- **Satisfied when:** a build cannot proceed from a spec whose verification block is absent, whose anchor is not an ancestor of HEAD, or whose refuted rows are unruled — without a session having chosen to check
+- **Shipped 2026-09-07 at `1b684408`, and shipped INCOMPLETE on purpose.** The deterministic half exists and is probed both directions (`--selftest`, 14 cases): given a spec path it decides FRESH / STALE / ABSENT / UNRULED from the stamped SHA's ancestry, and the ancestry test is the load-bearing one — a rebased-away branch leaves a SHA that `git cat-file` resolves and `merge-base --is-ancestor` rejects, which an existence check would pass.
+- **The half that does not exist is the calling discipline.** Both callers are rung-4 prose: `/build` step 2 and the implementer's project surface tell a session to run the script, and nothing notices when it doesn't. A session that skips the check leaves no trace, and a spec that was never verified is textually identical to one that was — which is the same shape as the rule it is meant to enforce.
+- **Why the obvious mechanisms do not reach it.** The specs live under `brief/`, a OneDrive symlink outside version control, so there is nothing for CI to run and no tree-wide invocation — the script takes one path. A `PreToolUse` hook is the closest rung, but it would have to know *which spec a session was briefed from*, and that is in the prompt, not in the tool call. The tractable slice is narrower: gate the `implementer` **agent spawn** on its prompt naming a spec path whose block does not check out, since `agent-write-scope.js` already inspects `agent_type` on every subagent tool call and the brief is available at spawn.
+- **The honest limit of the whole verifier, worth carrying with the entry: it catches facts, not judgement.** Every one of the four spec failures behind it was an unverified read, which is exactly what this closes. The rulings that sat beside them — *bind on `application_id` because `org_id` is nullable*; *move the display reader out rather than pulling auth in* — were arguments made against plausible alternatives, and no verifier reaches those. This closes the failure class the evidence shows. It does not close the other one and must not be sold as doing so.
+- **A second gap, found by the first real run and not by design: squash-merge manufactures false staleness.** Verifying from a feature branch stamps a SHA that stops being an ancestor of `main` the instant the branch lands, so a correct verification reports STALE with nothing having changed. A mechanism that cries wolf on its own merge trains people to ignore it, which is worse than not having it. Mitigated in prose for now (`/verify-spec` §4: verify on `main`, or substitute the merge-base **and prove with `git diff --name-only` that no read file differs**). The mechanisable slice: have the instrument itself attempt the substitution — if the stamped SHA is unreachable but some ancestor of HEAD has an identical tree for every path named in the `File read` column, report FRESH against that ancestor rather than STALE. It has the rows; it does not read them for paths yet.
+- **Probe both directions:** a build briefed from a stale-anchored spec must STOP, and a build briefed from a freshly-verified one must proceed untouched — the second is load-bearing, because a check that interrupts every build is removed within a week, and most specs have no block at all today.
+- **Provenance:** built 2026-09-07 to Stéan's specification, in the same session that merged PRs #268/#269. The incompleteness is stated in the spec that commissioned it: *"that's the only part that fires without my cooperation, and my record is why that matters."*
+- **Covering spec:** NEW
+
+### M-107 — `contractor_view` still reads the deprecated inline contact block, so 25A's people model is half-applied
+
+- **Rule:** the entity views (`contractor_view`, `landlord_view`, `tenant_view`) derive the displayed person from the primary CHILD contact (`organisation_contact_id = contacts.id AND is_primary_contact`), not from the inline `contact_first_name` / `contact_last_name` columns ADDENDUM_25A deprecated.
+- **Where it lives:** `supabase/migrations/005_operations.sql:1590-1618` (the surviving `contractor_view` definition) · `lib/contacts/contactScope.ts` (the shared sub-person predicate the app side already uses).
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** no view definition selects a deprecated inline `contact_*` column once a primary-child model exists for that entity, or the deprecated columns are dropped so the view cannot compile against them.
+- **This is a CODE defect the spec verifier happened to surface, not spec drift** — 25A row 14 asserted the views were updated and they were not. Ruled by Stéan 2026-09-07 into the third disposition (`gap-filed`): the claim stays, the code is wrong. Filing it here rather than correcting the spec is the whole point of that disposition existing.
+- **Why no mechanism catches it today.** `check-migration-integrity` validates policy pairing and table shape, not view column selection, and nothing cross-references a view's SELECT list against a deprecation recorded only in an addendum. The app side migrated (`referenceCache`, the supplier `/people` route, `insertCompanyPeople` all use `organisation_contact_id`); the SQL side did not, and the two cannot disagree loudly because the view still compiles.
+- **The tractable slice:** the deprecated columns are named and finite. A check that greps view definitions in `supabase/migrations/**` for `contact_first_name` / `contact_last_name` and fails on any hit would decide it, with the surviving sites baselined and classified — but confirm first whether `landlord_view` and `tenant_view` share the defect, which this pass did NOT establish (it looked for a re-defined `landlord_view` matching 25A's description and found none, which is not the same as confirming the old shape survives).
+- **Probe both directions:** a view selecting a deprecated inline column must fail; a view selecting the primary-child join must pass untouched.
+- **Provenance:** found 2026-09-07 by the seven-spec verification pass, anchored at `1b684408`.
+- **Covering spec:** ADDENDUM_25A_COMPANY_CONTACTS §7
+
+### M-108 — a tolerant helper whose only consumer defeats the tolerance
+
+- **Rule:** when a helper deliberately accepts several spellings of one signal so that no caller can bypass it by holding the wrong one, its call sites must actually be capable of reaching each branch. A defence with one consumer is only as good as that consumer.
+- **Where it lives (the instance):** `lib/applications/juristicParties.ts:44-53` — `requiresSuretyParty` accepts BOTH `entity_type='organisation'` and `applicant_type='company'`, and its own docstring states this "means this gate cannot be silently bypassed by a caller that happens to hold the other one". Its sole consumer, `app/api/billing/screening/route.ts:71`, passes `application.entity_type ?? application.applicant_type` — and `entity_type` carries `DEFAULT 'individual'` with nothing writing it, so the right-hand operand is never evaluated for any row current code can produce. The tolerance is real and unreachable.
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** a helper documenting multi-spelling tolerance cannot have every call site collapse to one spelling without something saying so.
+- **What makes it a class rather than a bug.** The helper is correct, the call site is syntactically ordinary, and the TEST SUITE ASSERTS BOTH HALVES WITHOUT CONNECTING THEM: `__tests__/juristicParties.test.ts:40` asserts `requiresSuretyParty("individual","pty_ltd")` is false ("entity_type wins"), and `:47` asserts `requiresSuretyParty("company", t)` is true. Both pass. Neither asserts what the call site actually passes, so the suite proves the defence works and proves the precedence that defeats it, in adjacent lines. Nothing is red.
+- **Why no existing mechanism reaches it.** ESLint sees a `??` between two property reads and has no model of which operands are nullable in the database; the audit's censuses check that a gate is PRESENT, never that it can FIRE. This is the "divergent expressions of one rule" family from `crawler-doctrine` §B, with a twist — the two expressions are not two implementations but a helper and the single call that renders half of it dead.
+- **The tractable slice:** narrow, and worth taking as a lint rule rather than a general analysis. Flag `a.X ?? a.Y` where `X` is a column the schema gives a non-null DEFAULT and no writer — the fallback is unreachable by construction. That needs a schema-derived nullable/default map, which `check-migration-integrity` already parses migrations to build.
+- **Probe both directions:** a `??` whose left operand is a defaulted, never-written column must fail; a `??` over a genuinely nullable column must pass.
+- **Confirmed against the LIVE database 2026-09-08** (the entry above was derived from migration text alone): `information_schema.columns` for `applications` returns `entity_type` — `is_nullable=YES`, `column_default='individual'::text`; `applicant_type` and `company_info` — nullable, no default. So the left operand of the `??` is non-null on every row an insert can produce, and the fallback is unreachable in the deployed schema, not only in the migration source. **`select count(*) from applications` returned 0 on the same date** — the defect has never been exercised, and no row exists to break when it is fixed.
+- **Provenance:** found 2026-09-07 walking the `entity_type` gap. Named as a class at Stéan's direction — *"a defence defeated at its only consumer, which is a class worth naming beyond this instance."*
+- **Covering spec:** NEW
+
+### M-109 — 14B's orchestration layer is built and unwired; the deferral is now recorded, the wiring is not done
+
+- **Rule:** `declareDirectors` / `replaceDirector` / the director-invite path in `lib/applications/commercial.ts` are the commercial orchestration layer. They are written, correct as far as they go, and have **zero callers**.
+- **Where it lives:** `lib/applications/commercial.ts:44-48,272-274` (the `@knipignore … gate-before-wiring … unwired today` comments) · `docs/DEAD-CODE-QUEUE.md:143-144,288-291` (zero importers, two independent sweeps) · `ADDENDUM_14B_COMMERCIAL_APPLICATIONS.md` header, corrected 2026-09-07.
+- **Rung:** n/a — this is a DECISION to record, not a control to build · **Blast:** money
+- **Satisfied when:** the repo records whether the wiring was deferred deliberately (and on what) or dropped, and — if deferred — what unblocks it. **ANSWERED 2026-09-08 — see the ruling below. This entry stays open only for the wiring itself.**
+- **The ruling (Stéan, 2026-09-08): DEFERRED, deliberately, on the individual applicant path — and that path has shipped.** *"we did not yet get to it, we focussed on individual path first (because that was required for commercial - directors - anyway) and then commercial was the logical next step."* The dependency is not incidental: **a director IS an individual applicant**, so the commercial flow consumes the individual machinery rather than paralleling it, and building commercial first would have meant building that machinery twice. So the correct reading of the `@knipignore … gate-before-wiring` comments is *written ahead of its prerequisite*, not *abandoned* — which is the opposite of what a dead-code sweep concludes from the same evidence, and precisely why this was filed rather than left to the next reader. Commercial is the sequenced next step, not a revival.
+- **The reason this is filed rather than just fixed.** The `@knipignore … unwired today` comment proves somebody knew at the time. It does not say whether wiring was **deferred** behind something (14G's entry flow, the `entity_type` writer, a pricing ruling) or simply **dropped**. Those have opposite remedies and identical evidence, and the difference is currently in nobody's head. Filing forces the answer instead of letting the next reader inherit the ambiguity. Ruled by Stéan 2026-09-07: *"built-but-not-wired is either a deferred decision or a forgotten one and nobody has recorded which."*
+- **What it blocks — NARROWED 2026-09-08 by the ruling above.** ADDENDUM_14G and ADDENDUM_14S both carry `dependency-unmet:14B` rows against this. The bar was *"a builder must not start either until this is answered"*; it is now answered, so what remains blocking them is **14B's wiring, not the open decision**. Do not read the `dependency-unmet` rows as still awaiting a ruling.
+- **Note the interaction with M-108, and DO NOT FIX HALF OF IT — CORRECTED 2026-09-08, anchored at `116e49b4`.** This bullet, and the CLAUDE.md §6 scar drawn from it, both said `declareDirectors` was the sole writer of BOTH `applications.entity_type`'s organisation value and `application_co_applicants.is_surety_director`. **It writes only the latter** (`lib/applications/commercial.ts:105`, `:355`). Its single `from("applications")` is a SELECT at `:156-159` inside `sendDirectorInvite`; it never writes that table. `applications.entity_type` has **zero writers anywhere** under `app/` or `lib/` — every other occurrence is a read, or a different table (`contacts`, `communication_log`, `hoa`). The failure modes are exactly as described; only their authorship was wrong.
+- **What the correction changes, and the direction it moves in.** Wiring `declareDirectors` writes only the harmless-while-open half, so the "both together, or `is_surety_director` first" ordering is now satisfied **structurally** — the dangerous half needs code that exists in no file, and cannot land as a side effect of building the director flow. That is the good news. The bad news is the other half: reaching the unsafe state no longer requires writing a director flow at all, because M-108's unreachable `??` is a one-line tidy in a file that mentions no director. **The dangerous edit shrank and moved away from the work that would make someone careful**, which is a worse hazard shape than the one originally recorded even though the recorded ordering was more conservative than needed. Do not read this correction as a relaxation.
+
+- **The wiring's real blocker is UPSTREAM of the function, and it is not a call site.** `commercial.ts` is `"use server"`, so `declareDirectors` is directly callable — the hosting mechanism was never missing. What is missing is its ARGUMENT: `DirectorDeclaration[]` has no source. `CompanyInfo` (`app/(applicant)/apply/[slug]/applyCompany.tsx:22-52`) carries identity, address, a cash-flow ledger, documents and sign-off, plus `fillerDesignation` — the FILLER's own relationship to the company — and no director list. The juristic phase is six panes (`applyNav.tsx:76-83`: `co-info`, `co-address`, `co-finances`, `co-docs`, `co-docs-opt`, `co-review`) and none asks who the directors are or which stand surety. Everything DOWNSTREAM exists — the roster hub filters `is_surety_director`, the `director-portal/[token]` flow has consent and payment, the PayFast director webhook reconciles. The chain is built from the invite onward and has no beginning. The pane goes before `co-review` with `PTY_COMPANY_PANES` 6 → 7 (the orchestrator splits company from personal panes at `step - PTY_COMPANY_PANES`, so that constant is the single hinge), and the call belongs at the `co-review` sign-off. See M-115 and M-116 for what must be fixed before it is written.
+- **The spec also asserts a CIPC dedup key as though implemented** (row 18, gap-filed): there is no unique index on `(org_id, registration_number)` and no app-level dedup. Anything built on 14B inherits a false uniqueness premise — the wiring work must not assume one company contact per registration number.
+- **Provenance:** ADDENDUM_14B SPEC-VERIFIED row 35, anchored at `1b684408`.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS
+
+### M-110 — a cross-spec dependency cites the dependency's PROSE STATUS, not its verification
+
+- **Rule:** when spec A declares a dependency on spec B, it must cite B's verification anchor, not B's prose status line. A spec whose dependency is UNRULED, or whose depended-on row is itself refuted, is blocked.
+- **Where it lives:** `scripts/check-spec-verification.mjs` (already parses the blocks this needs) · every `Dependencies:` / `§10 cross-reference` line in `brief/build/_ADDENDUM/*.md`.
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** a spec cannot report FRESH while a spec it declares a dependency on is ABSENT, STALE or UNRULED, or while the specific row it relies on is refuted.
+- **The measurement that justifies it: THREE SPECS WERE WRONG FROM ONE ROOT.** 14B's header claimed "Shipped — orchestration layer complete". 14G's header said "gated on 14B having shipped (it has)"; 14G §10 repeated it; 14S listed 14B among its shipped dependencies. All three inherited a false status because each cited 14B's PROSE rather than checking it — and 14S's row is the sharpest illustration: it verified that 14B *said* shipped, which was true, rather than that 14B *was*, which was not. **A verification that confirms the citation exists, rather than that the cited claim holds, is the fabricated-citation class operating between specs** — the same failure CLAUDE.md already names for code citations (`JOINT_APPLICATION_FEE_CENTS` citing a rate-card section that never mentioned joint applications), one level up.
+- **Why it is cheap NOW and was not before.** This needed the blocks to exist. They do: seven commercial specs carry anchored, machine-checkable `SPEC-VERIFIED` blocks as of 2026-09-07, and the instrument already parses the anchor, the rows and the rulings. This is **one more relation over data it already reads** — resolve a named dependency to its file, run the same evaluation, and refuse to report FRESH above a non-FRESH dependency. The only new input is a machine-readable dependency declaration, which the headers already carry in prose.
+- **What this entry is NOT for — restated 2026-09-07 so nobody builds a second detector for something already detected.** Its job is not to catch a class the verifier misses. The verifier already catches intra-spec citation defects: all five of 14B's (`inviteDirector`, `runScreeningLine`, `contractors.access_token`, the `juristic_type` set, the Shipped header) surfaced as `refuted` or `not-found` in its own block, which is this mechanism's value demonstrated on a real spec rather than argued. **M-110's job is to stop an UNVERIFIED spec being cited by another spec.** 14G and 14S depended on 14B's prose header precisely because 14B had no block at the time. Once every spec carries one, this is simply the rule that says *cite the anchor, not the claim*.
+- **Why prose cannot hold it.** Every one of the three specs was written by someone who believed the status line. A rule saying "check your dependencies" is exactly the rung-4 instruction that produced this. Ruled by Stéan 2026-09-07: *"without it, the next 14G repeats exactly this."*
+- **Probe both directions:** a spec whose dependency is UNRULED must not report FRESH; a spec whose dependencies are all FRESH must report FRESH untouched — the second is load-bearing, since a dependency check that blocks everything is removed in a week.
+- **Provenance:** found 2026-09-07 by the seven-spec verification pass; the cascade was visible only because all three specs were verified in the same run.
+- **Covering spec:** NEW
+
+### M-111 — a screening line that throws is stranded in `running` forever, paid and consented
+
+- **Rule:** a cron that claims a row optimistically must be able to RELEASE the claim when its work fails, or the claim is a permanent lock held by a process that is no longer running.
+- **Where it lives:** `app/api/cron/screening-line-runner/route.ts:53-57` (the catch), `:92,101` (the claim), `:131,136` (the only status writes) · `app/api/cron/screening-portal-reminders/route.ts:39` (the filter that also cannot see it).
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** a line whose run throws returns to a re-claimable status, or moves to a terminal status something else sweeps — and either way stops being reported to the applicant as in-progress.
+- **The failure, concretely.** The runner claims a line with `UPDATE … WHERE searchworx_check_status IN ('pending','not_run') RETURNING id`, setting `'running'`. On success it writes `'complete'`. On failure it writes NOTHING to the database: it increments a local counter, puts `failed: <msg>` into the HTTP response body, and calls `Sentry.captureException`. The row stays `'running'` — which the claim predicate can never match again. The line is now invisible to the runner (not `pending`/`not_run`), invisible to the reminder cron (its view state is `ready_to_run`, not one of the three states that cron filters on), and rendered to the multi-party portal as still in progress. **The applicant has paid and consented, and nothing will ever run their check or tell anyone.** One transient SearchWorx timeout is sufficient.
+- **The route's own header is wrong about this** (`:9` — "marks 'complete' or 'failed'"), which is why it reads as handled. `'failed'` appears in the file five times and never as a database write. A header asserting behaviour the body lacks is the file-header class CLAUDE.md §5 already names as unenforceable.
+- **Why no mechanism catches it.** Nothing models "a status a claim predicate cannot re-match", and Sentry receiving the exception makes it look observed — but Sentry sees the throw, not the stranded row, and no alert fires on a line sitting in `running` past a threshold. This is the fail-open shape `/walk` step 3 hunts for: the system fails toward "the line looks fine".
+- **The fix is BOTH halves, not either — corrected 2026-09-07 (Stéan).** The first framing offered them as alternatives; that is wrong. The catch-block write handles the exception path only. **The sweep is the one that must exist**, because it is the only mechanism that does not assume the code got a chance to run: a process killed mid-run — OOM, deploy, timeout — never reaches any catch, by construction. The catch is better diagnostics; the sweep is the actual recovery.
+- **The sweep's threshold must be stated relative to the longest legitimate SearchWorx call, not picked round.** A threshold below the real tail reclaims rows mid-flight and produces a second defect wearing the first one's fix — a line run twice, billed once. Derive it from observed p99 call duration with a stated multiple, and write the derivation next to the constant.
+- **Probe both directions:** a line whose run throws must become re-claimable or terminal; a line that succeeds must be untouched by the sweep.
+- **Provenance:** found 2026-09-07 while checking whether ADDENDUM_14B §6.2's retry/backoff spec was aspirational. The spec row (14B row 28) recorded "no retry, failures logged to Sentry, line left as-is" — accurate, but it did not notice that *left as-is* means *left unreclaimable*.
+- **⚠ ONE CLAIM ABOVE IS WRONG, and the truth is worse — corrected 2026-09-08 on grounding.** The
+  bullet says a stranded line is *"invisible to the reminder cron (its view state is `ready_to_run`)"*.
+  It is not `ready_to_run`: `running` matched no CASE arm and fell to the `ELSE`, which is
+  `pending_both` — **the first of the three states that cron does filter on.** So a co-applicant line
+  stranded mid-run was not ignored by the reminder cron; it was *adopted* by it, chased with "your
+  portion is still outstanding" emails to someone who had paid and consented, and at T+14 declined
+  `expired_no_completion` with a refund flagged. A record asserting the applicant failed to do a
+  thing they did. Invisibility would have been the mild version. **Company lines are the invisible
+  half** — as at `5f566d7f` the cron filters `subject_type = 'co_applicant'`
+  (`screening-portal-reminders/route.ts:38`), so nothing reached them at all.
+- **⚠ THE INSTANCE IS CLOSED; THE ENTRY STAYS OPEN.** Shipped at `3d00c508` (2026-09-08): `sweepStrandedClaims`
+  (`lib/screening/sweepStrandedClaims.ts`) with the threshold derivation at the constant, the
+  catch-block release (`markLineFailed`), explicit `running`/`failed` arms in the view so the state
+  has an owner, and a `Check failed — contact the agency` chip so the surface stops asserting
+  progress. Probes in `test/db/screening-claim-recovery.dbtest.ts`, **all seen red before green** —
+  the view arms reproduce as `expected 'pending_both' to be 'running'`, and removing the sweep's age
+  predicate turns both "left alone" negatives red, so they are load-bearing rather than vacuous.
+  **No MECHANISM was built:** nothing yet fails when the NEXT cron claims a row it cannot release.
+  The generalisation — relate a claim predicate to the statuses its own writers can produce — is
+  unbuilt, so this entry stays open. **The threshold is 30 minutes on a structural bound, not an
+  observed p99** (`applications` held 0 rows), and replacing it once production has a real tail is
+  part of what closing this entry means.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.2 · **See also:** M-120 (found while
+  building this — the company claim could never have succeeded), M-112 (`running` and `failed` were
+  two more unowned states in the same view; both now have owners, which does not close M-112 —
+  `expired_no_consent` still has none).
+
+### M-112 — a derived view is used as a work queue, and two of its six states have no owner
+
+- **Rule:** when a work queue's state is COMPUTED rather than stored, a row changes state with nothing acting on it. Every reachable state must have an owner, or the complement of the consumers' filters is a silent drain.
+- **Where it lives:** `supabase/migrations/005_operations.sql:2050-2059` (the CASE) and `:2096` (the declined exclusion) · `app/api/cron/screening-portal-reminders/route.ts:39` (filters three states) · `app/api/cron/screening-line-runner/route.ts:38` (filters `ready_to_run`) · `app/(applicant)/apply/[slug]/co-parties/page.tsx:87` (display).
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** every state `v_application_screening_lines` can emit is either terminal by design or named in some consumer's filter, and that correspondence is asserted rather than assumed.
+- **The state space, and who owns it.** Six values. `complete` is legitimately terminal. `pending_both`, `paid_pending_consent` and `consented_pending_payment` are owned by the reminder cron. **`ready_to_run` and `expired_no_consent` have no owner**, and both are reachable.
+- **`expired_no_consent` strands on the DEFAULT path, not an edge case.** `application_screening_payments.expires_at` defaults to `now() + interval '14 days'` (`005:1858`). The reminder cron expires a line at `daysElapsed >= 14` computed from `application_co_applicants.created_at` (`screening-portal-reminders/route.ts:35,37`). Same deadline, two anchors, both rows created in the same flow. The moment `expires_at` passes, the view flips the line from `pending_both` to `expired_no_consent` — which is not in the cron's filter. The cron runs daily, so the window in which `daysElapsed >= 14` is true AND the line is still `pending_both` is approximately zero. **Every unpaid, unconsented director line therefore expires out of reach: no `declined_at`, no `decline_reason`, no expiry email, no roster recompute.** `expireDirectorLine` is effectively dead for that population, which is the population it was written for.
+- **What is NOT affected, and why that hid it.** A PAID line never reaches `expired_no_consent`, because the paid branches precede the expiry branch in the CASE — so `paid_pending_consent` stays selectable indefinitely and the refund path (`expired_state='paid_but_no_consent'`, `refund_amount_cents`) works correctly. The money path is sound; the no-money path is the stranded one, which is why nothing complained.
+- **The common root with M-111.** Both are the same defect class: a computed state changed underneath a consumer that filters on a subset, with no one owning the complement. M-111's `ready_to_run` strands after a throw; this one strands on a clock. Fixing either by adding a state to a filter fixes one instance and leaves the class.
+- **Why no mechanism catches it.** Nothing relates a view's CASE arms to the `.in("state", [...])` filters of its consumers; they are in different languages in different files. The audit's censuses check that a route is gated, never that a queue is drained.
+- **The tractable slice:** extract the six values from the view definition and the filter arrays from the consumers, and fail when a value appears in neither a filter nor a declared-terminal list. Both are literal arrays in the source; this is a parse, not an analysis.
+- **Probe both directions:** adding a seventh state to the view with no consumer must fail; the current set with both holes closed must pass.
+- **Provenance:** found 2026-09-07 by Stéan's question — *"does the reminder cron's filter excluding ready_to_run strand any other state? a filter that misses one reachable state has usually missed more than one"* — asked while M-111 was open. It had missed two.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.1
+
+### M-113 — commercial leases receive residential deposit treatment, because the discriminator shipped and the behaviour did not
+
+- **Rule:** a schema discriminator with no consumer is worse than no discriminator. It records the distinction, so every reader assumes the distinction is being made — while a single code path applies one regime to both.
+- **Where it lives:** `lib/deposits/` — nine modules (`balance.ts`, `calculateReturn.ts`, `depositBalance.ts`, `disburse.ts`, `interestConfig.ts`, `justification.ts`, `rateUtils.ts`, `generateSchedulePDF.ts`) and `grep lease_type|leaseType|commercial` across all of them returns **nothing**. `calculateDepositReturn(leaseId)` (`calculateReturn.ts:16`) takes only a lease id; `resolveDepositInterestConfig` (`interestConfig.ts:49`) resolves by scope candidate, never by lease type. The discriminator itself is `leases.lease_type` CHECK residential/commercial (`004_leases_financials.sql:38-39`).
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** the deposit path either branches on `leases.lease_type`, or something asserts that it deliberately does not and states the legal basis for treating both regimes identically.
+- **What is wrong TODAY, not what is missing.** Every commercial lease on the platform is having its deposit handled under residential rules — interest accrual, return timeline, and the justification narrative generated for the tenant. The Rental Housing Act deposit regime is a residential statute; applying it to a commercial letting is not a degraded feature, it is a wrong answer produced confidently, in a document handed to a party. This repo built a five-rule CPA s5/s6 applicability ladder (`lib/leases/cpaApplicability.ts`) precisely because residential and commercial legal treatment diverge — and then applied one deposit regime to both.
+- **The schema is what proves this is a halted implementation, not a dropped idea.** A dropped idea leaves no trace. This left `leases.lease_type` (`004:38-39`), `org.property_types` (`001_foundation.sql:48`), and `lease.deposit_return_days` / `notice_period_days` (`004:46,78`) — all confirmed shipped by the ADDENDUM_02B verification pass. Someone built the discriminator on purpose and stopped before the behaviour.
+- **What ADDENDUM_02B specified and nothing built:** `units.letting_type` (5 values, absent from all twelve migrations); the `split` arm of `deposit_interest_to` (shipped as tenant/landlord only, `004:55-56`); and `lib/deposits/rules.ts` exporting `getDepositRules(leaseType)` alongside `jointInspectionRequired` and `tribunalJurisdiction` — the last of which is the sharpest, because tribunal jurisdiction genuinely differs by regime and the code currently has no concept of it.
+- **Why no mechanism catches it.** Nothing relates a CHECK constraint's value set to the branches of the code that reads the column. A discriminator with zero consumers is invisible to every gate here: it is a legal column, legally written, legally never read.
+- **The tractable slice:** the general form (every CHECK-constrained discriminator has a consumer that branches on it) is a large analysis. The narrow form is a parse: assert that some module under `lib/deposits/` references `lease_type`, and fail when none does. That is a ratchet against the current state rather than a theory of discriminators.
+- **Probe both directions:** a `lib/deposits/` with no `lease_type` reference must fail; one that branches on it must pass.
+- **Provenance:** found 2026-09-07 in the ADDENDUM_02B verification pass, and materially sharpened by the `not-found` rule added the same day — the original row recorded "`lib/deposits/rules.ts` does not exist" from a file glob and three symbol greps. The capability re-check found nine modules in that directory, which turns "a file is missing" into "the differentiation is missing while the machinery is fully built". Ruled gap-filed by Stéan on the schema evidence.
+- **Covering spec:** ADDENDUM_02B_RESIDENTIAL_COMMERCIAL
+
+### M-114 — the pooling engine's five shipped tests prove it works; the five unwritten ones would prove it does not leak
+
+- **Rule:** a test suite over an aggregation engine must cover isolation, not only correctness. Tests that assert the mechanism produces the right answer cannot detect the mechanism producing that answer from the wrong inputs.
+- **Where it lives:** `lib/applications/__tests__/companyRuling.test.ts:89-131` — five of the ten tests ADDENDUM_14P §7 names. Absent: no-cross-bleed, §5.4-per-director-floor, bank_main-collision-regression, 0b-specific determinism, registry-drift. The engine under test is `lib/applications/companyRuling.ts:118-131` (`company-ruling.v0b`, three aggregations over a director set: strongestSingle / combined / suretyGroupPooled).
+- **Rung:** test · **Blast:** money
+- **Satisfied when:** the five named isolation tests exist and fail when director data is allowed to cross between subjects.
+- **The five missing ones are not a random half.** Cross-bleed between directors, per-director affordability floors, and a `bank_main` collision regression are exactly the isolation properties of a pooling engine — the properties that distinguish "pooled correctly" from "pooled things that should not have been pooled". The five that exist assert the engine computes; nothing asserts it computes over the right set.
+- **What the failure looks like.** A pooling engine that pools when it should not produces a wrong FitScore **attributed to the wrong person**, on a screening decision that gates a lease application. Not a crash, not a blank — a confident number about someone, derived partly from someone else's bank data. The `bank_main` collision name in the spec's own test list suggests the author had already identified the concrete vehicle.
+- **Nobody decided to drop the isolation half.** This is the reason it is gap-filed rather than spec-corrected: a spec-correction would record that ten was the plan and five was the build, which asserts a decision that no artefact shows anyone making. Rows 1-7, 9 and 10 of the 14P pass all confirmed, so the 0b plumbing genuinely is complete — it is only the test claim that overstates, and it overstates in the direction of the properties nobody checked.
+- **Why no mechanism catches it.** `check-test-floor.mjs` counts tests and files, so five tests is five tests. Nothing compares a spec's named test list against the suite that claims to implement it, and nothing distinguishes a correctness test from an isolation one.
+- **The tractable slice:** the general form needs a spec-to-suite correspondence, which is M-110's family. The narrow form is that each of the five named tests exists by name in that file — a grep, ratcheted.
+- **Probe both directions:** a suite missing a named test must fail; the complete ten must pass.
+- **Provenance:** found 2026-09-07 in the ADDENDUM_14P verification pass (row 8, refuted). Priority raised by Stéan on the observation that the missing five are the isolation half — *"the tests prove the mechanism, and nothing tests the boundary"*, named as the recurring shape of this month's findings.
+- **Covering spec:** ADDENDUM_14P_COMPANY_DIRECTOR_VERIFICATION §7
+
+### M-115 — a client-supplied price that also becomes the amount its own reconciler expects
+
+- **Rule:** a value a caller supplies must never become BOTH the amount charged and the amount a downstream reconciler validates that charge against. A mismatch detector fed from the same field it is checking cannot fire.
+- **Where it lives (the instance):** `lib/applications/commercial.ts:33` — `DirectorDeclaration.feeCents`, a caller-supplied money parameter on a `"use server"` module, written to `application_co_applicants.individual_fee_cents` at `:106` (and `:356` in `replaceDirector`). That column is read in exactly two consequential places: `app/(applicant)/apply/[slug]/director-portal/[token]/payment/page.tsx:69`, which sizes the payment the director is actually charged, and `app/api/webhooks/payfast/director/route.ts:96`, which reads the same column as `expectedCents` and compares it to what PayFast reports. Both sides resolve to the one field, so a poisoned value reconciles clean and `flagMismatch` never fires.
+- **Rung:** eslint · **Blast:** money
+- **Satisfied when:** no money amount reaching a persisted fee column originates from a server-action parameter — the fee is derived server-side from the SSOT, and the parameter does not exist to be passed.
+- **Why the existing controls all miss it.** It is not an org-scope defect, so none of the three `require-*-scope` rules apply. Cat-15 asks whether a gate is present, and one is: `verifyApplicantToken` is genuinely called at `commercial.ts:57` and genuinely binds the caller to the application. **The auth is correct and irrelevant** — the legitimate applicant is the one who sets the price. And the fee-literal rules guard against a hardcoded `25000` at a call site, which is the opposite defect: here the problem is that no literal and no constant appear at all, only a parameter.
+- **The SSOT it should read instead already exists:** `screeningFeeCents` / `APPLICATION_FEE_CENTS` (`lib/constants.ts:128-137`); per surety director the amount is simply `APPLICATION_FEE_CENTS`, since the juristic total is `APPLICATION_FEE_CENTS * (1 + suretyCount)`. **The remedy is to DELETE the parameter, not to validate it** — a validated client price is still a client price, and the next caller passes the check with a number the check was not designed to reject.
+- **Not currently exploitable, and that is a property of the calendar rather than the code.** `declareDirectors` has zero callers and `applications` held 0 rows on 2026-09-08. The defect activates on the first line of the director-declaration pane (M-109). It is filed now precisely because that pane is the next build: the cheapest moment to delete a parameter is before anything passes it.
+- **The tractable slice:** flag a parameter typed as cents/amount flowing into a `.insert()`/`.update()` on a known fee column within a `"use server"` module. Narrow, and the fee-column set is small and enumerable.
+- **Probe both directions:** a fee column written from a function parameter must fail; one written from an imported constant or a server-derived computation must pass.
+- **Provenance:** found 2026-09-08 grounding the M-109 wiring at `116e49b4`. Sibling of the `orgId` hazard in the same function — but that one carries a warning in its own docstring and this one carries nothing, which is the reason it is the more dangerous of the two.
+- **⚠ THE INSTANCE IS CLOSED; THE ENTRY STAYS OPEN.** Fixed at `67f2527c` (2026-09-08): `feeCents` is deleted from `DirectorDeclaration` and `ReplacementDirector`, and both write sites take `APPLICATION_FEE_CENTS`. The `orgId` sibling was closed in the same commit, from the same rule — a value the caller supplies must not become the write scope or the price. **No mechanism was built**, so the register entry is still a mechanisation item: nothing stops the next `"use server"` module from taking a cents parameter and writing it to a fee column. Fixing the site one knows about is not the same as acquiring the ability to find the next one, and collapsing the two is how a register turns into a changelog.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS
+
+### M-116 — a re-enterable step whose commit is an unconditional INSERT with nothing unique underneath
+
+- **Rule:** a step a user can legitimately re-enter must commit idempotently, or the table beneath it must make the duplicate impossible. Neither alone is enough when the duplicate is a billable subject.
+- **Where it lives (the instance):** `declareDirectors` (`lib/applications/commercial.ts:70-145`) loops over the declared directors and INSERTs each into `application_directors`, then INSERTs a surety's `application_co_applicants` row and sends an invite — unconditionally, with no upsert and no existence check. `supabase/migrations/005_operations.sql:1814-1833` creates `application_directors` with two plain indexes (`idx_app_directors_application`, `idx_app_directors_surety`) and **no UNIQUE constraint**; there is no unique index on `application_co_applicants` either. The apply flow explicitly supports re-entering the company sign-off after an edit — `save-draft/route.ts:190-193` exists precisely because the `draft_step` cursor moves back into the company panes and cannot distinguish edited from unfinished.
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** re-running the declaration for one application cannot create a second row for the same director — enforced at the table, not only in the function.
+- **The cost is not a duplicate row, it is a duplicated CHARGE.** A second sign-off re-invites every director and inflates `suretyCount`, which is a direct multiplier on the fee: `screeningFeeCents` returns `APPLICATION_FEE_CENTS * (1 + suretyCount)` (`lib/constants.ts:135`). So an applicant who edits the company section after signing off is quoted more money, and each phantom director receives a real invitation email to a real portal.
+- **Same family as the CIPC gap already recorded on M-109** — a uniqueness premise the schema does not hold. Worth fixing as one piece of work: both are missing unique constraints on commercial identity, and both are invisible until the flow that writes them is wired.
+- **The tractable slice:** the general form (which steps are re-enterable) is a judgement. The narrow form is a schema assertion — the tables a declaration step writes carry a unique constraint over their natural key — checked the way `check-migration-integrity` already parses migrations.
+- **Probe both directions:** a table written by a re-enterable declaration with no UNIQUE must fail; one carrying it must pass.
+- **Provenance:** found 2026-09-08 grounding the M-109 wiring at `116e49b4`, by asking what a second sign-off does. Not reachable today — `declareDirectors` has zero callers — and activated by the same pane as M-115.
+- **⚠ THE OBVIOUS REMEDY DOES NOT WORK, AND THAT IS THE FINDING (2026-09-08).** "Add a UNIQUE over the natural key" cannot be applied to `application_directors` as the table stands. Live schema, as at 2026-09-08 (`pg_index` join on `pg_class`, `information_schema.columns`): the table's only unique index is its PK; `email` is NULLABLE; and **the table carries no `declined_at`/`decline_reason` marker at all** — unlike `application_co_applicants`, which has both. `replaceDirector` inserts a SECOND `application_directors` row with `is_signing_surety: true` for the same application and never marks the first, so a unique key over `(application_id, lower(email))` would reject a legitimate replacement whenever the same person is re-invited, and there is no column to exclude the superseded row by. On `application_co_applicants` the same key is applicable but must be partial — `WHERE is_surety_director = true AND declined_at IS NULL` — both to leave the live individual/joint apply flow untouched and to let a declined line be replaced.
+  **So this is a schema decision, not a sweep:** either `application_directors` gains a decline marker mirroring its sibling, or `replaceDirector` updates in place instead of inserting. Left unfixed rather than guessed at — picking one changes what `replaceDirector` means, and the whole point of the entry is that a uniqueness premise the schema does not hold is invisible until something writes it.
+- **⚠ THE INSTANCE IS CLOSED; THE ENTRY STAYS OPEN.** Fixed at `c9ac7800` (2026-09-08). The schema decision above was resolved the FIRST way — `application_directors` gains `declined_at`/`decline_reason` mirroring its sibling — because "X was declared and then declined" is the true history and update-in-place erases it. Two PARTIAL unique indexes in `005_operations.sql`: `uq_app_directors_live_email` over `(application_id, lower(email)) WHERE declined_at IS NULL AND email IS NOT NULL`, and `uq_co_applicants_live_surety_email` over `(primary_application_id, lower(applicant_email)) WHERE declined_at IS NULL AND (is_surety_director = true OR role = 'guarantor')` — the second marker per M-118, so the WIRED writer is covered and not just the declaration path. `replaceDirector` now stamps the predecessor fail-closed, and the roster route translates `23505` to a 409 `duplicate_party`. Eleven probes in `test/db/surety-party-uniqueness.dbtest.ts`, both directions on every predicate. **No mechanism was built:** nothing asserts that the NEXT re-enterable declaration step's table carries a unique key over its natural subject, which is the tractable slice above and the reason this stays open.
+  **A gap in `check-migration-forward-refs` was found on the way and is NOT fixed — filed as M-119.**
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS
+
+### M-117 — the implementer's write scope is `null`, and CLAUDE.md claimed it was gated
+
+- **Rule:** an agent type declared in the write-scope table must be BOUNDED by that declaration. A declared scope of `null` must mean "bounded by what the caller declared for this run", never "unchecked".
+- **Where it lives (the instance):** `.claude/hooks/agent-write-scope.js:99` declares `implementer: null`; `:194-195` guards the entire path check with `if (allowed !== null)`. So the `implementer` spine — the only WRITE spine — may write anywhere in the tree. **Being declared with a null scope is WEAKER than being absent from the table:** an unrecognised `agent_type` falls through to `ask` at `:191`, which is visible; a null-scoped one is allowed silently.
+- **Rung:** hook · **Blast:** other
+- **Satisfied when:** no agent type can write outside a scope that some artefact declares for that run, and CLAUDE.md's claim matches what the hook does.
+- **The fix already exists and is not ours to write.** dev-standards ships `agent-write-scope` **v2** in `kit/project-kit/`, whose MANIFEST entry states the reason verbatim: *"v2 closes the hole v1 documented: an unrestricted scope is now refined per run by `.handoff/write-manifest.json`, so `null` means 'bounded by what the caller declared' rather than 'ungated'."* pleks runs v1 (225 lines, no `@kit` marker; canon v2 is 391) and appears in `ledgers/projects.json` with `kitAdopted: []`. **This is an ADOPTION, not a build** — and adopting brings a caller obligation with it: the main session must write `.handoff/write-manifest.json` before spawning an implementer, or the run is bounded to nothing and asks on every write.
+- **What made it a finding rather than a known gap: the marker.** CLAUDE.md §5 carried `<!-- @enforced hook:agent-write-scope -->` on a sentence asserting BOTH halves — *"an implementer may only write inside its declared scope, and no subagent may create or publish a commit"*. The second half is genuinely enforced (the `Bash` branch at `:169-183` denies the commit family for every `agent_type`, ahead of any path logic). The first was false. **A false `@enforced` tag is the exact defect the marker vocabulary exists to prevent**, and it is worse than a mis-measuring instrument: an instrument's error gets written down once discovered, while the tag is still being believed by every session that loads the file. Corrected 2026-09-08 by splitting the rule — the covered half keeps the tag, the uncovered half became an `UNENFORCEABLE` line pointing here, which is the coverage-boundary rule in CLAUDE.md §4 applied to itself.
+- **Probe both directions:** an `implementer` write outside the run's declared manifest must be denied; one inside it must pass, and a main-session write must be untouched.
+- **Provenance:** found 2026-09-08 running `dev-standards`'s `check-kit-drift.mjs`, which reported the file as present-but-unreconciled; the version gap and the false tag were found by reading pleks's copy against canon at `35745519`. **Not** found by any pleks gate — `check-claude-md.mjs` verifies that a marker RESOLVES to a live control, and this one does: the hook exists, is registered, and fires. It has no way to know the control does not cover the sentence it is attached to.
+- **Covering spec:** NEW
+
+### M-118 — one concept, two markers, and the money path reads the narrower one
+
+- **Rule:** when two columns can both denote a role, every consumer must agree on the set. A consumer that reads the narrower marker while a live writer only produces the wider one is not stricter — it is blind.
+- **Where it lives (the instance):** "surety director" is denoted TWICE on `application_co_applicants`. `lib/applications/assembleAssessment.ts:117` treats a row as a guarantor when `c.role === "guarantor" || c.is_surety_director === true` — either marker. The payment gate at `app/api/billing/screening/route.ts:76-87` counts **only** `.eq("is_surety_director", true)`. The two are not interchangeable in practice, because of who writes them: the **live, wired** roster route `POST /api/applications/[id]/co-applicant` (`:46-59`) sets `role: body.role === "guarantor" ? "guarantor" : "co_applicant"` and **never sets `is_surety_director` at all**, while the only writers of `is_surety_director` are `declareDirectors` and `replaceDirector` — both unwired, zero callers.
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** every consumer of "is this person a surety party" resolves it through one predicate, so a new writer cannot satisfy one reader and not the other.
+- **The live consequence, today.** A director added through the roster — the only wired path that exists — is a guarantor to the assessment engine and **invisible to the fee gate**. `suretyCount` is 0, so `validateJuristicParties` rejects the application at payment with `surety_party_required` for a person the applicant has already declared and invited. The applicant has no way to satisfy the gate, because the pane that writes the marker it counts does not exist.
+- **This is a SECOND, independent route to the outage recorded on M-108/M-109**, and unlike that one it needs no `??` fix to reach: it is reachable the moment `requiresSuretyParty` returns true for any reason. The scar in `CLAUDE.md` §6 frames the hazard as ordering between two unwired halves; this is a third half, and it is wired.
+- **The tractable slice:** a check that the set of predicates used to test surety/guarantor status across `lib/` and `app/` is one predicate — i.e. flag a direct `.eq("is_surety_director", …)` or a bare `role === "guarantor"` outside a single named helper, the way the money-format and date SSOTs are guarded.
+- **Probe both directions:** a consumer resolving the role through the shared helper must pass; one testing either raw column directly must fail.
+- **Provenance:** found 2026-09-08 at `e194301c`, answering "where is the commercial build" — by grepping for every writer of `application_co_applicants` rather than trusting the register's claim that `declareDirectors` was the only one. It is not: it is the only writer of that COLUMN. The distinction is the finding.
+- **⚠ THE INSTANCE IS CLOSED; THE ENTRY STAYS OPEN.** Fixed at `1169d288` (2026-09-08). The predicate is now one thing in `lib/applications/juristicParties.ts` — `isSuretyParty(row)` for in-memory rows and `SURETY_PARTY_OR_FILTER` for the PostgREST side — and the three consumers share it: the fee/gate count in `app/api/billing/screening/route.ts`, the co-parties page, and `assembleAssessment`. The schema half went in with M-116 at `c9ac7800`: `uq_co_applicants_live_surety_email`'s predicate names BOTH markers, so the uniqueness key and the reader now agree on the same set. `orgMarkerFrom` landed beside them for the sibling ambiguity on the `applications` row (`entity_type` vs `applicant_type`) and is used by the new declaration route — **deliberately NOT retrofitted into `screening/route.ts:71`, which is the M-108/M-109 hazard**; that site carries a comment saying so.
+  **No mechanism was built:** nothing flags a NEW `.eq("is_surety_director", …)` or a bare `role === "guarantor"` outside the helper, which is the tractable slice above and why this stays open. The three sites were fixed by classification, not by a sweep, so the next one is as invisible as these were.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS
+
+### M-119 — the forward-ref checker walks statements, and an index PREDICATE is not one of its shapes
+
+- **Rule:** a migration checker that validates reference ORDER must see every place a column name can appear, or its green is scoped to the shapes it happens to parse and reads as scoped to the file.
+- **Where it lives (the instance):** `scripts/check-migration-forward-refs.mjs`. `CREATE UNIQUE INDEX … ON application_co_applicants(…) WHERE … role = 'guarantor'` was placed at `005_operations.sql` ~line 1816, roughly 1,180 lines AHEAD of the `ALTER TABLE … ADD COLUMN IF NOT EXISTS role` that creates the column. The checker passed the file. `npx supabase db reset` did not: `ERROR: column "role" does not exist (SQLSTATE 42703)` at statement 269, which is the whole file unapplied from that point down.
+- **Rung:** check · **Blast:** schema
+- **Satisfied when:** a column referenced inside an index predicate (or any other clause the checker currently skips) is subject to the same ordering rule as one referenced in a column list.
+- **Why it matters more than the one instance.** The failure is not a wrong answer, it is a green that means less than it looks like it means — and the file is 3,000 lines, so nobody re-derives the ordering by eye. The instance was caught by a full local replay; a session that skips the reset (most of them, it is slow and needs Docker) ships the file and finds out on the next fresh environment, which is production's replay path.
+- **The tractable slice:** the checker already tokenises statements. Extend the column-reference extractor to the `WHERE` clause of `CREATE INDEX`, and audit what else it skips — `CHECK` constraint bodies, `USING`/`WITH CHECK` in a policy, function bodies, `GENERATED ALWAYS AS` — rather than patching only the shape that bit.
+- **Probe both directions:** an index whose predicate names a column added later in the same file must fail; the same index placed after that `ADD COLUMN` must pass. Both shapes exist in `005_operations.sql` history and can be used as fixtures.
+- **Provenance:** found 2026-09-08 building M-116's indexes at `c9ac7800` — by running `npx supabase db reset` after the checker had already passed, which is the only reason it was found before the merge.
+- **Covering spec:** NEW
+
+### M-120 — a CHECK constraint excluded the status the code writes, and the error was read as a race
+
+- **Rule:** an optimistic claim distinguishes "somebody else got there first" from "the write was
+  rejected" by the ERROR, not by the empty result. Collapse the two and every rejection — a
+  constraint, a permission, a renamed column — is silently reported as healthy contention.
+- **Where it lives (the instance):** `app/api/cron/screening-line-runner/route.ts` (the claim) ·
+  `supabase/migrations/005_operations.sql` (the two constraints).
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** a claim's error path is separated from its zero-rows path, and the status
+  vocabulary of a column is stated identically everywhere the column exists.
+- **The failure, concretely.** `applications.searchworx_check_status` carried
+  `CHECK (… IN ('not_run','pending','complete','failed'))`. The runner claims a line by writing
+  `'running'`. So a company claim could only ever raise **23514**; `logQueryError` logs and returns,
+  `data` comes back `null`, and `if (!claimed || claimed.length === 0) return` reads the `null` as
+  *another runner owns this line*. The batch then reports `ok`, with the company subject silently
+  skipped. Constraint verified against live prod 2026-09-08 before the fix.
+- **⚠ SAY THIS PRECISELY: the claim was IMPOSSIBLE, not OBSERVED-FAILING.** The defect is structural,
+  and it is tempting — and wrong — to report it as an incident. Two guards sat in front of it. The
+  view only emits a company line `WHERE app.entity_type = 'organisation'`; `entity_type` DEFAULTs to
+  `'individual'` and **has no writer at all** (the M-108/M-109 hazard), so no company line has ever
+  been emitted for the runner to claim. And `applications` held **0 rows** in prod on 2026-09-08. So
+  the correct claim is *"the company path could not have worked"*, not *"it failed in production"* —
+  nobody has been harmed by this. **It is worth fixing precisely BECAUSE of that ordering**: the
+  M-108/M-109 scar says wiring `entity_type` is the change that switches the juristic flow on, and
+  this constraint was the mine directly behind that switch. It is now defused ahead of the step that
+  would have stepped on it, which is the only cheap moment such a thing is ever fixed.
+- **The sibling table had NO CHECK at all**, so the identical code worked there. One column, two
+  tables, two vocabularies — and the table that worked is the one anybody testing by hand would have
+  reached for, because it is the multi-director path the feature is *about*.
+- **Why no mechanism catches it.** Three separate blind spots, and it needed all three: `logQueryError`
+  logs and never throws, so a rejected write is indistinguishable from a satisfied one at the call
+  site; nothing compares a CHECK's value set against the literals the code writes into that column;
+  and nothing requires two tables sharing a column NAME to share its constraint. The Supabase error
+  rule (`pleks/require-supabase-error-check`) was **satisfied here** — `error` was destructured and
+  passed to a logger. Checking the error is not the same as acting on it, and the rule cannot tell.
+- **The tractable slice:** for each column with a value CHECK, collect the string literals assigned to
+  it across `lib/` and `app/` and fail on any not in the CHECK's set. Both sides are literal arrays —
+  the constraint is already extracted into `scripts/schema-manifest.json` (`checkConstraints`), so
+  this is a parse against an artefact that exists, not a new analysis. Second, cheaper slice: fail
+  when two tables declare a same-named column whose CHECK sets differ, or where one has none.
+- **Probe both directions:** a write of a literal outside the column's CHECK set must fail; the
+  current set must pass. The schema half is already probed in
+  `test/db/screening-claim-recovery.dbtest.ts` — reverting the constraint locally turns the company
+  claim red with `expected { code: '23514' } to be null`.
+- **⚠ The instance is FIXED at `3d00c508` (2026-09-08, in the M-111 change-set); the entry is OPEN.** Both tables now
+  state the same five values, and the claim's error path throws instead of returning. **No mechanism
+  was built** — the next constraint/code disagreement is exactly as invisible as this one was.
+- **Provenance:** found 2026-09-08 while grounding M-111 — by reading the CHECK constraint on the
+  column M-111's fix writes to, rather than assuming the write it describes had ever succeeded.
+  M-111 is a real defect on the co-applicant path; on the company path it described the failure mode
+  of a code path that had never once run.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.2
+
+### M-121 — an inert witness counted as coverage for two months, and nothing could tell
+
+- **Rule:** a control that cannot run must not be indistinguishable from a control that ran and found
+  nothing. Optional-credential witnesses fail this by construction: the no-key path and the
+  all-clear path produce the same output, so the design is read off the source and believed.
+- **Where it lives (the instance):** `lib/dates/holidayAuditFetch.ts` (the removed
+  `fetchCalendarificZA`) · `app/api/cron/holiday-sentinel/route.ts` · `.claude/rules/crons.md`.
+- **Rung:** check · **Blast:** other (statutory-notice arithmetic, via a missing holiday)
+- **Satisfied when:** every optional-credential dependency either reports its own absence in the
+  artefact a human reads, or is removed.
+- **The failure, concretely.** The holiday sentinel was documented in three places — the module
+  docblock, the route header and the crons rule — as a TWO-witness design: Nager.Date plus
+  Calendarific, with a `witnessDisagreement` escalation between them. `fetchCalendarificZA` read an
+  **optional** env var and returned `null` when it was unset. The key was never set in any
+  environment (checked 2026-09-09 across six env files in four locations, matching on key NAME only).
+  So the fetcher returned `null` on every run the code has ever made, `witnessDisagreement` was
+  called **zero times**, and the cron reported a clean two-witness audit while doing single-witness
+  work. The CLI even printed `(Calendarific: no key — single witness)` — a line nobody reads on a
+  cron, and the cron's own digest said nothing at all.
+- **⚠ SAY THIS PRECISELY: no holiday was ever missed BECAUSE of this.** Calendarific is another
+  aggregator; had the key been set it would very likely have agreed with Nager and escalated nothing.
+  The defect is the **claim**, not a lost detection: three documents asserted a redundancy that did
+  not exist, and the redundancy is exactly what a reader checks before deciding the subsystem is
+  covered enough to stop thinking about. Understating it as "a dead code path" misses that it was
+  load-bearing in the *documentation*, which is where coverage decisions are actually made.
+- **What it was hiding.** Nager.Date does not carry SA ad-hoc s2A proclamations reliably. Measured
+  2026-09-09 against the three known ones: 2023-12-15 (Springbok victory) **present**; 2016-08-03 and
+  2021-11-01 (municipal elections) **absent** — permanently, not with a lag. One in three. The
+  subsystem's whole purpose is catching a proclamation the bundled table lacks, and its only live
+  witness is blind to two-thirds of the class.
+- **Why no mechanism catches it.** Nothing asserts that a named env var a module branches on exists
+  in any environment; `.env.example` is not a contract and was not consulted by any check. Nothing
+  compares a docblock's description of a control against whether the control can execute. The
+  `optionalEnv` helper is doing exactly what it says — the defect is that "optional" and "documented
+  as present" were allowed to coexist unremarked.
+- **The tractable slice:** collect every `optionalEnv("X")` call site and fail when `X` is absent
+  from `.env.example`, forcing each optional dependency to be declared and its absence to be a
+  visible, reviewed state rather than a silent one. Cheaper and narrower than trying to read prose.
+- **Probe both directions:** an `optionalEnv` on a name absent from `.env.example` must fail; every
+  current optional name must pass.
+- **⚠ The instance is FIXED at `88780323` (2026-09-09): Calendarific removed, and replaced with a
+  witness of a DIFFERENT KIND** — gov.za's notices RSS, title-matched for proclamations. It is
+  the publisher, so it carries all three of the proclamations above, including the 2021-11-01 one
+  Nager has never had. **The entry is OPEN: no mechanism was built.** The next optional-credential
+  control to go inert will be exactly as invisible.
+- **Two residuals the replacement does NOT close, both deliberate:**
+  1. **The pre-gazette window.** gov.za publishes at GAZETTING. A holiday announced by the Presidency
+     but not yet gazetted is invisible — correctly, since gazetting is the legally operative moment,
+     but it means the sentinel is silent during precisely the days everyone is talking about the new
+     holiday. 4 November 2026 was in this state on 2026-09-09.
+  2. **The ten-item count cap.** The feed returns ten items regardless of elapsed time, and gazette
+     publication is bursty. A daily poll can silently drop notices on a heavy day. The run cannot see
+     what rolled off, so it reports the CONDITION (`windowOverrun`) instead of pretending to be clean
+     — the same rule this entry is about, applied to the replacement. If it starts firing, the fix is
+     a faster cadence in cPanel **and** `GOVZA_POLL_INTERVAL_MS` together.
+- **Provenance:** found 2026-09-09 when Stéan asked whether the checker had picked up 4 November 2026
+  being declared a public holiday. It had not — and answering *why* meant reading the witnesses
+  rather than the design, which is what surfaced that one of the two had never run.
+- **Covering spec:** ADDENDUM_70K Phase C (D-7d — the auditor is a skeptic, never an authority)

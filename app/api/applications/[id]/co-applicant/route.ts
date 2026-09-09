@@ -61,6 +61,16 @@ export async function POST(
     .single()
 
   if (error || !coApplicant) {
+    // 23505 = uq_co_applicants_live_surety_email. A second SURETY line for the same person on the
+    // same application is a second screening fee and a second invitation email, so the index refuses
+    // it (M-116). Translated here because a raw Postgres message reaching an applicant as a 500 is
+    // both unhelpful and a schema leak.
+    if (error?.code === "23505") {
+      return NextResponse.json(
+        { error: "That person is already on this application.", code: "duplicate_party" },
+        { status: 409 },
+      )
+    }
     return NextResponse.json({ error: error?.message || "Failed" }, { status: 500 })
   }
 

@@ -183,8 +183,12 @@ This project's blast ladder is `money → data-boundary → schema → auth → 
 statutory notice is worse than downtime. Several rules are enforced at TABLE level while the real
 rule is narrower, and the register says so; those gaps are yours because no regex can close them.
 
-- **Audit coverage beyond the three governed tables.** `require-audit-on-sensitive-mutation` covers
-  `contact_bank_accounts`, `tenant_bank_accounts` and `leases`. `applications`, `properties`,
+- **Audit coverage beyond the governed tables.** `require-audit-on-sensitive-mutation` covers the
+  tables in its own `T1_TABLES` constant — **read
+  `eslint-rules/require-audit-on-sensitive-mutation.mjs` for the set, do not trust a list here.**
+  This bullet named three tables until 2026-09-07 and the constant had held four since 2026-08-27
+  (`bank_accounts`, added as the third instance of the F1 surface), so the doc was sending you to
+  crawl ground a rule already owned. `applications`, `properties`,
   `tenants` and `user_orgs` are excluded ON PURPOSE — they are dominated by routine traffic — so a
   SENSITIVE mutation to one of them (a screening decision, a submission, a fee, a role change)
   writing no audit row is a real finding no mechanism can reach. **M-004.**

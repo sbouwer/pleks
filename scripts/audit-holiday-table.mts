@@ -26,9 +26,9 @@ if (!report.ran) {
   process.exit(mode === "ci" ? 1 : 0)
 }
 
-const { primary, witnessDisagreementDates, calendarificReachable } = report
+const { primary, govZa } = report
 console.log(`Holiday-table audit — ${primary!.comparedFrom}..${primary!.comparedThrough}`)
-console.log(`  witnesses: Nager ✓${calendarificReachable ? "  Calendarific ✓" : "  (Calendarific: no key — single witness)"}`)
+console.log(`  witnesses: Nager ✓  gov.za notices ${govZa ? "✓" : "✗ UNREACHABLE — proclamation watch did not run"}`)
 
 const a = primary!.diffs.filter((d) => d.cls === "A")
 const b = primary!.diffs.filter((d) => d.cls === "B")
@@ -40,12 +40,21 @@ for (const [label, list] of [["A — API has, table lacks (possible proclamation
     for (const d of list) console.log(`    ${d.date}  ${d.detail}`)
   }
 }
-if (witnessDisagreementDates.length) {
-  console.log(`\n  ⚠ witnesses DISAGREE on: ${witnessDisagreementDates.join(", ")} — a human must look.`)
+const procs = govZa?.proclamations ?? []
+if (procs.length) {
+  console.log(`\n  ⚠ GAZETTE NOTICE — gov.za has published a public-holiday proclamation:`)
+  for (const p of procs) console.log(`    "${p.title}"\n      ${p.link}  (${p.pubDate})`)
+  console.log(`    Read it, then add the date with basis "PHA s2A" and its Gazette reference.`)
+}
+if (govZa?.windowOverrun) {
+  console.log(
+    `\n  ⚠ gov.za feed window did not cover the polling interval (${govZa.itemsSeen} items, oldest ` +
+      `${govZa.oldestItem ?? "unparseable"}) — notices may have rolled off unseen.`,
+  )
 }
 
 if (report.needsReview) {
-  console.log(`\n✗ audit needs review (${a.length} Class-A, ${b.length} Class-B, ${witnessDisagreementDates.length} witness-disagreement).`)
+  console.log(`\n✗ audit needs review (${a.length} Class-A, ${b.length} Class-B, ${procs.length} gazette notice(s)${govZa?.windowOverrun ? ", feed window unproven" : ""}).`)
   process.exit(mode === "ci" ? 1 : 0)
 }
 console.log(`\n✓ table agrees with the feed(s) — no action.`)

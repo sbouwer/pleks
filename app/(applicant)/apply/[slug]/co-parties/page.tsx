@@ -11,6 +11,7 @@
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
+import { SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Clock, AlertCircle, Building2, User } from "lucide-react"
@@ -18,7 +19,9 @@ import { ResendInviteButton } from "./ResendInviteButton"
 
 interface ScreeningLine {
   application_id: string
-  org_id: string
+  // No org_id. It was selected here only to hand to ResendInviteButton, which sent it back to a
+  // server action as the write scope; the action now derives the org from the token-verified
+  // application. Not re-adding it keeps the org off this applicant-facing surface entirely.
   subject_type: string
   subject_id: string
   subject_name: string
@@ -37,6 +40,7 @@ interface CoApplicant {
   access_token_expires: string | null
   declined_at: string | null
   is_surety_director: boolean
+  role: string | null
 }
 
 function StateChip({ state }: { state: string }) {
@@ -44,7 +48,15 @@ function StateChip({ state }: { state: string }) {
     case "complete":
       return <Badge className="bg-green-500/10 text-green-700 border-green-500/20">Complete</Badge>
     case "ready_to_run":
+    // A claimed line reads as in-flight to the applicant, same as a queued one — the distinction is
+    // the runner's, not theirs. Both are honest here BECAUSE the sweep now bounds how long a claim
+    // can sit; before it, "Processing" on a stranded row was a claim nothing stood behind (M-111).
+    case "running":
       return <Badge className="bg-blue-500/10 text-blue-700 border-blue-500/20">Processing</Badge>
+    case "failed":
+      // Distinct from "Expired", which means the person did not act. This one is ours: they paid and
+      // consented and the check did not run. The agency is the one who must do something about it.
+      return <Badge className="bg-red-500/10 text-red-700 border-red-500/20">Check failed — contact the agency</Badge>
     case "paid_pending_consent":
       return <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">Awaiting consent</Badge>
     case "consented_pending_payment":
@@ -85,7 +97,7 @@ export default async function CoPartiesPage({
   // Fetch all screening lines for this application
   const { data: lines, error: linesErr } = await service
     .from("v_application_screening_lines")
-    .select("application_id, org_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state")
+    .select("application_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state")
     .eq("application_id", applicationId)
 
   if (linesErr) {
@@ -96,9 +108,13 @@ export default async function CoPartiesPage({
   // Fetch co-applicant rows for director details (status only — no results)
   const { data: coApps, error: coErr } = await service
     .from("application_co_applicants")
-    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director")
+    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director, role")
     .eq("primary_application_id", applicationId)
-    .eq("is_surety_director", true)
+    // Both surety markers (M-118). This is the lookup that gives each director line its email,
+    // expiry and resend button; filtered on `is_surety_director` alone, a surety added through the
+    // apply flow's roster (which writes `role`) rendered as a card with no contact and no way to
+    // re-invite them.
+    .or(SURETY_PARTY_OR_FILTER)
 
   if (coErr) {
     console.error("co-parties: co-applicants query failed:", coErr.message)
@@ -188,7 +204,6 @@ export default async function CoPartiesPage({
                   <ResendInviteButton
                     coApplicantId={coApp.id}
                     applicationId={applicationId}
-                    orgId={line.org_id}
                     token={token}
                   />
                 </div>

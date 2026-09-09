@@ -32,6 +32,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          # `npm run check` asks git about ancestry — check-spec-verification's selftest mints probe
+          # commits from HEAD and HEAD~1. A default depth-1 checkout has no HEAD~1, so the selftest
+          # died before printing a probe and CI was red for two days while `npm run check` was green
+          # on every developer machine. Depth 0 rather than 2: the next check to want history should
+          # find it, not repeat this.
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7

@@ -111,19 +111,82 @@ function isWeekday(dateStr: string): boolean {
   return dow !== 0 && dow !== 6
 }
 
+/** One item from the gov.za notices feed — the OFFICIAL publisher, not an aggregator. */
+export interface GazetteNotice {
+  title: string
+  link: string
+  /** RFC-822 string exactly as the feed gave it; never re-parsed into a holiday date. See below. */
+  pubDate: string
+}
+
 /**
- * Two witnesses disagreeing with EACH OTHER is itself an escalation (C→A): if Nager and Calendarific do not
- * agree on the ZA set, a human must look even where our table matches one of them. Returns the dates where
- * the two witnesses differ, restricted to our window.
+ * Does this gazette-notice title announce a public holiday?
+ *
+ * THE MATCH IS DELIBERATELY BROAD, and the asymmetry is the whole argument: a false positive costs one
+ * email that a human dismisses in five seconds; a false negative costs a statutory notice served a day
+ * early, which is void. So this matches any notice title mentioning a public holiday rather than trying to
+ * be clever about the exact form.
+ *
+ * The real titles it must catch (verified against gov.za/documents/notices on 2026-09-09):
+ *   "Public Holidays Act: Declaration of 29 May 2024 as public holiday"
+ *   "Public Holidays Act: Declaration of 15th day of December 2023 as public holiday"
+ *   "Public Holidays Act: Declaration of 1 November 2021 as a public holiday"
+ *   "Public Holidays Act: Declaration of the Twenty-Seventh Day of December 2022 as a public holiday"
+ *   "Public Holidays Act: Declaration of 31 December 1999 and 2 January 2000 as public holidays"
+ *
+ * ⚠ NOTHING HERE PARSES A DATE OUT OF THE TITLE, and that is a decision, not an omission. Look at the five
+ * forms above: bare ("29 May 2024"), ordinal-word ("Twenty-Seventh Day of"), ordinal-digit ("15th day of"),
+ * year-less ("18 May"), and TWO dates in one notice. A parser over that set does not fail loudly — it
+ * returns a confident wrong date, and a confident wrong holiday is worse than no holiday, because the
+ * business-day arithmetic downstream cannot tell it was guessed. The notice and its link go to a human,
+ * who reads the proclamation and adds the entry with its Gazette reference. Skeptic, never authority (D-7d).
  */
-export function witnessDisagreement(a: readonly ApiHoliday[], b: readonly ApiHoliday[], coversFrom: string, coversThrough: string): string[] {
-  const relevant = (d: string) => d >= coversFrom && d <= coversThrough && isWeekday(d)
-  const setA = new Set(a.filter((h) => relevant(h.date)).map((h) => h.date))
-  const setB = new Set(b.filter((h) => relevant(h.date)).map((h) => h.date))
-  const out = new Set<string>()
-  for (const d of setA) if (!setB.has(d)) out.add(d)
-  for (const d of setB) if (!setA.has(d)) out.add(d)
-  return [...out].sort((x, y) => x.localeCompare(y))
+export function isProclamationNotice(title: string): boolean {
+  return /public\s+holiday/i.test(title)
+}
+
+/**
+ * Parse gov.za's RSS into notices — string-scanning, no XML dependency.
+ *
+ * PURE and exported so the parse is fixture-testable. It lives here rather than beside the fetcher because
+ * the parse is where a silent regression hides: gov.za is a Drupal site whose feed shape is not a contract,
+ * and a parse that quietly yields nothing is indistinguishable from a quiet week. The caller treats an empty
+ * result as "could not look", never as "no proclamations" — that is the only reason this may stay this simple.
+ *
+ * Each item's `<description>` carries the whole notice as entity-encoded HTML (verified against the live
+ * feed 2026-09-09), which is why the scan is per-tag and per-item rather than a global regex over the body:
+ * `&lt;a href&gt;` inside a description must never be mistaken for markup of the feed itself.
+ */
+export function parseGazetteNotices(xml: string): GazetteNotice[] {
+  const notices: GazetteNotice[] = []
+  // .slice(1) drops everything before the first <item> — the channel's own <title>/<link>.
+  for (const chunk of xml.split("<item>").slice(1)) {
+    const itemXml = chunk.split("</item>")[0]
+    const title = tagText(itemXml, "title")
+    if (!title) continue
+    notices.push({ title, link: tagText(itemXml, "link") ?? "", pubDate: tagText(itemXml, "pubDate") ?? "" })
+  }
+  return notices
+}
+
+/** Pull one tag's text out of an RSS <item>, tolerating CDATA and entity-encoding. */
+function tagText(itemXml: string, tag: string): string | null {
+  const open = `<${tag}>`
+  const close = `</${tag}>`
+  const start = itemXml.indexOf(open)
+  if (start === -1) return null
+  const end = itemXml.indexOf(close, start + open.length)
+  if (end === -1) return null
+  let raw = itemXml.slice(start + open.length, end).trim()
+  if (raw.startsWith("<![CDATA[") && raw.endsWith("]]>")) raw = raw.slice(9, -3)
+  return decodeEntities(raw).trim()
+}
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'").replace(/&apos;/g, "'").replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")   // last, so "&amp;lt;" does not become "<"
 }
 
 /** Convenience for the cron/script: diff the LIVE bundled table against an API set. */

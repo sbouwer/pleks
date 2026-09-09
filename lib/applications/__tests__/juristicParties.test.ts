@@ -11,10 +11,13 @@
  */
 import { describe, it, expect } from "vitest"
 import {
+  isSuretyParty,
   MIN_SURETY_PARTIES,
+  orgMarkerFrom,
   requiresSuretyParty,
   suretyPartyLabel,
   suretyPartyLabelPlural,
+  SURETY_PARTY_OR_FILTER,
   validateJuristicParties,
 } from "@/lib/applications/juristicParties"
 import { screeningFeeCents, screeningFeeLineCount, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
@@ -121,5 +124,77 @@ describe("the juristic fee covers the entity AND its sureties in one transaction
 
   it("ignores suretyCount for an individual application", () => {
     expect(screeningFeeCents({ isJuristic: false, suretyCount: 5, hasCoApplicant: false })).toBe(APPLICATION_FEE_CENTS)
+  })
+})
+
+describe("orgMarkerFrom collapses the two org markers without losing the juristic one", () => {
+  // The defect this function exists for. `applications.entity_type` has a column DEFAULT of
+  // 'individual', so `entity_type ?? applicant_type` never falls through and a company application
+  // is read as an individual — priced as one, and never gated on having a surety.
+  it("does NOT let the entity_type default mask applicant_type='company'", () => {
+    expect(orgMarkerFrom("individual", "company")).toBe("company")
+    expect(requiresSuretyParty(orgMarkerFrom("individual", "company"), "pty_ltd")).toBe(true)
+    // The shape it replaces, asserted so the difference is visible rather than assumed. Written
+    // through variables because `"individual" ?? "company"` is a compile-time-constant coalesce.
+    const entityType: string | null = "individual"
+    const applicantType: string | null = "company"
+    expect(requiresSuretyParty(entityType ?? applicantType, "pty_ltd")).toBe(false)
+  })
+
+  it("takes entity_type when it is the juristic one", () => {
+    expect(orgMarkerFrom("organisation", "individual")).toBe("organisation")
+    expect(orgMarkerFrom("organisation", null)).toBe("organisation")
+    expect(requiresSuretyParty(orgMarkerFrom("organisation", null), "trust")).toBe(true)
+  })
+
+  it("leaves a genuinely individual application individual", () => {
+    expect(requiresSuretyParty(orgMarkerFrom("individual", "individual"), "pty_ltd")).toBe(false)
+    expect(requiresSuretyParty(orgMarkerFrom("individual", "couple"), "pty_ltd")).toBe(false)
+    expect(requiresSuretyParty(orgMarkerFrom(null, null), "pty_ltd")).toBe(false)
+  })
+
+  it("falls back to whichever marker is present when neither is juristic", () => {
+    expect(orgMarkerFrom(null, "couple")).toBe("couple")
+    expect(orgMarkerFrom("individual", null)).toBe("individual")
+  })
+
+  it("does not make an unincorporated applicant juristic", () => {
+    // sole_prop / partnership ARE the human — companyType still decides, marker or no marker.
+    expect(requiresSuretyParty(orgMarkerFrom("individual", "company"), "sole_proprietor")).toBe(false)
+    expect(requiresSuretyParty(orgMarkerFrom("organisation", null), "partnership")).toBe(false)
+  })
+})
+
+describe("isSuretyParty is the one predicate both writers satisfy", () => {
+  it("accepts the director-declaration marker", () => {
+    expect(isSuretyParty({ is_surety_director: true, role: "co_applicant" })).toBe(true)
+  })
+
+  it("accepts the apply-flow roster marker — the WIRED writer the fee gate used to miss", () => {
+    expect(isSuretyParty({ role: "guarantor", is_surety_director: false })).toBe(true)
+    expect(isSuretyParty({ role: "guarantor" })).toBe(true)
+    expect(isSuretyParty({ role: "guarantor", is_surety_director: null })).toBe(true)
+  })
+
+  it("rejects an ordinary co-applicant", () => {
+    expect(isSuretyParty({ role: "co_applicant", is_surety_director: false })).toBe(false)
+    expect(isSuretyParty({ role: null, is_surety_director: null })).toBe(false)
+    expect(isSuretyParty({})).toBe(false)
+  })
+
+  it("is not satisfied by a truthy-but-not-true marker", () => {
+    // The column is boolean; a string "false" arriving from anywhere must not read as surety.
+    expect(isSuretyParty({ is_surety_director: false, role: "guarantor_pending" })).toBe(false)
+  })
+
+  it("keeps the query filter naming the same two markers as the predicate", () => {
+    // The divergence M-118 records was a COUNT and a predicate disagreeing, so the filter string is
+    // asserted against the predicate's own inputs rather than against a copy of itself.
+    for (const marker of ["is_surety_director.eq.true", "role.eq.guarantor"]) {
+      expect(SURETY_PARTY_OR_FILTER.split(",")).toContain(marker)
+    }
+    expect(SURETY_PARTY_OR_FILTER.split(",")).toHaveLength(2)
+    expect(isSuretyParty({ is_surety_director: true })).toBe(true)
+    expect(isSuretyParty({ role: "guarantor" })).toBe(true)
   })
 })

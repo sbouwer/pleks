@@ -42,6 +42,16 @@ action, mid-build decisions. Read it before asking; it survives compaction becau
 completed", set the next action to the exact thing to do, record mid-build decisions the spec does
 not carry, files not to touch, and bugs found along the way. A file that is only ever read goes
 stale in one session and then misleads the next.
+**CEILING: 8 KB, hard** (BRIEF-STANDARD §2.1). This file is READ at the start of every session, so
+its size is a per-session tax paid forever — the only always-read artefact whose growth nobody
+notices, because each session adds one block. **Writing it means CLEARING it too:** a finished
+decision goes to `DECISIONS`, a finished step to `INDEX.md`, and the rest goes nowhere. On
+2026-09-08 it was 156 KB and 1,974 lines, and the size was the lesser defect — it held TWO blocks
+both dated 2026-09-07, 1,870 lines apart, one saying *"Read this first, supersedes the block below"*
+and the other *"supersedes the block above"*, with both stale by the time anyone reached them.
+**A journal that grows does not merely cost tokens; it stops having a current entry.** The whole
+journal is preserved at `_SUPERSEDED_CURRENT_journal-to-2026-09-07.md`. Appending a new dated block
+instead of replacing the head is the failure mode — do not do it.
 `brief/build/INDEX.md` is the build-status source of truth and its "Known open work" is confirmed
 gaps, not ideas. **`brief/` is a symlink to OneDrive and is NOT version-controlled** — anything the
 tooling depends on belongs in the tracked tree instead.
@@ -209,7 +219,7 @@ TS/TSX format:
    to drift. Pre-existing tables without `org_id` are baselined with a stated reason each in
    `scripts/migration-integrity.baseline.json` (`orgIdTables`) — read it there; the baseline only shrinks.
 - RLS on every new table <!-- @enforced audit:cat7_rlsPolicyAudit -->
-- audit_log on every state change — **for the tables the rule covers** (`contact_bank_accounts`, `tenant_bank_accounts`, `leases`): a module that mutates one must write an audit row in the same module. <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
+- audit_log on every state change — **for the tables the rule covers**, which are the `T1_TABLES` constant in `eslint-rules/require-audit-on-sensitive-mutation.mjs` and are read there, never restated here: a module that mutates one must write an audit row in the same module. (This line listed three tables until 2026-09-07; the constant had held four since 2026-08-27. A restated set is an observation, and §8 says this file does not carry those.) <!-- @enforced eslint:pleks/require-audit-on-sensitive-mutation -->
 - Encrypt before INSERT, decrypt after SELECT for high-value PII identifiers. <!-- @enforced eslint:pleks/require-id-number-encryption --> The SA **`id_number`** is
    encrypted at rest everywhere (AES-256-GCM `iv:ct:tag`, random IV) via `idNumberColumns(raw)` /
    `encryptIdNumber(raw)` — the write helper bundles the ciphertext + a RAW-derived `id_number_hash` (the
@@ -402,9 +412,9 @@ section that never mentioned joint applications).
    full ID; a UI surface masks via `maskIdNumber`)
 - No PII in console.log, no PII in audit_log values
   **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check. Full sketch → **M-017** in `docs/MECHANISABLE.md`.
-- **implementer** (WRITE, Sonnet) — a PRE-SCOPED mechanical transform: a codemod, a migrate-these-N-sites sweep, a rename, a header/baseline fill. **Spawn it in the MAIN CHECKOUT — do NOT use `isolation: "worktree"`** (E10: a worktree is created from `origin/main`, not your HEAD, so on any feature branch the agent transforms a different tree from yours and its green gate proves nothing about yours). What isolation was standing in for is better served by a rung-1 control, and it now covers BOTH halves of the rule: **an implementer may only write inside its declared scope, and no subagent may create or publish a commit** — the hook matches `Bash` as well as the edit tools and denies `commit`/`merge`/`rebase`/`cherry-pick`/`revert`/`am`/`push`, leaving read-only git and the main session untouched. Both checked per tool call on `agent_type`. <!-- @enforced hook:agent-write-scope --> It ends at `npm run check` green + a report; YOU commit and push. Give it the exact transform + scope — it returns the misfit "judgment sites" for you to decide, never guesses a mapping. This is the multitasking lever: hand off the mechanical bulk (this is what the 100-site item-5/6 migrations were), keep your context for the rule design and the judgment calls.
+- **implementer** (WRITE, Sonnet) — a PRE-SCOPED mechanical transform: a codemod, a migrate-these-N-sites sweep, a rename, a header/baseline fill. **Spawn it in the MAIN CHECKOUT — do NOT use `isolation: "worktree"`** (E10: a worktree is created from `origin/main`, not your HEAD, so on any feature branch the agent transforms a different tree from yours and its green gate proves nothing about yours). What isolation was standing in for is served by a rung-1 control for **ONE** of the rule's two halves: **no subagent may create or publish a commit** — the hook matches `Bash` as well as the edit tools and denies `commit`/`merge`/`rebase`/`cherry-pick`/`revert`/`am`/`push`, leaving read-only git and the main session untouched, and that branch runs for every `agent_type` before any path logic. <!-- @enforced hook:agent-write-scope --> It ends at `npm run check` green + a report; YOU commit and push. Give it the exact transform + scope — it returns the misfit "judgment sites" for you to decide, never guesses a mapping. This is the multitasking lever: hand off the mechanical bulk (this is what the 100-site item-5/6 migrations were), keep your context for the rule design and the judgment calls.
   **Worktree isolation remains available for exactly one case** — two implementers running in parallel on DISJOINT file sets, on `main`, with artefact paths passed absolute — chosen explicitly each time, never inherited from a recommendation.
-  **UNENFORCEABLE** — the "never guesses a mapping" half, and the judgment-sites report. Nothing inspects a subagent's self-reported list of misfits for completeness or honesty: an agent that silently guessed a mapping and reported nothing is textually identical to one that found no misfits. Not mechanisable from a diff — the evidence is what the agent chose not to say.
+  **UNENFORCEABLE** — TWO halves, and the first one was tagged `@enforced` here until 2026-09-08. **"An implementer may only write inside its declared scope" is NOT enforced in this repo.** `.claude/hooks/agent-write-scope.js` declares `implementer: null` and then guards the whole path check with `if (allowed !== null)`, so a null scope skips it entirely — and being declared with a null scope is *weaker* than being absent from the table, because an unknown `agent_type` at least falls through to `ask`. Canon's kit ships v2, which closes exactly this by refining a null scope per run from `.handoff/write-manifest.json`; pleks is on v1 and has never declared adoption. **MECHANISABLE → M-117** (adopt v2). The second half is the "never guesses a mapping" claim and the judgment-sites report, which no version fixes: nothing inspects a subagent's self-reported list of misfits for completeness or honesty, and an agent that silently guessed a mapping and reported nothing is textually identical to one that found no misfits. Not mechanisable from a diff — the evidence is what the agent chose not to say.
 - Do not deploy without running `npm run security:quick` first
   **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of "Zero critical findings before any deployment" above, same mechanism, not re-annotated there: no gate blocks a Vercel deploy on this script having run or passed.
 - Do not change existing RLS policies without flagging it
@@ -470,6 +480,39 @@ section that never mentioned joint applications).
   exemption is a per-file directive carrying its reason **at the site** — not a path-list entry,
   which is invisible in the diff when somebody later adds a new read under one of those paths.
 
+- **2026-09-07 · the spec verifier reported all-confirmed on a spec with three refutations.**
+  `check-spec-verification.mjs` skipped any table row whose Result cell it could not classify,
+  treating it as a header or a foreign table. The first seven-spec run wrote the explanation INTO
+  that cell ("refuted — actual set is wider"), so every refutation was silently dropped and one
+  spec returned **FRESH, "15 claims — 15 confirmed", on a table of 20 rows holding 3 refutations**.
+  A verifier that discards what it cannot parse fails toward false proof, which is worse than no
+  verifier: the stamp is the artefact people trust later. A claim row is now identified by its `#`
+  cell and MUST classify, or the whole block is rejected. Both probe directions added.
+  **The prediction that caught it was Stéan's, made before the tool existed** — *"if it returns
+  all-confirmed, that's a red flag about the verifier, not a green light on the spec"* — and it
+  fired on the tool built to honour it.
+- **2026-09-07 · two unwired halves whose failure modes INVERT — and the only safe orderings.**
+  `application_co_applicants.is_surety_director` has exactly one writer, the unwired
+  `declareDirectors`. `applications.entity_type` has **NO writer at all** — corrected 2026-09-08;
+  this scar first claimed `declareDirectors` wrote both, and it writes only the former. Today
+  nothing writes `entity_type`, so the juristic branch in `app/api/billing/screening/route.ts`
+  never fires and the surety-party gate is **silently OPEN**. Make `entity_type` carry a value —
+  by wiring a writer, or by "fixing" the `??` that its column DEFAULT renders unreachable (M-108) —
+  and the gate fires, `suretyCount` counts `is_surety_director = true`, nothing writes it, the
+  count is 0, and **every juristic application is blocked at payment** — silently CLOSED. A change
+  that reads as a bug fix converts a dormant flow into a customer-facing outage.
+  **Safe orderings: both halves in ONE change, or `is_surety_director` first — harmless while the
+  gate is open — and `entity_type` second. NEVER the reverse.**
+  **The correction MOVED THIS HAZARD, it did not retire it — and it is worth knowing which way.**
+  Wiring `declareDirectors` now touches only the safe half, so the ordering holds structurally
+  rather than by discipline. But the unsafe half no longer needs anyone to write a director flow:
+  a one-line null-handling tidy at the `??` reaches it, from a file that mentions no director at
+  all. **The dangerous edit got smaller and moved further from the work that would make you
+  careful.** Understating a hazard is the safe direction to be wrong in, and this correction runs
+  the other way — which is why it was made explicitly rather than quietly.
+  This is L-31's shape (hardening one half of a two-sided protocol breaks the other) with a twist
+  worth naming: here BOTH halves are unwired, so either one alone breaks the system, in opposite
+  directions. **Fixing half of this is worse than fixing none.** → M-108 · M-109
 - **2026-07-02 · the site-content hole.** A write gated with bare `gateway()` was
   indistinguishable from a write whose gate was forgotten. Narrative in `.claude/rules/data-access.md`.
 - **Payout-banking fraud vector (F1).** Swapping a bank account left no who/when.
@@ -494,7 +537,7 @@ section that never mentioned joint applications).
 | `grounder` | Before writing code: map the machinery a task touches | read-only |
 | `census` | Repo-wide counts / find-all-usages, returned **classified** | read-only |
 | `db-inspector` | Live-data claims; every answer carries its query | read-only, SELECT |
-| `implementer` | Pre-scoped mechanical transform; returns misfit judgment sites | write (scope-gated per `agent_type`), **main checkout — NOT `isolation: worktree`** (E10), never commits |
+| `implementer` | Pre-scoped mechanical transform; returns misfit judgment sites | write — **UNBOUNDED today**, its scope is `null` (§5, M-117); **main checkout — NOT `isolation: worktree`** (E10); never commits, which IS gated |
 | `walker` | Adversarial pre-PR review — tries to **refute** | read-only |
 
 Mechanical reading → the read-only three. Mechanical writing → the implementer, **in your own

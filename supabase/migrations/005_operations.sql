@@ -1805,6 +1805,10 @@ CREATE INDEX IF NOT EXISTS idx_co_applicants_contact_id ON application_co_applic
 CREATE INDEX IF NOT EXISTS idx_co_applicants_surety     ON application_co_applicants(primary_application_id)
   WHERE is_surety_director = true;
 
+-- The surety-line unique index that belongs beside these lives further down the file instead, keyed
+-- to `uq_co_applicants_live_surety_email` — it reads `role`, which is not added until §2996, and a
+-- forward reference here aborts the whole migration at apply time (42703).
+
 COMMENT ON COLUMN application_co_applicants.is_surety_director IS
   'TRUE = director of juristic applicant signing personal surety (commercial).
    FALSE = joint residential co-applicant (spouse, partner).
@@ -1829,9 +1833,29 @@ CREATE TABLE IF NOT EXISTS application_directors (
   created_at            timestamptz NOT NULL DEFAULT now()
 );
 
+-- Decline markers, mirroring application_co_applicants (M-116, 2026-09-08). replaceDirector marks the
+-- superseded co-applicant row declined but had NOTHING to mark on the director row, so a replacement
+-- left two live is_signing_surety rows for the same person and the natural key below was inapplicable.
+-- Amended forward rather than added to the CREATE, so an already-created table gets them too.
+ALTER TABLE application_directors ADD COLUMN IF NOT EXISTS declined_at    timestamptz;
+ALTER TABLE application_directors ADD COLUMN IF NOT EXISTS decline_reason text;
+
 CREATE INDEX IF NOT EXISTS idx_app_directors_application ON application_directors(application_id);
 CREATE INDEX IF NOT EXISTS idx_app_directors_surety      ON application_directors(application_id)
   WHERE is_signing_surety = true;
+
+-- One live declaration per person per application. PARTIAL on two axes, and both are load-bearing:
+--   declined_at IS NULL — a replaced director's row stays as the record that they WERE declared, so
+--     the key must not see it; without this the replacement is rejected.
+--   email IS NOT NULL   — email is nullable here and a director with no email cannot be invited
+--     anyway. Postgres treats NULLs as distinct, so this predicate is documentation of that fact
+--     rather than behaviour; it is written out because the fact is easy to get wrong.
+-- lower(email) because a case-different address is the same mailbox and would otherwise buy a second
+-- billable screening line for one human. (M-116 — the re-enterable step whose commit is an
+-- unconditional INSERT: the apply flow explicitly supports re-entering the company sign-off.)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_directors_live_email
+  ON application_directors(application_id, lower(email))
+  WHERE declined_at IS NULL AND email IS NOT NULL;
 
 ALTER TABLE application_directors ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_app_directors" ON application_directors;
@@ -2050,6 +2074,16 @@ SELECT
   CASE
     WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
          AND app.searchworx_check_status = 'complete'                            THEN 'complete'
+    -- 'running' and 'failed' are matched EXPLICITLY, ahead of everything below, because the ELSE arm
+    -- is 'pending_both' — so without these a claimed line and a failed line both read as "this person
+    -- has not paid or consented". Both HAVE. The reminder cron owns pending_both, so a line stranded
+    -- mid-run was being chased with "your portion is still outstanding" emails and then declined at
+    -- T+14 with decline_reason 'expired_no_completion' and a refund flagged, recording the applicant's
+    -- failure to complete something they had completed. See M-111.
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'running'                             THEN 'running'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'failed'                              THEN 'failed'
     WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
          AND app.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
     WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
@@ -2080,6 +2114,13 @@ SELECT
   CASE
     WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
          AND caa.searchworx_check_status = 'complete'                            THEN 'complete'
+    -- Same two arms as the company branch above, for the same reason (M-111). This is the branch the
+    -- reminder cron actually reads — it filters subject_type = 'co_applicant' — so the wrong-email
+    -- and wrong-refund cascade described there was reachable here and only here.
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'running'                             THEN 'running'
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'failed'                              THEN 'failed'
     WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
          AND caa.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
     WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
@@ -2957,6 +2998,29 @@ ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_consent_t
 ALTER TABLE application_co_applicants
   ADD COLUMN IF NOT EXISTS role text CHECK (role IN ('co_applicant','guarantor')) DEFAULT 'co_applicant';
 
+-- One live SURETY line per person per application (M-116 + M-118, 2026-09-08).
+--
+-- HERE, not up beside the table's other co-applicant indexes, because the predicate reads `role` —
+-- the column added immediately above. Placed there first, this aborted the entire migration at apply
+-- time with 42703, and `check-migration-forward-refs` did not catch it: an index predicate is not one
+-- of the shapes it walks. That is a gap in the checker, not a reason to move the column up.
+--
+-- SCOPE IS THE POINT, and it is narrower than "no duplicate co-applicants". The hazard this closes is
+-- a duplicated CHARGE: screeningFeeCents multiplies APPLICATION_FEE_CENTS by the surety count, so a
+-- second row for the same human is real money and a real invitation email to a real portal. That
+-- hazard attaches to SURETY parties, so the predicate names exactly the set that is separately
+-- billable — and it names it with BOTH markers, because both have live writers: is_surety_director
+-- from the director-declaration page, role='guarantor' from the apply flow's roster. Keep this
+-- predicate in step with isSuretyParty()/SURETY_PARTY_OR_FILTER in lib/applications/juristicParties.ts.
+--
+-- Plain role='co_applicant' rows (the residential joint flow) are DELIBERATELY NOT COVERED. A
+-- duplicate there is a data-quality wart, not a double charge — joint pricing is a flat two-person
+-- fee, not per head — and that flow is the busiest live path in the app; constraining it is a
+-- separate decision with a separate blast radius, not a free extension of this one.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_co_applicants_live_surety_email
+  ON application_co_applicants(primary_application_id, lower(applicant_email))
+  WHERE declined_at IS NULL AND (is_surety_director = true OR role = 'guarantor');
+
 ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;
 
@@ -3331,3 +3395,70 @@ BEGIN
   END IF;
 END $$;
 
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- § applications.entity_type — SET NOT NULL, matching contacts.entity_type (2026-09-07)
+--
+-- The column was added at §(above) as `text DEFAULT 'individual'` with no NOT NULL, while its
+-- sibling `contacts.entity_type` (002_contacts.sql:29) is `text NOT NULL DEFAULT 'individual'`.
+-- That asymmetry is load-bearing, not cosmetic. `app/api/billing/screening/route.ts` derives the
+-- juristic marker as `entity_type ?? applicant_type`; with a nullable column the right-hand branch
+-- is reachable for any row holding NULL, so the surety-party gate would fire for SOME applications
+-- and not others. Nothing writes NULL today, but that is the ABSENCE OF A WRITER, not a constraint
+-- — and a state-dependent gate presents as "works for some applications", which is the shape that
+-- survives investigation.
+--
+-- NOT NULL makes the collapse total and honest instead of conditional. It does NOT make the gate
+-- fire: that still requires entity_type to be written at intake, or the call site to stop
+-- preferring it. See M-108 (the tolerant helper defeated at its only consumer) and M-109.
+--
+-- The UPDATE is a safety net, not an expected no-op path: `ADD COLUMN … DEFAULT` backfills existing
+-- rows, so every row should already hold 'individual'. Both statements are re-runnable.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+UPDATE applications SET entity_type = 'individual' WHERE entity_type IS NULL;
+ALTER TABLE applications ALTER COLUMN entity_type SET NOT NULL;
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § screening-line-runner recovery: 'running' is a legal status, and a stranded claim is reclaimable
+--   (M-111 · 2026-09-08)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- THE CLAIM COULD NEVER SUCCEED ON A COMPANY SUBJECT. The runner claims a line by writing
+-- searchworx_check_status = 'running', but this table's CHECK constraint has only ever allowed
+-- ('not_run','pending','complete','failed') — so every company claim raised 23514, the route logged
+-- it and treated the empty result as "another runner owns this line", and reported the batch ok.
+-- application_co_applicants has no CHECK at all, so the co-applicant half of the same code worked.
+-- One status column, two tables, two different behaviours, and the constraint is the reason.
+--
+-- 'running' is added rather than removed from the code because it is a REAL state that the sweep
+-- below needs to see. A claim that leaves no trace cannot be recovered.
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_searchworx_check_status_check;
+ALTER TABLE applications ADD CONSTRAINT applications_searchworx_check_status_check
+  CHECK (searchworx_check_status IN ('not_run','pending','running','complete','failed'));
+
+-- The same CHECK on the sibling, which had none. The value set is now stated once per table instead
+-- of being enforced on one and implied on the other; without it, the next typo'd status on a
+-- co-applicant is a silently unmatched row rather than an error.
+ALTER TABLE application_co_applicants DROP CONSTRAINT IF EXISTS application_co_applicants_searchworx_check_status_check;
+ALTER TABLE application_co_applicants ADD CONSTRAINT application_co_applicants_searchworx_check_status_check
+  CHECK (searchworx_check_status IN ('not_run','pending','running','complete','failed'));
+
+-- WHEN the claim was taken. searchworx_checked_at records completion and is null while running, so
+-- nothing in the schema could tell a claim taken ninety seconds ago from one abandoned in April.
+-- The sweep needs an age, and updated_at is the wrong clock — any unrelated write moves it.
+ALTER TABLE applications                ADD COLUMN IF NOT EXISTS searchworx_run_started_at timestamptz;
+ALTER TABLE application_co_applicants   ADD COLUMN IF NOT EXISTS searchworx_run_started_at timestamptz;
+
+COMMENT ON COLUMN applications.searchworx_run_started_at IS
+  'Set when the screening-line-runner claims this subject; the age the stranded-claim sweep measures. Null once complete.';
+COMMENT ON COLUMN application_co_applicants.searchworx_run_started_at IS
+  'Set when the screening-line-runner claims this subject; the age the stranded-claim sweep measures. Null once complete.';
+
+-- The partial index the sweep reads. Claims are a handful of rows at a time and terminal rows are
+-- every row that ever ran, so the predicate is what keeps this small.
+CREATE INDEX IF NOT EXISTS idx_applications_screening_running
+  ON applications(searchworx_run_started_at)
+  WHERE searchworx_check_status = 'running';
+CREATE INDEX IF NOT EXISTS idx_co_applicants_screening_running
+  ON application_co_applicants(searchworx_run_started_at)
+  WHERE searchworx_check_status = 'running';
