@@ -118,7 +118,10 @@ writes the gate-ok marker, so it is `--no-verify` that also leaves evidence clai
 passed; `PLEKS_BRANCH_PROBE` defeats the default-branch guard on its own). The deny is keyed on
 assignment syntax at command position, so `check-git-hooks.mjs` — which sets the seam through
 `spawnSync`'s `env` object, never a shell assignment — needs no exemption and is not carved out.
-**Hook-ask:** `git push` · `.env` files · prod database operations.
+**Hook-ask:** `git push` · `.env` files · prod database operations · `git clean -f` (untracked AND
+ignored files, no undo and no reflog — the deny list above reads as though destructive filesystem
+acts are covered, and this was the hole in that reading; added 2026-09-09 from a 21-payload
+comparison against canon's kit copy, the one case of 21 where this gate was the weaker of the two).
 **Settings twins** (`.claude/settings.json`, coarse, consulted only when the hook is dead): the
 Supabase MCP mutation tools, plus deny entries for force-push and hard-reset.
 

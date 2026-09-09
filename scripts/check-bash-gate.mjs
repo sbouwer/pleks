@@ -154,6 +154,23 @@ const CASES = [
 
   // ── ASK ─────────────────────────────────────────────────────────────────────────────────────
   ["an ordinary push reaches a human", bash("git push origin feature-branch"), "ask"],
+
+  // `git clean -f`, added 2026-09-09. It was found by MEASUREMENT rather than by reading: pleks's
+  // gate was run against dev-standards' kit copy on 21 payloads and this was the one case of the
+  // 21 where pleks was weaker. The flag clusters and reorders, so every spelling is probed, and
+  // the dry-run forms are probed as KNOWN-GOOD — a rule that fires on `--dry-run` would train
+  // people to click through the one prompt that is always safe, which is how a gate stops working.
+  ["git clean -fdx — untracked AND ignored files, no undo", bash("git clean -fdx"), "ask"],
+  ["...whatever order the flags cluster in", bash("git clean -xdf"), "ask"],
+  ["...separated rather than clustered", bash("git clean -f -d -x"), "ask"],
+  ["...spelled out", bash("git clean --force -d"), "ask"],
+  ["...with the subcommand not adjacent to git", bash("git -C /repo clean -fd"), "ask"],
+  ["...through an absolute path", bash("/usr/bin/git clean -f"), "ask"],
+  ["...in a later segment of a chain", bash("npm run build && git clean -fdx"), "ask"],
+  ["KNOWN-GOOD: the dry run carries no force flag", bash("git clean -n"), "allow"],
+  ["KNOWN-GOOD: ...nor does the long spelling", bash("git clean --dry-run"), "allow"],
+  ["KNOWN-GOOD: a non-git `clean` is someone's build script", bash("npm run clean"), "allow"],
+  ["KNOWN-GOOD: SEARCHING for the string is not running it", bash('rg "clean -fdx" docs/'), "allow"],
   ["reading a .env file", bash("cat .env.local"), "ask"],
   ["a bare .env", bash("cat .env"), "ask"],
   ["a .env reached through a path", bash("cat ./config/.env"), "ask"],
