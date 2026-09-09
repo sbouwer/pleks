@@ -18,8 +18,15 @@
  *
  *         SHAPE borrowed deliberately from credential-token-coverage.test.ts, which is the house
  *         pattern for exactly this problem: scan by shape, require every hit to be either wired or
- *         excused WITH A WRITTEN REASON, forbid a site being both, and assert the scan itself found
- *         something so it can never pass vacuously.
+ *         excused WITH A WRITTEN REASON, forbid a site carrying two classifications, and assert the
+ *         scan itself found something so it can never pass vacuously.
+ *
+ *         THREE CLASSES, and the third exists because of a CD ruling on this file's first draft
+ *         (2026-09-09). DELIVERS sends the credential to the subject's own channel. INTERNAL_RELAY
+ *         hands it to a server-side caller without crossing a client boundary. PRIVILEGED_MINT is
+ *         for a site whose safety is a property of WHO CALLS IT rather than of what it contains —
+ *         an excusal that names a caller property has to be enforced against the caller set, or it
+ *         is a claim the file cannot back.
  */
 import { describe, expect, it } from "vitest"
 import { readdirSync, readFileSync, existsSync } from "node:fs"
@@ -67,12 +74,37 @@ const INTERNAL_RELAY: Record<string, string> = {
     "Returning { actionLink, mode } to its one server-side caller is the function's entire purpose; " +
     "that caller (activateLeaseCascade) then hands the link to routeAndSend for delivery to the " +
     "tenant's own channel. The credential never reaches an agent surface.",
-  "lib/auth/passkeys/mint-session.ts":
-    "MINTS FOR THE AUTHENTICATING USER, not for a third party. The magic link is generated and " +
-    "consumed on the server in the same call and is never sent anywhere; what is returned is the " +
-    "resulting session for the person who just proved possession of their own passkey. There is no " +
-    "agent in this path — the tenant/agent opposition that §3.1(a) exists to prevent does not arise.",
 }
+
+/**
+ * Minting sites whose safety is a property of WHO CALLS THEM, not of what they contain.
+ *
+ * ⚠ CD ruling 2026-09-09. mint-session.ts was originally excused as an INTERNAL_RELAY on the
+ * grounds that "there is no agent in this path". That is true today and the FILE CANNOT ENFORCE IT:
+ * it opens a service client and mints a full session for any userId it is handed. The excusal
+ * stated a caller property as though it were a file property — the same defect class as an absence
+ * claim wider than its search, one level up.
+ *
+ * So the control is moved to where the property actually lives: the caller set is pinned, and
+ * enforced by SET EQUALITY below, so a second caller fails the build rather than inheriting an
+ * excusal written about the first.
+ */
+const PRIVILEGED_MINT: Record<string, string> = {
+  "lib/auth/passkeys/mint-session.ts":
+    "MINTS A FULL SESSION FOR AN ARBITRARY userId, so its safety rests entirely on its callers. The " +
+    "magic link is generated and consumed server-side in the same call and is never sent anywhere; " +
+    "what is returned is a session for the person who just proved possession of their own passkey. " +
+    "That holds only while every caller has already verified the passkey assertion BEFORE calling — " +
+    "which is why the caller set is pinned in PRIVILEGED_MINT_CALLERS rather than asserted here.",
+}
+
+/**
+ * The pinned callers. Same growth rule as CREDENTIAL_RETURN_ALLOWLIST: it must never grow silently.
+ * Adding a caller means a new path to a minted session for an arbitrary user — a security decision
+ * needing a CD ruling, not a green build. Verified 2026-09-09: exactly one, and it verifies the
+ * passkey assertion (`result.userId`) before minting.
+ */
+const PRIVILEGED_MINT_CALLERS = ["app/api/auth/passkeys/auth-verify/route.ts"]
 
 /**
  * §16.2 item 3 — the single sanctioned exception: owner-only, 48h TTL, only when the tenant has NO
@@ -155,7 +187,7 @@ describe("§18.5 — credential minting, enumerated by capability rather than by
 
   it("every minting site is classified — delivering, or an excused internal relay", () => {
     const unclassified = [...sites.entries()]
-      .filter(([f]) => !DELIVERS.has(f) && !(f in INTERNAL_RELAY))
+      .filter(([f]) => !DELIVERS.has(f) && !(f in INTERNAL_RELAY) && !(f in PRIVILEGED_MINT))
       .map(([f, what]) => `${f} — ${what.join("; ")}`)
 
     expect(
@@ -172,23 +204,53 @@ describe("§18.5 — credential minting, enumerated by capability rather than by
     ).toEqual([])
   })
 
-  it("no site is both delivering and excused", () => {
-    const both = [...DELIVERS].filter(f => f in INTERNAL_RELAY)
+  it("no site carries two classifications at once", () => {
+    const both = [...DELIVERS].filter(f => f in INTERNAL_RELAY || f in PRIVILEGED_MINT)
+      .concat(Object.keys(PRIVILEGED_MINT).filter(f => f in INTERNAL_RELAY))
     expect(both, `Contradictory classification: ${both.join(", ")}`).toEqual([])
   })
 
-  it("every relay reason is a real reason, not a placeholder", () => {
-    for (const [file, reason] of Object.entries(INTERNAL_RELAY)) {
-      expect(reason.trim().length, `${file}'s relay reason is too thin to have been thought about`)
+  it("every excusal reason is a real reason, not a placeholder", () => {
+    for (const [file, reason] of [...Object.entries(INTERNAL_RELAY), ...Object.entries(PRIVILEGED_MINT)]) {
+      expect(reason.trim().length, `${file}'s reason is too thin to have been thought about`)
         .toBeGreaterThan(40)
     }
   })
 
-  it("every DELIVERS entry still mints — a stale entry is a silent hole", () => {
-    // A DELIVERS path that no longer mints (moved, renamed, deleted) would sit here looking like
-    // coverage while guarding nothing, and the real site would be caught only by the unclassified
-    // test — which is the failure this suite exists to prevent, one level up.
-    const stale = [...DELIVERS].filter(f => !sites.has(f))
+  it("mintSupabaseSessionForUser has EXACTLY the pinned caller set", () => {
+    // Set equality, not containment, and deliberately so. A new caller is a new path to a minted
+    // session for an arbitrary userId, inheriting an excusal that was written about a different
+    // call site; a REMOVED caller means the pin now describes nothing and the next one to appear
+    // would look pre-approved. Both directions have to fail.
+    const importers = sourceFiles()
+      .filter(f => !(f in PRIVILEGED_MINT))
+      .filter(f => /mintSupabaseSessionForUser/.test(stripComments(readFileSync(f, "utf8"))))
+      .sort()
+
+    expect(
+      importers,
+      `Callers of mintSupabaseSessionForUser no longer match the pinned set.\n` +
+        `  pinned:   ${[...PRIVILEGED_MINT_CALLERS].sort().join(", ") || "(none)"}\n` +
+        `  on disk:  ${importers.join(", ") || "(none)"}\n\n` +
+        "This function mints a full Supabase session for whatever userId it is given — it opens a " +
+        "service client and does not itself verify anything. Its safety is entirely a property of " +
+        "its callers, each of which must have verified the passkey assertion FIRST. A new caller " +
+        "is a security decision needing a CD ruling (ADDENDUM_62F §3.1, CD 2026-09-09), not a " +
+        "green build. If a caller was removed, update the pin in the same change.",
+    ).toEqual([...PRIVILEGED_MINT_CALLERS].sort())
+  })
+
+  it("the privileged caller pin has not grown beyond the one verified path", () => {
+    // Same growth rule as CREDENTIAL_RETURN_ALLOWLIST below: pinned by equality so that editing the
+    // Set to green a failing run trips this instead, and the edit has to be deliberate.
+    expect(PRIVILEGED_MINT_CALLERS).toEqual(["app/api/auth/passkeys/auth-verify/route.ts"])
+  })
+
+  it("every DELIVERS and PRIVILEGED_MINT entry still mints — a stale entry is a silent hole", () => {
+    // A path that no longer mints (moved, renamed, deleted) would sit here looking like coverage
+    // while guarding nothing, and the real site would be caught only by the unclassified test —
+    // which is the failure this suite exists to prevent, one level up.
+    const stale = [...DELIVERS, ...Object.keys(PRIVILEGED_MINT)].filter(f => !sites.has(f))
     expect(
       stale,
       `Classified as a minting site but no longer mints:\n  ${stale.join("\n  ")}\n\n` +
