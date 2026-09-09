@@ -60,6 +60,35 @@ tooling depends on belongs in the tracked tree instead.
 
 ---
 
+**`C:\dev\dev-standards` IS READ-ONLY FROM THIS SESSION.** **floor** — no mechanism in this repo
+can see a write to a sibling checkout, so this is a claim about the world and it is held by you.
+
+Read it freely: the playbooks, the standards, the kit, `ledgers/LESSONS.md`. Write nothing — not the
+kit, not `tools/`, not a MANIFEST version, not `ledgers/projects.json`, not `kitAdopted`. Never run
+`apply-kit --write`; the dry run is read-only and is the right way to read the plan.
+
+**The incident, 2026-09-09.** Two project sessions adopting kit rows fixed real defects *inside
+canon* while the dev-standards session ran its gate. That gate read a `MANIFEST.json` which changed
+underneath it, so its result was not attributable to any state of the tree — not wrong,
+**unattributable**, which is worse because it still looks like a measurement. Nothing was lost and
+both projects' findings were correct and are now in canon; what was lost was the ability to say what
+had been measured.
+
+**A finding about canon is worth more than a fix to canon.** Report it and let the estate session
+make the change:
+
+    OBSERVED   what happened, in one sentence
+    COMMAND    what you ran, and its output verbatim
+    WHY IT IS  why it is the method's defect and not this project's — the portability test:
+    CANON'S    would it still be true on a repo with a different stack?
+    SMALLEST   the narrowest fix, and what it must not break
+    FIX
+
+Lagging deliberately behind a kit row is the same: send the row id, the version, the reason and a
+review date. A pin means *read, classified and deliberately behind* — never *exempt* — so the reason
+has to argue it, and someone else writes it into the register.
+
+
 ## 2 · WHAT THIS PROJECT IS, AND HOW TO REACH ITS SYSTEMS
 
 South African residential property management: leases, tenants, applications, trust accounting,
@@ -118,7 +147,10 @@ writes the gate-ok marker, so it is `--no-verify` that also leaves evidence clai
 passed; `PLEKS_BRANCH_PROBE` defeats the default-branch guard on its own). The deny is keyed on
 assignment syntax at command position, so `check-git-hooks.mjs` — which sets the seam through
 `spawnSync`'s `env` object, never a shell assignment — needs no exemption and is not carved out.
-**Hook-ask:** `git push` · `.env` files · prod database operations.
+**Hook-ask:** `git push` · `.env` files · prod database operations · `git clean -f` (untracked AND
+ignored files, no undo and no reflog — the deny list above reads as though destructive filesystem
+acts are covered, and this was the hole in that reading; added 2026-09-09 from a 21-payload
+comparison against canon's kit copy, the one case of 21 where this gate was the weaker of the two).
 **Settings twins** (`.claude/settings.json`, coarse, consulted only when the hook is dead): the
 Supabase MCP mutation tools, plus deny entries for force-push and hard-reset.
 
@@ -414,7 +446,7 @@ section that never mentioned joint applications).
   **UNENFORCEABLE** — MECHANISABLE (rung: eslint · blast: data-boundary) — the audit_log half is now partly structural (`recordAudit` sanitises, and denied keys are marked rather than dropped). The console.log half has NO control — there is no `no-console` rule configured and no PII-shaped-argument check. Full sketch → **M-017** in `docs/MECHANISABLE.md`.
 - **implementer** (WRITE, Sonnet) — a PRE-SCOPED mechanical transform: a codemod, a migrate-these-N-sites sweep, a rename, a header/baseline fill. **Spawn it in the MAIN CHECKOUT — do NOT use `isolation: "worktree"`** (E10: a worktree is created from `origin/main`, not your HEAD, so on any feature branch the agent transforms a different tree from yours and its green gate proves nothing about yours). What isolation was standing in for is served by a rung-1 control for **ONE** of the rule's two halves: **no subagent may create or publish a commit** — the hook matches `Bash` as well as the edit tools and denies `commit`/`merge`/`rebase`/`cherry-pick`/`revert`/`am`/`push`, leaving read-only git and the main session untouched, and that branch runs for every `agent_type` before any path logic. <!-- @enforced hook:agent-write-scope --> It ends at `npm run check` green + a report; YOU commit and push. Give it the exact transform + scope — it returns the misfit "judgment sites" for you to decide, never guesses a mapping. This is the multitasking lever: hand off the mechanical bulk (this is what the 100-site item-5/6 migrations were), keep your context for the rule design and the judgment calls.
   **Worktree isolation remains available for exactly one case** — two implementers running in parallel on DISJOINT file sets, on `main`, with artefact paths passed absolute — chosen explicitly each time, never inherited from a recommendation.
-  **UNENFORCEABLE** — TWO halves, and the first one was tagged `@enforced` here until 2026-09-08. **"An implementer may only write inside its declared scope" is NOT enforced in this repo.** `.claude/hooks/agent-write-scope.js` declares `implementer: null` and then guards the whole path check with `if (allowed !== null)`, so a null scope skips it entirely — and being declared with a null scope is *weaker* than being absent from the table, because an unknown `agent_type` at least falls through to `ask`. Canon's kit ships v2, which closes exactly this by refining a null scope per run from `.handoff/write-manifest.json`; pleks is on v1 and has never declared adoption. **MECHANISABLE → M-117** (adopt v2). The second half is the "never guesses a mapping" claim and the judgment-sites report, which no version fixes: nothing inspects a subagent's self-reported list of misfits for completeness or honesty, and an agent that silently guessed a mapping and reported nothing is textually identical to one that found no misfits. Not mechanisable from a diff — the evidence is what the agent chose not to say.
+  **The scope half is ENFORCED since 2026-09-09, and the tag above now covers BOTH halves of that sentence** — the coverage boundary that justified splitting them is gone, so they are rejoined under one claim rather than tagged twice. Until that date the first half was false: the hook declared `implementer: null` and guarded the path check with `if (allowed !== null)`, so a null scope skipped it entirely — *weaker* than being absent from the table, since an unknown `agent_type` at least falls through to `ask`. **Closed by adopting canon's `agent-write-scope` v4** (M-117): `null` now means "bounded by whatever the caller declared for this run" in `.handoff/write-manifest.json`, and an undeclared run **asks** rather than allows. **That is a caller obligation, not a free win — write the manifest before spawning an implementer, or every write it makes stops to ask.** What remains unenforceable is the "never guesses a mapping" claim and the judgment-sites report, which no version fixes: nothing inspects a subagent's self-reported list of misfits for completeness or honesty, and an agent that silently guessed a mapping and reported nothing is textually identical to one that found no misfits. Not mechanisable from a diff — the evidence is what the agent chose not to say.
 - Do not deploy without running `npm run security:quick` first
   **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of "Zero critical findings before any deployment" above, same mechanism, not re-annotated there: no gate blocks a Vercel deploy on this script having run or passed.
 - Do not change existing RLS policies without flagging it
@@ -537,7 +569,7 @@ section that never mentioned joint applications).
 | `grounder` | Before writing code: map the machinery a task touches | read-only |
 | `census` | Repo-wide counts / find-all-usages, returned **classified** | read-only |
 | `db-inspector` | Live-data claims; every answer carries its query | read-only, SELECT |
-| `implementer` | Pre-scoped mechanical transform; returns misfit judgment sites | write — **UNBOUNDED today**, its scope is `null` (§5, M-117); **main checkout — NOT `isolation: worktree`** (E10); never commits, which IS gated |
+| `implementer` | Pre-scoped mechanical transform; returns misfit judgment sites | write — **bounded per run by `.handoff/write-manifest.json`**; undeclared means `ask`, not allow (§5); **main checkout — NOT `isolation: worktree`** (E10); never commits, which IS gated |
 | `walker` | Adversarial pre-PR review — tries to **refute** | read-only |
 
 Mechanical reading → the read-only three. Mechanical writing → the implementer, **in your own

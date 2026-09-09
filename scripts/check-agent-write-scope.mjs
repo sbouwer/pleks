@@ -116,13 +116,31 @@ const CASES = [
   ["...including crawler-doctrine, which kept a DIFFERENT .claude root", write("crawler-doctrine", ".claude/handoff/x/01.md", "Edit"), "deny"],
 
   // --- KNOWN-GOOD: the half that catches a gate which can never fire ---
+  //     (the last three rows below are NOT known-good — see the v4 note at them) ---
   ["grounder writing its own artefact", write("grounder", ".handoff/m-048/01-grounder.md"), "allow"],
   ["walker writing its artefact", write("walker", ".handoff/m-048/03-walker.md"), "allow"],
   ["census writing its artefact", write("census", ".handoff/sweep/01-census.md"), "allow"],
   ["an absolute path INSIDE the scope", write("grounder", `${CWD}/.handoff/x/01-grounder.md`), "allow"],
-  ["crawler-doctrine writing its findings file", write("crawler-doctrine", ".claude/crawlers/FINDINGS.json", "Edit"), "allow"],
-  ["implementer editing source — its entire remit", write("implementer", "lib/constants.ts", "Edit"), "allow"],
-  ["implementer writing a new file", write("implementer", "lib/screening/newThing.ts"), "allow"],
+  // ⚠ THESE THREE INVERTED ON 2026-09-09, when the hook was re-adopted from dev-standards at v4
+  // (it had been an unmarked v1). They are not relaxations — each was asserting a permission that
+  // v1 granted and v4 withdrew, and in both cases the withdrawal is the reason to adopt.
+  //
+  // crawler-doctrine: `[]` now, so this is DENY. The spine settles it — `.claude/agents/
+  // crawler-doctrine.md` @ `63c4cf21` line 75 says "Emit only the JSON object below … A wrapper
+  // parses your stdout", and `scripts/crawl.mjs` is that wrapper and is what writes FINDINGS.json.
+  // The agent never wrote this file. The old grant was a permanent unused exemption at a PROTECTED
+  // path — canon's config comment cites it by example as the L-62 over-grant, and the project it
+  // means is this one. NOTE the derivation: `tools:` omitting `Write` is NOT the evidence, because
+  // that spine's own line 18 says `tools:` is "a GRANT, not a fence … `Write`/`Edit` reach you
+  // regardless of what it lists".
+  //
+  // implementer: `null` no longer means unrestricted. v4 refines it per run from
+  // `.handoff/write-manifest.json`, and with NO manifest declared the verdict is ASK — visible
+  // rather than silent. That is M-117 closing: CLAUDE.md §5/§7 describe this scope as "UNBOUNDED
+  // today", which is now stale prose and is corrected in the same commit.
+  ["crawler-doctrine may NOT write its findings file — it emits to stdout and a wrapper writes", write("crawler-doctrine", ".claude/crawlers/FINDINGS.json", "Edit"), "deny"],
+  ["implementer editing source with NO manifest is ASKED, not waved through", write("implementer", "lib/constants.ts", "Edit"), "ask"],
+  ["implementer writing a new file with NO manifest is likewise asked", write("implementer", "lib/screening/newThing.ts"), "ask"],
 
   // --- THE MAIN SESSION MUST BE UNTOUCHED. This gate is about subagents; if it ever starts
   //     deciding main-session writes it will be turned off, and rightly. ---

@@ -188,6 +188,38 @@ function isForcePush(command) {
 }
 
 /**
+ * `git clean -f` deletes untracked files permanently, and `-x` takes the IGNORED ones too — so one
+ * command removes `.env.local`, every build artefact and every uncommitted draft, with no undo and
+ * nothing in the reflog. `isDestructiveRm` does not reach it: this is not `rm`, and the paths are
+ * relative to the repo rather than aimed at a root.
+ *
+ * ASKED, not denied — a clean rebuild is a legitimate reason to run it, and a false deny in the
+ * DENY list is the expensive direction to be wrong in (the rule directly above says why).
+ *
+ * ⚠ FOUND BY MEASUREMENT, NOT BY READING, on 2026-09-09. pleks's gate was run against canon's kit
+ * copy on 21 payloads; this was the ONE case of the 21 where pleks was WEAKER (canon asks, pleks
+ * allowed). The other differences all ran the other way, which is the reason this rule was added
+ * here rather than the whole hook being adopted. CLAUDE.md's Hook-denied list names `rm -rf` and
+ * reads as though destructive filesystem acts are covered; this was the hole in that reading.
+ *
+ * Token-matched via `segments`/`commandIndex` like its neighbours, not pattern-matched: the force
+ * flag clusters (`-fdx`, `-xdf`), separates (`-f -d -x`) and spells out (`--force`), and a regex
+ * over that space is how this file has been wrong four times. `-n`/`--dry-run` is git's own
+ * rehearsal flag and carries no `f`, so it does not fire.
+ */
+function isForceClean(command) {
+  const SHORT_F = /^-[a-eg-z]*f[a-z]*$/;
+  for (const tokens of segments(command)) {
+    const git = commandIndex(tokens, "git");
+    if (git === -1) continue;
+    const args = tokens.slice(git + 1);
+    if (!args.includes("clean")) continue;
+    if (args.some((t) => t === "--force" || SHORT_F.test(t))) return true;
+  }
+  return false;
+}
+
+/**
  * Blank the TEXT of a `-m` / `--message` argument, leaving its quotes in place.
  *
  * Only ever call this before scanning for FLAGS. A flag inside a commit message is prose — the
@@ -392,6 +424,10 @@ process.stdin.on("end", () => {
     const ASK = [
       // @twin Bash(git push*)
       [/git\s+push\b/, "pushing to origin requires approval"],
+      // @no-twin the force flag can sit anywhere after `clean` and clusters with other letters
+      // (`-fdx`, `-xdf`), so a settings prefix-glob would match one spelling and miss the rest —
+      // the same reason `--no-verify` carries no twin two rules up.
+      [isForceClean, "git clean -f deletes untracked files permanently — ignored files too with -x, so .env.local and uncommitted drafts go with them"],
       // @twin Read(.env)
       // @twin Read(.env.*)
       // ANCHORED ON A PATH BOUNDARY, not on the surrounding characters. The old pattern was

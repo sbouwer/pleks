@@ -139,6 +139,26 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // The `.mjs` half of the block above — SAME rule selection, SEPARATE block, and the separation
+    // is forced rather than stylistic: that block declares `sourceType: "commonjs"`, and `.mjs` is
+    // unconditionally ESM to Node. Widening its glob would state the wrong module type for every
+    // file it newly caught.
+    //
+    // Added 2026-09-09 when `agent-write-scope.probe.mjs` was adopted from dev-standards and tripped
+    // `sonarjs/no-nested-conditional` on two lines of its final `console.log` — a report string, not
+    // a control path. THE REASON THIS IS NOT A LOCAL FIX: these files are canon's bytes and must
+    // match outside their `KIT:CONFIG` regions (kit/INSTALL.md). A style edit here is a fork, and a
+    // fork with a short half-life — the next `apply-kit` silently reverts it and the gate breaks
+    // again with no trace of why. If a rule ever finds something REAL in one of these, the fix is a
+    // dev-standards edit followed by re-adoption everywhere, not an edit in this repo.
+    files: [".claude/hooks/**/*.mjs"],
+    languageOptions: { sourceType: "module" },
+    rules: {
+      "sonarjs/cognitive-complexity": "off",
+      "sonarjs/no-nested-conditional": "off",
+    },
+  },
+  {
     // Part 1 of ADDENDUM_SCHEMA_SELECT_GUARD: make a Supabase query that ignores `error`
     // a build failure, so column drift / RLS / timeout failures are loud, not silent.
     files: ["**/*.ts", "**/*.tsx"],

@@ -31,8 +31,19 @@
     "the direction this floor wants and the easy case it was written to allow; N is untouched",
     "because the new rule was never a prose-only one. Raising the floor in the same commit is the",
     "point of the ratchet — a new enforced rule that left minD alone would leave room to later",
-    "delete an UNENFORCEABLE bullet for free."
+    "delete an UNENFORCEABLE bullet for free.",
+    "",
+    "2026-09-09 — maxN 88→87, minD 126→125. M-117 closed by ADOPTION rather than by a build:",
+    "canon's agent-write-scope v4 refines a null scope per run from .handoff/write-manifest.json,",
+    "so 'an implementer may only write inside its declared scope' stopped being UNENFORCEABLE",
+    "(N-1). Same shape as the 2026-08-21 entry above and for the same stated reason — the rule had",
+    "been SPLIT into an enforced half and an unenforced half, the boundary closed, and the two were",
+    "REJOINED under the single tag that was already there. D FELL WITH IT, one rule where there had",
+    "been two, and that is the same falling-D that entry says must be argued rather than waved",
+    "through: no rule was deleted and none moved out of a tagged section. The first draft of THIS",
+    "entry asserted 'minD unchanged' from reasoning rather than measurement, and the floor rejected",
+    "it — which is the gaming guard working on the commit that tightens the ratchet."
   ],
-  "maxN": 88,
-  "minD": 126
+  "maxN": 87,
+  "minD": 125
 }
