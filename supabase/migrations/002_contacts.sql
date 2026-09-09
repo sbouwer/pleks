@@ -1444,3 +1444,57 @@ COMMENT ON VIEW tenants_without_reachable_channel IS
   'ADDENDUM_62F 18.2. Tenants with no active email AND no active phone — the single population for
    whom the handover exception, the no-old-channel confirmation case and the ungraded recovery floor
    all degrade together. security_invoker so an agency sees only its own (ADDENDUM_00M).';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §25  stale_recovery_emails — the contact set vs the recovery target
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- ADDENDUM_62F §25.4. §24 established that account recovery resolves against auth.users.email, and
+-- §24.3 that the contact set reaches it exactly ONCE, at invite time, after which nothing re-syncs.
+-- So contacts.primary_email and auth.users.email can diverge silently, and a tenant that
+-- tenants_without_reachable_channel calls unreachable may still have a live recovery route.
+--
+-- ⚠ DETECTION IS STATE-BASED ON PURPOSE, and this is the design rather than an implementation
+-- detail. The obvious reconciler retries failed contact_change_requests — but the frozen-at-invite
+-- population has NO request row describing it, so a request-driven reconciler is structurally blind
+-- to it and would rebuild the §24.5 defect one layer down. Comparing the two representations
+-- catches divergence however it arose, including rows that predate the request table entirely.
+--
+-- ⚠ SECURITY DEFINER, AND THE GRANT IS THE CONTROL — NOT the p_org_id argument.
+-- §24.1 above is security_invoker per ADDENDUM_00M, and that was the right call there. It cannot
+-- work here: this reads auth.users, and org roles have no SELECT on the auth schema, so an invoker
+-- version errors for every caller it is meant to serve. Definer reaches auth.users but also bypasses
+-- RLS on tenants — so a definer function that TRUSTED a caller-supplied p_org_id would be the
+-- 2026-07-06 cross-org IDOR scar exactly (CLAUDE.md §6: a uuid alone is not an isolation boundary).
+-- It is therefore revoked from PUBLIC and granted only to service_role: the argument is a filter for
+-- a caller that already sees every org, never a boundary. Do NOT grant this to `authenticated`. An
+-- agency-facing version of this number is a different object needing a different design.
+CREATE OR REPLACE FUNCTION stale_recovery_emails(p_org_id uuid)
+RETURNS TABLE (tenant_id uuid, contact_email text, recovery_email text)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT t.id, c.primary_email, u.email
+  FROM tenants t
+  JOIN contacts   c ON c.id = t.contact_id
+  JOIN auth.users u ON u.id = t.auth_user_id
+  WHERE t.org_id = p_org_id
+    AND t.deleted_at IS NULL
+    AND t.auth_user_id IS NOT NULL
+    AND c.primary_email IS DISTINCT FROM u.email;
+$$;
+
+REVOKE EXECUTE ON FUNCTION stale_recovery_emails(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION stale_recovery_emails(uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION stale_recovery_emails(uuid) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION stale_recovery_emails(uuid) TO service_role;
+
+COMMENT ON FUNCTION stale_recovery_emails(uuid) IS
+  'ADDENDUM_62F 25.4. Tenants whose contacts.primary_email has diverged from the auth.users.email
+   that account recovery actually resolves against. State-based, so it also reports the
+   frozen-at-invite population that no contact_change_requests row describes. SECURITY DEFINER
+   because org roles cannot read the auth schema; service_role ONLY, because a definer function
+   trusting a caller-supplied org_id is the 2026-07-06 cross-org scar. Read by
+   /api/cron/recovery-email-drift.';
