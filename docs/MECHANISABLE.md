@@ -2187,7 +2187,32 @@ The author identified the hazard, and defended the single field in front of them
 - **The sweep's threshold must be stated relative to the longest legitimate SearchWorx call, not picked round.** A threshold below the real tail reclaims rows mid-flight and produces a second defect wearing the first one's fix — a line run twice, billed once. Derive it from observed p99 call duration with a stated multiple, and write the derivation next to the constant.
 - **Probe both directions:** a line whose run throws must become re-claimable or terminal; a line that succeeds must be untouched by the sweep.
 - **Provenance:** found 2026-09-07 while checking whether ADDENDUM_14B §6.2's retry/backoff spec was aspirational. The spec row (14B row 28) recorded "no retry, failures logged to Sentry, line left as-is" — accurate, but it did not notice that *left as-is* means *left unreclaimable*.
-- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.2
+- **⚠ ONE CLAIM ABOVE IS WRONG, and the truth is worse — corrected 2026-09-08 on grounding.** The
+  bullet says a stranded line is *"invisible to the reminder cron (its view state is `ready_to_run`)"*.
+  It is not `ready_to_run`: `running` matched no CASE arm and fell to the `ELSE`, which is
+  `pending_both` — **the first of the three states that cron does filter on.** So a co-applicant line
+  stranded mid-run was not ignored by the reminder cron; it was *adopted* by it, chased with "your
+  portion is still outstanding" emails to someone who had paid and consented, and at T+14 declined
+  `expired_no_completion` with a refund flagged. A record asserting the applicant failed to do a
+  thing they did. Invisibility would have been the mild version. **Company lines are the invisible
+  half** — as at `5f566d7f` the cron filters `subject_type = 'co_applicant'`
+  (`screening-portal-reminders/route.ts:38`), so nothing reached them at all.
+- **⚠ THE INSTANCE IS CLOSED; THE ENTRY STAYS OPEN.** Shipped at `3d00c508` (2026-09-08): `sweepStrandedClaims`
+  (`lib/screening/sweepStrandedClaims.ts`) with the threshold derivation at the constant, the
+  catch-block release (`markLineFailed`), explicit `running`/`failed` arms in the view so the state
+  has an owner, and a `Check failed — contact the agency` chip so the surface stops asserting
+  progress. Probes in `test/db/screening-claim-recovery.dbtest.ts`, **all seen red before green** —
+  the view arms reproduce as `expected 'pending_both' to be 'running'`, and removing the sweep's age
+  predicate turns both "left alone" negatives red, so they are load-bearing rather than vacuous.
+  **No MECHANISM was built:** nothing yet fails when the NEXT cron claims a row it cannot release.
+  The generalisation — relate a claim predicate to the statuses its own writers can produce — is
+  unbuilt, so this entry stays open. **The threshold is 30 minutes on a structural bound, not an
+  observed p99** (`applications` held 0 rows), and replacing it once production has a real tail is
+  part of what closing this entry means.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.2 · **See also:** M-120 (found while
+  building this — the company claim could never have succeeded), M-112 (`running` and `failed` were
+  two more unowned states in the same view; both now have owners, which does not close M-112 —
+  `expired_no_consent` still has none).
 
 ### M-112 — a derived view is used as a work queue, and two of its six states have no owner
 
@@ -2305,3 +2330,56 @@ The author identified the hazard, and defended the single field in front of them
 - **Probe both directions:** an index whose predicate names a column added later in the same file must fail; the same index placed after that `ADD COLUMN` must pass. Both shapes exist in `005_operations.sql` history and can be used as fixtures.
 - **Provenance:** found 2026-09-08 building M-116's indexes at `c9ac7800` — by running `npx supabase db reset` after the checker had already passed, which is the only reason it was found before the merge.
 - **Covering spec:** NEW
+
+### M-120 — a CHECK constraint excluded the status the code writes, and the error was read as a race
+
+- **Rule:** an optimistic claim distinguishes "somebody else got there first" from "the write was
+  rejected" by the ERROR, not by the empty result. Collapse the two and every rejection — a
+  constraint, a permission, a renamed column — is silently reported as healthy contention.
+- **Where it lives (the instance):** `app/api/cron/screening-line-runner/route.ts` (the claim) ·
+  `supabase/migrations/005_operations.sql` (the two constraints).
+- **Rung:** check · **Blast:** money
+- **Satisfied when:** a claim's error path is separated from its zero-rows path, and the status
+  vocabulary of a column is stated identically everywhere the column exists.
+- **The failure, concretely.** `applications.searchworx_check_status` carried
+  `CHECK (… IN ('not_run','pending','complete','failed'))`. The runner claims a line by writing
+  `'running'`. So a company claim could only ever raise **23514**; `logQueryError` logs and returns,
+  `data` comes back `null`, and `if (!claimed || claimed.length === 0) return` reads the `null` as
+  *another runner owns this line*. The batch then reports `ok`, with the company subject silently
+  skipped. Constraint verified against live prod 2026-09-08 before the fix.
+- **⚠ SAY THIS PRECISELY: the claim was IMPOSSIBLE, not OBSERVED-FAILING.** The defect is structural,
+  and it is tempting — and wrong — to report it as an incident. Two guards sat in front of it. The
+  view only emits a company line `WHERE app.entity_type = 'organisation'`; `entity_type` DEFAULTs to
+  `'individual'` and **has no writer at all** (the M-108/M-109 hazard), so no company line has ever
+  been emitted for the runner to claim. And `applications` held **0 rows** in prod on 2026-09-08. So
+  the correct claim is *"the company path could not have worked"*, not *"it failed in production"* —
+  nobody has been harmed by this. **It is worth fixing precisely BECAUSE of that ordering**: the
+  M-108/M-109 scar says wiring `entity_type` is the change that switches the juristic flow on, and
+  this constraint was the mine directly behind that switch. It is now defused ahead of the step that
+  would have stepped on it, which is the only cheap moment such a thing is ever fixed.
+- **The sibling table had NO CHECK at all**, so the identical code worked there. One column, two
+  tables, two vocabularies — and the table that worked is the one anybody testing by hand would have
+  reached for, because it is the multi-director path the feature is *about*.
+- **Why no mechanism catches it.** Three separate blind spots, and it needed all three: `logQueryError`
+  logs and never throws, so a rejected write is indistinguishable from a satisfied one at the call
+  site; nothing compares a CHECK's value set against the literals the code writes into that column;
+  and nothing requires two tables sharing a column NAME to share its constraint. The Supabase error
+  rule (`pleks/require-supabase-error-check`) was **satisfied here** — `error` was destructured and
+  passed to a logger. Checking the error is not the same as acting on it, and the rule cannot tell.
+- **The tractable slice:** for each column with a value CHECK, collect the string literals assigned to
+  it across `lib/` and `app/` and fail on any not in the CHECK's set. Both sides are literal arrays —
+  the constraint is already extracted into `scripts/schema-manifest.json` (`checkConstraints`), so
+  this is a parse against an artefact that exists, not a new analysis. Second, cheaper slice: fail
+  when two tables declare a same-named column whose CHECK sets differ, or where one has none.
+- **Probe both directions:** a write of a literal outside the column's CHECK set must fail; the
+  current set must pass. The schema half is already probed in
+  `test/db/screening-claim-recovery.dbtest.ts` — reverting the constraint locally turns the company
+  claim red with `expected { code: '23514' } to be null`.
+- **⚠ The instance is FIXED at `3d00c508` (2026-09-08, in the M-111 change-set); the entry is OPEN.** Both tables now
+  state the same five values, and the claim's error path throws instead of returning. **No mechanism
+  was built** — the next constraint/code disagreement is exactly as invisible as this one was.
+- **Provenance:** found 2026-09-08 while grounding M-111 — by reading the CHECK constraint on the
+  column M-111's fix writes to, rather than assuming the write it describes had ever succeeded.
+  M-111 is a real defect on the co-applicant path; on the company path it described the failure mode
+  of a code path that had never once run.
+- **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.2
