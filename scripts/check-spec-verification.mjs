@@ -252,7 +252,24 @@ export function evaluate(text, cwd, specPath = "") {
 function selftest() {
   const cwd = process.cwd()
   const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim()
-  const parent = execFileSync("git", ["rev-parse", "HEAD~1"], { cwd, encoding: "utf8" }).trim()
+
+  // ⚠ PRECONDITION, and it must announce itself. The probes need a real ancestor to prove the
+  // FRESH-on-an-ancestor case, so a shallow clone cannot run this selftest at all. Left bare, the
+  // HEAD~1 lookup threw before a single probe printed, and the R6 checker could only report
+  // "exited non-zero" with an empty message — CI red for two days against a green local gate,
+  // with nothing in the log naming the cause. Failing is correct here; failing ANONYMOUSLY is not.
+  let parent
+  try {
+    parent = execFileSync("git", ["rev-parse", "HEAD~1"], { cwd, encoding: "utf8" }).trim()
+  } catch {
+    console.error(
+      "selftest CANNOT RUN: `git rev-parse HEAD~1` failed, so this clone has no ancestor commit.\n" +
+        "  Almost certainly a shallow checkout (actions/checkout defaults to fetch-depth: 1).\n" +
+        "  Fix it where the clone is made — set `fetch-depth: 0` on the job — not here.\n" +
+        "  This exits non-zero deliberately: a selftest that cannot run must never look like one that passed.",
+    )
+    process.exit(1)
+  }
   const orphan = execFileSync("git", ["commit-tree", `${head}^{tree}`, "-m", "spec-verify probe"], {
     cwd,
     encoding: "utf8",
