@@ -6,8 +6,8 @@
  * Auth:   none — local/CI script
  * Data:   git-tracked `*.sql`, plus SQL embedded in `*.ts`/`*.tsx`/`*.mts`/`*.mjs`/`*.js` strings
  * Notes:  M-022 in docs/MECHANISABLE.md — the SQL half. `.claude/rules/schema-gotchas.md` states
- *         the rule: "`auth.users` has no unique constraint on email — `ON CONFLICT (email)` will
- *         fail. Use SELECT-first pattern to check existence before INSERT."
+ *         the rule: "`auth.users` carries a PARTIAL unique index on email — a bare
+ *         `ON CONFLICT (email)` will fail. Use SELECT-first to check existence before INSERT."
  *
  * WHY IT FAILS, AND WHY IT FAILS LOUDLY-BUT-LATE. `ON CONFLICT (<cols>)` is an *inference*
  * specification: Postgres must resolve it to a unique index at PLAN time, and errors 42P10
@@ -44,9 +44,14 @@
  *     `scripts/seed-test-data-2.sql:17-33` is this, and it is why the live defect count is zero.
  *
  * COVERAGE BOUNDARY, stated rather than implied (CLAUDE.md §4). This check knows exactly one
- * fact about one platform table: `auth.users` has no unique index on `email` alone. It does NOT
- * verify arbiters against the schema generally — an `ON CONFLICT (col)` on a public table whose
- * `col` carries no unique index fails identically at runtime and is invisible here. That would
+ * fact about one platform table: `auth.users` has no index that a bare `(email)` arbiter can
+ * resolve to. What it carries is `users_email_partial_key`, `UNIQUE (email) WHERE (is_sso_user =
+ * false)` — read live from `pg_indexes` on project noexjtlrffkzzclibvbq, 2026-09-09. Arbiter
+ * inference will not select a PARTIAL index unless the clause repeats its predicate, so the
+ * outcome is 42P10 either way and this check's behaviour is unchanged; only the reason is. It
+ * said "no unique index on `email` alone" until 2026-09-09, which was the stronger and wrong
+ * claim. It does NOT verify arbiters against the schema generally — an `ON CONFLICT (col)` on a
+ * public table whose `col` carries no unique index fails identically at runtime and is invisible here. That would
  * need the migration-derived index set, is a different build, and is not claimed by this file.
  * Three smaller edges, named so nobody has to rediscover them. SQL assembled dynamically and run
  * through `EXECUTE format(…)` is not reached (the format string is an ordinary literal and gets
@@ -609,8 +614,10 @@ if (violations.length) {
     console.error(`   ${v.file}:${v.line} — ON CONFLICT ${v.kind === "constraint" ? `ON CONSTRAINT ${v.target}` : `(${v.target})`}`)
   }
   console.error(
-    "\n   `auth.users` has no unique index on `email` alone, so Postgres cannot resolve this\n" +
-    "   arbiter and raises 42P10 at plan time — a migration aborts there and leaves every\n" +
+    "\n   `auth.users` carries only a PARTIAL unique index on email (`users_email_partial_key`,\n" +
+    "   `UNIQUE (email) WHERE is_sso_user = false`), and arbiter inference will not resolve to a\n" +
+    "   partial index unless the clause repeats that predicate. Postgres raises 42P10 at plan\n" +
+    "   time — a migration aborts there and leaves every\n" +
     "   statement below it unapplied. Use the SELECT-first pattern (see\n" +
     "   scripts/seed-test-data-2.sql:17), or a bare `ON CONFLICT DO NOTHING` if you only\n" +
     "   want idempotence — that form needs no unique index. See .claude/rules/schema-gotchas.md.",
