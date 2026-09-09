@@ -38,11 +38,32 @@ honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-m
 | application-reminders | `/api/cron/application-reminders` | Daily 06:00 UTC | GET |
 | holiday-sentinel | `/api/cron/holiday-sentinel` | Daily | GET |
 
-> **holiday-sentinel** (ADDENDUM_70K Phase C): diffs the SA public-holiday table against Nager.Date (+ optional
-> Calendarific witness) and moves the 90-day horizon nag here. Quiet by default — digests to `ADMIN_EMAIL`
-> only on a Class-A/B diff, a witness disagreement, or the horizon within 90 days. Writes nothing (D-7d). NOT
-> in the daily orchestrator and NOT wrapped in `withCronRun` (a `cron_runs` row from a job `TRACKED_CRONS`
-> never heard of would falsely degrade deep-health). cPanel entry (LIVE since 2026-07-11):
+> **holiday-sentinel** (ADDENDUM_70K Phase C): diffs the SA public-holiday table against Nager.Date, watches
+> gov.za's notices feed for gazetted proclamations, and moves the 90-day horizon nag here. Quiet by default —
+> digests to `ADMIN_EMAIL` only on a Class-A/B diff, a gov.za public-holiday notice, an unprovable feed
+> window, or the horizon within 90 days. Writes nothing (D-7d). NOT in the daily orchestrator and NOT wrapped
+> in `withCronRun` (a `cron_runs` row from a job `TRACKED_CRONS` never heard of would falsely degrade
+> deep-health).
+>
+> **The two witnesses are of different KINDS, and that is the point.** Nager returns a date SET, which is
+> diffed. gov.za's RSS returns gazette NOTICES, which are title-matched and handed to a human — nothing
+> parses a date out of a notice title (the real ones vary too much; a confident wrong holiday is worse than
+> none). gov.za is the witness that closes Nager's ad-hoc gap: measured 2026-09-09 against three known s2A
+> proclamations, Nager carried 2023-12-15 and has never carried 2016-08-03 or 2021-11-01.
+>
+> **A Calendarific witness was removed on 2026-09-09.** Its API key was never set in any environment, so the
+> fetcher returned null on every run this code has ever made and the disagreement check was called zero
+> times — while the file, this table and the route header all described a two-witness design. An inert
+> control is worse than an absent one: it is counted as coverage by everyone reading the file.
+>
+> **The gov.za feed caps at TEN ITEMS — a count, not a time window.** Gazette publication is bursty, so on a
+> heavy day ten notices can span a few hours and a daily poll silently drops everything older. The run cannot
+> see what rolled off, so it reports the CONDITION instead (`windowOverrun`: the oldest item is younger than
+> one polling interval). **If that starts firing regularly, the fix is a faster cadence** — raise the cPanel
+> frequency AND `GOVZA_POLL_INTERVAL_MS` in `lib/dates/holidayAuditFetch.ts` together; the constant's only
+> job is to mirror the line below, and a stale constant reports clean while blind.
+>
+> cPanel entry (LIVE since 2026-07-11):
 > ```
 > 0 7 * * *  /usr/bin/curl -s -m 60 -X GET "https://app.pleks.co.za/api/cron/holiday-sentinel" -H "x-cron-secret: <CRON_SECRET>" > /dev/null 2>&1
 > ```
