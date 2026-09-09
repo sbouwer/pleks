@@ -78,6 +78,11 @@ lib/reports/screening/_pdf/__samples__/
 !.claude/skills/
 !.claude/settings.json
 !.claude/statusline.js
+# Declares the MODULE KIND of .claude/**.js (dev-standards M-KIT-17 / L-94). It must be TRACKED or
+# it fixes only the machine that wrote it: untracked, CI and every other clone keep resolving the
+# hooks against the typeless root, which is the condition it exists to remove. Caught by
+# `git check-ignore` before the first commit, not after.
+!.claude/package.json
 # Machine-local, never shared: personal permission overrides and session scratch.
 .claude/settings.local.json
 # Per-machine token accounting written by the context-budget hook. Byte offsets and running totals

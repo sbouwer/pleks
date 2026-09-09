@@ -42,7 +42,7 @@
  * FAILS TO A PLAIN LINE, NEVER TO AN ERROR. A statusline that throws renders its stack trace into
  * the UI on every frame.
  */
-const { WARN, STOP, CACHE_READ_MULTIPLIER, snapshotNow, loadState } = require("./hooks/context-budget.js");
+import { WARN, STOP, CACHE_READ_MULTIPLIER, snapshotNow, loadState } from "./hooks/context-budget.js";
 
 const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
@@ -142,4 +142,4 @@ process.stdin.on("end", () => {
   process.stdout.write(line);
 });
 
-module.exports = { render, colourFor, fmt };
+export { render, colourFor, fmt };
