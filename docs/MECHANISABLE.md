@@ -506,6 +506,17 @@ better than the entry asked for.
 
 ## OTHER
 
+### M-124 — the commit-message mask covers `-m` and not the way this repo actually writes messages
+
+- **Rule:** a flag named inside a COMMIT MESSAGE is prose, not a switch, and must not be matched by the gate that forbids the flag. This is already stated and already half-built — `maskMessageText` in `.claude/hooks/bash-gate.js` exists for exactly it, and its docblock cites the M-072 commit that was refused for describing a hard reset in its body.
+- **Where it lives:** `maskMessageText` blanks the argument of `-m`/`--message`. It cannot blank what is not an argument. Every substantial commit in this repo is written `git commit -F -` with a heredoc, because the messages are long — so the message text arrives on **stdin**, the hook sees only `git commit -F -`, and the body is never masked at all. The mask therefore covers the spelling used for one-liners and misses the spelling used for everything the rule was written to protect.
+- **Rung:** hook · **Blast:** other
+- **Observed 2026-09-09**, twice in one session and both times on this session's own work: a commit documenting the new `git clean` rule was denied for containing `git reset --hard` in its body, and earlier a comparison script was denied for containing force-push spellings as test data. Both were rewritten to avoid the literal, which is the failure mode — **the gate is training its users to describe controls imprecisely in exactly the artefact that is supposed to record them.** A commit message that cannot name the flag it is about is a worse record than none, and the damage is silent because the rewritten message looks fine.
+- **Satisfied when:** a `git commit` whose message reaches git by any route — `-m`, `-F <file>`, `-F -`, or `--file` — is judged on its COMMAND, never on its message text; and a real flag in the command line is still caught with the message present.
+- **⚠ The obvious fix is the wrong one.** Blanking everything after `-F -` would blank the rest of the command line, and blanking stdin is not possible from a PreToolUse hook, which never sees it. The tractable shape is narrower: when the message is not an argument, there is nothing in the command to confuse the scanner, so `git commit -F -` should simply not be scanned for flags that only ever appear in prose. That is a real decision about aperture, not a patch — hence a register entry rather than an edit.
+- **Probe both directions:** a heredoc message naming `--no-verify`, a hard reset and a force push must COMMIT; `git commit -F - --no-verify` — the flag genuinely present on the command line, alongside a heredoc — must still be DENIED. The second is the one that makes the first safe, and a fix that only tests the first has widened the bypass.
+- **Covering spec:** NEW
+
 ### M-033 — ✅ BUILT (found already shipped 2026-08-21) — `@typescript-eslint/no-explicit-any` is resolver-visible
 
 - **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`)
