@@ -43,7 +43,11 @@ function dbContainer(): string {
   _container = name
   return name
 }
-function psql(sql: string): void {
+/** Raw SQL against the local container. Exported because some controls are GRANTS rather than rows:
+ *  supabase-js always speaks as one role, so `SET ROLE authenticated; SELECT f()` through psql is the
+ *  only way to assert that a SECURITY DEFINER function is NOT callable by the role it was revoked
+ *  from. `ON_ERROR_STOP=1` makes a permission denial a thrown error, which is the assertion. */
+export function psql(sql: string): void {
   execSync(`"${dockerBin()}" exec -i ${dbContainer()} psql -U postgres -d postgres -v ON_ERROR_STOP=1`, {
     input: sql, stdio: ["pipe", "pipe", "pipe"],
   })
