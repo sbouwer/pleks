@@ -2383,3 +2383,63 @@ The author identified the hazard, and defended the single field in front of them
   M-111 is a real defect on the co-applicant path; on the company path it described the failure mode
   of a code path that had never once run.
 - **Covering spec:** ADDENDUM_14B_COMMERCIAL_APPLICATIONS §6.2
+
+### M-121 — an inert witness counted as coverage for two months, and nothing could tell
+
+- **Rule:** a control that cannot run must not be indistinguishable from a control that ran and found
+  nothing. Optional-credential witnesses fail this by construction: the no-key path and the
+  all-clear path produce the same output, so the design is read off the source and believed.
+- **Where it lives (the instance):** `lib/dates/holidayAuditFetch.ts` (the removed
+  `fetchCalendarificZA`) · `app/api/cron/holiday-sentinel/route.ts` · `.claude/rules/crons.md`.
+- **Rung:** check · **Blast:** other (statutory-notice arithmetic, via a missing holiday)
+- **Satisfied when:** every optional-credential dependency either reports its own absence in the
+  artefact a human reads, or is removed.
+- **The failure, concretely.** The holiday sentinel was documented in three places — the module
+  docblock, the route header and the crons rule — as a TWO-witness design: Nager.Date plus
+  Calendarific, with a `witnessDisagreement` escalation between them. `fetchCalendarificZA` read an
+  **optional** env var and returned `null` when it was unset. The key was never set in any
+  environment (checked 2026-09-09 across six env files in four locations, matching on key NAME only).
+  So the fetcher returned `null` on every run the code has ever made, `witnessDisagreement` was
+  called **zero times**, and the cron reported a clean two-witness audit while doing single-witness
+  work. The CLI even printed `(Calendarific: no key — single witness)` — a line nobody reads on a
+  cron, and the cron's own digest said nothing at all.
+- **⚠ SAY THIS PRECISELY: no holiday was ever missed BECAUSE of this.** Calendarific is another
+  aggregator; had the key been set it would very likely have agreed with Nager and escalated nothing.
+  The defect is the **claim**, not a lost detection: three documents asserted a redundancy that did
+  not exist, and the redundancy is exactly what a reader checks before deciding the subsystem is
+  covered enough to stop thinking about. Understating it as "a dead code path" misses that it was
+  load-bearing in the *documentation*, which is where coverage decisions are actually made.
+- **What it was hiding.** Nager.Date does not carry SA ad-hoc s2A proclamations reliably. Measured
+  2026-09-09 against the three known ones: 2023-12-15 (Springbok victory) **present**; 2016-08-03 and
+  2021-11-01 (municipal elections) **absent** — permanently, not with a lag. One in three. The
+  subsystem's whole purpose is catching a proclamation the bundled table lacks, and its only live
+  witness is blind to two-thirds of the class.
+- **Why no mechanism catches it.** Nothing asserts that a named env var a module branches on exists
+  in any environment; `.env.example` is not a contract and was not consulted by any check. Nothing
+  compares a docblock's description of a control against whether the control can execute. The
+  `optionalEnv` helper is doing exactly what it says — the defect is that "optional" and "documented
+  as present" were allowed to coexist unremarked.
+- **The tractable slice:** collect every `optionalEnv("X")` call site and fail when `X` is absent
+  from `.env.example`, forcing each optional dependency to be declared and its absence to be a
+  visible, reviewed state rather than a silent one. Cheaper and narrower than trying to read prose.
+- **Probe both directions:** an `optionalEnv` on a name absent from `.env.example` must fail; every
+  current optional name must pass.
+- **⚠ The instance is FIXED at `88780323` (2026-09-09): Calendarific removed, and replaced with a
+  witness of a DIFFERENT KIND** — gov.za's notices RSS, title-matched for proclamations. It is
+  the publisher, so it carries all three of the proclamations above, including the 2021-11-01 one
+  Nager has never had. **The entry is OPEN: no mechanism was built.** The next optional-credential
+  control to go inert will be exactly as invisible.
+- **Two residuals the replacement does NOT close, both deliberate:**
+  1. **The pre-gazette window.** gov.za publishes at GAZETTING. A holiday announced by the Presidency
+     but not yet gazetted is invisible — correctly, since gazetting is the legally operative moment,
+     but it means the sentinel is silent during precisely the days everyone is talking about the new
+     holiday. 4 November 2026 was in this state on 2026-09-09.
+  2. **The ten-item count cap.** The feed returns ten items regardless of elapsed time, and gazette
+     publication is bursty. A daily poll can silently drop notices on a heavy day. The run cannot see
+     what rolled off, so it reports the CONDITION (`windowOverrun`) instead of pretending to be clean
+     — the same rule this entry is about, applied to the replacement. If it starts firing, the fix is
+     a faster cadence in cPanel **and** `GOVZA_POLL_INTERVAL_MS` together.
+- **Provenance:** found 2026-09-09 when Stéan asked whether the checker had picked up 4 November 2026
+  being declared a public holiday. It had not — and answering *why* meant reading the witnesses
+  rather than the design, which is what surfaced that one of the two had never run.
+- **Covering spec:** ADDENDUM_70K Phase C (D-7d — the auditor is a skeptic, never an authority)
