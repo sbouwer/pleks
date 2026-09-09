@@ -60,6 +60,35 @@ tooling depends on belongs in the tracked tree instead.
 
 ---
 
+**`C:\dev\dev-standards` IS READ-ONLY FROM THIS SESSION.** **floor** — no mechanism in this repo
+can see a write to a sibling checkout, so this is a claim about the world and it is held by you.
+
+Read it freely: the playbooks, the standards, the kit, `ledgers/LESSONS.md`. Write nothing — not the
+kit, not `tools/`, not a MANIFEST version, not `ledgers/projects.json`, not `kitAdopted`. Never run
+`apply-kit --write`; the dry run is read-only and is the right way to read the plan.
+
+**The incident, 2026-09-09.** Two project sessions adopting kit rows fixed real defects *inside
+canon* while the dev-standards session ran its gate. That gate read a `MANIFEST.json` which changed
+underneath it, so its result was not attributable to any state of the tree — not wrong,
+**unattributable**, which is worse because it still looks like a measurement. Nothing was lost and
+both projects' findings were correct and are now in canon; what was lost was the ability to say what
+had been measured.
+
+**A finding about canon is worth more than a fix to canon.** Report it and let the estate session
+make the change:
+
+    OBSERVED   what happened, in one sentence
+    COMMAND    what you ran, and its output verbatim
+    WHY IT IS  why it is the method's defect and not this project's — the portability test:
+    CANON'S    would it still be true on a repo with a different stack?
+    SMALLEST   the narrowest fix, and what it must not break
+    FIX
+
+Lagging deliberately behind a kit row is the same: send the row id, the version, the reason and a
+review date. A pin means *read, classified and deliberately behind* — never *exempt* — so the reason
+has to argue it, and someone else writes it into the register.
+
+
 ## 2 · WHAT THIS PROJECT IS, AND HOW TO REACH ITS SYSTEMS
 
 South African residential property management: leases, tenants, applications, trust accounting,
