@@ -344,7 +344,7 @@ available would have been forbidden.
 - **Covering spec:** NEW
 
 ### M-022 — flag `.upsert`/`ON CONFLICT` on `auth.users` by email — ✅ BUILT 2026-08-28
-- **Rule:** "`auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail" (`.claude/rules/schema-gotchas.md`)
+- **Rule:** "`auth.users` carries a PARTIAL unique index on email — a bare `ON CONFLICT (email)` will fail" (`.claude/rules/schema-gotchas.md`). ⚠ Quoted here as "has no unique constraint on email" until 2026-09-09; the real object is `users_email_partial_key`, `UNIQUE (email) WHERE (is_sso_user = false)`, verified live. **The check's behaviour is unaffected** — inference cannot resolve to a partial index without repeating the predicate, so the 42P10 it guards is real either way; only the stated cause was wrong. See **M-122** for what the partial index means beyond `ON CONFLICT`
 - **Where it lives:** `.claude/rules/schema-gotchas.md:17`
 - **Rung:** check · **Blast:** schema
 - **Satisfied when:** check:check-auth-users-on-conflict
