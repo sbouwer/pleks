@@ -270,7 +270,17 @@ function selftest() {
     )
     process.exit(1)
   }
-  const orphan = execFileSync("git", ["commit-tree", `${head}^{tree}`, "-m", "spec-verify probe"], {
+  // ⚠ The identity is passed EXPLICITLY, and that is the fix, not a tidy. `commit-tree` AUTHORS a
+  // commit, so it needs a user.name/user.email — and `actions/checkout` configures credentials but
+  // never an identity. On CI this died with `fatal: no email was given and auto-detection is
+  // disabled`, on stderr, which the R6 runner discarded. A selftest must not depend on ambient
+  // machine config: it passed on every developer box precisely because every developer box has a
+  // git identity configured, which is the one property CI reliably lacks.
+  const orphan = execFileSync("git", [
+    "-c", "user.name=pleks-selftest",
+    "-c", "user.email=selftest@pleks.invalid",
+    "commit-tree", `${head}^{tree}`, "-m", "spec-verify probe",
+  ], {
     cwd,
     encoding: "utf8",
   }).trim()

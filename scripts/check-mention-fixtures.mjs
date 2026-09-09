@@ -150,7 +150,16 @@ function probeFixture(name) {
   try {
     out = execFileSync(runner[0], runner[1], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" })
   } catch (e) {
-    return `${name} --selftest exited non-zero, so its mention fixture cannot be trusted:\n${String(e.stdout ?? e.message).trim().split("\n").slice(-4).join("\n")}`
+    // ⚠ REPORT stderr, and do not let an empty stdout swallow the reason. This read was
+    // `String(e.stdout ?? e.message)`, which has two holes that compound: stderr was piped and then
+    // never looked at, and `??` does not fall through on an EMPTY string, so `e.message` was
+    // unreachable whenever stdout existed but was blank. A script that dies before printing
+    // anything to stdout — the exact shape of a crash in a selftest's setup — therefore rendered as
+    // "exited non-zero:" followed by nothing at all. CI was red for two days behind that blank.
+    // A finding that cannot say what it found costs more than the failure it reports.
+    const detail = [e.stdout, e.stderr].map((s) => String(s ?? "").trim()).filter(Boolean).join("\n")
+    const tail = (detail || String(e.message ?? "no output on stdout or stderr")).trim()
+    return `${name} --selftest exited non-zero, so its mention fixture cannot be trusted:\n${tail.split("\n").slice(-6).join("\n")}`
   }
   if (!out.includes(FIXTURE_MARKER)) {
     return `${name} searches for a marker token but its selftest prints no "${FIXTURE_MARKER}" case. Add a probe where the token appears as a MENTION (in prose or a comment) and assert the detector does NOT fire.`
