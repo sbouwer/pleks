@@ -39,92 +39,52 @@ SMALLEST   the narrowest fix, and what it must not break
 FIX
 ```
 
-### CF-4 · `delivery-report --check` fails GREEN when the plan is untracked, and the neighbouring case proves it knew to say so
+CF-4 and CF-5 dropped to Filed on 2026-09-10 — canon fixed them in `49ca9b9` and pleks adopted the
+result the same day. Their reports are not restated here; canon's entry is the record.
+
+### CF-6 · L-72's "a credential of this kind" has a narrow reading that leaves the threat open, and pleks took it
 
 ```
-OBSERVED   DELIVERY-STANDARD §4 calls the baseline-moves-only-on-record rule "the rule the whole
-           report stands on". It reads history with `git log -- brief/build/90-release.md`. When
-           that path is gitignored the log is empty, `planVersions` returns a single "working
-           tree" version, nothing can be compared with anything, and `--check` prints ✅ — with
-           the words "history: 1 version(s) read", which read as history HAVING been read.
+OBSERVED   L-72 says: authorise a credential-MINTING operation on the state of the ACCOUNT, never
+           the session — and asks whether the account "already possesses a credential of this
+           kind". Building M-127 against that sentence, pleks read "of this kind" as the
+           credential's TYPE and counted passkeys. A TOTP-only account holds zero passkeys, so it
+           read as a bootstrap account: a stolen AAL1 session was waved through both halves of the
+           ceremony, minted a permanent passkey, and took an AAL2 grant with it
+           (registration-verify → issuePasskeyAal → lib/auth/facts.ts) without ever knowing the
+           TOTP secret. That is verbatim the attack the lesson exists to close, surviving a fix
+           written from the lesson, reviewed, tested and committed.
 
-COMMAND    Two throwaway repositories, identical but for one line of .gitignore, each given the
-           same undeclared baseline move (MS-01 2026-09-01 → 2026-10-01, no `Changed:` line):
+COMMAND    Not a command — a walk of the fix's own commit (8bf4c593, now effb2481), reproduced by
+           reading the guard against `proxy.ts`, which exempts /api/* from the manifest AAL2 gate,
+           so both routes are reachable at AAL1. Ten tests were green throughout; every one of them
+           asserted the passkey count, which was the thing that was wrong.
 
-             $ node kit/project-kit/scripts/delivery-report.mjs $TRACKED --check
-             ❌ delivery-report: 1 finding(s) in brief/build/90-release.md
-               dda5754: MS-01 baseline moved 2026-09-01 → 2026-10-01 with no recorded reason …
-             exit 1
+WHY IT IS  The bootstrap carve-out is unavoidable and the lesson is right to allow it: enrolling
+CANON'S    requires being signed in, so the first credential cannot demand what every later one
+           should. The defect is that the lesson does not say what the carve-out is keyed on, and
+           the obvious reading is the wrong one. Portability: nothing here is about passkeys, or
+           WebAuthn, or this stack. Any system with two or more assurance factors and a
+           first-credential exemption has this shape, and the narrow reading gives every account
+           holding a DIFFERENT second factor a free mint. The wider the factor menu, the larger the
+           exposed population — pleks's was the older majority, since every agent route is
+           requiresAal2 and TOTP shipped first.
 
-             $ node kit/project-kit/scripts/delivery-report.mjs $IGNORED --check
-             ✅ delivery-report: 1 milestones (0 done), 1 spend rows, 0 recorded changes ·
-                agreed 2026-08-01 · history: 1 version(s) read
-             exit 0
+SMALLEST   Add one clause to L-72: the bootstrap exemption is keyed on the ASSURANCE THE ACCOUNT
+FIX        CAN OFFER, not on the credential's type — no factor of any kind → a bare session may
+           mint; any factor at all → step up, satisfiable by any of them. Must not break the
+           bootstrap case itself (an account with genuinely nothing must still enrol, or the
+           lesson becomes an outage), and must not be read as requiring a same-type factor, which
+           would lock a TOTP-only user out of ever adding a passkey.
 
-WHY IT IS  The script ALREADY handles the neighbouring case correctly: with no `.git` at all it
-CANON'S    returns `note: "not a git repository — the baseline's history was NOT checked"` and
-           --check prints ⊘. So the quiet arm is the strictly more misleading one — a repository
-           IS present, so the reader has every reason to assume the git-backed rule applied.
-           Portability: nothing here is about pleks's stack. It is true of any repo that keeps its
-           plan out of version control, and that is not an exotic choice — a delivery plan holds
-           the contract value, the day rate and per-milestone budgets, so a project on a PUBLIC
-           repository (pleks is one, verified `gh api repos/sbouwer/pleks` → `"private": false`)
-           cannot commit it. The estate's own three projects already split 2–1 on tracking
-           `brief/`, and canon's 60 probes were all written on the tracked side.
-           The other two arms fail SAFE and are not part of this finding: `--html` for a past
-           period refuses ("the plan was not yet committed on …", exit 1) and `--html` to date
-           refuses without `--preview`. It is exactly the GATE that lies.
-
-SMALLEST   In `planVersions`, treat "in a git repo, but this path has no committed versions" the
-FIX        same as "not a git repository": return the existing `note`, worded for the case — e.g.
-           `the plan is not tracked by git — the baseline's history was NOT checked`. `--check`
-           already prints `hist.note` before its verdict, so one added condition reaches the
-           output with no new plumbing. Must not break: the genuine first-commit case, where a
-           plan is tracked and staged but not yet committed — that is also zero versions and is
-           legitimately a draft, so the note must distinguish "untracked" (a finding) from "not
-           yet committed" (fine), which `git ls-files` answers.
-```
-
-### CF-5 · A `tracked` row that an adopter's own gate rejects leaves the adopter with no legal move
-
-```
-OBSERVED   Installing kit row `delivery-report` v1 verbatim turns `npm run check` RED in pleks:
-           `sonarjs/super-linear-regex` fires six times on canon's own bytes, plus
-           `sonarjs/single-character-alternation` once. pleks may not fix them (an edit outside a
-           KIT:CONFIG region forks a `tracked` row and check-kit-drift says so), may not disable
-           them at the site (same fork), and may not exempt the path — CLAUDE.md §4 forbids
-           widening an allowlist to make CI green, and the eslint config's 2026-08-22 ruling names
-           `sonarjs/super-linear-regex` as one of the two families "with an incident behind them",
-           kept ON for `scripts/**` deliberately. So the row was HELD, not adopted.
-
-COMMAND    $ cp kit/project-kit/scripts/delivery-report.mjs scripts/ && npm run check
-             scripts/delivery-report.mjs
-               61:17  error  Replace this alternation with a character class    single-character-alternation
-               81:16  error  Simplify this regular expression … backtracking    super-linear-regex
-              115:17  error  … 125:15 … 427:13 … 620:19  (same rule)
-             ✖ 7 problems (7 errors, 0 warnings)
-
-           $ cd C:/dev/dev-standards && npm run check:lint      # → "eslint ."
-             devDependencies: @eslint/js, eslint, knip, madge   # no eslint-plugin-sonarjs
-
-WHY IT IS  Canon cannot see this class, by construction: its lint is `@eslint/js` only, so the
-CANON'S    rule that rejects its bytes is one it does not run. That is the exact shape of canon's
-           own scar `0195b66` — "a rule canon writes is obeyed somewhere canon cannot see" — with
-           the arrow reversed. Portability: it is not about sonarjs or about pleks. `tracked` mode
-           assumes every adopter's gate will accept canon's bytes verbatim, and offers no move
-           when one does not: fix, exempt and disable are all forks, so the only remaining action
-           is to decline the row entirely. A kit that propagates strictness to its adopters and
-           does not hold itself to it will meet this again with the next rule any project adds.
-
-SMALLEST   Two, and the first is a one-session fix: repair the seven sites. All are the same
-FIX        class — `\s` (which matches newlines) where `[ \t]` is meant, in regexes that parse ONE
-           already-split line, plus `(—|–|-)` → `[—–-]` at :61. Concretely :125
-           `/^\s*-\s*\*\*([^*:]+):\*\*\s*(.*)$/` → `/^[ \t]*-[ \t]*\*\*([^*:]+):\*\*[ \t]*(.*)$/`.
-           Must not break the parse of a line with no leading space, or of `- **Learned:**` with
-           an empty value. The second is the structural half and is a separate decision: either
-           run the estate's own rule set over the kit before shipping a `tracked` row, or declare
-           what an adopter may do when its gate rejects canon's bytes — today "hold the row" is
-           the only lawful answer and nothing in the kit says so.
+           Two corollaries worth carrying with it, both learned here:
+           - The check that says "no factor" must read EVERY factor source and fail closed on each
+             — an unreadable count is not a zero. pleks reads both sources unconditionally and
+             comments that the short-circuit is deliberately absent, because `if (passkeys === 0)`
+             around the second read looks like an optimisation and silently restores the bug.
+           - Gating the mint of ONE credential type while its sibling's mint stays ungated is not a
+             fix: the ungated sibling is minted for free and then satisfies the gate. pleks filed
+             that half as M-132 rather than claiming M-127 closed it.
 ```
 
 ---
@@ -138,11 +98,12 @@ as a date. **"Not yet" is not an answer** — leave the lesson off this table an
 is what an unanswered lesson should look like.
 
 | Lesson | Answer — `YYYY-MM-DD` or `n/a: <reason>` | Evidence — SHA, path or command |
+| L-64 | 2026-09-10 | `CLAUDE.md` §3 now states it, in the gates section where a session reads about hooks rather than in a hooks appendix: a hook installed **or edited** mid-session is not loaded by that session; restart, then verify with a throwaway call that would previously have prompted. The extension beyond the lesson's wording is deliberate — the lesson says *installed*, and an edit to an already-registered hook is the same inert change with none of the "did I wire it up right?" suspicion attached. **Prose, not a mechanism, and correctly so:** no control in this repo can observe when a hook file was written relative to session start. |
 | L-68 | 2026-09-10 | Given the same day it was raised, by the only person who could give it. `CLAUDE.md` §7 now carries: *"**STANDING AUTHORISATION — Stéan, 2026-09-10, from this date onwards.** Agents listed in the table above may be spawned without per-session approval; writes stay bounded by `.handoff/write-manifest.json`; nothing here authorises a push."* **What was wrong before is worth recording, because it is the lesson's whole shape:** the warrant was §7's agents table itself, which a session had to read as "the repo asking" — inference from a table's existence, re-derived from scratch by every session and attributable to nobody. The scope clause is not decoration: a bare dated signature would have authorised everything and nothing, and the next session would have gone back to inferring. It removes the question of whether spawning was permitted; it does not widen §5's write bound or §3's push gate, both of which still hold. |
 
 **The 13 answers from the 2026-09-10 triage were lifted in `fa7b92f` and have dropped to Filed** —
-canon's `LESSONS.md` is their record now, and this file does not restate it. **L-68 above is the one
-answer still awaiting canon**; it was given after the outbox was read at `9430df2a`.
+canon's `LESSONS.md` is their record now, and this file does not restate it. **L-64 and L-68 above
+are the two still awaiting canon**; both were given after the outbox was read at `9430df2a`.
 
 **⚠ Two dates canon corrected on measurement, and one it sent back — recorded here so the next
 session does not re-report the old ones:**
@@ -159,7 +120,7 @@ session does not re-report the old ones:**
   of the tree. Canon's own half (`bd58b28`, 2026-08-19) precedes it, so the later of the two governs.
   **Canon: rewrite L-66's line to 2026-08-20, evidence `fd818c0c`.**
 
-**The 7 open lessons below are NOT answers**, and that is the point — `--emit-open` should keep
+**The 6 open lessons below are NOT answers**, and that is the point — `--emit-open` should keep
 reporting them until pleks carries them. They are listed so the next session knows the triage
 finished rather than stopped. **⚠ Canon: do not lift this list.** None is an `Applied:` value; each
 is an open item with an owner in this repo.
@@ -169,10 +130,9 @@ is an open item with an owner in this repo.
 | L-22 | 3 sites mark work done without reading the send result — one flips a never-retry flag. Canon's entry records pleks had never been surveyed for this shape; this was that survey. | **M-128** |
 | L-23 | 80-entry ESLint baselines carry no per-entry reason, and only one allowlist has a staleness check — which catches a deleted route, not a reclassified one. | **M-130** |
 | L-63 | `claude-module-kind`'s verifier exists but runs only from canon, so emptying `.claude/package.json` leaves `npm run check` green. | **M-129** |
-| L-64 | Nothing states that a hook installed mid-session does nothing for that session, or the throwaway-call verification. Genuine zero. | `brief/CURRENT.md` |
 | L-67 | The file-header template in `CLAUDE.md` §9 is a second copy `check-file-headers.mjs` never reads. | **M-131** |
 | L-71 | The rule is stated; the sweep is not. Running it finds 436 mojibake sequences in four migration files. | **M-126** |
-| L-72 | A passkey is minted on session state alone while revoking one demands step-up. | **M-127** |
+| L-72 | **Half carried, so still open — and the open half is the one that reopens the closed half.** The passkey mint is gated on account state as of `effb2481` (M-127, 2026-09-10). The TOTP mint is not: `supabase.auth.mfa.enroll` runs on the browser client with no server gate, so a stolen session mints a TOTP for free and then satisfies the passkey guard with it. A date here would claim a coverage pleks does not have. | **M-127** ✅ built · **M-132** open |
 
 ---
 
@@ -187,20 +147,39 @@ never *exempt*, so the reason has to argue it.
   green, live run green. Comment-only, −21/+18. **Canon: lift the v2 pin you were holding (review
   2026-09-24); it is not needed.** Record v3 in `kitAdopted`.
 
-- **PINNED — row `delivery-report`, v1 held, not installed. Review 2026-09-17.** Read, probed
-  against this tree, and deliberately behind. **The reason is CF-5 and it is not a preference:**
-  canon's copy fails pleks's lint seven times (`sonarjs/super-linear-regex` ×6,
-  `single-character-alternation` ×1), and every way to make it green is forbidden here — fixing or
-  disabling at the site forks a `tracked` row, and exempting the path widens an allowlist against a
-  rule the 2026-08-22 eslint ruling names as having an incident behind it. **Do not record this in
-  `kitAdopted`.** Lift the seven-site fix from CF-5 and pleks will take v2 the day it lands; the
-  install and gate wiring were rehearsed on 2026-09-10 and backed out, and `--selftest` passed here
-  before it was.
-- **Not a pin, but canon should know it is coming:** the pleks-side guard for CF-4,
-  `scripts/check-delivery-plan-tracked.mjs`, is already wired into `npm run check` and passes
-  quietly while the row is held. It is **project-owned, not a kit candidate as written** — it exists
-  because pleks cannot track its plan, which is a property of this repo. If CF-4's fix lands in
-  `planVersions`, this check becomes redundant and should be deleted here rather than promoted.
+- **ADOPTED — row `delivery-report`, v2, 2026-09-10. The 2026-09-17 pin is LIFTED; do not carry it
+  forward.** Canon shipped v2 at `49ca9b9` carrying both fixes, and pleks took it the same session.
+  Copied byte-identical from `kit/project-kit/scripts/delivery-report.mjs` (`diff -q` → no output),
+  landed here in `ef0e20c6`. **Canon: record v2 in `kitAdopted`.** Verified rather than assumed:
+  `npx eslint scripts/delivery-report.mjs` exits **0** (CF-5 closed), `--selftest` green with the new
+  probes naming the ignored-plan and linked-private-repo cases, and `planVersions` read directly to
+  confirm it now resolves the plan's own repository. `--check` prints
+  `⊘ delivery-report: no brief/build/90-release.md` and exits 0 — the honest answer for a project
+  whose plan is not in this tree, and the shape CF-4 asked for.
+
+  `scripts/check-delivery-plan-tracked.mjs` was **deleted** in the same commit. It was the
+  project-owned stand-in for CF-4 and became redundant the moment the fix landed in `planVersions`;
+  two controls answering one question is one control with a hole. It was never a kit candidate.
+
+  **Two corrections canon made to this project's report, recorded so the next session does not
+  re-send the old ones:**
+  - **Six lint problems, not seven** — `sonarjs/super-linear-regex` ×5 and
+    `single-character-alternation` ×1. The seven in CF-5's COMMAND block counted an ellipsised line
+    twice. Same class as CF-2's 51-not-52: the argument never rested on the number, so nothing in
+    the reasoning pushed back on it.
+  - **CF-5's suggested fix would have broken the parse.** It proposed `\s` → `[ \t]` throughout, on
+    the reasoning that these regexes parse one already-split line. A plan line typed with a
+    non-breaking space then stops matching — a silently dropped row, which is worse than the lint
+    error. v2 keeps `\s` and is linear by construction instead, with a probe pinning the NBSP case.
+    **The narrowest fix I could see was narrower than the correct one**, and the lint rule was
+    pointing at backtracking, not at the character class.
+
+- **⚠ Held, and canon owes the fix: M-KIT-28.** Canon's bytes still fail pleks's eslint on six other
+  kit rows — 21 problems in all. Two suppressions stay in place on canon's files until clean versions
+  ship (`check-hook-registration` ×9, `check-handoff-contract` ×1), and any of the six named rows
+  that a re-adoption would turn red is **held**, citing M-KIT-28. This is not a pin against a
+  version; it is the CF-5 class recurring on other rows, and the structural half of CF-5's fix —
+  run the estate's own rule set over the kit before shipping a `tracked` row — is what closes it.
 
 ---
 
@@ -215,6 +194,8 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | CF-3 | A `tracked` kit file's header narrated the ADOPTING project's incident, so every other adopter read a false account of its own repo | `check-hook-registration` **v3**, provenance moved to the MANIFEST row's `why` | `8aee597` |
 | — | The 2026-09-10 legacy triage: 13 lesson answers (10 dated, 3 reasoned `n/a:`), each attributed to this outbox at `9430df2a` | `LESSONS.md` `Applied:` lines | `fa7b92f` |
 | — | Row `canon-findings` adopted — this file | `ledgers/projects.json` `kitAdopted` | `fa7b92f` |
+| CF-4 | The baseline rule read `git log` from the PROJECT's repo, so an untracked plan produced "1 version(s) read" and a ✅ — a control reporting on a file whose history it had never seen | `delivery-report` **v2**, `planVersions` resolves the plan's own repository (`realpathSync` → `rev-parse --show-toplevel` → `ls-files --error-unmatch` → `check-ignore`) | `49ca9b9` |
+| CF-5 | `tracked` kit mode offered an adopter whose gate rejects canon's bytes no legal move — fix, disable and exempt are all forks | `kit/INSTALL.md`: hold the row. Plus the six sites repaired in `delivery-report` v2 | `49ca9b9` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**
 
@@ -233,6 +214,9 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
   the file still grew — which is precisely why the error survived: **legs ② and ③ never depended on
   the number, so nothing in the reasoning pushed back on it.** A count quoted in support of a
   conclusion that does not rest on it gets no scrutiny from the conclusion.
+- **CF-5's two corrections — six problems not seven, and the proposed `[ \t]` fix would have broken
+  the parse on a non-breaking space — are written up in §3 beside the adoption**, where the next
+  session reading the kit report will meet them. Not restated here.
 - §2.4 v2 is **mechanised** (`check-brief.mjs`, +175 lines in `71cc38f`). pleks does **not** run
   `check-brief.mjs`, so its `DECISIONS.md` conformance is unenforced here and held by hand — the
   sweep line was written to v2's exact shape rather than approximated.

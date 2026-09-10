@@ -182,6 +182,14 @@ read-only, so the twin would fire constantly and be gone within a day. Measuring
 adding a vehicle twin is canon (`CLAUDE-MD-STANDARD.md` §4.4); this is that rule's first case. The MCP surface has its own gate, `.claude/hooks/mcp-ddl-gate.js`,
 which shows the statement before asking.
 
+**A HOOK INSTALLED MID-SESSION DOES NOTHING FOR THAT SESSION** (L-64). Hooks are read at session
+start, so one written or edited now passes its own probes from the command line, prints the right
+decision for every planted input, and has no effect on the tool calls happening around it — and
+every signal says otherwise, which is why this is missed rather than argued with. **Restart, then
+verify with a throwaway call that would previously have prompted.** A single prompt followed by
+silence is not evidence: approving one write grants it for the session. Editing a hook is the same
+case as installing one.
+
 Approval-gated actions sequence to the **END** of a task, so an unattended session parks at the
 gate with everything finished. Run the check after each logical change, not after ten.
 `--no-verify` bypasses the commit gate, which is why it is forbidden — and now denied outright,
