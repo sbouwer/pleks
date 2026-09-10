@@ -104,6 +104,10 @@ scripts/codemod-supabase-error.report.json
 supabase/.branches/
 supabase/.temp/linked-project.json
 supabase/.temp/pgdelta/
+# cli-latest records which Supabase CLI release this MACHINE last saw upstream — it moves when
+# Supabase cuts a version, never when this project changes, and nothing here reads it. Its siblings
+# (project-ref, the *-version files, pooler-url) stay tracked: those describe the LINKED PROJECT.
+supabase/.temp/cli-latest
 
 # ESLint cache — local only, rebuilt by scripts/eslint-cache-guard.mjs (never committed)
 .eslintcache
