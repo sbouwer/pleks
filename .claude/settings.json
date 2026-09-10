@@ -37,6 +37,7 @@
       "mcp__claude_ai_Vercel__get_runtime_logs"
     ],
     "deny": [
+      "PowerShell",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(git reset --hard*)",
