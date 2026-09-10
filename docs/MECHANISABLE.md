@@ -2429,6 +2429,16 @@ The author identified the hazard, and defended the single field in front of them
 - **Rung:** check · **Blast:** other (statutory-notice arithmetic, via a missing holiday)
 - **Satisfied when:** every optional-credential dependency either reports its own absence in the
   artefact a human reads, or is removed.
+- **The OTHER optional-credential dependency on this path was confirmed LIVE 2026-09-10, by delivery,
+  and the distinction matters.** `sendCronDigest` (`lib/cron/cronDigest.ts:47-48`) reads BOTH
+  `ADMIN_EMAIL` and `RESEND_API_KEY` through `optionalEnv` and no-ops to `console.error` when either is
+  unset — the same shape as the Calendarific defect, on the channel that carries every cron's alerts.
+  Stéan received a holiday-sentinel digest on 2026-09-10; the sentinel calls `sendCronDigest`
+  (`app/api/cron/holiday-sentinel/route.ts:88`), and the no-key branch produces no email, so delivery
+  proves both vars resolve in prod. **That retires "is it configured?" and NOT "would we notice if it
+  stopped?"** — the silent-no-op branch is unchanged, so this entry stays open on the second question.
+  ⚠ Note also that `lib/env.ts:88` declares `RESEND_API_KEY` as `required: true` while this call site
+  reads it as optional; the schema and the call site disagree about whether its absence is survivable.
 - **The failure, concretely.** The holiday sentinel was documented in three places — the module
   docblock, the route header and the crons rule — as a TWO-witness design: Nager.Date plus
   Calendarific, with a `witnessDisagreement` escalation between them. `fetchCalendarificZA` read an
