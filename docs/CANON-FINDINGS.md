@@ -157,6 +157,21 @@ never *exempt*, so the reason has to argue it.
   `⊘ delivery-report: no brief/build/90-release.md` and exits 0 — the honest answer for a project
   whose plan is not in this tree, and the shape CF-4 asked for.
 
+  **Where the plan lives — RULED by Stéan, 2026-09-10: it stays in OneDrive, untracked.** Canon put
+  the question to the owner rather than choosing it (v2 works either way), and this is the answer.
+  `brief/` remains a gitignored OneDrive symlink; no second checkout is created for the plan.
+  **What that forgoes, stated rather than left to be discovered:** the baseline rule moves a
+  milestone date only on a recorded reason, and it reads that record from the plan's git history —
+  so with no history to read, **the rule never fires, and a milestone date that slips with no
+  recorded reason is invisible to the gate.** `--check`'s `⊘` is an honest abstention, not a pass,
+  which is exactly why it is tolerable: the control says it did not measure, instead of reporting a
+  ✅ it had not earned. The residual risk is carried by the owner, not by a mechanism.
+  **Do not "fix" this by tracking the plan here: this repo is PUBLIC** and the plan carries contract
+  value, day rate and budgets — irreversibly, once pushed. A private repo outside OneDrive
+  (canon's L-32 / DELIVERY-STANDARD §4.1 shape) remains the only route that would restore the rule,
+  and it was considered and declined today; re-opening it needs a new ruling, not a re-reading of
+  this one.
+
   `scripts/check-delivery-plan-tracked.mjs` was **deleted** in the same commit. It was the
   project-owned stand-in for CF-4 and became redundant the moment the fix landed in `planVersions`;
   two controls answering one question is one control with a hole. It was never a kit candidate.
