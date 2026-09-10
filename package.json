@@ -33,6 +33,7 @@
     "fitscore:render-smoke": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-smoke.ts",
     "render:density-pass": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-density-pass.ts",
     "audit:holidays": "tsx scripts/audit-holiday-table.mts",
+    "gen:holidays": "tsx scripts/codegen/gen-sa-holidays.mts",
     "prepare": "git config core.hooksPath .githooks || true",
     "crawl:tier0": "knip --no-progress --include files,dependencies,unlisted,unresolved,duplicates,exports,types",
     "crawl:all": "knip --no-progress",

@@ -31,6 +31,19 @@
  *         subtractBusinessDays (advisory, display only).
  */
 import holidaysData from "./saHolidays.json"
+import {
+  BASIS_PROCLAMATION,
+  BASIS_SHIFT,
+  DATE_ONLY,
+  FAMILY_DAY_OFFSET,
+  GOOD_FRIDAY_OFFSET,
+  SCHEDULE_1_FIXED,
+  easterSundayISO,
+  isRealCalendarDay,
+  isScheduleOneFixed,
+  shiftISO,
+  utcDayOfWeek,
+} from "./saHolidayStatute"
 
 export interface HolidayEntry {
   date: string
@@ -49,82 +62,16 @@ export interface HolidayTable {
   holidays: HolidayEntry[]
 }
 
-const BASIS_SHIFT = "PHA s2(1)"
 /**
- * Exported because the AUDITOR needs it too: `holidayAudit.ts` treats a proclaimed date missing from a
- * witness feed as informational rather than an alert, and that rule must key off the same string this
- * module validates against (Rule 5), never a restated copy of it.
- */
-export const BASIS_PROCLAMATION = "PHA s2A"
-
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
-
-/**
- * Schedule 1's TEN fixed-date holidays, as MM-DD. (The other two — Good Friday and Family Day — move with
- * Easter and are derived below.) This set is what makes the D-7f carve-out checkable in BOTH directions:
- * the caretaker must know that 26 December is a public holiday in its own right, or it cannot tell a
- * legitimate s2(1) shift from a fabricated one landing on Day of Goodwill.
- */
-const SCHEDULE_1_FIXED_MMDD = new Set([
-  "01-01", // New Year's Day
-  "03-21", // Human Rights Day
-  "04-27", // Freedom Day
-  "05-01", // Workers' Day
-  "06-16", // Youth Day
-  "08-09", // National Women's Day
-  "09-24", // Heritage Day
-  "12-16", // Day of Reconciliation
-  "12-25", // Christmas Day
-  "12-26", // Day of Goodwill
-])
-
-const isScheduleOneFixed = (iso: string) => SCHEDULE_1_FIXED_MMDD.has(iso.slice(5))
-
-/**
- * Easter Sunday (Anonymous Gregorian algorithm). Good Friday is Easter − 2, Family Day is Easter + 1.
+ * The statute itself — Schedule 1, the computus, s2(1)'s mechanics — moved to `./saHolidayStatute.ts` in
+ * ADDENDUM_70L Phase A so the GENERATOR can reach it WITHOUT loading this module. That is load-bearing:
+ * validation below runs at module load and throws at boot, so a caretaker-routed import would leave a
+ * malformed committed table un-regenerable by the only tool that could fix it.
  *
- * Deterministic, so the caretaker can assert that a covered year carries all twelve Schedule-1 holidays
- * rather than merely counting to twelve. It NEVER adds an entry — it only refuses to serve a year that is
- * missing one. Computing a holiday and proclaiming one are different acts (D-7d).
+ * `BASIS_PROCLAMATION` is re-exported unchanged because `holidayAudit.ts` imports it FROM HERE, and the
+ * string it keys off must remain the one this module validates against (Rule 5).
  */
-function easterSundayISO(year: number): string {
-  const a = year % 19
-  const b = Math.floor(year / 100)
-  const c = year % 100
-  const d = Math.floor(b / 4)
-  const e = b % 4
-  const f = Math.floor((b + 8) / 25)
-  const g = Math.floor((b - f + 1) / 3)
-  const h = (19 * a + b - d - g + 15) % 30
-  const i = Math.floor(c / 4)
-  const k = c % 4
-  const l = (32 + 2 * e + 2 * i - h - k) % 7
-  const m = Math.floor((a + 11 * h + 22 * l) / 451)
-  const month = Math.floor((h + l - 7 * m + 114) / 31)
-  const day = ((h + l - 7 * m + 114) % 31) + 1
-  return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10)
-}
-
-/** UTC day-of-week. NEVER getDay() — that is local time. 0 = Sunday. */
-function utcDayOfWeek(dateStr: string): number {
-  return new Date(`${dateStr}T00:00:00.000Z`).getUTCDay()
-}
-
-function shiftISO(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00.000Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
-}
-
-/**
- * A NaN check is not enough: V8 silently ROLLS OVER an out-of-range day inside a valid month, so
- * `new Date("2026-02-30T00:00:00Z")` is 2 March rather than Invalid Date. Only a round-trip catches it.
- */
-function isRealCalendarDay(iso: string): boolean {
-  const d = new Date(`${iso}T00:00:00.000Z`)
-  if (Number.isNaN(d.getTime())) return false
-  return d.toISOString().slice(0, 10) === iso
-}
+export { BASIS_PROCLAMATION }
 
 class HolidayTableError extends Error {
   constructor(message: string) {
@@ -287,9 +234,9 @@ function assertYearCoverage({ coversFrom, coversThrough, holidays }: HolidayTabl
     }
     const easter = easterSundayISO(y)
     const required = [
-      ...[...SCHEDULE_1_FIXED_MMDD].map((mmdd) => `${y}-${mmdd}`),
-      shiftISO(easter, -2), // Good Friday
-      shiftISO(easter, 1),  // Family Day
+      ...[...SCHEDULE_1_FIXED.keys()].map((mmdd) => `${y}-${mmdd}`),
+      shiftISO(easter, GOOD_FRIDAY_OFFSET),
+      shiftISO(easter, FAMILY_DAY_OFFSET),
     ]
     for (const day of required) {
       if (!present.has(day)) {
@@ -360,8 +307,11 @@ export function assertHolidayCoverage(dateStr: string, fn: string): void {
   throw new RangeError(
     `${fn}: ${dateStr} is outside the SA public-holiday table ` +
       `(${HOLIDAY_TABLE_COVERS_FROM}..${HOLIDAY_TABLE_COVERS_THROUGH}). ` +
-      `Extend lib/dates/saHolidays.json and check the Government Gazette for newly proclaimed once-off ` +
-      `holidays. Refusing to compute a statutory deadline against unknown holidays.`,
+      `The table is GENERATED — run \`npm run gen:holidays\`; do NOT hand-edit lib/dates/saHolidays.json ` +
+      `(a byte-for-byte diff test rejects any hand-edit). If regenerating does not move the horizon, the ` +
+      `next year is one the Public Holidays Act does not settle by itself: record the Government Gazette ` +
+      `proclamation in lib/dates/saProclamations.json and lift that year's refusal in ` +
+      `lib/dates/saHolidayDerivation.ts. Refusing to compute a statutory deadline against unknown holidays.`,
   )
 }
 

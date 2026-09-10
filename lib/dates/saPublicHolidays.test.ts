@@ -86,17 +86,28 @@ describe("addBusinessDays — STATUTORY: weekends AND public holidays", () => {
 })
 
 describe("the horizon — fail CLOSED on the statutory path", () => {
-  it("throws past the table, naming the boundary and the file to extend", () => {
-    expect(() => addBusinessDays("2028-01-03", 5)).toThrow(/outside the SA public-holiday table/)
-    // The error must name the file a human has to edit. That file moved to the JSON in 70K Phase A; the
-    // PROPERTY being asserted — an error that states its own fix — is unchanged, which is the whole point.
-    expect(() => addBusinessDays("2028-01-03", 5)).toThrow(/saHolidays\.json/)
-    expect(() => addBusinessDays("2028-01-03", 5)).toThrow(new RegExp(HOLIDAY_TABLE_COVERS_THROUGH))
+  // DERIVED from the constant, never typed. These read "2028-…" until ADDENDUM_70L Phase A made the
+  // horizon a consequence of the statute rather than of how far someone typed — at which point three
+  // fail-closed tests started passing vacuously, because 2028 had moved INSIDE the table. A test that
+  // asserts behaviour AT a boundary must be anchored TO that boundary, or it silently stops testing it.
+  const horizonYear = Number(HOLIDAY_TABLE_COVERS_THROUGH.slice(0, 4))
+  const pastHorizon = `${horizonYear + 1}-01-03`
+  const nearHorizonEnd = `${horizonYear}-12-20`
+
+  it("throws past the table, naming the boundary and the REACHABLE fix", () => {
+    expect(() => addBusinessDays(pastHorizon, 5)).toThrow(/outside the SA public-holiday table/)
+    // The PROPERTY is "an error that states its own fix" — but a fix the gate REJECTS is worse than none,
+    // because the operator burns the outage following it. 70L Phase A made saHolidays.json generated and
+    // byte-diffed, so the old pin (/saHolidays\.json/) went on passing while the advice it guarded became
+    // "hand-edit the file the diff test rejects". Pin the two things that actually resolve the outage.
+    expect(() => addBusinessDays(pastHorizon, 5)).toThrow(/gen:holidays/)
+    expect(() => addBusinessDays(pastHorizon, 5)).toThrow(/saProclamations\.json/)
+    expect(() => addBusinessDays(pastHorizon, 5)).toThrow(new RegExp(HOLIDAY_TABLE_COVERS_THROUGH))
   })
 
   it("throws when the WALK crosses the horizon, not just the start date", () => {
     // Starts inside, ends outside — a silently weekends-only tail would be the exact bug we are preventing.
-    expect(() => addBusinessDays("2027-12-20", 20)).toThrow(/outside the SA public-holiday table/)
+    expect(() => addBusinessDays(nearHorizonEnd, 20)).toThrow(/outside the SA public-holiday table/)
   })
 
   it("throws below the table too — an unknown holiday is not an absent one", () => {
@@ -107,8 +118,13 @@ describe("the horizon — fail CLOSED on the statutory path", () => {
 })
 
 describe("subtractBusinessDays — ADVISORY: warns and degrades, never throws", () => {
-  it("does not throw past the horizon (a lease ending in 2029 must not blank the calendar)", () => {
-    expect(() => subtractBusinessDays("2029-06-30", 20)).not.toThrow()
+  it("does not throw past the horizon (a lease ending past the table must not blank the calendar)", () => {
+    // ANCHORED, not hardcoded — the fourth instance of the vacuous-boundary class, missed on the first
+    // sweep because it sits 14 lines below the block that was fixed. A literal 2029-06-30 was outside the
+    // table when written and is inside it now, so all 20 backward steps stayed in-window and the degrade
+    // branch stopped being exercised while the test still showed green.
+    const pastHorizon = `${Number(HOLIDAY_TABLE_COVERS_THROUGH.slice(0, 4)) + 1}-06-30`
+    expect(() => subtractBusinessDays(pastHorizon, 20)).not.toThrow()
   })
 
   it("is UTC-anchored, so it cannot drift with the server timezone", () => {
@@ -147,7 +163,10 @@ describe("subtractBusinessDaysStrict — STATUTORY backward walker (D-7g)", () =
   })
 
   it("throws at BOTH horizon ends — reaching for the advisory walker on a statutory path is the fail-open", () => {
-    expect(() => subtractBusinessDaysStrict("2028-01-05", 1)).toThrow(/outside the SA public-holiday table/)  // start past
+    // Anchored to the constant for the same reason as the horizon block above — a literal here went
+    // vacuous the moment the derived horizon overtook it.
+    const pastHorizon = `${Number(HOLIDAY_TABLE_COVERS_THROUGH.slice(0, 4)) + 1}-01-05`
+    expect(() => subtractBusinessDaysStrict(pastHorizon, 1)).toThrow(/outside the SA public-holiday table/)  // start past
     expect(() => subtractBusinessDaysStrict("2024-12-31", 1)).toThrow(/outside/)                              // start below
     expect(() => subtractBusinessDaysStrict("2025-01-02", 5)).toThrow(/outside/)                              // WALK crosses below
   })

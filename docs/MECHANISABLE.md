@@ -517,6 +517,16 @@ better than the entry asked for.
 - **Probe both directions:** a heredoc message naming `--no-verify`, a hard reset and a force push must COMMIT; `git commit -F - --no-verify` — the flag genuinely present on the command line, alongside a heredoc — must still be DENIED. The second is the one that makes the first safe, and a fix that only tests the first has widened the bypass.
 - **Covering spec:** NEW
 
+### M-125 — the holiday auditor going dark is reported as `status: "ok"`, and the horizon now controls how many ways it can happen
+
+- **Rule:** a witness that could not be read is not a witness that agreed. `!audit.ran` must not render as `ok`.
+- **Where it lives:** `fetchNagerZA` in `lib/dates/holidayAuditFetch.ts` loops `yearsInWindow()` and returns `null` if **any single** year is not HTTP 200 — deliberately, because a partial fetch would fabricate Class-B noise. `app/api/cron/holiday-sentinel/route.ts` then writes `detail.holiday_audit = { status: "ok" }` when `!audit.ran`, so the daily run reports healthy and digests nothing.
+- **Rung:** check · **Blast:** other
+- **Observed 2026-09-10** by the walker on ADDENDUM_70L Phase A, and the finding is the COUPLING, not the fail-open on its own. `yearsInWindow()` derives from `HOLIDAY_TABLE_COVERS_FROM..THROUGH`. 70L made the horizon a consequence of the statute rather than a typed literal, which moved it 2027→2032 — so the fetch went 3 years to 8, and the number of independent ways to trip an all-or-nothing gate went with it. **Nothing in the diff touched the auditor.** A derived horizon is the right design; the point is that it silently re-rates an unrelated control's failure probability, and the one report that would show it says `ok`.
+- **Not urgent on evidence:** live Nager serves ZA for every year in the window including 2032 and 2033 (curl, 2026-09-10, all 200), so no year is unsupported today.
+- **Satisfied when:** a run where the primary witness returned nothing reports a state distinguishable from agreement, and a probe drives `fetchNagerZA` to `null` and asserts the route does NOT emit `ok`. ⚠ Do **not** "fix" this by making the fetch partial-tolerant — the all-or-nothing return is the deliberate anti-noise choice, and relaxing it trades a visible dark run for invented Class-B diffs.
+- **Covering spec:** ADDENDUM_70K Phase C (the sentinel), ADDENDUM_70L Phase A (the horizon that re-rated it)
+
 ### M-033 — ✅ BUILT (found already shipped 2026-08-21) — `@typescript-eslint/no-explicit-any` is resolver-visible
 
 - **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`)
