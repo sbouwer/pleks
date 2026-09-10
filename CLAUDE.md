@@ -593,6 +593,15 @@ it observed** — the anchor rule of §8, applied to agents, and the thing that 
 in any isolation mode. Subagents DO receive this file (E3) but a narrow-task agent skims it,
 and rung-4 rule files never reach an edit-blind session (E1b) — presence is not enforcement.
 
+**STANDING AUTHORISATION — Stéan, 2026-09-10, from this date onwards.** *Agents listed in the table
+above may be spawned without per-session approval; writes stay bounded by
+`.handoff/write-manifest.json`; nothing here authorises a push.* This is the authorisation L-68 asks
+for, and it is here because the lesson's point is that it must be **dated and attributed** — until
+today the only warrant was this table's existence, which a session had to read as "the repo asking",
+and inference is what L-68 names as the gap. It does not widen §5's write scope or §3's push gate;
+it removes the question of whether spawning was permitted, not the bounds on what a spawned agent
+may do.
+
 **Classify per site, never sweep.** Two sites identical to twenty-five others were correct for a
 reason invisible to the regex.
 
