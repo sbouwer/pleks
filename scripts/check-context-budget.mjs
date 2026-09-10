@@ -25,6 +25,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, openSync, writeSync, closeSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { pathToFileURL } from "node:url"
 
 const HOOK = ".claude/hooks/context-budget.js"
 
@@ -159,11 +160,13 @@ const ok = (cond, label, detail = "") => { if (!cond) failed++; console.log(`  $
   // hook's output instead, every field came back undefined, and `(undefined ?? 0) - (undefined ?? 0)`
   // is 0 — which is less than any threshold. The probe passed while asserting nothing. Hence the
   // marker, and hence the explicit "rss is a positive number" assertion below it.
+  // The driver loads the hook by `await import`, NOT `createRequire`. The hook became an ES module
+  // when `.claude/package.json` declared the kind (dev-standards M-KIT-17 / L-94); a createRequire
+  // driver would throw ERR_REQUIRE_ESM here and the probe would then be measuring its own harness
+  // rather than the hook's RSS — the same class of self-measurement the marker above records.
   const driver = join(tmp, "rss-driver.mjs")
   writeFileSync(driver, [
-    `import { createRequire } from "node:module"`,
-    `const require = createRequire(${JSON.stringify(`file:///${process.cwd().replace(/\\/g, "/")}/`)})`,
-    `const h = require(${JSON.stringify(`./${HOOK}`)})`,
+    `const h = await import(${JSON.stringify(pathToFileURL(join(process.cwd(), HOOK)).href)})`,
     `const t0 = Date.now()`,
     `h.measure(process.argv[2], process.argv[3])`,
     `console.log("RSSPROBE:" + JSON.stringify({ rss: process.memoryUsage().rss, ms: Date.now() - t0 }))`,
