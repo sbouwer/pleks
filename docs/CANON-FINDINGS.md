@@ -81,6 +81,94 @@ FIX        needs them: the L-06 rationale for spawning the real subprocess, the 
            `Run:` lines naming the selftest.
 ```
 
+### CF-4 · `delivery-report --check` fails GREEN when the plan is untracked, and the neighbouring case proves it knew to say so
+
+```
+OBSERVED   DELIVERY-STANDARD §4 calls the baseline-moves-only-on-record rule "the rule the whole
+           report stands on". It reads history with `git log -- brief/build/90-release.md`. When
+           that path is gitignored the log is empty, `planVersions` returns a single "working
+           tree" version, nothing can be compared with anything, and `--check` prints ✅ — with
+           the words "history: 1 version(s) read", which read as history HAVING been read.
+
+COMMAND    Two throwaway repositories, identical but for one line of .gitignore, each given the
+           same undeclared baseline move (MS-01 2026-09-01 → 2026-10-01, no `Changed:` line):
+
+             $ node kit/project-kit/scripts/delivery-report.mjs $TRACKED --check
+             ❌ delivery-report: 1 finding(s) in brief/build/90-release.md
+               dda5754: MS-01 baseline moved 2026-09-01 → 2026-10-01 with no recorded reason …
+             exit 1
+
+             $ node kit/project-kit/scripts/delivery-report.mjs $IGNORED --check
+             ✅ delivery-report: 1 milestones (0 done), 1 spend rows, 0 recorded changes ·
+                agreed 2026-08-01 · history: 1 version(s) read
+             exit 0
+
+WHY IT IS  The script ALREADY handles the neighbouring case correctly: with no `.git` at all it
+CANON'S    returns `note: "not a git repository — the baseline's history was NOT checked"` and
+           --check prints ⊘. So the quiet arm is the strictly more misleading one — a repository
+           IS present, so the reader has every reason to assume the git-backed rule applied.
+           Portability: nothing here is about pleks's stack. It is true of any repo that keeps its
+           plan out of version control, and that is not an exotic choice — a delivery plan holds
+           the contract value, the day rate and per-milestone budgets, so a project on a PUBLIC
+           repository (pleks is one, verified `gh api repos/sbouwer/pleks` → `"private": false`)
+           cannot commit it. The estate's own three projects already split 2–1 on tracking
+           `brief/`, and canon's 60 probes were all written on the tracked side.
+           The other two arms fail SAFE and are not part of this finding: `--html` for a past
+           period refuses ("the plan was not yet committed on …", exit 1) and `--html` to date
+           refuses without `--preview`. It is exactly the GATE that lies.
+
+SMALLEST   In `planVersions`, treat "in a git repo, but this path has no committed versions" the
+FIX        same as "not a git repository": return the existing `note`, worded for the case — e.g.
+           `the plan is not tracked by git — the baseline's history was NOT checked`. `--check`
+           already prints `hist.note` before its verdict, so one added condition reaches the
+           output with no new plumbing. Must not break: the genuine first-commit case, where a
+           plan is tracked and staged but not yet committed — that is also zero versions and is
+           legitimately a draft, so the note must distinguish "untracked" (a finding) from "not
+           yet committed" (fine), which `git ls-files` answers.
+```
+
+### CF-5 · A `tracked` row that an adopter's own gate rejects leaves the adopter with no legal move
+
+```
+OBSERVED   Installing kit row `delivery-report` v1 verbatim turns `npm run check` RED in pleks:
+           `sonarjs/super-linear-regex` fires six times on canon's own bytes, plus
+           `sonarjs/single-character-alternation` once. pleks may not fix them (an edit outside a
+           KIT:CONFIG region forks a `tracked` row and check-kit-drift says so), may not disable
+           them at the site (same fork), and may not exempt the path — CLAUDE.md §4 forbids
+           widening an allowlist to make CI green, and the eslint config's 2026-08-22 ruling names
+           `sonarjs/super-linear-regex` as one of the two families "with an incident behind them",
+           kept ON for `scripts/**` deliberately. So the row was HELD, not adopted.
+
+COMMAND    $ cp kit/project-kit/scripts/delivery-report.mjs scripts/ && npm run check
+             scripts/delivery-report.mjs
+               61:17  error  Replace this alternation with a character class    single-character-alternation
+               81:16  error  Simplify this regular expression … backtracking    super-linear-regex
+              115:17  error  … 125:15 … 427:13 … 620:19  (same rule)
+             ✖ 7 problems (7 errors, 0 warnings)
+
+           $ cd C:/dev/dev-standards && npm run check:lint      # → "eslint ."
+             devDependencies: @eslint/js, eslint, knip, madge   # no eslint-plugin-sonarjs
+
+WHY IT IS  Canon cannot see this class, by construction: its lint is `@eslint/js` only, so the
+CANON'S    rule that rejects its bytes is one it does not run. That is the exact shape of canon's
+           own scar `0195b66` — "a rule canon writes is obeyed somewhere canon cannot see" — with
+           the arrow reversed. Portability: it is not about sonarjs or about pleks. `tracked` mode
+           assumes every adopter's gate will accept canon's bytes verbatim, and offers no move
+           when one does not: fix, exempt and disable are all forks, so the only remaining action
+           is to decline the row entirely. A kit that propagates strictness to its adopters and
+           does not hold itself to it will meet this again with the next rule any project adds.
+
+SMALLEST   Two, and the first is a one-session fix: repair the seven sites. All are the same
+FIX        class — `\s` (which matches newlines) where `[ \t]` is meant, in regexes that parse ONE
+           already-split line, plus `(—|–|-)` → `[—–-]` at :61. Concretely :125
+           `/^\s*-\s*\*\*([^*:]+):\*\*\s*(.*)$/` → `/^[ \t]*-[ \t]*\*\*([^*:]+):\*\*[ \t]*(.*)$/`.
+           Must not break the parse of a line with no leading space, or of `- **Learned:**` with
+           an empty value. The second is the structural half and is a separate decision: either
+           run the estate's own rule set over the kit before shipping a `tracked` row, or declare
+           what an adopter may do when its gate rejects canon's bytes — today "hold the row" is
+           the only lawful answer and nothing in the kit says so.
+```
+
 ---
 
 ## 2 · Lesson answers
@@ -107,7 +195,9 @@ is what an unanswered lesson should look like.
 | L-73 | `n/a:` **no pleks check derives its population from build output.** Swept every check that enforces a rule about user-facing surfaces — `check-legal-localhost.mjs`, `check-marketing-consistency.mjs`, `check-retention-claims.mts`, `security/route-census.mjs`, `security/server-action-census.mjs` — and all derive from **source**, not from `.next/`. CLAUDE.md's "derived from disk" means the source tree: Category 8 walks `app/api/**` route files and Category 15 walks `"use server"` files, so a dynamic/on-demand route is as visible to them as a static one. A repo-wide grep for build-artefact paths returns 4 hits, all of them **exclusions**. | `grep -rn "\.next/\|prerender-manifest\|app-path-routes-manifest" scripts/` → 4 hits, all exclusions. |
 | L-24 | 2026-09-10 | pleks acquired its first generated-artefact pair in `1db5c871` (PR #296) — `lib/dates/saHolidays.json` from `scripts/codegen/gen-sa-holidays.mts` — and did not use the sibling as the correctness check. The byte-for-byte comparison (`lib/dates/saHolidayDerivation.test.ts:38`) is scoped to the one question a common-ancestor diff can answer, **hand-editing**, and its limit is tested rather than assumed: the next case, *"that diff has TEETH — a single changed row makes the render differ"*, exists because `committed === expected` *"would pass just as happily if the renderer emitted a constant, or if both sides were empty."* Correctness is verified against **ground truth**: `lib/dates/holidayAudit.ts` + the sentinel read Nager.Date and the gov.za notices RSS as external read-only witnesses, and `app/api/cron/holiday-sentinel/route.ts:12` records where that witness is known to be weaker than the table rather than treating agreement as proof. |
 
-**The 2026-09-10 triage answered 13 of the 21 open lessons. The other 8 are NOT in the table above,
+| L-68 | 2026-09-10 | Given the same day it was raised, by the only person who could give it. `CLAUDE.md` §7 now carries: *"**STANDING AUTHORISATION — Stéan, 2026-09-10, from this date onwards.** Agents listed in the table above may be spawned without per-session approval; writes stay bounded by `.handoff/write-manifest.json`; nothing here authorises a push."* **What was wrong before is worth recording, because it is the lesson's whole shape:** the warrant was §7's agents table itself, which a session had to read as "the repo asking" — inference from a table's existence, re-derived from scratch by every session and attributable to nobody. The scope clause is not decoration: a bare dated signature would have authorised everything and nothing, and the next session would have gone back to inferring. It removes the question of whether spawning was permitted; it does not widen §5's write bound or §3's push gate, both of which still hold. |
+
+**The 2026-09-10 triage answered 14 of the 21 open lessons. The other 7 are NOT in the table above,
 and that is the point** — `--emit-open` should keep reporting them until pleks carries them. They are
 listed here so the next session knows the triage finished rather than stopped, and so nobody
 re-derives the measurement. **⚠ Canon: do not lift this list.** None of these is an `Applied:` value;
@@ -120,7 +210,6 @@ each is an open item with an owner in this repo.
 | L-63 | `claude-module-kind`'s verifier exists but runs only from canon, so emptying `.claude/package.json` leaves `npm run check` green. | **M-129** |
 | L-64 | Nothing states that a hook installed mid-session does nothing for that session, or the throwaway-call verification. Genuine zero. | `brief/CURRENT.md` |
 | L-67 | The file-header template in `CLAUDE.md` §9 is a second copy `check-file-headers.mjs` never reads. | **M-131** |
-| L-68 | No dated, attributed standing authorisation for the host layer. **Needs Stéan** — it is his authorisation to give, not a control to build. | `brief/CURRENT.md` |
 | L-71 | The rule is stated; the sweep is not. Running it finds 436 mojibake sequences in four migration files. | **M-126** |
 | L-72 | A passkey is minted on session state alone while revoking one demands step-up. | **M-127** |
 
@@ -136,6 +225,21 @@ never *exempt*, so the reason has to argue it.
   row existed; canon turned it into a template row the same day, and this is the merge back onto that
   shape — §2 and §3 added, §1 and **Filed** carried across unchanged with their corrections. Record
   it in `kitAdopted`.
+
+- **PINNED — row `delivery-report`, v1 held, not installed. Review 2026-09-17.** Read, probed
+  against this tree, and deliberately behind. **The reason is CF-5 and it is not a preference:**
+  canon's copy fails pleks's lint seven times (`sonarjs/super-linear-regex` ×6,
+  `single-character-alternation` ×1), and every way to make it green is forbidden here — fixing or
+  disabling at the site forks a `tracked` row, and exempting the path widens an allowlist against a
+  rule the 2026-08-22 eslint ruling names as having an incident behind it. **Do not record this in
+  `kitAdopted`.** Lift the seven-site fix from CF-5 and pleks will take v2 the day it lands; the
+  install and gate wiring were rehearsed on 2026-09-10 and backed out, and `--selftest` passed here
+  before it was.
+- **Not a pin, but canon should know it is coming:** the pleks-side guard for CF-4,
+  `scripts/check-delivery-plan-tracked.mjs`, is already wired into `npm run check` and passes
+  quietly while the row is held. It is **project-owned, not a kit candidate as written** — it exists
+  because pleks cannot track its plan, which is a property of this repo. If CF-4's fix lands in
+  `planVersions`, this check becomes redundant and should be deleted here rather than promoted.
 
 ---
 
