@@ -190,9 +190,14 @@ function TrustCloseContent() {
       })
 
       if (!result.ok) {
-        setError("stepUpChallenge" in result
-          ? "Step-up authentication required. Please verify your identity."
-          : result.error)
+        // A null stepUpChallenge means the challenge could not be created at all, so "verify your
+        // identity" would send the user looking for a prompt that does not exist — show the
+        // server's reason instead.
+        let message: string
+        if (!("stepUpChallenge" in result)) message = result.error
+        else if (result.stepUpChallenge) message = "Step-up authentication required. Please verify your identity."
+        else message = result.error ?? "Could not start re-authentication. Please try again."
+        setError(message)
         return
       }
       router.push(`/finance/trust-ledger/audit/${result.periodId}`)

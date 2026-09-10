@@ -233,6 +233,13 @@ export default function WelcomeClient({
           </div>
         </>
       )}
+
+      {/* M-127: adding a passkey to an account that already has one needs step-up. Both enrol paths
+          here are normally the BOOTSTRAP case — the backup passkey is only offered when the primary
+          was TOTP, so the account still has zero. Rendered because /welcome is reachable again on a
+          later session, where the account may already carry a passkey; without the modal that enrol
+          would fail with a bare "Cancelled". */}
+      {passkey.stepUpModal}
     </div>
   )
 }

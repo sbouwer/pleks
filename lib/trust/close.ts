@@ -33,7 +33,9 @@ interface CloseTrustPeriodParams {
 
 type CloseTrustPeriodResult =
   | { ok: true; periodId: string }
-  | { ok: false; stepUpChallenge: string }
+  // `stepUpChallenge: null` means no challenge could be issued at all (the insert failed), as
+  // distinct from "here is a challenge, go satisfy it". `error` carries the message to show.
+  | { ok: false; stepUpChallenge: string | null; error?: string }
   | { ok: false; error: string }
 
 export async function closeTrustPeriod(
@@ -50,7 +52,7 @@ export async function closeTrustPeriod(
     providedToken: params.stepUpToken,
   })
   if (!stepUp.verified) {
-    return { ok: false, stepUpChallenge: stepUp.challengeToken }
+    return { ok: false, stepUpChallenge: stepUp.challengeToken, error: stepUp.error }
   }
 
   const hdrs = await headers()

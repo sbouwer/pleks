@@ -4182,3 +4182,48 @@ UPDATE external_links SET url = 'https://support.apple.com/guide/safari/manage-c
 UPDATE external_links SET url = 'https://support.microsoft.com/en-us/edge/manage-cookies-in-microsoft-edge-view-allow-block-delete-and-use'
  WHERE key = 'edgeCookieHelp'
    AND url = 'https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09';
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §54  M-127: step_up_challenges.action gains 'passkey_enroll' (2026-09-10)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Enrolling a passkey demanded nothing but a live session while REVOKING one demanded step-up, so
+-- a stolen session could mint a permanent login credential (and, on an agent account, an immediate
+-- AAL2 grant) — dev-standards L-72 / M-127. lib/auth/passkeys/enrol-assurance.ts now requires
+-- step-up to enrol whenever the account already holds an active passkey, which needs an action
+-- value the CHECK at §5.2.4 does not carry.
+--
+-- WHY THIS IS A SEPARATE SECTION AND NOT AN EDIT TO §5.2.4. That block is `CREATE TABLE IF NOT
+-- EXISTS`: on every database that already has the table — which is all of them — editing the value
+-- list inside it changes NOTHING, while looking exactly like a fix. Amend-forward is the only shape
+-- that reaches an existing database. (A fresh replay gets §5.2.4's list and then this widening; both
+-- orders end in the same constraint.)
+--
+-- ⚠ ORDERING — THIS MUST REACH AN ENVIRONMENT BEFORE THE CODE THAT USES IT.
+-- Additive DDL unblocks code, so it leads (the inverse of §53's value correction, which follows its
+-- code). Deploy the code first and the sequence is: user with ≥1 passkey taps "add a passkey" →
+-- issueStepUpChallenge inserts action='passkey_enroll' → 23514 → no challenge exists. The insert
+-- failure is no longer silent (lib/auth/step-up.ts returns null rather than a phantom token, so the
+-- client shows an error instead of an unsatisfiable modal), but enrolment is still broken for every
+-- such user until this lands. Bootstrap enrolment — zero active passkeys — never inserts a challenge
+-- and is unaffected either way.
+--
+-- The value list below is the LIVE set plus one. A DROP+ADD must restate every value it intends to
+-- keep: §30.2 dropped eight by restating a shorter list (see the auth_events section above), and
+-- that is the failure this file has already paid for once.
+ALTER TABLE step_up_challenges DROP CONSTRAINT IF EXISTS step_up_challenges_action_check;
+ALTER TABLE step_up_challenges ADD CONSTRAINT step_up_challenges_action_check
+  CHECK (action IN (
+    'trust_account_write',
+    'deposit_refund_approval',
+    'bank_detail_change',
+    'team_role_change',
+    'subscription_change',
+    'tenant_data_deletion',
+    'ownership_transfer',
+    'security_settings_change',
+    'passkey_enroll',
+    'passkey_unenroll',
+    'totp_unenroll',
+    'bulk_export'
+  ));

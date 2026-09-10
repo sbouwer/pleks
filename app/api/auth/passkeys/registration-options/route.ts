@@ -2,12 +2,14 @@
  * app/api/auth/passkeys/registration-options/route.ts — Generate WebAuthn registration challenge
  *
  * Route:  POST /api/auth/passkeys/registration-options
- * Auth:   aal1 session required (must be logged in to enrol a passkey)
+ * Auth:   aal1 session required (must be logged in to enrol a passkey), PLUS step-up once the
+ *         account already holds an active passkey — see lib/auth/passkeys/enrol-assurance.ts
  */
 import { generateRegistrationOptions } from "@simplewebauthn/server"
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
+import { requirePasskeyEnrolAssurance } from "@/lib/auth/passkeys/enrol-assurance"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { hashIp } from "@/lib/crypto"
 
@@ -24,6 +26,20 @@ export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response("Unauthenticated", { status: 401 })
+
+  // M-127. `consume: false` — this half only reports whether assurance is outstanding; the token is
+  // single-use and registration-verify spends it. Refusing HERE is what stops a user completing a
+  // biometric prompt and only then being told to re-authenticate, and it means the WebAuthn
+  // challenge cannot be issued under one rule and redeemed under a weaker one.
+  const body = await req.json().catch(() => ({})) as { stepUpToken?: string | null }
+  const assurance = await requirePasskeyEnrolAssurance({
+    userId: user.id,
+    providedToken: body.stepUpToken ?? null,
+    consume: false,
+  })
+  if (!assurance.ok) {
+    return Response.json({ challengeToken: assurance.challengeToken, error: assurance.error }, { status: 401 })
+  }
 
   const serviceDb = await createServiceClient()
 
