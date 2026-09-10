@@ -98,12 +98,13 @@ as a date. **"Not yet" is not an answer** — leave the lesson off this table an
 is what an unanswered lesson should look like.
 
 | Lesson | Answer — `YYYY-MM-DD` or `n/a: <reason>` | Evidence — SHA, path or command |
+| L-71 | 2026-09-10 | `scripts/check-mojibake.mjs`, in `npm run check` with its selftest, plus the repair of the four damaged migration files. **The rule's stated half was already carried** (`CLAUDE.md` §8: *"never author a pattern through a shell string… write the script to a file with an editor"*); what pleks lacked was **detection**, which a stated rule cannot supply for damage that predates it. **Two things worth sending back with the date.** First, the survey that opened this answer reported **436** sequences and was wrong by half — the real figure is **861** runs. It was a grep of the `Ã`/`â€`/`Â` families, and the dominant damage here is a doubly-encoded box rule whose third character is `U+0090`, an invisible C1 control that no family grep names. A blacklist of the mojibake you have already seen cannot find the mojibake you have not, and the number it produces looks like a measurement. Second, the detection that replaced it needs no list at all: re-encode a run to cp1252 and try to decode those bytes as strict UTF-8 — correct text cannot survive that, so success *is* the diagnosis. **That is portable and canon may want it**: it is arithmetic on codepoints, with no repo, stack or language in it. Evidence: repair verified by running it over all twelve migrations and confirming the eight undamaged files came out byte-identical, and by re-running the detector against `HEAD:` where it still reports all 861. |
 | L-64 | 2026-09-10 | `CLAUDE.md` §3 now states it, in the gates section where a session reads about hooks rather than in a hooks appendix: a hook installed **or edited** mid-session is not loaded by that session; restart, then verify with a throwaway call that would previously have prompted. The extension beyond the lesson's wording is deliberate — the lesson says *installed*, and an edit to an already-registered hook is the same inert change with none of the "did I wire it up right?" suspicion attached. **Prose, not a mechanism, and correctly so:** no control in this repo can observe when a hook file was written relative to session start. |
 | L-68 | 2026-09-10 | Given the same day it was raised, by the only person who could give it. `CLAUDE.md` §7 now carries: *"**STANDING AUTHORISATION — Stéan, 2026-09-10, from this date onwards.** Agents listed in the table above may be spawned without per-session approval; writes stay bounded by `.handoff/write-manifest.json`; nothing here authorises a push."* **What was wrong before is worth recording, because it is the lesson's whole shape:** the warrant was §7's agents table itself, which a session had to read as "the repo asking" — inference from a table's existence, re-derived from scratch by every session and attributable to nobody. The scope clause is not decoration: a bare dated signature would have authorised everything and nothing, and the next session would have gone back to inferring. It removes the question of whether spawning was permitted; it does not widen §5's write bound or §3's push gate, both of which still hold. |
 
 **The 13 answers from the 2026-09-10 triage were lifted in `fa7b92f` and have dropped to Filed** —
-canon's `LESSONS.md` is their record now, and this file does not restate it. **L-64 and L-68 above
-are the two still awaiting canon**; both were given after the outbox was read at `9430df2a`.
+canon's `LESSONS.md` is their record now, and this file does not restate it. **L-64, L-68 and L-71
+above are the three still awaiting canon**; all were given after the outbox was read at `9430df2a`.
 
 **⚠ Two dates canon corrected on measurement, and one it sent back — recorded here so the next
 session does not re-report the old ones:**
@@ -120,7 +121,7 @@ session does not re-report the old ones:**
   of the tree. Canon's own half (`bd58b28`, 2026-08-19) precedes it, so the later of the two governs.
   **Canon: rewrite L-66's line to 2026-08-20, evidence `fd818c0c`.**
 
-**The 6 open lessons below are NOT answers**, and that is the point — `--emit-open` should keep
+**The 5 open lessons below are NOT answers**, and that is the point — `--emit-open` should keep
 reporting them until pleks carries them. They are listed so the next session knows the triage
 finished rather than stopped. **⚠ Canon: do not lift this list.** None is an `Applied:` value; each
 is an open item with an owner in this repo.
@@ -131,7 +132,6 @@ is an open item with an owner in this repo.
 | L-23 | 80-entry ESLint baselines carry no per-entry reason, and only one allowlist has a staleness check — which catches a deleted route, not a reclassified one. | **M-130** |
 | L-63 | `claude-module-kind`'s verifier exists but runs only from canon, so emptying `.claude/package.json` leaves `npm run check` green. | **M-129** |
 | L-67 | The file-header template in `CLAUDE.md` §9 is a second copy `check-file-headers.mjs` never reads. | **M-131** |
-| L-71 | The rule is stated; the sweep is not. Running it finds 436 mojibake sequences in four migration files. | **M-126** |
 | L-72 | **Half carried, so still open — and the open half is the one that reopens the closed half.** The passkey mint is gated on account state as of `effb2481` (M-127, 2026-09-10). The TOTP mint is not: `supabase.auth.mfa.enroll` runs on the browser client with no server gate, so a stolen session mints a TOTP for free and then satisfies the passkey guard with it. A date here would claim a coverage pleks does not have. | **M-127** ✅ built · **M-132** open |
 
 ---

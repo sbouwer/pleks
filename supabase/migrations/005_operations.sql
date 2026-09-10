@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS contractors (
   -- Contractor portal access
   portal_access_enabled boolean DEFAULT false,
   portal_invite_sent_at timestamptz,
-  -- access_token (old token-link mechanism) removed Â§32 â€” superseded by auth_user_id (ADDENDUM_AUTH_HARDENING P-2)
+  -- access_token (old token-link mechanism) removed §32 — superseded by auth_user_id (ADDENDUM_AUTH_HARDENING P-2)
   auth_user_id    uuid REFERENCES auth.users(id),
   notification_email boolean DEFAULT true,
   notification_sms   boolean DEFAULT false,
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS contractors (
                   CHECK (supplier_type IN ('contractor', 'recurring', 'both',
                                            'managing_scheme', 'utility', 'other')),
   vat_registered  boolean DEFAULT false,
-  -- Banking moved to contact_bank_accounts (002 Â§16) â€” multi-account, contact-scoped, read by contact_id.
+  -- Banking moved to contact_bank_accounts (002 §16) — multi-account, contact-scoped, read by contact_id.
 
   -- Audit
   is_active       boolean DEFAULT true,
@@ -1516,9 +1516,9 @@ CREATE POLICY "org_info_request_events" ON property_info_request_events
 
 CREATE INDEX IF NOT EXISTS idx_info_request_events_request ON property_info_request_events(request_id);
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§ADDENDUM_45A  Maintenance lifecycle hardening â€” cancellation, reassignment, photo visibility
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_45A  Maintenance lifecycle hardening — cancellation, reassignment, photo visibility
+-- ═══════════════════════════════════════════════════════════════════════════════
 
 -- Structured cancellation fields on maintenance_requests
 ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS cancellation_reason     text;
@@ -1553,13 +1553,13 @@ ALTER TABLE maintenance_photos ADD COLUMN IF NOT EXISTS uploader_name text;
 -- Denormalized actor display name on audit_log (set by the mutation that writes the log)
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_name text;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§BUILD_67  Rules engine: PAIA 90-day PII purge marker on applications
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §BUILD_67  Rules engine: PAIA 90-day PII purge marker on applications
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Set by the single 90-day declined-applicant purge (lib/popia/screeningArtefactPurge.ts, run from the
 -- daily cron) when an application's PII is removed. The idempotency marker: the purge skips any row where
 -- pii_purged_at IS NOT NULL, so re-runs are no-ops. (Originally written by the BUILD_67
--- rejected-applicant-purge OrgRule, retired + folded into the comprehensive purge â€” ADDENDUM_70H F3.)
+-- rejected-applicant-purge OrgRule, retired + folded into the comprehensive purge — ADDENDUM_70H F3.)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS pii_purged_at timestamptz;
 CREATE INDEX IF NOT EXISTS idx_applications_pii_purged ON applications(pii_purged_at) WHERE pii_purged_at IS NULL;
 
@@ -1569,15 +1569,15 @@ ALTER TABLE contractor_updates ADD COLUMN IF NOT EXISTS actor_name text;
 -- Denormalized contractor name on maintenance_quotes (set when quote is created)
 ALTER TABLE maintenance_quotes ADD COLUMN IF NOT EXISTS contractor_name text;
 
--- in_progress_at timestamp on maintenance_requests (set when status â†’ in_progress)
+-- in_progress_at timestamp on maintenance_requests (set when status → in_progress)
 ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS in_progress_at timestamptz;
 
--- closed_at timestamp on maintenance_requests (set when status â†’ closed)
+-- closed_at timestamp on maintenance_requests (set when status → closed)
 ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS closed_at timestamptz;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§CLEANUP_2026-05-11  Soft-delete for contractors (POPIA s14 purge support)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §CLEANUP_2026-05-11  Soft-delete for contractors (POPIA s14 purge support)
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Enables soft-delete for contractor records so POPIA s14 purge can be
 -- implemented without FK cascades. DELETE handler now sets deleted_at instead
 -- of hard-deleting. contractor_view excludes soft-deleted rows.
@@ -1619,12 +1619,12 @@ FROM contractors co
 JOIN contacts c ON c.id = co.contact_id
 WHERE co.deleted_at IS NULL;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§ADDENDUM_60B  Warranty tracking
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_60B  Warranty tracking
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Tracks active warranties on managed properties so agents are alerted when an
 -- incoming maintenance request may already be covered. Matches run via Haiku 4.5
--- at the moment a new request is logged. Soft-archive only â€” no DELETE path.
+-- at the moment a new request is logged. Soft-archive only — no DELETE path.
 
 CREATE TABLE IF NOT EXISTS warranties (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1708,7 +1708,7 @@ CREATE POLICY "warranties_update" ON warranties FOR UPDATE
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
--- No DELETE policy â€” soft-archive only (archived_at). D-60B-14.
+-- No DELETE policy — soft-archive only (archived_at). D-60B-14.
 
 DROP TRIGGER IF EXISTS warranties_set_updated_at ON warranties;
 CREATE TRIGGER warranties_set_updated_at
@@ -1721,15 +1721,15 @@ ALTER TABLE maintenance_requests
   ADD COLUMN IF NOT EXISTS workmanship_guarantee_terms  text,
   ADD COLUMN IF NOT EXISTS warranty_claim_id            uuid REFERENCES warranties(id);
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§BUILD_14_v2  Searchworx + FitScore unified screening flow
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Unifies applicant â†” tenant via contacts, adds entity_type for juristic
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §BUILD_14_v2  Searchworx + FitScore unified screening flow
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Unifies applicant ↔ tenant via contacts, adds entity_type for juristic
 -- applicants, introduces two-bundle screening (standard/estate), per-line
 -- payment tracking for commercial multi-party portal, bank statement
 -- classification table, prescreen iterations, immutable screening artifacts.
 
--- â”€â”€ applications: contact link + entity type â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── applications: contact link + entity type ─────────────────────────────────
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS contact_id uuid REFERENCES contacts(id);
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS entity_type text
   DEFAULT 'individual' CHECK (entity_type IN ('individual', 'organisation'));
@@ -1743,7 +1743,7 @@ COMMENT ON COLUMN applications.contact_id IS
 COMMENT ON COLUMN applications.entity_type IS
   'Mirrors contacts.entity_type. individual = consumer flow. organisation = commercial.';
 
--- â”€â”€ applications: current housing context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── applications: current housing context ────────────────────────────────────
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_housing_status text
   CHECK (current_housing_status IN (
     'renting', 'home_owner', 'living_with_family',
@@ -1755,11 +1755,11 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_lease_end_date     dat
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_rent_paid_via      text;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_lease_doc_path     text;
 
--- â”€â”€ applications: capital coverage path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── applications: capital coverage path ──────────────────────────────────────
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS total_declared_capital_cents bigint;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS capital_coverage_months      integer;
 
--- â”€â”€ applications: identity match from bank statement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── applications: identity match from bank statement ─────────────────────────
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_match text
   CHECK (bank_statement_holder_match IN (
     'exact', 'variant', 'mismatch', 'unable_to_extract', 'not_checked'
@@ -1767,13 +1767,13 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_match te
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_confidence      numeric(3,2);
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_name_extracted  text;
 
--- â”€â”€ applications: Estate bundle criminal check support â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── applications: Estate bundle criminal check support ───────────────────────
 -- criminal_check_consent_* + huru_check_* were scaffolded here for the Estate-bundle criminal-check
 -- feature, which was CANCELLED (INDEX 14E / OUTSTANDING C3). The ADD statements were removed 2026-07-07
 -- so a fresh replay never materialises the dead columns; §43 at the file tail DROPs them (IF EXISTS) to
 -- converge any environment that already created them from an earlier replay.
 
--- â”€â”€ applications: Pleks-internal tenant signal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── applications: Pleks-internal tenant signal ───────────────────────────────
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS prior_pleks_tenant_signal jsonb;
 COMMENT ON COLUMN applications.prior_pleks_tenant_signal IS
   'Cached lookup result. Populated by prescreen when applicant contact_id
@@ -1782,7 +1782,7 @@ COMMENT ON COLUMN applications.prior_pleks_tenant_signal IS
      late_count: int, missed_count: int, last_lease_end_date: date,
      source_lease_ids: uuid[], narrative: text }';
 
--- â”€â”€ listings: bundle selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── listings: bundle selection ────────────────────────────────────────────────
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS screening_bundle text
   NOT NULL DEFAULT 'standard'
   CHECK (screening_bundle IN ('standard', 'estate'));
@@ -1794,7 +1794,7 @@ COMMENT ON COLUMN listings.screening_bundle IS
    "estate"   = R650 fee, adds Huru Criminal Standard. Requires POPIA s26
    additional consent. See SEARCHWORX_RATE_CARD.md.';
 
--- â”€â”€ application_co_applicants: contact link + surety flag â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── application_co_applicants: contact link + surety flag ────────────────────
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS contact_id         uuid REFERENCES contacts(id);
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS is_surety_director boolean NOT NULL DEFAULT false;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS individual_fee_cents integer;
@@ -1814,7 +1814,7 @@ COMMENT ON COLUMN application_co_applicants.is_surety_director IS
    FALSE = joint residential co-applicant (spouse, partner).
    Distinguishes the two flows that share the same table.';
 
--- â”€â”€ application_directors: full declared director list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── application_directors: full declared director list ───────────────────────
 CREATE TABLE IF NOT EXISTS application_directors (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
@@ -1864,7 +1864,7 @@ CREATE POLICY "org_app_directors" ON application_directors
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
--- â”€â”€ application_screening_payments: per-line payment tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── application_screening_payments: per-line payment tracking ────────────────
 CREATE TABLE IF NOT EXISTS application_screening_payments (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                 uuid NOT NULL REFERENCES organisations(id),
@@ -1904,7 +1904,7 @@ CREATE TRIGGER update_screening_payments_updated_at
   BEFORE UPDATE ON application_screening_payments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- â”€â”€ application_bank_statement_classifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── application_bank_statement_classifications ────────────────────────────────
 CREATE TABLE IF NOT EXISTS application_bank_statement_classifications (
   id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                      uuid NOT NULL REFERENCES organisations(id),
@@ -1964,7 +1964,7 @@ ALTER TABLE application_bank_statement_classifications
       'dont_recognise_flag_for_agent', 'other', 'unclassified_skipped'
     ));
 
--- â”€â”€ application_prescreens: iterative prescreen history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── application_prescreens: iterative prescreen history ──────────────────────
 CREATE TABLE IF NOT EXISTS application_prescreens (
   id                            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                        uuid NOT NULL REFERENCES organisations(id),
@@ -2005,7 +2005,7 @@ CREATE POLICY "org_prescreens" ON application_prescreens
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
--- â”€â”€ screening_artifacts: immutable PDF records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── screening_artifacts: immutable PDF records ───────────────────────────────
 CREATE TABLE IF NOT EXISTS screening_artifacts (
   id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                      uuid NOT NULL REFERENCES organisations(id),
@@ -2044,9 +2044,9 @@ CREATE POLICY "org_screening_artifacts" ON screening_artifacts
   );
 
 -- The immutability latch MUST be RESTRICTIVE: permissive policies OR together, so a permissive USING(false) sitting
--- beside the permissive org "FOR ALL" policy is a no-op (org-true OR false = true â†’ update/delete allowed). RESTRICTIVE
+-- beside the permissive org "FOR ALL" policy is a no-op (org-true OR false = true → update/delete allowed). RESTRICTIVE
 -- policies AND with the permissive result (org-true AND false = false), so they actually block. (Service-role bypasses
--- RLS, so the legitimate purge still deletes; this hardens the anon/authenticated path â€” defence-in-depth.)
+-- RLS, so the legitimate purge still deletes; this hardens the anon/authenticated path — defence-in-depth.)
 DROP POLICY IF EXISTS "screening_artifacts_no_update" ON screening_artifacts;
 CREATE POLICY "screening_artifacts_no_update" ON screening_artifacts
   AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false);
@@ -2055,9 +2055,9 @@ DROP POLICY IF EXISTS "screening_artifacts_no_delete" ON screening_artifacts;
 CREATE POLICY "screening_artifacts_no_delete" ON screening_artifacts
   AS RESTRICTIVE FOR DELETE USING (false);
 
--- â”€â”€ v_application_screening_lines: orchestration view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── v_application_screening_lines: orchestration view ────────────────────────
 -- ADDENDUM_00M Phase 1: security_invoker so the caller's RLS applies (the view no longer runs as
--- its postgres owner and bypasses org-RLS). All readers are service-role â†’ functional no-op, but it
+-- its postgres owner and bypasses org-RLS). All readers are service-role → functional no-op, but it
 -- closes the direct-REST cross-org read path for any authenticated/anon JWT. Closes 1 of 3 ERRORs.
 CREATE OR REPLACE VIEW v_application_screening_lines
   WITH (security_invoker = true) AS
@@ -2141,12 +2141,12 @@ COMMENT ON VIEW v_application_screening_lines IS
    screening payments to derive per-line state. Drives the portal page UI
    and the screening-line-runner cron.';
 
--- â”€â”€ BUILD_14_v2 corrections (CD audit findings) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── BUILD_14_v2 corrections (CD audit findings) ─────────────────────────────
 -- Finding 1: bsc upsert requires a matching UNIQUE constraint. Omitting
 -- co_applicant_id from the key would silently collide two co-applicants who
 -- share a payee (e.g., both pay DStv). NULLS NOT DISTINCT (Postgres 15+)
 -- makes the NULL co_applicant_id row for the primary applicant a single
--- canonical slot â€” duplicate Sonnet runs for the same primary applicant
+-- canonical slot — duplicate Sonnet runs for the same primary applicant
 -- and payee correctly conflict.
 ALTER TABLE application_bank_statement_classifications
   DROP CONSTRAINT IF EXISTS bsc_unique_per_subject;
@@ -2155,7 +2155,7 @@ ALTER TABLE application_bank_statement_classifications
   UNIQUE NULLS NOT DISTINCT (application_id, co_applicant_id, payee_signature);
 
 -- Finding 2: identity_score + pleks_bonus_score component columns missing from
--- application_prescreens â€” the total_score was persisted but the breakdown
+-- application_prescreens — the total_score was persisted but the breakdown
 -- wasn't reconstructible for Tribunal-grade audit. income_cents / capital_cents
 -- preserve the raw rand inputs that produced Ratio 1 (currently only the
 -- derived ratio is stored).
@@ -2171,7 +2171,7 @@ ALTER TABLE application_prescreens
   ADD CONSTRAINT prescreens_identity_score_check    CHECK (identity_score    >= 0 AND identity_score    <= 5),
   ADD CONSTRAINT prescreens_pleks_bonus_score_check CHECK (pleks_bonus_score >= 0 AND pleks_bonus_score <= 5);
 
--- â”€â”€ ADDENDUM_14B closing-pass audit fixes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ── ADDENDUM_14B closing-pass audit fixes ────────────────────────────────────
 -- F4: reminder cron used strict day-equality; a missed cron run permanently
 -- skips that milestone. Shift to "any due milestone not yet sent" using a
 -- jsonb set on the co-applicant row. Each key (t3/t7/t10) is set to true
@@ -2179,18 +2179,18 @@ ALTER TABLE application_prescreens
 ALTER TABLE application_co_applicants
   ADD COLUMN IF NOT EXISTS reminder_milestones_sent jsonb NOT NULL DEFAULT '{}'::jsonb;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- End Â§BUILD_14_v2
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- End §BUILD_14_v2
+-- ═══════════════════════════════════════════════════════════════════════════════
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§ADDENDUM_14F  2-step SMS consent verification infrastructure
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_14F  2-step SMS consent verification infrastructure
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Per-verification-ceremony event log. One row per SMS/email send event.
--- Codes stored as HMAC-SHA256 with per-row salt â€” never plaintext.
+-- Codes stored as HMAC-SHA256 with per-row salt — never plaintext.
 -- Retention: verified rows retained with parent consent_log; expired/invalidated/
 -- abandoned rows purged after 30 days by cron.
--- See ADDENDUM_14F_CONSENT_VERIFICATION.md Â§Audit Trail Layer 2.
+-- See ADDENDUM_14F_CONSENT_VERIFICATION.md §Audit Trail Layer 2.
 
 CREATE TABLE IF NOT EXISTS consent_verifications (
   id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2231,10 +2231,10 @@ CREATE INDEX IF NOT EXISTS idx_consent_verif_pending     ON consent_verification
   WHERE status = 'pending';
 
 ALTER TABLE consent_verifications ENABLE ROW LEVEL SECURITY;
--- Service role only â€” no anon or agent-direct policy; all access via service client
+-- Service role only — no anon or agent-direct policy; all access via service client
 -- in API routes that validate tokens first.
 
--- â”€â”€ Rate-limit tracking per identifier (E.164 phone or canonical email) â”€â”€
+-- ── Rate-limit tracking per identifier (E.164 phone or canonical email) ──
 CREATE TABLE IF NOT EXISTS consent_verification_rate_limits (
   identifier                  text        PRIMARY KEY,
   sends_window_start          timestamptz NOT NULL,
@@ -2246,20 +2246,20 @@ CREATE TABLE IF NOT EXISTS consent_verification_rate_limits (
   updated_at                  timestamptz NOT NULL DEFAULT now()
 );
 
--- F3: 24h decay for soft_lockout_count_24h â€” tracks when the last soft lockout occurred
+-- F3: 24h decay for soft_lockout_count_24h — tracks when the last soft lockout occurred
 ALTER TABLE consent_verification_rate_limits ADD COLUMN IF NOT EXISTS last_soft_lockout_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS idx_rate_limit_hard_lockout ON consent_verification_rate_limits(hard_lockout_until)
   WHERE hard_lockout_until IS NOT NULL;
 
 ALTER TABLE consent_verification_rate_limits ENABLE ROW LEVEL SECURITY;
--- Service role only â€” no client-facing policies.
+-- Service role only — no client-facing policies.
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§ADDENDUM_14A  Property-intelligence module (PAYG)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_14A  Property-intelligence module (PAYG)
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- property_intelligence_pulls: one row per agent-initiated vendor pull (Deeds,
--- Lightstone, CIPC). Immutable after creation â€” status transitions via service role.
+-- Lightstone, CIPC). Immutable after creation — status transitions via service role.
 -- vendor_usage: cost-observability sibling to ai_usage (D-14A-18).
 
 CREATE TABLE IF NOT EXISTS property_intelligence_pulls (
@@ -2361,11 +2361,11 @@ DROP POLICY IF EXISTS "vendor_usage_org_read" ON vendor_usage;
 CREATE POLICY "vendor_usage_org_read" ON vendor_usage
   FOR SELECT TO authenticated
   USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
--- No INSERT policy â€” service role writes only.
+-- No INSERT policy — service role writes only.
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§28  ADDENDUM_14H: screening-reports Storage bucket + search_token column
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §28  ADDENDUM_14H: screening-reports Storage bucket + search_token column
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Searchworx generates a PDF on every product call. We download it immediately
 -- and store here; the vendor URL is publicly accessible by GUID and must never
 -- be exposed to client code or logged outside lib/searchworx/.
@@ -2403,15 +2403,15 @@ END $$;
 ALTER TABLE property_intelligence_pulls
   ADD COLUMN IF NOT EXISTS search_token uuid;
 
--- Â§28.1 patch: searchworx_pdf_storage_path (run route writes to it â€” was absent from original Â§28)
+-- §28.1 patch: searchworx_pdf_storage_path (run route writes to it — was absent from original §28)
 -- Points to the raw Searchworx vendor PDF stored in screening-reports bucket.
 -- Distinct from pdf_storage_path (Pleks-branded report in property-intelligence bucket).
 ALTER TABLE property_intelligence_pulls
   ADD COLUMN IF NOT EXISTS searchworx_pdf_storage_path text;
 
--- Â§28.2  Deferred â€” see Â§28.5 below. The spec assumed this was an existing table; it is a Phase 2 CREATE.
+-- §28.2  Deferred — see §28.5 below. The spec assumed this was an existing table; it is a Phase 2 CREATE.
 
--- Â§28.3  BUILD_14_AMENDMENT_14H_V2: FitScore document on application, current run pointer
+-- §28.3  BUILD_14_AMENDMENT_14H_V2: FitScore document on application, current run pointer
 ALTER TABLE public.applications
   ADD COLUMN IF NOT EXISTS fitscore_document_path    text,
   ADD COLUMN IF NOT EXISTS fitscore_generated_at     timestamptz,
@@ -2422,15 +2422,15 @@ CREATE INDEX IF NOT EXISTS applications_current_screening_run_id_idx
   WHERE current_screening_run_id IS NOT NULL;
 
 COMMENT ON COLUMN public.applications.fitscore_document_path IS
-  'Storage path in screening-reports bucket for the consolidated FitScore document (Stream 2 artefact â€” agent-only).';
+  'Storage path in screening-reports bucket for the consolidated FitScore document (Stream 2 artefact — agent-only).';
 COMMENT ON COLUMN public.applications.fitscore_generated_at IS
   'Timestamp when current fitscore_document was generated. NULL until first generation.';
 COMMENT ON COLUMN public.applications.current_screening_run_id IS
   'Points to the screening_run_id of the most recent screening run for this application.';
 
--- Â§28.4  BUILD_14_AMENDMENT_14H_V2: applicant read access to bureau PDFs, NOT FitScore document
--- Path: {orgId}/{applicationId}/{productKey}/{token}-{kind}.{ext} â€” foldername[2] = applicationId.
--- applicant = tenant without a lease; link is applications.tenant_id â†’ tenants.auth_user_id.
+-- §28.4  BUILD_14_AMENDMENT_14H_V2: applicant read access to bureau PDFs, NOT FitScore document
+-- Path: {orgId}/{applicationId}/{productKey}/{token}-{kind}.{ext} — foldername[2] = applicationId.
+-- applicant = tenant without a lease; link is applications.tenant_id → tenants.auth_user_id.
 DO $wrap$ BEGIN
 DROP POLICY IF EXISTS "Applicants can read their own bureau PDFs (not FitScore)" ON storage.objects;
 CREATE POLICY "Applicants can read their own bureau PDFs (not FitScore)"
@@ -2449,13 +2449,13 @@ EXCEPTION WHEN insufficient_privilege THEN
   RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
 END $wrap$;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§28.5  BUILD_14H_PHASE2: application_screening_lines â€” per-subject per-product results
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- One row per screening subject Ã— bundle product Ã— screening run.
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §28.5  BUILD_14H_PHASE2: application_screening_lines — per-subject per-product results
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- One row per screening subject × bundle product × screening run.
 -- Subjects come from v_application_screening_lines (primary applicant + co-applicants).
--- The Â§28.2 columns (pdf_storage_path, result_summary, screening_run_id) are included here
--- since the table is new. The ALTER TABLE stubs in Â§28.2 are no-ops (IF NOT EXISTS guard).
+-- The §28.2 columns (pdf_storage_path, result_summary, screening_run_id) are included here
+-- since the table is new. The ALTER TABLE stubs in §28.2 are no-ops (IF NOT EXISTS guard).
 CREATE TABLE IF NOT EXISTS public.application_screening_lines (
   id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                  uuid NOT NULL REFERENCES organisations(id),
@@ -2486,7 +2486,7 @@ CREATE INDEX IF NOT EXISTS idx_screening_lines_subject
   ON public.application_screening_lines (subject_type, subject_id);
 
 COMMENT ON TABLE public.application_screening_lines IS
-  'One row per screening subject Ã— bundle product Ã— run. Drives bundle-runner writes and agent dashboard reads.';
+  'One row per screening subject × bundle product × run. Drives bundle-runner writes and agent dashboard reads.';
 COMMENT ON COLUMN public.application_screening_lines.subject_type IS
   'Mirrors application_screening_payments.subject_type: company (primary applicant entity), co_applicant, guarantor.';
 COMMENT ON COLUMN public.application_screening_lines.product_key IS
@@ -2494,7 +2494,7 @@ COMMENT ON COLUMN public.application_screening_lines.product_key IS
 COMMENT ON COLUMN public.application_screening_lines.screening_run_id IS
   'Groups all lines in the same bundle run. Re-screening produces a new run_id; prior runs are preserved.';
 COMMENT ON COLUMN public.application_screening_lines.pdf_storage_path IS
-  'Path in screening-reports bucket for the raw vendor PDF (Stream 1 artefact). applicants see via Â§28.4 RLS.';
+  'Path in screening-reports bucket for the raw vendor PDF (Stream 1 artefact). applicants see via §28.4 RLS.';
 COMMENT ON COLUMN public.application_screening_lines.result_summary IS
   'Agent-facing one-liner from COMBINED_RESULT_SUMMARIES or VCCB_RESULT_SUMMARIES constants.';
 
@@ -2510,14 +2510,14 @@ CREATE TRIGGER update_screening_lines_updated_at
   BEFORE UPDATE ON public.application_screening_lines
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§29  BUILD_FITSCORE_v1: FitScore Composite Engine
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §29  BUILD_FITSCORE_v1: FitScore Composite Engine
 --
--- Implements ADDENDUM_14H_FITSCORE_COMPOSITE.md Â§Â§5.3-5.8
+-- Implements ADDENDUM_14H_FITSCORE_COMPOSITE.md §§5.3-5.8
 -- Lease-level composite scoring with explainability persistence.
 -- Multi-applicant via existing primary-on-applications +
--- application_co_applicants pattern (Decision #9 / Â§5.5).
--- Hard-flag taxonomy persistence (Â§3.8). Audit-replayable.
+-- application_co_applicants pattern (Decision #9 / §5.5).
+-- Hard-flag taxonomy persistence (§3.8). Audit-replayable.
 --
 -- Spec: brief/build/_ADDENDUM/ADDENDUM_14H_FITSCORE_COMPOSITE.md
 -- Date: 2026-05-21
@@ -2525,16 +2525,16 @@ CREATE TRIGGER update_screening_lines_updated_at
 -- Pre-flight verification (CC, 2026-05-21):
 --   applications.fitscore:            present (integer CHECK 0-100)
 --   applications.fitscore_components: present (jsonb)
---   applications.fitscore_summary:    present (text, legacy â€” preserved unchanged)
---   applications.fitscore_document_path: present (added Â§28.3)
+--   applications.fitscore_summary:    present (text, legacy — preserved unchanged)
+--   applications.fitscore_document_path: present (added §28.3)
 --   application_co_applicants:        present, extensive schema, ON DELETE CASCADE
---   application_screening_lines:      present (Â§28.5), polymorphic, primary applicant
+--   application_screening_lines:      present (§28.5), polymorphic, primary applicant
 --                                     bureau data NOT in screening_lines (on applications directly)
 --   audit_log column shape:           table_name / record_id / changed_by / old_values /
 --                                     new_values / ip_address / user_agent / actor_name
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
 
--- â”€â”€â”€ Â§5.3 FitScore composite + explainability columns on applications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ─── §5.3 FitScore composite + explainability columns on applications ──────────
 
 -- Composite output columns
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_band                    text;
@@ -2543,9 +2543,9 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_verification_integrit
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_material_flags           jsonb DEFAULT '[]'::jsonb;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_computed_at              timestamptz;
 
--- Structured AI narrative output (separate from legacy fitscore_summary text â€”
+-- Structured AI narrative output (separate from legacy fitscore_summary text —
 -- preserves BUILD_14 historical semantics, avoids overloaded meaning, supports
--- cleaner replay. NarrativeResponse JSONB shape per DELIVERY Â§7.8.)
+-- cleaner replay. NarrativeResponse JSONB shape per DELIVERY §7.8.)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_narrative                jsonb;
 
 -- Explainability persistence (POPIA s23 replay)
@@ -2555,11 +2555,11 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_component_snapshot   
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_narrative_prompt_version text;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_runtime_code_hash        text;
 
--- Interpretation document version at score time â€” closes methodology provenance chain.
--- Surfaced in Stream 2 PDF footer and L2 POPIA s23 response (DELIVERY Â§6.11 / Â§8.6).
+-- Interpretation document version at score time — closes methodology provenance chain.
+-- Surfaced in Stream 2 PDF footer and L2 POPIA s23 response (DELIVERY §6.11 / §8.6).
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_interpretation_version   text;
 
--- CHECK constraints â€” enforce enumerated values
+-- CHECK constraints — enforce enumerated values
 ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_fitscore_band_check;
 ALTER TABLE applications ADD  CONSTRAINT applications_fitscore_band_check CHECK (
   fitscore_band IS NULL OR fitscore_band IN (
@@ -2582,7 +2582,7 @@ ALTER TABLE applications ADD  CONSTRAINT applications_fitscore_verification_inte
   )
 );
 
--- â”€â”€â”€ Â§5.5a Per-applicant verification columns â€” primary applicant (on applications) â”€â”€
+-- ─── §5.5a Per-applicant verification columns — primary applicant (on applications) ──
 
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS income_evidence_tier integer
   CHECK (income_evidence_tier IS NULL OR income_evidence_tier IN (1, 2, 3, 4));
@@ -2612,7 +2612,7 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS pleks_network_tenancy_count in
 -- who hasn't started after 3 days. This marks that the single nudge was sent (remind-once; no daily spam).
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage2_reminder_sent_at timestamptz;
 
--- â”€â”€â”€ Â§5.5b Per-applicant verification columns â€” co-applicants (on application_co_applicants) â”€â”€
+-- ─── §5.5b Per-applicant verification columns — co-applicants (on application_co_applicants) ──
 
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS income_evidence_tier integer
   CHECK (income_evidence_tier IS NULL OR income_evidence_tier IN (1, 2, 3, 4));
@@ -2638,7 +2638,7 @@ ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS pleks_network_his
   CHECK (pleks_network_history_status IS NULL OR pleks_network_history_status IN ('trusted','adverse','none'));
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS pleks_network_tenancy_count integer;
 
--- â”€â”€â”€ Â§5.6 Indexes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ─── §5.6 Indexes ──────────────────────────────────────────────────────────────
 
 -- Replay: all scores from a given engine version
 CREATE INDEX IF NOT EXISTS idx_applications_fitscore_engine_version
@@ -2661,7 +2661,7 @@ CREATE INDEX IF NOT EXISTS idx_applications_fitscore_blocked
   WHERE fitscore_band = 'blocked';
 
 -- ADDENDUM_14K network history: primary applicant passport lookup
--- applications has a dedicated passport_number column (BUILD_00, line 354) â€” distinct
+-- applications has a dedicated passport_number column (BUILD_00, line 354) — distinct
 -- from application_co_applicants which stores passports in id_number WHERE id_type='passport'
 CREATE INDEX IF NOT EXISTS idx_applications_passport_number
   ON applications(passport_number)
@@ -2683,7 +2683,7 @@ CREATE INDEX IF NOT EXISTS idx_co_applicants_passport_lookup
 CREATE INDEX IF NOT EXISTS idx_co_applicants_primary_application_id
   ON application_co_applicants(primary_application_id);
 
--- â”€â”€â”€ Â§5.8 Audit trigger â€” fitscore_* column changes on applications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- ─── §5.8 Audit trigger — fitscore_* column changes on applications ────────────
 
 CREATE OR REPLACE FUNCTION audit_applications_fitscore_changes()
 RETURNS trigger AS $func$
@@ -2755,30 +2755,30 @@ CREATE TRIGGER audit_applications_fitscore_trigger
   FOR EACH ROW
   EXECUTE FUNCTION audit_applications_fitscore_changes();
 
--- Â§29.2  Drop duplicate index on application_co_applicants(primary_application_id)
--- idx_co_applicants_primary (BUILD_14 v1) and idx_co_applicants_primary_application_id (Â§29 Â§5.6)
--- both cover the same column. Retaining the original; dropping the Â§29 duplicate.
+-- §29.2  Drop duplicate index on application_co_applicants(primary_application_id)
+-- idx_co_applicants_primary (BUILD_14 v1) and idx_co_applicants_primary_application_id (§29 §5.6)
+-- both cover the same column. Retaining the original; dropping the §29 duplicate.
 DROP INDEX IF EXISTS idx_co_applicants_primary_application_id;
 
--- Â§29.1  Phase B backfill â€” label pre-v1 scores (ADDENDUM_14H COMPOSITE Â§5.4)
+-- §29.1  Phase B backfill — label pre-v1 scores (ADDENDUM_14H COMPOSITE §5.4)
 -- Runs idempotently: no-op when fitscore IS NULL (no rows to backfill at 2026-05-21 Phase B landing).
 UPDATE applications
   SET fitscore_engine_version = 'legacy_v0_unreplayable'
   WHERE fitscore IS NOT NULL
     AND fitscore_engine_version IS NULL;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§29.3  ADDENDUM_14H E.4: synthesis template version tracking
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §29.3  ADDENDUM_14H E.4: synthesis template version tracking
+-- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS fitscore_synthesis_template_version VARCHAR(32)
     NOT NULL DEFAULT 'synthesis.v1.0';
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§30  GLOBAL_BANK_ACCOUNTS: backfill contractors.bank_* â†’ contact_bank_accounts, drop columns
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- The table + RLS live in 002 Â§16 (contact-scoped, runs before this file on replay). Here we migrate
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §30  GLOBAL_BANK_ACCOUNTS: backfill contractors.bank_* → contact_bank_accounts, drop columns
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The table + RLS live in 002 §16 (contact-scoped, runs before this file on replay). Here we migrate
 -- the contractor single-account columns into it and drop them. Guarded on column existence so a re-run
 -- after the drop is a clean no-op (the SELECT would otherwise 42703). contractor_view never exposed
 -- these columns, so no view dependency. vat_registered stays on contractors (not account data).
@@ -2802,13 +2802,13 @@ BEGIN
 END
 $do$;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§31  ADDENDUM_TEAMS_ASSIGNMENT_MODEL: per-agent assignment (Layer 0)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §31  ADDENDUM_TEAMS_ASSIGNMENT_MODEL: per-agent assignment (Layer 0)
 --      assigned_user_id = the individual assignee; NULL = Everyone/Org shared bucket (D-11/12),
 --      defaults to the creating agent. handled_by = who picked up a shared item (D-5; audit_log
 --      .changed_by stays system-of-record). assigned_at/picked_up_at = the D-9 routing timestamps.
 --      assigned_team_id + the not-both CHECK arrive in Phase 2 (firm-tier named teams).
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE maintenance_requests
   ADD COLUMN IF NOT EXISTS assigned_user_id uuid REFERENCES auth.users(id),
@@ -2820,7 +2820,7 @@ CREATE INDEX IF NOT EXISTS idx_maintenance_requests_assigned_user
 COMMENT ON COLUMN maintenance_requests.assigned_user_id IS
   'Individual assignee (auth.users). NULL = Everyone/Org shared bucket (ADDENDUM_TEAMS D-11/12); defaults to the creating agent.';
 COMMENT ON COLUMN maintenance_requests.handled_by IS
-  'Who picked up a shared (null-assignee) item â€” surfaced convenience; audit_log.changed_by is system-of-record (D-5).';
+  'Who picked up a shared (null-assignee) item — surfaced convenience; audit_log.changed_by is system-of-record (D-5).';
 
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS assigned_user_id uuid REFERENCES auth.users(id),
@@ -2832,23 +2832,23 @@ CREATE INDEX IF NOT EXISTS idx_applications_assigned_user
 COMMENT ON COLUMN applications.assigned_user_id IS
   'Individual assignee (auth.users). NULL = Everyone/Org shared bucket (ADDENDUM_TEAMS D-11/12); defaults to the creating agent.';
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§32  ADDENDUM_AUTH_HARDENING P-2: drop vestigial contractors.access_token
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §32  ADDENDUM_AUTH_HARDENING P-2: drop vestigial contractors.access_token
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Old token-link portal-access mechanism, superseded by contractors.auth_user_id (Supabase auth). Zero code
--- reads (grep-verified) and no view dependency (live pg_depend check â€” only the auto UNIQUE index, dropped with
--- the column; 7 rows held inert default tokens). A deliberate destructive drop â€” the rare amend-forward exception
+-- reads (grep-verified) and no view dependency (live pg_depend check — only the auto UNIQUE index, dropped with
+-- the column; 7 rows held inert default tokens). A deliberate destructive drop — the rare amend-forward exception
 -- (D-8 / BUILD_72 token hygiene). Also removed from the CREATE TABLE above so a fresh replay never adds it; this
 -- DROP IF EXISTS cleans any DB created before that removal. Idempotent: re-run is a clean no-op.
 ALTER TABLE contractors DROP COLUMN IF EXISTS access_token;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§33  PRE-SCALE PERFORMANCE INDEXES (maintenance_requests / applications)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §33  PRE-SCALE PERFORMANCE INDEXES (maintenance_requests / applications)
 --   Calendar date-range scan (scheduled_date had no index), hot list ORDER, and the
 --   join/cascade FKs the advisor flagged. Additive + idempotent. See 004 / 011 / 012.
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
 
--- Maintenance calendar: WHERE org_id AND scheduled_date BETWEEN â€¦ (no date index existed)
+-- Maintenance calendar: WHERE org_id AND scheduled_date BETWEEN … (no date index existed)
 CREATE INDEX IF NOT EXISTS idx_maintenance_org_scheduled
   ON maintenance_requests(org_id, scheduled_date) WHERE scheduled_date IS NOT NULL;
 
@@ -2875,31 +2875,31 @@ CREATE INDEX IF NOT EXISTS idx_applications_unit
   ON applications(unit_id) WHERE unit_id IS NOT NULL;
 
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§34  APPLY INCOME DETAIL: structured income breakdown + employment tenure
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §34  APPLY INCOME DETAIL: structured income breakdown + employment tenure
 --   The applicant Income step captures itemised, period-aware income sources (Employment
 --   gross, rental, dividends, maintenance, alimony, savings/interest, + custom) and an
---   employment start date (used to infer a possible probation period â€” an agent-facing
+--   employment start date (used to infer a possible probation period — an agent-facing
 --   signal, never a silent filter). income_sources is the SOURCE OF TRUTH; the scalar
 --   gross_monthly_income_cents is the derived monthly total cached for affordability/
 --   prescreen. Both are written from the same normalisation; any future edit path MUST
 --   recompute both or they drift. Additive + idempotent.
 --   income_sources row shape (rows with amount > 0 only):
 --     { key, label, amount_cents, period: 'month'|'quarter'|'annual', monthly_cents }
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS income_sources         jsonb,
   ADD COLUMN IF NOT EXISTS employment_start_date  date;
 
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§35  APPLY PRE-SCREEN RULING (ADDENDUM_14M): versioned two-axis evaluation + durable async job
---   Submit kicks off async screening (14L pipeline â†’ reconcile â†’ 14M deterministic ruling). Results are a
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §35  APPLY PRE-SCREEN RULING (ADDENDUM_14M): versioned two-axis evaluation + durable async job
+--   Submit kicks off async screening (14L pipeline → reconcile → 14M deterministic ruling). Results are a
 --   VERSIONED evaluation (the re-run / self-improvement loop). screening_jobs makes the async run durable:
 --   submit fires the screen route immediately AND inserts a job; a tight cron sweeps stuck/failed jobs.
---   Additive + idempotent. application_prescreens (above) is the dead 55-pt predecessor â€” left untouched.
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+--   Additive + idempotent. application_prescreens (above) is the dead 55-pt predecessor — left untouched.
+-- ═══════════════════════════════════════════════════════════════════════════════
 
 -- 'screening' = the 14L pipeline is running post-submit, before the ruling lands.
 ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_stage1_status_check;
@@ -2909,7 +2909,7 @@ ALTER TABLE applications ADD CONSTRAINT applications_stage1_status_check CHECK (
 ));
 
 -- Versioned 14M ruling. POPIA (fix #2): input_snapshot holds amounts / source keys / periods / verdicts
--- ONLY â€” never raw name/ID. reconciliation + fraud_signals are verdict-only and POPIA-safe.
+-- ONLY — never raw name/ID. reconciliation + fraud_signals are verdict-only and POPIA-safe.
 CREATE TABLE IF NOT EXISTS application_screening_evaluations (
   id                         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                     uuid NOT NULL REFERENCES organisations(id),
@@ -2963,13 +2963,13 @@ CREATE POLICY "org_screening_jobs" ON screening_jobs
   );
 
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§36  APPLY SAVE-&-RESUME + LISTING-EXPIRY RETENTION (ADDENDUM_14M follow-on)
---   A "draft" is an unsubmitted applications row (stage1_consent_given not true) â€” no separate PII store.
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §36  APPLY SAVE-&-RESUME + LISTING-EXPIRY RETENTION (ADDENDUM_14M follow-on)
+--   A "draft" is an unsubmitted applications row (stage1_consent_given not true) — no separate PII store.
 --   draft_step = where to drop the applicant back; draft_saved_at = last activity (the retention basis +
---   "Saved Â· â€¦" state). listings.closes_at = optional agent-set expiry; once passed, unsubmitted drafts for
---   that listing are purged (POPIA) â€” SUBMITTED applications are never touched. Additive + idempotent.
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+--   "Saved · …" state). listings.closes_at = optional agent-set expiry; once passed, unsubmitted drafts for
+--   that listing are purged (POPIA) — SUBMITTED applications are never touched. Additive + idempotent.
+-- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS draft_step          smallint,
@@ -2977,11 +2977,11 @@ ALTER TABLE applications
   -- the applicant's current address(es) (the party-address shape, as captured in the Address step). The apply
   -- flow never persisted address before, so it was lost on resume; stored as jsonb for draft rehydration.
   ADD COLUMN IF NOT EXISTS applicant_addresses jsonb,
-  -- the chosen application TYPE + company details â€” persisted so resume restores the right flow for all four
+  -- the chosen application TYPE + company details — persisted so resume restores the right flow for all four
   -- scenarios (individual/couple/company/guarantor) instead of inferring it from the co-applicant roster.
   ADD COLUMN IF NOT EXISTS applicant_type      text CHECK (applicant_type IN ('individual','couple','company','guarantor')),
   ADD COLUMN IF NOT EXISTS company_info        jsonb;
-  -- (applications.email_verified_at â€” the old apply email-OTP â€” was retired in ADDENDUM_14R step 8 and DROPPED
+  -- (applications.email_verified_at — the old apply email-OTP — was retired in ADDENDUM_14R step 8 and DROPPED
   --  post-deploy; the column is intentionally absent. user_profiles.email_verified_at in 001 is unrelated.)
 
 -- Reuse the consent OTP engine for the applicant pre-submit email verification: allow the email_otp method +
@@ -2994,7 +2994,7 @@ ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_consent_t
   CHECK (consent_type IN ('standard_bundle','estate_criminal','director_standard','director_estate_criminal','application_email'));
 
 -- Co-applicant role (co_applicant = lives here / guarantor = backer) was sent by the invite flow but never had
--- a column to land in â€” so a resumed roster couldn't tell them apart. Persist it.
+-- a column to land in — so a resumed roster couldn't tell them apart. Persist it.
 ALTER TABLE application_co_applicants
   ADD COLUMN IF NOT EXISTS role text CHECK (role IN ('co_applicant','guarantor')) DEFAULT 'co_applicant';
 
@@ -3025,7 +3025,7 @@ ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;
 
 -- The apply wizard offers 'commission' + 'part_time' employment statuses (StepPanel EMPLOYMENT_OPTIONS), but the
--- original CHECK never allowed them â†’ every commission/part-time applicant 500'd on insert. Widen to match the UI.
+-- original CHECK never allowed them → every commission/part-time applicant 500'd on insert. Widen to match the UI.
 ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_employment_type_check;
 ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK (
   employment_type IN ('permanent','contract','commission','self_employed','part_time','student','unemployed','retired','other')
@@ -3036,28 +3036,28 @@ ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 
 -- submitted_at = the explicit "submit to agent" act (the real submission). Distinct from stage1_consent_given,
--- which is POPIA consent to PROCESS for the pre-screen â€” given before the score so documents can be read. The
--- applicant fills â†’ reviews the pre-screen â†’ and only THEN submits. Agent visibility, dedup, and retention all
+-- which is POPIA consent to PROCESS for the pre-screen — given before the score so documents can be read. The
+-- applicant fills → reviews the pre-screen → and only THEN submits. Agent visibility, dedup, and retention all
 -- key off submitted_at (NOT consent), so merely viewing your score no longer counts as submitting.
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS submitted_at timestamptz;
 COMMENT ON COLUMN applications.submitted_at IS 'When the applicant explicitly submitted to the agent (the real submission). NULL = filled/pre-screened but not yet submitted. Distinct from stage1_consent_given (POPIA processing consent for the pre-screen).';
--- Backfill: existing consent-given submissions predate the split â†’ treat them as submitted (keep agent view).
+-- Backfill: existing consent-given submissions predate the split → treat them as submitted (keep agent view).
 UPDATE applications SET submitted_at = COALESCE(stage1_consent_given_at, created_at)
   WHERE stage1_consent_given = true AND submitted_at IS NULL AND deleted_at IS NULL;
 
--- Uniqueness applies only among SUBMITTED rows â€” multiple drafts/pre-screens may exist; one submission wins.
+-- Uniqueness applies only among SUBMITTED rows — multiple drafts/pre-screens may exist; one submission wins.
 DROP INDEX IF EXISTS idx_applications_one_per_listing_email;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_one_per_listing_email
   ON applications (listing_id, lower(applicant_email))
   WHERE applicant_email IS NOT NULL AND submitted_at IS NOT NULL AND deleted_at IS NULL;
 
--- Corroborated (verified-income) affordability view on each evaluation â€” rent Ã· documented income (sum of evidenced
+-- Corroborated (verified-income) affordability view on each evaluation — rent ÷ documented income (sum of evidenced
 -- sources; uncorroborated counts 0). Shown beside the declared ratio so phantom income can't visually carry
 -- affordability, and the base figure for flag 0b's residual-income override. (ADDENDUM_14M #3 / 0b)
 ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS corroborated_income_cents bigint;
 ALTER TABLE application_screening_evaluations ADD COLUMN IF NOT EXISTS affordability_corroborated_ratio_pct integer;
 
--- Household dependents the applicant supports â€” feeds flag 0b's living floor (2:1 adult:dependent weighting).
+-- Household dependents the applicant supports — feeds flag 0b's living floor (2:1 adult:dependent weighting).
 -- Adults come from co_applicants_count + 1. NULL = not declared (treated as 0). (ADDENDUM_14M flag 0b)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependents_count integer;
 
@@ -3069,22 +3069,22 @@ ALTER TABLE application_screening_evaluations ADD CONSTRAINT application_screeni
 
 -- Step-1 zero-AI free assessment (combined declared affordability + readiness) stored at submit. The agent
 -- shortlists on this; the verified deep scan (application_screening_evaluations) supersedes it at Step 2. Stored
--- as an application-level fact (NOT an eval row â€” it has no verified ruling/confidence). (ADDENDUM_14M funnel P1e)
+-- as an application-level fact (NOT an eval row — it has no verified ruling/confidence). (ADDENDUM_14M funnel P1e)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS free_assessment jsonb;
 
--- Declared existing monthly obligations (debit orders / commitments) â€” lets the Step-1 free assessment show
--- residual-after-obligations (a more realistic affordability read than grossâˆ’rent) with no bank scan. Declared,
+-- Declared existing monthly obligations (debit orders / commitments) — lets the Step-1 free assessment show
+-- residual-after-obligations (a more realistic affordability read than gross−rent) with no bank scan. Declared,
 -- unverified; summed across primary + co-applicants like income. (ADDENDUM_14M funnel, Step-1 enrichment)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declared_monthly_obligations_cents bigint;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§37  APPLY EMPLOYMENT BRANCHING CONTEXT (ADDENDUM_14M apply redesign â€” Employment sub-tab)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- The Employment sub-tab branches on employment_type: employed â†’ employer fields; self-employed/freelance â†’
--- business fields; retired/grant â†’ minimal; unemployed â†’ route to other income. The branching context (contract
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §37  APPLY EMPLOYMENT BRANCHING CONTEXT (ADDENDUM_14M apply redesign — Employment sub-tab)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The Employment sub-tab branches on employment_type: employed → employer fields; self-employed/freelance →
+-- business fields; retired/grant → minimal; unemployed → route to other income. The branching context (contract
 -- end date, job title, employer contact, business name/nature/trading-since, registration, SARS) is held in one
--- jsonb â€” the income figure itself stays in income_sources. Two new status values (freelance, grant) are added:
+-- jsonb — the income figure itself stays in income_sources. Two new status values (freelance, grant) are added:
 -- freelance is treated as variable income (like commission/self_employed), grant as a fixed minimal source.
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS employment_details jsonb;
 ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_employment_type_check;
@@ -3092,10 +3092,10 @@ ALTER TABLE applications ADD CONSTRAINT applications_employment_type_check CHECK
   employment_type IN ('permanent','contract','commission','self_employed','freelance','part_time','student','unemployed','retired','grant','other')
 );
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§38  APPLY EXPENSES TABLE + DEPENDANT BREAKDOWN (ADDENDUM_14M apply redesign â€” Expenses sub-tab)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Dependants split into adults vs minors â€” different living-floor cost (adult â‰ˆ full adult essentials, minor â‰ˆ
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §38  APPLY EXPENSES TABLE + DEPENDANT BREAKDOWN (ADDENDUM_14M apply redesign — Expenses sub-tab)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Dependants split into adults vs minors — different living-floor cost (adult ≈ full adult essentials, minor ≈
 -- half; PMBEJD). dependents_count stays as the combined total for back-compat. Expenses become an itemised list
 -- (jsonb, mirrors income_sources); their monthly sum is the declared_monthly_obligations_cents used by the read.
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_adults_count integer;
@@ -3103,26 +3103,26 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS dependent_minors_count integer
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS school_fees_cents bigint;  -- declared child cost (child bucket)
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS expenses jsonb;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§39  APPLY MARITAL STATUS + SPOUSE (ADDENDUM_14M apply redesign â€” Personal details)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §39  APPLY MARITAL STATUS + SPOUSE (ADDENDUM_14M apply redesign — Personal details)
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Declared on the personal-details step. marital_status (single|life_partner|married|divorced|widowed);
 -- matrimonial_regime (in_community|out_anc|out_accrual) only when married. A married-IN-COMMUNITY applicant's
--- spouse must consent (s15 Matrimonial Property Act) â€” spouse_info jsonb holds {firstName,lastName,idNumber,email}
+-- spouse must consent (s15 Matrimonial Property Act) — spouse_info jsonb holds {firstName,lastName,idNumber,email}
 -- + (later) the consent/verification status that gates submit. Marital regime also feeds the surety-consent engine.
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS marital_status text;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS matrimonial_regime text;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS spouse_info jsonb;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§40  CO-APPLICANT PER-LINK SECTION (ADDENDUM_14Q Â§10 â€” the co-applicant's own session)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §40  CO-APPLICANT PER-LINK SECTION (ADDENDUM_14Q §10 — the co-applicant's own session)
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- A co-applicant completes their OWN section via their invite link (/apply/co-applicant/[token]), persisting here
 -- (NOT on applications). section_data jsonb holds the whole section (identity snapshot, income_sources, expenses,
--- employment_details, dependants, addresses) â€” mirrors the apply flow's jsonb persistence. The few fields the agent
+-- employment_details, dependants, addresses) — mirrors the apply flow's jsonb persistence. The few fields the agent
 -- detail + the screening/affordability + the 14M marital-consistency flags must QUERY are promoted to columns:
 -- marital_status / matrimonial_regime / current_address / spouse_info. stage1_consent_given (already present) is set
--- when the co signs off â€” that's the J1 submit gate + the 14Q hub's live co-status.
+-- when the co signs off — that's the J1 submit gate + the 14Q hub's live co-status.
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS section_data jsonb;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS marital_status text;
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS matrimonial_regime text;
@@ -3130,20 +3130,20 @@ ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS current_address j
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS spouse_info jsonb;
 -- "Started application" signal for the 14Q hub: set when the co-applicant first OPENS their invite link (clicked
 -- through to start), distinct from stage1_consent_given (finished + consented). Lets the hub show a co card as
--- Invitation sent â†’ Started application â†’ Completed.
+-- Invitation sent → Started application → Completed.
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS started_at timestamptz;
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- Â§41  APPLICANT-ACCOUNT-AT-COMPLETION (ADDENDUM_14R_AUTH_AMENDMENT Â§4a + 14R Â§10 #5)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §41  APPLICANT-ACCOUNT-AT-COMPLETION (ADDENDUM_14R_AUTH_AMENDMENT §4a + 14R §10 #5)
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- Full-peer auth ("start cheap, end expensive"): at COMPLETION an applicant creates a Pleks account (Supabase
--- email-OTP in-flow + passkey upsell) and is promoted to a tenant-in-pre-lease-state â€” symmetric to the primary
--- (applications.tenant_id â†’ tenants.auth_user_id). The co's binding lives one level over: tenant_id â†’ tenants(id),
--- same uuid/default-RESTRICT convention as applications.tenant_id (never orphans â€” POPIA anonymises tenants, never
+-- email-OTP in-flow + passkey upsell) and is promoted to a tenant-in-pre-lease-state — symmetric to the primary
+-- (applications.tenant_id → tenants.auth_user_id). The co's binding lives one level over: tenant_id → tenants(id),
+-- same uuid/default-RESTRICT convention as applications.tenant_id (never orphans — POPIA anonymises tenants, never
 -- hard-deletes). Nullable + set only at account-creation, so cos who never finish mint no tenant.
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES tenants(id);
 CREATE INDEX IF NOT EXISTS idx_co_applicants_tenant ON application_co_applicants(tenant_id) WHERE tenant_id IS NOT NULL;
--- Re-armable all-green "ready to submit" fan-out (14R Â§10 #1): stamped when the completion email fires; reset to
+-- Re-armable all-green "ready to submit" fan-out (14R §10 #1): stamped when the completion email fires; reset to
 -- NULL on a roster change (co added / consent withdrawn) so a later all-green re-fires exactly once.
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS all_complete_notified_at timestamptz;
 
