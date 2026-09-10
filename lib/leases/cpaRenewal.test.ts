@@ -13,6 +13,14 @@ import {
   HOLIDAY_HORIZON_WARN_DAYS, CPA_RENEWAL_CANDIDATE_BAND_DAYS,
 } from "./cpaRenewal"
 import { subtractBusinessDaysStrict, addCalendarDays } from "@/lib/dates"
+import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates/saPublicHolidays"
+
+/**
+ * DERIVED from the table's own horizon, never typed. These read PAST_HORIZON until ADDENDUM_70L Phase A
+ * made the horizon a consequence of the statute (2027 → 2032), at which point three horizon tests began
+ * passing vacuously against a date that had moved INSIDE the table. Anchor a boundary test to its boundary.
+ */
+const PAST_HORIZON = `${Number(HOLIDAY_TABLE_COVERS_THROUGH.slice(0, 4)) + 1}-06-30`
 
 describe("cpaRenewalNoticeDue — statutory, mid-window", () => {
   it("targets the middle of the 40–80 business-day window", () => {
@@ -35,7 +43,7 @@ describe("cpaRenewalNoticeDue — statutory, mid-window", () => {
   })
 
   it("throws past the holiday horizon (fail closed — the firing path must not compute against unknowns)", () => {
-    expect(() => cpaRenewalNoticeDue("2029-06-30")).toThrow(/outside the SA public-holiday table/)
+    expect(() => cpaRenewalNoticeDue(PAST_HORIZON)).toThrow(/outside the SA public-holiday table/)
   })
 })
 
@@ -44,8 +52,8 @@ describe("cpaRenewalNoticeDueSafe — display, degrades to null", () => {
     expect(cpaRenewalNoticeDueSafe("2027-06-29")).toBe("2027-04-02")
   })
 
-  it("returns null instead of throwing past the horizon (a 2029 lease must not blank the page)", () => {
-    expect(cpaRenewalNoticeDueSafe("2029-06-30")).toBeNull()
+  it("returns null instead of throwing past the horizon (a lease past the horizon must not blank the page)", () => {
+    expect(cpaRenewalNoticeDueSafe(PAST_HORIZON)).toBeNull()
   })
 
   it("returns null for a null / empty end date", () => {
@@ -68,7 +76,7 @@ describe("cpaRenewalNoticeFloor — the 40-bd floor (last lawful send day), dist
   })
 
   it("degrades to null past the horizon and on null/empty (display shape)", () => {
-    expect(cpaRenewalNoticeFloorSafe("2029-06-30")).toBeNull()
+    expect(cpaRenewalNoticeFloorSafe(PAST_HORIZON)).toBeNull()
     expect(cpaRenewalNoticeFloorSafe(null)).toBeNull()
     expect(cpaRenewalNoticeFloorSafe("")).toBeNull()
   })

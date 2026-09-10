@@ -1,0 +1,10 @@
+{
+  "_readme": "DATA ONLY, and the ONE part of the holiday table a human writes. Everything else in lib/dates/saHolidays.json is DERIVED from statute by lib/dates/saHolidayDerivation.ts — do not hand-edit that file. A s2A row arrives here, by Government Gazette, with its citation; the generator merges it and the caretaker's Rule 5 refuses any entry whose source is empty. 'PHA' = Public Holidays Act 36 of 1994; s2A is the President's power to declare a public holiday. Add a row, run `npm run gen:holidays`, and commit both files together. See ADDENDUM_70L.",
+  "proclamations": [
+    {
+      "date": "2026-11-04",
+      "name": "Local Government Elections",
+      "source": "Proclamation 346 of 2026, Government Gazette 55352 (Regulation Gazette 12046), 8 September 2026 — https://www.gov.za/documents/notices/public-holidays-act-declaration-fourth-day-november-2026-public-holiday"
+    }
+  ]
+}

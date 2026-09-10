@@ -219,7 +219,9 @@ export function checkHolidayTable(now: Date = new Date()): HealthReport["compone
     return {
       status: "down",
       error: `SA public-holiday table expired on ${HOLIDAY_TABLE_COVERS_THROUGH} — statutory business-day ` +
-        `computations are now THROWING. Extend SA_PUBLIC_HOLIDAYS_* in lib/dates/saPublicHolidays.ts.`,
+        `computations are now THROWING. The table is GENERATED: run \`npm run gen:holidays\`. If that does ` +
+        `not move the horizon, the next year needs its Government Gazette proclamation recorded in ` +
+        `lib/dates/saProclamations.json plus a lifted refusal in lib/dates/saHolidayDerivation.ts.`,
     }
   }
   const warnFrom = new Date(now.getTime() + HOLIDAY_HORIZON_WARN_DAYS * 86_400_000)

@@ -5,7 +5,8 @@
  * Auth:   x-cron-secret header (requireCronAuth — item-1 SSOT)
  * Data:   Nager.Date + gov.za notices RSS (read-only witnesses) + the bundled saHolidays.json; writes NOTHING
  * Notes:  QUIET BY DEFAULT. Digests to ADMIN_EMAIL only on: a Class-A/B diff, a gov.za PROCLAMATION notice,
- *         a feed window that could not cover the polling interval, or the horizon within 90 days.
+ *         a feed window that could not cover the polling interval, or the horizon within
+ *         HOLIDAY_HORIZON_WARN_DAYS (derived: CPA_RENEWAL_CANDIDATE_BAND_DAYS + 30 — do not restate it).
  *
  *         The gov.za notices feed (added 2026-09-09) is the ad-hoc-proclamation watch, and it exists because
  *         Nager demonstrably misses them: of three known s2A proclamations, Nager carries 2023-12-15 and has
@@ -17,7 +18,11 @@
  *         stays a reviewed PR. The 90-day horizon nag MOVED here from a standalone check so there is one
  *         home, not two. NOT wrapped in withCronRun and NOT in TRACKED_CRONS — a cron_runs row from a job
  *         checkCrons never heard of would falsely degrade deep-health (the chronic "crons: degraded" trap).
- *         cPanel schedule: daily. Cost: two free API calls a day.
+ *         cPanel schedule: daily. Cost: ONE free Nager call per year of table coverage, plus one gov.za
+ *         feed read — so it scales with HOLIDAY_TABLE_COVERS_FROM..THROUGH and MOVED when 70L derived the
+ *         horizon. Do not restate the number here; `yearsInWindow()` in holidayAuditFetch.ts derives it.
+ *         ⚠ fetchNagerZA is all-or-nothing (any non-200 → null), so each added year is another way for
+ *         the auditor to go dark — and the route reports !audit.ran as status "ok". See M-125.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { requireCronAuth } from "@/lib/cron/auth"
