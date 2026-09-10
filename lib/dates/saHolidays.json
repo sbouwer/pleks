@@ -27,6 +27,7 @@
     { "date": "2026-08-09", "name": "National Women's Day",        "basis": "PHA s1 Sch 1", "observedShiftOf": null,         "source": null },
     { "date": "2026-08-10", "name": "National Women's Day (obs)",  "basis": "PHA s2(1)",    "observedShiftOf": "2026-08-09", "source": null },
     { "date": "2026-09-24", "name": "Heritage Day",                "basis": "PHA s1 Sch 1", "observedShiftOf": null,         "source": null },
+    { "date": "2026-11-04", "name": "Local Government Elections",  "basis": "PHA s2A",      "observedShiftOf": null,         "source": "Proclamation 346 of 2026, Government Gazette 55352 (Regulation Gazette 12046), 8 September 2026 — https://www.gov.za/documents/notices/public-holidays-act-declaration-fourth-day-november-2026-public-holiday" },
     { "date": "2026-12-16", "name": "Day of Reconciliation",       "basis": "PHA s1 Sch 1", "observedShiftOf": null,         "source": null },
     { "date": "2026-12-25", "name": "Christmas Day",               "basis": "PHA s1 Sch 1", "observedShiftOf": null,         "source": null },
     { "date": "2026-12-26", "name": "Day of Goodwill",             "basis": "PHA s1 Sch 1", "observedShiftOf": null,         "source": null },

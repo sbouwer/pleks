@@ -49,6 +49,28 @@ describe("classifyHolidayDiff", () => {
     expect(r2.hasAlerts).toBe(false)   // a name mismatch never alerts
   })
 
+  it("an s2A proclamation the feeds lack is INFO, not an alert", () => {
+    // The table's first s2A entry (2026-11-04, Proclamation 346 of 2026) made this path live. Nager missed
+    // both prior municipal-election holidays permanently, so Class-B here would fail the digest every day
+    // forever for a row that is CORRECT.
+    const withProclamation = [...TABLE, entry("2026-11-04", "Local Government Elections", "PHA s2A")]
+    const api: ApiHoliday[] = TABLE.map((h) => ({ date: h.date, name: h.name }))   // no 2026-11-04, as measured
+    const r = classifyHolidayDiff(withProclamation, api, FROM, THROUGH)
+    expect(r.diffs.filter((d) => d.cls === "B")).toEqual([])
+    expect(r.diffs.filter((d) => d.cls === "C").map((d) => d.date)).toEqual(["2026-11-04"])
+    expect(r.hasAlerts).toBe(false)
+  })
+
+  it("the s2A exemption is BASIS-scoped — a Schedule-1 weekday the feed lacks still alerts", () => {
+    // The other direction, and the one that matters: implemented as "table-only weekday dates are exempt"
+    // rather than "s2A rows are exempt", the change above would retire Class B altogether and the auditor
+    // would go quiet on exactly the table error it exists to catch. 2026-12-25 is a Friday.
+    const api: ApiHoliday[] = TABLE.filter((h) => h.date !== "2026-12-25").map((h) => ({ date: h.date, name: h.name }))
+    const r = classifyHolidayDiff(TABLE, api, FROM, THROUGH)
+    expect(r.diffs.filter((d) => d.cls === "B").map((d) => d.date)).toEqual(["2026-12-25"])
+    expect(r.hasAlerts).toBe(true)
+  })
+
   it("the (obs) suffix is not a finding — name normalisation ignores parentheticals", () => {
     const api: ApiHoliday[] = TABLE.map((h) => ({ date: h.date, name: h.name.replace(" (obs)", "") }))
     const r = classifyHolidayDiff(TABLE, api, FROM, THROUGH)
