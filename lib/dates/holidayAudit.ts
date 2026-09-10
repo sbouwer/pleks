@@ -11,7 +11,7 @@
  *         with fixtures. The fetching + CLI live in scripts/audit-holiday-table.mts; the cron path is
  *         app/api/cron/holiday-sentinel. All three share `classifyHolidayDiff`.
  */
-import { SA_PUBLIC_HOLIDAYS, type HolidayEntry } from "./saPublicHolidays"
+import { BASIS_PROCLAMATION, SA_PUBLIC_HOLIDAYS, type HolidayEntry } from "./saPublicHolidays"
 
 /** A holiday as a witness API reports it — just a date and a name. */
 export interface ApiHoliday {
@@ -22,7 +22,7 @@ export interface ApiHoliday {
 export type DiffClass =
   | "A" // API has a date the table lacks — a possible s2A proclamation we have not carried. ALERT.
   | "B" // table has a date the API lacks — a possible table error OR an API gap. ALERT; the table wins pending review.
-  | "C" // dates agree, only name/metadata differs. INFO.
+  | "C" // dates agree and only name/metadata differs, OR a gazetted s2A date no feed carries. INFO.
 
 export interface HolidayDiff {
   date: string
@@ -76,9 +76,31 @@ export function classifyHolidayDiff(
 
   // Class B — table has, API lacks. The table wins pending review.
   for (const [date, entry] of tableByDate) {
-    if (!apiByDate.has(date)) {
-      diffs.push({ date, cls: "B", detail: `table has "${entry.name}" (${entry.basis}) on ${date}; the API does not. The table wins pending review (feeds have missed SA observed-Mondays), but confirm it is not a table error.` })
+    if (apiByDate.has(date)) continue
+
+    // ⚠ An s2A proclamation MISSING from an aggregator is the EXPECTED state, not a finding. Alerting here
+    // would be the auditor reporting a disagreement from a witness that structurally cannot testify — the
+    // one thing this subsystem refuses to do everywhere else ("a checker that cannot see must never look
+    // identical to a checker that saw nothing", holidayAuditFetch.ts).
+    //
+    // The evidence is this module's own sibling measurement: of three known s2A proclamations, Nager carried
+    // ONE (2023-12-15) and missed both municipal-election holidays — 2016-08-03 and 2021-11-01 — PERMANENTLY,
+    // not with a lag. So a CORRECT s2A row alerts every day, forever, and a digest that always fails is a
+    // digest nobody reads. Measured 2026-09-10 on the table's first-ever s2A entry: adding 2026-11-04 turned
+    // a self-clearing gazette alert into a permanent one, which is how this path came to be exercised at all.
+    //
+    // What actually vouches for an s2A row is Rule 5 in saPublicHolidays.ts — a Government Gazette source,
+    // required and enforced at module load — not a feed that never saw the proclamation. Keyed on `basis`
+    // alone rather than `basis && source`, because Rule 5 already makes the source non-empty before this
+    // code can run; re-testing it here would read as though it might be false.
+    //
+    // Still REPORTED, as INFO: "we deliberately carry a weekday date no feed confirms" is worth seeing.
+    if (entry.basis === BASIS_PROCLAMATION) {
+      diffs.push({ date, cls: "C", detail: `${date}: table has "${entry.name}" (${entry.basis}) and no feed carries it — expected for a gazetted proclamation, which aggregators routinely miss. Vouched by its Gazette source, not by the feeds.` })
+      continue
     }
+
+    diffs.push({ date, cls: "B", detail: `table has "${entry.name}" (${entry.basis}) on ${date}; the API does not. The table wins pending review (feeds have missed SA observed-Mondays), but confirm it is not a table error.` })
   }
 
   // Class C — dates agree, names differ. Informational only.

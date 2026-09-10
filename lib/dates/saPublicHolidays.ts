@@ -50,7 +50,12 @@ export interface HolidayTable {
 }
 
 const BASIS_SHIFT = "PHA s2(1)"
-const BASIS_PROCLAMATION = "PHA s2A"
+/**
+ * Exported because the AUDITOR needs it too: `holidayAudit.ts` treats a proclaimed date missing from a
+ * witness feed as informational rather than an alert, and that rule must key off the same string this
+ * module validates against (Rule 5), never a restated copy of it.
+ */
+export const BASIS_PROCLAMATION = "PHA s2A"
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
 
