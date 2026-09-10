@@ -55,8 +55,9 @@
 // @no-twin settings permissions match TOOLS, and this gates no tool — it annotates a prompt with a
 // measurement. There is no permission rule that can express "tell me how big the context is", so
 // the coarse layer has nothing to fall back to and the gap is recorded rather than implied.
-const { openSync, readSync, closeSync, statSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } = require("node:fs");
-const { join, dirname, basename } = require("node:path");
+import { openSync, readSync, closeSync, statSync, existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
+import { pathToFileURL } from "node:url";
 
 // ── thresholds ───────────────────────────────────────────────────────────────────────────────
 // WARN sits deliberately BELOW the 300k --autocompact threshold this repo recommends. If the two
@@ -414,12 +415,19 @@ function adviseAgent(m) {
     + `Do not suggest /compact — you cannot run it and the user has already been told separately.`;
 }
 
-// Only consume stdin when this file IS the process. `.claude/statusline.js` requires it as a
-// library, and without this guard that require would register a stdin handler which then prints the
+// Only consume stdin when this file IS the process. `.claude/statusline.js` imports it as a
+// library, and without this guard that import would register a stdin handler which then prints the
 // hook's JSON onto the statusline's stdout — corrupting the status bar with a hook payload. The
 // same collision made this hook's own RSS probe pass vacuously before it was caught, so the
 // failure mode is demonstrated rather than hypothetical.
-if (require.main === module) {
+//
+// ESM SPELLING, and it is not interchangeable with the CommonJS one it replaces. `require.main`
+// carries no parenthesis and `module` no dot-exports, so a `require\(|module\.exports` search — the
+// obvious way to find conversion sites — matches NEITHER token and reports this file clean. It
+// converts, it loads, and it throws here at runtime. Found by the life-therapy session hitting
+// exactly this, 2026-09-09 (dev-standards M-KIT-17 / L-94). `process.argv[1]` is a path and
+// `import.meta.url` a URL, so the comparison must go through pathToFileURL rather than string-match.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   let raw = "";
   process.stdin.on("data", (c) => (raw += c));
   process.stdin.on("end", () => {
@@ -468,7 +476,7 @@ if (require.main === module) {
   });
 }
 
-module.exports = {
+export {
   adviseUser, adviseAgent, measure, readMain, readAgents, readRange, contextNow, snapshotNow, loadState,
   WARN, STOP, CACHE_READ_MULTIPLIER, CACHE_WRITE_MULTIPLIER, STATE_FILE,
 };
