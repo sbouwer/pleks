@@ -56,7 +56,19 @@ instead of replacing the head is the failure mode — do not do it.
 gaps, not ideas. **`brief/` is a symlink to OneDrive and is NOT version-controlled** — anything the
 tooling depends on belongs in the tracked tree instead.
 
-**Check `c:\dev\dev-standards\ledgers\LESSONS.md` for open items naming this project.**
+**Check the lesson ledger for open items naming this project — by asking it, not by reading it:**
+
+```bash
+node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks
+```
+
+It prints only the lessons with no `Applied:` line naming pleks, each with its triggers and the line
+it starts on, so you read ~40 lines of a 240 KB ledger instead of the ledger. Answer one by measuring
+THIS tree: a date with its evidence, or `n/a:` with a reason that argues it. **"Not yet" is not an
+answer** — if the lesson applies and pleks lacks it, that is work: queue it in `docs/MECHANISABLE.md`
+(a control) or `brief/CURRENT.md`, and leave the lesson open. **No gate here may call this command**,
+now or later: a gate that depends on a sibling checkout's path fails on the first machine that does
+not have it, and fails as *green* if the failure is swallowed. This is a session step, not a control.
 
 ---
 
@@ -74,8 +86,11 @@ underneath it, so its result was not attributable to any state of the tree — n
 both projects' findings were correct and are now in canon; what was lost was the ability to say what
 had been measured.
 
-**A finding about canon is worth more than a fix to canon.** Report it and let the estate session
-make the change:
+**A finding about canon is worth more than a fix to canon.** Write it into
+**`docs/CANON-FINDINGS.md`** — this repo's outbox, in the report format below — and let the estate
+session make the change. Not into a chat report: CF-1 was nominated, reported, and still undelivered
+a session later, because the only place holding it was a message nobody re-read. The outbox is also
+where lesson answers and kit reports go, so canon has one file to lift from. The format:
 
     OBSERVED   what happened, in one sentence
     COMMAND    what you ran, and its output verbatim
