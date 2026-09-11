@@ -4,7 +4,7 @@
   Built from standards/CLAUDE-MD-STANDARD v4.5 (C:\dev\dev-standards).
   BINDING METRIC: the UNENFORCEABLE RATIO — N of D. N = rules whose only control is model
   attention; D = all marker-carrying rules, here AND in .claude/rules/*.md.
-  N may only FALL and D may only RISE — both pinned in scripts/claude-md-ratio.ceiling.json.
+  N may only FALL and D may only RISE — both pinned in scripts/check-claude-md.ceiling.json.
   D is pinned because markers are required only in the tagged sections, so without a floor a rule
   could be MOVED into untagged prose and N would fall with the rule still unenforced.
   ADVISORY: ~250 visible lines. A tripwire for a ratchet pass, never a reason to relocate prose —
@@ -171,10 +171,12 @@ Supabase MCP mutation tools, plus deny entries for force-push and hard-reset.
 
 **Those Bash twins cover CANONICAL INVOCATIONS ONLY, and hook-dead is not "degraded but complete".**
 Settings speak in prefix globs, so `Bash(git push --force*)` matches exactly that spelling.
-`git -C /repo push --force`, an absolute path, an env prefix or an alias **passes the twin** — the
-hook catches all of them because it token-matches (find `git`, then `push`, then a force flag as a
-standalone token anywhere after). **The hook is the control; the twin is a partial floor for
-canonical forms.** Not fixed by widening: `Bash(git*)` at `ask` prompts on every `git status`, and a
+`git -C /repo push --force`, an absolute path or an env prefix **passes the twin** — the hook
+catches all three because it token-matches within each command segment (find `git`, then `push`,
+then a force flag as a standalone token anywhere after). **An alias passes BOTH:** `gp` names no
+`git` token, so nothing reading the command text can see what it expands to — this line claimed
+the hook caught it until 2026-09-11, when the pre-merge walk of the v6 adoption found it false.
+**The hook is the control; the twin is a partial floor for canonical forms.** Not fixed by widening: `Bash(git*)` at `ask` prompts on every `git status`, and a
 twin that fires constantly is deleted within a day, which trades something narrow for nothing.
 A narrower `Bash(git -C*)` twin — the single likeliest bypass vehicle — was **considered and
 rejected on measurement**: `git -C` appears 112 times in this machine's transcripts, almost all
@@ -470,6 +472,7 @@ section that never mentioned joint applications).
 - **implementer** (WRITE, Sonnet) — a PRE-SCOPED mechanical transform: a codemod, a migrate-these-N-sites sweep, a rename, a header/baseline fill. **Spawn it in the MAIN CHECKOUT — do NOT use `isolation: "worktree"`** (E10: a worktree is created from `origin/main`, not your HEAD, so on any feature branch the agent transforms a different tree from yours and its green gate proves nothing about yours). What isolation was standing in for is served by a rung-1 control for **ONE** of the rule's two halves: **no subagent may create or publish a commit** — the hook matches `Bash` as well as the edit tools and denies `commit`/`merge`/`rebase`/`cherry-pick`/`revert`/`am`/`push`, leaving read-only git and the main session untouched, and that branch runs for every `agent_type` before any path logic. <!-- @enforced hook:agent-write-scope --> It ends at `npm run check` green + a report; YOU commit and push. Give it the exact transform + scope — it returns the misfit "judgment sites" for you to decide, never guesses a mapping. This is the multitasking lever: hand off the mechanical bulk (this is what the 100-site item-5/6 migrations were), keep your context for the rule design and the judgment calls.
   **Worktree isolation remains available for exactly one case** — two implementers running in parallel on DISJOINT file sets, on `main`, with artefact paths passed absolute — chosen explicitly each time, never inherited from a recommendation.
   **The scope half is ENFORCED since 2026-09-09, and the tag above now covers BOTH halves of that sentence** — the coverage boundary that justified splitting them is gone, so they are rejoined under one claim rather than tagged twice. Until that date the first half was false: the hook declared `implementer: null` and guarded the path check with `if (allowed !== null)`, so a null scope skipped it entirely — *weaker* than being absent from the table, since an unknown `agent_type` at least falls through to `ask`. **Closed by adopting canon's `agent-write-scope` v4** (M-117): `null` now means "bounded by whatever the caller declared for this run" in `.handoff/write-manifest.json`, and an undeclared run **asks** rather than allows. **That is a caller obligation, not a free win — write the manifest before spawning an implementer, or every write it makes stops to ask.** What remains unenforceable is the "never guesses a mapping" claim and the judgment-sites report, which no version fixes: nothing inspects a subagent's self-reported list of misfits for completeness or honesty, and an agent that silently guessed a mapping and reported nothing is textually identical to one that found no misfits. Not mechanisable from a diff — the evidence is what the agent chose not to say.
+  **WHICH HALF THE TAG MEANS — stated because v5's own header asks any project tagging this as enforced to say so.** The write fence is sound **only for writes a tool call NAMES.** `Write`, `Edit` and `NotebookEdit` name their path in a field; since **v5 (adopted 2026-09-11)** a `Bash` command's text is read for the paths it writes and held to the same scope, which is a real widening and the reason the probe count went from 57 to 99. It still does not reach what a command writes **without naming** — an interpreter, a script invoked by name, `find -delete`, and git's tree-writing subcommands. So the tag covers the commit denial absolutely, and the write fence for named paths only. Not qualified into the tag, per §4: the covered half is tagged, and this sentence is the uncovered half.
 - Do not deploy without running `npm run security:quick` first
   **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: data-boundary) — twin of "Zero critical findings before any deployment" above, same mechanism, not re-annotated there: no gate blocks a Vercel deploy on this script having run or passed.
 - Do not change existing RLS policies without flagging it

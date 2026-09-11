@@ -1,6 +1,21 @@
 -- 030_prime_rate_history.sql — Seed historical SA prime rates (SARB MPC decisions)
 
--- Remove the placeholder seed first
+-- Remove the placeholder seed first.
+--
+-- ⚠ THIS LINE WAS A SILENT NO-OP FROM 2026-07-06 UNTIL 2026-09-11, AND THE REPAIR RE-ARMED IT.
+-- The em-dash here became doubly-encoded at b5636b9d while 004_leases_financials.sql's matching
+-- literal — the one that WRITES the placeholder — stayed correct in every revision. So the equality
+-- never held, the DELETE matched nothing, and 004's non-idempotent seed was left unguarded: any
+-- database replayed in that window keeps a row (11.25, '2024-01-01', 'Seed rate — …'). Because
+-- getPrimeRateOn (lib/deposits/interestConfig.ts) takes the latest row <= the date, that row makes
+-- EVERY date in [2024-01-01, 2024-09-20) resolve to 11.25 instead of 11.75 — deposit and arrears
+-- interest understated by 0.5pp, with nothing failing. 2adfce63's mojibake repair restored the
+-- match, so this is load-bearing again.
+--
+-- Prod was measured clean on 2026-09-11 (project noexjtlrffkzzclibvbq): zero rows matching
+-- 'Seed rate%', zero rows at 2024-01-01, and mid-2024 resolving to 11.75. A FRESH REPLAY IS THE
+-- CASE THIS PROTECTS — do not "tidy" the literal on either side without changing both, and note
+-- that the two files must agree byte-for-byte for this to work at all.
 DELETE FROM prime_rates WHERE notes = 'Seed rate — update with actual effective date';
 
 -- Insert full history (newest first for readability, order doesn't matter for queries)

@@ -1,7 +1,7 @@
 /**
  * Probes for agent-write-scope.js — BOTH DIRECTIONS, per dev-standards LESSONS L-01.
  *
- * @kit agent-write-scope-probe v4 — tracked OUTSIDE its `KIT:CONFIG` regions.
+ * @kit agent-write-scope-probe v5 — tracked OUTSIDE its `KIT:CONFIG` regions.
  *
  * This gate has a second failure mode the other two do not, and the probe list is shaped around it.
  * `agent_type` is absent in the main session (E7), so a hook that read the field wrongly — a typo, a
@@ -233,6 +233,85 @@ if (FREE === undefined) {
   else MANIFEST_CASES.push({ want: "deny", why: "a manifest cannot widen an agent that already has a path scope", payload: at(SCOPED_F, BOUNDED, "components/brand/mark-timing.ts") });
 }
 
+/* ── v5: WHAT A BASH COMMAND WRITES (yoros CF-6) ─────────────────────────────
+ * Before v5, `Bash echo x > lib/site.ts` from an agent denied `Write lib/site.ts` was ALLOWED.
+ * Every write read out of a command's text is held to the agent's scope, and anything it would
+ * refuse — or cannot read — ASKS. It never denies: the reading is of shell text and can be wrong.
+ * Derived from the table like everything above: `B` is an agent with a bounded scope, `IN` a path
+ * inside its first root. The parser's own claims (quotes, heredocs, fd duplication, arithmetic) are
+ * stated through the same agent, because a write the parser misses is only visible as an allow. */
+const BASH_CASES = [];
+const bashAt = (root, agent, command) => ({ ...bash(agent, command), cwd: root });
+if (BOUNDED === undefined || WHOLE_TREE(SCOPES[BOUNDED])) {
+  skip("the bash-write arm: no agent has a bounded scope short of the whole checkout, so no bash write is outside one — 33 cases UNEXERCISED");
+} else {
+  const B = BOUNDED;
+  const IN = `${SCOPES[B][0]}/probe-task`;
+  const ask = (why, command) => BASH_CASES.push({ want: "ask", why: `bash: ${why}`, payload: bash(B, command) });
+  const allow = (why, command) => BASH_CASES.push({ want: "allow", why: `bash: ${why}`, payload: bash(B, command) });
+  // The finding itself, and each writer the v5 note lists.
+  ask(`${B} redirecting into a file it may not Write — yoros CF-6's first command`, `echo x > ${OUTSIDE}`);
+  ask("sed -i on a file outside scope — CF-6's second", `sed -i 's/a/b/' ${OUTSIDE}`);
+  ask("…with a backup suffix and -e, whose script is NOT a file — the outside one is first", `sed -i.bak -e s/a/b/ ${OUTSIDE} ${IN}/keep.md`);
+  ask("…and `-ni`, where the i sits inside a cluster", `sed -ni 's/a/b/p' ${OUTSIDE}`);
+  ask("tee -a into a file outside scope", `printf x | tee -a ${OUTSIDE}`);
+  ask("cp's destination is the last operand", `cp ${IN}/a.md ${OUTSIDE}`);
+  ask("…or the -t directory, wherever it sits", `cp -t zz-outside-dir ${IN}/a.md`);
+  ask("mv onto a file outside scope", `mv ${IN}/a.md ${OUTSIDE}`);
+  ask("rm deletes — a write by any other name", `rm -f ${OUTSIDE}`);
+  ask("touch", `touch ${OUTSIDE}`);
+  ask("dd of=", `dd if=/dev/zero of=${OUTSIDE} bs=1 count=1`);
+  ask("an fd-numbered redirection is a redirection", `node x.mjs 2> ${OUTSIDE}`);
+  ask("&> writes both streams to a file", `node x.mjs &> ${OUTSIDE}`);
+  ask("a `..` escape out of the root", `echo x > ${IN}/../../${OUTSIDE}`);
+  ask("a cd is followed, so a relative target lands where the shell puts it", "cd zz-outside-dir && echo x > y.ts");
+  ask("a write inside $(…) is still a write", `echo $(echo x > ${OUTSIDE})`);
+  ask("…and inside bash -c's script", `bash -c 'echo x > ${OUTSIDE}'`);
+  ask("…and inside a process substitution", `npm test | tee >(cat > ${OUTSIDE})`);
+  // Inside the scope's own directory on purpose: `$NAME` can hold `../..`, and a reader that took
+  // the word as a literal path would ALLOW this one, which is the only way to see that it did.
+  ask("a target decided at run time cannot be read, even inside scope, and unknown asks (L-57)", `echo x > "${IN}/$NAME"`);
+  ask("sed -i fed by xargs names no file", "find . -name '*.ts' | xargs sed -i s/a/b/");
+  ask("find -delete removes files its text never names", "find . -name '*.tmp' -delete");
+  ask("a command that does not parse cannot be read", "echo 'unterminated");
+  allow("a write inside its own scope", `echo x > ${IN}/out.md`);
+  allow("a cd INTO scope is followed too — the other half of following it", `cd ${IN} && echo x > y.md`);
+  allow("the null device and fd duplication are not files", "node x.mjs > /dev/null 2>&1 && diff a b >&2");
+  allow("tee into scope, the ordinary test-log shape", `npm test 2>&1 | tee ${IN}/test.log`);
+  allow("a process substitution names a pipe, not a file; the commands inside it are read", `npm test | tee >(wc -l > ${IN}/n) ${IN}/log`);
+  allow("sed without -i is a read", `sed -n '1,5p' ${OUTSIDE}`);
+  allow("a quoted > is text, not a redirection", `grep -rn 'a > ${OUTSIDE}' lib`);
+  allow("a heredoc's body is data, not commands", `cat <<'EOF' > ${IN}/x.md\nline > ${OUTSIDE}\nEOF`);
+  allow("arithmetic's > is a comparison", "echo $((3>2))");
+  allow("cp FROM outside is a read; only the destination is written", `cp ${OUTSIDE} ${IN}/`);
+  allow("xargs feeding a reader", "find . -name '*.ts' | xargs grep -l foo");
+}
+for (const [agent] of empty) {
+  BASH_CASES.push({ want: "ask", why: `bash: ${agent} writes no files, and a redirection is a file`, payload: bash(agent, "echo x > .handoff/probe-task/x.md") });
+}
+if (FREE !== undefined) {
+  const SCOPED_B = fixture({ agent: FREE, paths: ["components/brand/"] });
+  BASH_CASES.push(
+    { want: "ask", why: `bash: ${FREE} with no manifest, writing through a redirection`, payload: bashAt(NONE, FREE, "echo x > lib/nav.ts") },
+    { want: "allow", why: `bash: ${FREE}'s own artefact, undeclared and always in scope`, payload: bashAt(NONE, FREE, "echo x > .handoff/probe-task/log.md") },
+    { want: "allow", why: `bash: ${FREE} editing inside the run's manifest`, payload: bashAt(SCOPED_B, FREE, "sed -i s/a/b/ components/brand/mark.ts") },
+    { want: "ask", why: `bash: ${FREE} outside the run's manifest ASKS where a Write would deny`, payload: bashAt(SCOPED_B, FREE, "sed -i s/a/b/ lib/nav.ts") },
+  );
+  // Git Bash spells `C:\x` as `/c/x`. Only a win32 host reads paths that way, so only there is the
+  // case meaningful; on any other host `/c/x` is simply a path, and there is no direction to lose.
+  if (process.platform === "win32") {
+    const gitBash = NONE.replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`).replace(/\\/g, "/");
+    BASH_CASES.push({ want: "allow", why: `bash: a Git Bash /c/… path to ${FREE}'s own artefact is the same file`, payload: bashAt(NONE, FREE, `echo x > ${gitBash}/.handoff/probe-task/log.md`) });
+  }
+}
+if (UNSCOPED !== undefined) {
+  BASH_CASES.push(
+    { want: "ask", why: "bash: an agent nobody scoped, writing through a redirection", payload: bash(UNSCOPED, "echo x > scripts/x.mjs") },
+    { want: "allow", why: "bash: …and the same agent reading", payload: bash(UNSCOPED, "ls -la && cat package.json") },
+  );
+}
+BASH_CASES.push({ want: "allow", why: "bash: the MAIN session's redirection is not this gate's question", payload: main("Bash", { command: `echo x > ${OUTSIDE}` }) });
+
 /* ── CANON'S OWN, and they do not move ───────────────────────────────────────
  *
  * These are the assurances the kit makes on every project's behalf, and they live outside every
@@ -280,7 +359,7 @@ const UNIVERSAL = [
 if (UNSCOPED === undefined) skip("the unscoped-agent cases: every candidate name is in the project's table, so `ask` has no subject here");
 if (ANY === undefined) skip("the commit-denial arm: the table is EMPTY, so no subagent exists to run a command — 11 cases UNEXERCISED");
 
-const CASES = [...DERIVED, ...MANIFEST_CASES, ...UNIVERSAL];
+const CASES = [...DERIVED, ...MANIFEST_CASES, ...BASH_CASES, ...UNIVERSAL];
 
 let failed = 0;
 for (const c of CASES) {
@@ -300,7 +379,7 @@ for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
 for (const s of SKIPS) console.log(`⊘ SKIPPED  ${s}`);
 
 const agents = Object.keys(SCOPES).length;
-const shape = `${DERIVED.length} derived from your ${agents} agent(s), ${MANIFEST_CASES.length} manifest, ${UNIVERSAL.length} canon's own`;
+const shape = `${DERIVED.length} derived from your ${agents} agent(s), ${MANIFEST_CASES.length} manifest, ${BASH_CASES.length} bash-write, ${UNIVERSAL.length} canon's own`;
 console.log(
   failed === 0
     ? `\n${SKIPS.length ? "⚠" : "✅"} ${CASES.length} agent-write-scope probes pass (${shape})` +

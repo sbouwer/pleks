@@ -1,11 +1,17 @@
 /**
  * agent-write-scope.js — KIT FILE, install at `.claude/hooks/`.
  *
- * @kit agent-write-scope v4 — tracked OUTSIDE its `KIT:CONFIG` regions. The scope map is
+ * @kit agent-write-scope v5 — tracked OUTSIDE its `KIT:CONFIG` regions. The scope map is
  * yours; the gate logic is canon's, and `check-kit-drift.mjs` reconciles it.
  *
  * A PreToolUse gate with THREE remits: it bounds what a subagent may WRITE, denies a subagent the
  * ability to CREATE A COMMIT, and decides which agent types may SPAWN another agent.
+ *
+ * ⚠ THE WRITE FENCE IS SOUND ONLY FOR WRITES A TOOL CALL NAMES. Write, Edit and NotebookEdit name
+ * their path in a field. A Bash command names its targets in its text, and since v5 those are read
+ * and held to the same scope — but an interpreter, a script, `find -delete` and git's tree-writing
+ * subcommands write files their text never names. See "v5: WHAT A BASH COMMAND WRITES" below for
+ * the full list. A CLAUDE.md that tags this rule as enforced should say which half it means.
  *
  * ── v2: THE WRITE MANIFEST, WHICH CLOSES THE ONE HOLE v1 DOCUMENTED ────────────────────────────
  *
@@ -205,6 +211,474 @@ function contains(root, file) {
   return !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
+/**
+ * The verdict on one write by a subagent, whichever tool makes it: `{ decision, reason }`.
+ * The Write/Edit branch returns it as it is; the Bash branch reads the same verdict per target.
+ */
+function scopeVerdict(agentType, cwd, raw) {
+  if (!(agentType in SCOPES)) {
+    return { decision: "ask", reason: `agent-write-scope: "${agentType}" has no declared write scope — approve deliberately, or add one to SCOPES` };
+  }
+  const allowed = SCOPES[agentType];
+  const file = path.resolve(cwd, raw);
+  if (allowed === null) {
+    // `null` is now "bounded by the manifest", not "ungated". The agent's OWN artefact
+    // directory is always in scope and is never named in a manifest: every spine writes a
+    // handoff artefact, so requiring it to be declared would mean every manifest carrying one
+    // identical line, and a line that is always the same is a line that will be forgotten.
+    if (contains(path.resolve(cwd, ".handoff"), file)) {
+      // FIRST, and before the manifest is even consulted. Every spine writes a handoff
+      // artefact, so this is the one write that is in scope by definition — gating it on a
+      // declaration would mean a run could be stopped from REPORTING what it did, which is
+      // the opposite of what any of this is for.
+      return { decision: "allow", reason: `agent-write-scope: ${agentType} writing its own artefact, which is always in scope` };
+    }
+    const m = readManifest(cwd, agentType);
+    if (!m.ok) {
+      return {
+        decision: "ask",
+        reason:
+          `agent-write-scope: ${agentType} writes without a declared scope — ${m.why}. ` +
+          `Approve this write deliberately, or bound the run first by writing ${MANIFEST}: ` +
+          `{"agent":"${agentType}","paths":["${path.dirname(raw).replace(/\\/g, "/")}/"]}. ` +
+          `It expires in 2h and must not be committed.`,
+      };
+    }
+    if (m.paths.map((r) => path.resolve(cwd, r)).some((root) => contains(root, file))) {
+      return { decision: "allow", reason: `agent-write-scope: ${agentType} writing inside the scope declared for this run` };
+    }
+    return {
+      decision: "deny",
+      reason:
+        `agent-write-scope: this run scoped ${agentType} to ${m.paths.join(", ")} — ` +
+        `"${raw}" is outside it. If the task genuinely needs that file, the CALLER widens ` +
+        `${MANIFEST} and says why; an agent widening its own scope is the thing this stops.`,
+    };
+  }
+  if (allowed.length === 0) {
+    return {
+      decision: "deny",
+      reason:
+        `agent-write-scope: ${agentType} writes no files at all — its spine has it EMIT a JSON ` +
+        `object as its return message, which a wrapper merges. "${raw}" is a file it has no ` +
+        `remit to open. Return the finding instead.`,
+    };
+  }
+  if (!allowed.map((r) => path.resolve(cwd, r)).some((root) => contains(root, file))) {
+    return {
+      decision: "deny",
+      reason:
+        `agent-write-scope: ${agentType} may only write to ${allowed.join(", ")} — ` +
+        `"${raw}" is outside it. Artefacts go to .handoff/<task-slug>/; report findings to ` +
+        `the caller instead of editing the tree.`,
+    };
+  }
+  return { decision: "allow", reason: `agent-write-scope: ${agentType} writing inside its scope` };
+}
+
+/* ── v5: WHAT A BASH COMMAND WRITES ──────────────────────────────────────────────────────────
+ *
+ * Until v5 the Bash branch read only whether a command commits, so a report-only agent denied
+ * `Write lib/site.ts` could run `echo x > lib/site.ts` and be allowed (yoros CF-6). E8 is why the
+ * fence exists — `tools:` is a grant, not a fence — and the same reasoning says Bash cannot be
+ * withheld from a spine that runs a test, so the fence covered two of the three ways of writing.
+ * That is L-48's shape: a control on one access path, assuming it is the only one.
+ *
+ * So the Bash branch now reads the files a command's TEXT says it writes, and holds each to the
+ * same scope as a Write:
+ *   redirections      `>` `>>` `>|` `&>` `&>>` `<>`, with or without an fd number
+ *   tee               every file operand
+ *   sed -i            every file operand (`-i.bak`, `--in-place`, `-ni` all count)
+ *   cp mv ln install  the destination: `-t DIR`, `--target-directory=DIR`, or the last operand
+ *   rm rmdir touch mkdir truncate   every operand
+ *   dd                `of=`
+ * and it reads the commands inside `$(…)`, backticks, `<(…)`/`>(…)`, `bash -c '…'` and `sh -c '…'`,
+ * and follows `cd` so a relative target lands where the shell would put it.
+ *
+ * IT ASKS, IT NEVER DENIES. A Write names its path in a field; a Bash write is read out of shell
+ * text, and a reading can be wrong. A false deny stalls an agent with no way to comply, which is the
+ * direction that gets a gate switched off. An ask is the visible version of the same doubt.
+ *
+ * A TARGET IT CANNOT RESOLVE ASKS (L-57: unknown asks). `> "$OUT"`, `> ~/x`, a glob, a relative
+ * target after a `cd` it could not follow, `sed -i` with no file in the command, one of the writers
+ * above handed its files by `xargs` or `find -exec`, and `find -delete` are all decided when the
+ * command runs, not readable from its text.
+ *
+ * WHAT IT CANNOT SEE, stated so an adopter's CLAUDE.md can split the rule rather than tag all of it
+ * as enforced. The fence is sound only for writes a command's text NAMES. Unfenced:
+ *   · an interpreter or a script — `node -e`, `python -c`, `perl -i`, `node scripts/x.mjs`, `npm run`
+ *   · git's tree-writing subcommands — `checkout`, `restore`, `stash`, `apply`
+ *   · a command named through a variable (`$EDITOR f`), and `eval`
+ *   · any writer not in the list above
+ * Those writes are held by the caller reading `git status` after the run, as before v5.
+ */
+const NULL_DEVICES = new Set(["/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty", "nul", "NUL"]);
+
+/** Commands whose operands (or destination) are files they write. `sed` writes only with `-i`. */
+const WRITERS = new Set(["tee", "sed", "cp", "mv", "ln", "install", "rm", "rmdir", "touch", "mkdir", "truncate", "dd"]);
+
+/** Index just past the `"` that closes a double-quoted span starting at `from`, or -1. */
+function closeDouble(src, from) {
+  let i = from;
+  while (i < src.length) {
+    if (src[i] === "\\") i += 2;
+    else if (src[i] === '"') return i + 1;
+    else i += 1;
+  }
+  return -1;
+}
+
+/** Index just past the `)` closing a group whose `(` sits just before `from`, or -1. */
+function closeParen(src, from) {
+  let depth = 1;
+  let i = from;
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "\\") {
+      i += 2;
+      continue;
+    }
+    if (c === "'" || c === '"') {
+      const j = c === "'" ? src.indexOf("'", i + 1) + 1 : closeDouble(src, i + 1);
+      if (j <= 0) return -1;
+      i = j;
+      continue;
+    }
+    if (c === "(") depth += 1;
+    if (c === ")") depth -= 1;
+    if (depth === 0) return i + 1;
+    i += 1;
+  }
+  return -1;
+}
+
+/** Skip the bodies of the heredocs opened on the line just ended; returns where commands resume. */
+function skipHeredocs(src, from, heredocs) {
+  let at = from;
+  while (heredocs.length > 0) {
+    const h = heredocs.shift();
+    while (at < src.length) {
+      const nl = src.indexOf("\n", at);
+      const end = nl === -1 ? src.length : nl;
+      const line = src.slice(at, end).replace(/\r$/, "");
+      at = end + 1;
+      if ((h.strip ? line.replace(/^\t+/, "") : line) === h.delim) break;
+    }
+  }
+  return Math.min(at, src.length);
+}
+
+/**
+ * Read shell text into simple commands: `{ words, writes }`, each word `{ text, literal }`.
+ *
+ * `literal` is false wherever the shell would expand something — a `$`, a backtick, a glob, a
+ * leading `~`, a brace — because the file such a word names is decided at run time. Quotes are
+ * removed, so `'a > b'` is one word and not a redirection. Heredoc bodies are data and are skipped.
+ * Commands inside substitutions are returned as commands of their own. Returns null when the text
+ * does not parse — an unterminated quote or group — which the shell would refuse too.
+ */
+function readBash(src) {
+  const commands = [];
+  let cmd = { words: [], writes: [] };
+  let word = null;
+  let pending = null;
+  const heredocs = [];
+  const open = () => {
+    if (word === null) word = { text: "", literal: true };
+  };
+  const endWord = () => {
+    if (word === null) return;
+    if (pending === null) cmd.words.push(word);
+    else if (pending.kind === "write") cmd.writes.push(word);
+    else if (pending.kind === "dup-or-write" && !/^(\d+|-)$/.test(word.text)) cmd.writes.push(word);
+    else if (pending.kind === "heredoc") heredocs.push({ delim: word.text, strip: pending.strip });
+    pending = null;
+    word = null;
+  };
+  const endCommand = () => {
+    endWord();
+    if (cmd.words.length > 0 || cmd.writes.length > 0) commands.push(cmd);
+    cmd = { words: [], writes: [] };
+  };
+  const nested = (text) => {
+    const inner = readBash(text);
+    if (inner === null) return false;
+    commands.push(...inner);
+    return true;
+  };
+  // Double-quoted text: `$` and backticks still expand inside it, and a substitution is still run.
+  const double = (text) => {
+    let k = 0;
+    while (k < text.length) {
+      const c = text[k];
+      if (c === "\\" && k + 1 < text.length && '$`"\\\n'.includes(text[k + 1])) {
+        word.text += text[k + 1];
+        k += 2;
+      } else if (c === "$" && text[k + 1] === "(" && text[k + 2] !== "(") {
+        const j = closeParen(text, k + 2);
+        if (j < 0 || !nested(text.slice(k + 2, j - 1))) return false;
+        word.literal = false;
+        word.text += text.slice(k, j);
+        k = j;
+      } else if (c === "`") {
+        const j = text.indexOf("`", k + 1);
+        if (j < 0 || !nested(text.slice(k + 1, j))) return false;
+        word.literal = false;
+        word.text += text.slice(k, j + 1);
+        k = j + 1;
+      } else {
+        if (c === "$") word.literal = false;
+        word.text += c;
+        k += 1;
+      }
+    }
+    return true;
+  };
+
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (c === "\n") {
+      endCommand();
+      i = skipHeredocs(src, i + 1, heredocs);
+    } else if (c === " " || c === "\t" || c === "\r") {
+      endWord();
+      i += 1;
+    } else if (c === "#" && word === null) {
+      const nl = src.indexOf("\n", i);
+      i = nl === -1 ? src.length : nl;
+    } else if (c === "\\") {
+      if (next !== "\n") {
+        open();
+        word.text += next ?? "";
+      }
+      i += 2;
+    } else if (c === "'") {
+      const j = src.indexOf("'", i + 1);
+      if (j < 0) return null;
+      open();
+      word.text += src.slice(i + 1, j);
+      i = j + 1;
+    } else if (c === '"') {
+      const j = closeDouble(src, i + 1);
+      if (j < 0) return null;
+      open();
+      if (!double(src.slice(i + 1, j - 1))) return null;
+      i = j;
+    } else if (c === "$" && next === "(") {
+      // `$((…))` is arithmetic — its `>` is a comparison, never a redirection — so it is skipped.
+      const arithmetic = src[i + 2] === "(";
+      const j = closeParen(src, i + 2);
+      if (j < 0 || (!arithmetic && !nested(src.slice(i + 2, j - 1)))) return null;
+      open();
+      word.literal = false;
+      word.text += src.slice(i, j);
+      i = j;
+    } else if (c === "`") {
+      const j = src.indexOf("`", i + 1);
+      if (j < 0 || !nested(src.slice(i + 1, j))) return null;
+      open();
+      word.literal = false;
+      word.text += src.slice(i, j + 1);
+      i = j + 1;
+    } else if ((c === "<" || c === ">") && next === "(" && word === null) {
+      // Process substitution: the commands inside are read; the word itself names a pipe.
+      const j = closeParen(src, i + 2);
+      if (j < 0 || !nested(src.slice(i + 2, j - 1))) return null;
+      open();
+      word.pipe = true;
+      i = j;
+    } else if (c === "<" || c === ">" || (c === "&" && next === ">")) {
+      if (word !== null && word.literal && /^\d+$/.test(word.text) && c !== "&") word = null;
+      else endWord();
+      const ops = [
+        ["&>>", "write"], ["&>", "write"], [">>", "write"], [">|", "write"], [">&", "dup-or-write"], [">", "write"],
+        ["<<<", "read"], ["<<-", "heredoc"], ["<<", "heredoc"], ["<>", "write"], ["<&", "read"], ["<", "read"],
+      ];
+      const [op, kind] = ops.find(([o]) => src.startsWith(o, i));
+      pending = { kind, strip: op === "<<-" };
+      i += op.length;
+    } else if (c === ";" || c === "|" || c === "&" || c === "(" || c === ")") {
+      endCommand();
+      i += 1;
+    } else if ((c === "{" || c === "}") && word === null && (next === undefined || /\s/.test(next))) {
+      i += 1;
+    } else {
+      open();
+      if ("*?[{}".includes(c) || (c === "~" && word.text === "") || c === "$") word.literal = false;
+      word.text += c;
+      i += 1;
+    }
+  }
+  endCommand();
+  return commands;
+}
+
+/** Operands of a command: words that are not options, honouring `--`; `valued` options eat the next word. */
+function operands(args, valued = new Set()) {
+  const out = [];
+  let opts = true;
+  let n = 0;
+  while (n < args.length) {
+    const t = args[n].text;
+    n += 1;
+    if (opts && t === "--") opts = false;
+    else if (opts && t.length > 1 && t.startsWith("-")) {
+      if (valued.has(t)) n += 1;
+    } else out.push(args[n - 1]);
+  }
+  return out;
+}
+
+/** `sed`'s in-place targets, or null when the command is not an in-place edit. */
+function sedTargets(args) {
+  let inPlace = false;
+  let scripted = false;
+  const ops = [];
+  let n = 0;
+  while (n < args.length) {
+    const t = args[n].text;
+    n += 1;
+    if (t.startsWith("--")) {
+      if (/^--in-place(=|$)/.test(t)) inPlace = true;
+      if (/^--(expression|file)(=|$)/.test(t)) scripted = true;
+      if (/^--(expression|file)$/.test(t)) n += 1;
+    } else if (t.length > 1 && t.startsWith("-")) {
+      // A short cluster: `-i` ends it (the rest is a backup suffix); `-e`/`-f`/`-l` take the rest
+      // of the cluster, or the next word when they end it.
+      const flags = t.slice(1);
+      const at = flags.search(/[iefl]/);
+      if (at !== -1) {
+        const f = flags[at];
+        if (f === "i") inPlace = true;
+        if (f === "e" || f === "f") scripted = true;
+        if (f !== "i" && at === flags.length - 1) n += 1;
+      }
+    } else ops.push(args[n - 1]);
+  }
+  if (!inPlace) return null;
+  return scripted ? ops : ops.slice(1);
+}
+
+/**
+ * What one simple command writes, beyond its redirections:
+ * `{ targets, blind, cd, script }` — `blind` names an in-place edit whose files are not in the
+ * text, `cd` is the directory a `cd` moves to (null when it cannot be followed), and `script` is
+ * the text a `bash -c` runs.
+ */
+function commandWrites(words) {
+  let k = 0;
+  while (k < words.length) {
+    const t = words[k].text;
+    if (/^[A-Za-z_]\w*=/.test(t)) k += 1;
+    else if (["sudo", "env", "command", "builtin", "exec", "nice", "nohup", "time", "if", "then", "else", "elif", "while", "until", "do", "!"].includes(t)) k += 1;
+    else if (t === "timeout") k += 2;
+    else break;
+  }
+  const head = words[k];
+  if (head === undefined || !head.literal) return { targets: [] };
+  const name = head.text.split(/[\\/]/).pop();
+  const args = words.slice(k + 1);
+  // A writer handed its files by xargs or find names none of them in the text, so what it writes is
+  // decided at run time. That is an unreadable target, and an unreadable target asks.
+  const fed = (inner, via) => {
+    const n = inner[0]?.text.split(/[\\/]/).pop();
+    return WRITERS.has(n) ? { targets: [], blind: `${n} under ${via} writes files the command's text does not name` } : { targets: [] };
+  };
+  switch (name) {
+    case "xargs":
+      return fed(operands(args, new Set(["-I", "-n", "-P", "-L", "-d", "-E", "-s", "-a"])), "xargs");
+    case "find": {
+      if (args.some((a) => a.text === "-delete")) return { targets: [], blind: "find -delete removes files the command's text does not name" };
+      const exec = args.findIndex((a) => ["-exec", "-execdir", "-ok", "-okdir"].includes(a.text));
+      return exec === -1 ? { targets: [] } : fed(args.slice(exec + 1), `find ${args[exec].text}`);
+    }
+    case "cd":
+    case "pushd": {
+      const to = operands(args)[0];
+      return { targets: [], cd: to !== undefined && to.text !== "-" ? to : null };
+    }
+    case "popd":
+      return { targets: [], cd: null };
+    case "bash":
+    case "sh":
+    case "zsh":
+    case "dash": {
+      const c = args.findIndex((a) => /^-[a-z]*c$/.test(a.text));
+      const script = c === -1 ? undefined : args[c + 1];
+      return { targets: [], script: script?.literal ? script.text : undefined };
+    }
+    case "tee":
+      return { targets: operands(args, new Set(["--output-error"])).filter((w) => w.text !== "-") };
+    case "sed": {
+      const files = sedTargets(args);
+      if (files === null) return { targets: [] };
+      if (files.length === 0) return { targets: [], blind: "sed -i names no file (its list comes from somewhere the text does not show)" };
+      return { targets: files };
+    }
+    case "cp":
+    case "mv":
+    case "ln":
+    case "install": {
+      const flag = args.findIndex((a) => a.text === "-t");
+      if (flag !== -1 && args[flag + 1]) return { targets: [args[flag + 1]] };
+      const long = args.find((a) => a.text.startsWith("--target-directory="));
+      if (long) return { targets: [{ ...long, text: long.text.slice("--target-directory=".length) }] };
+      const ops = operands(args, new Set(["-S", "--suffix", "-m", "--mode", "-o", "--owner", "-g", "--group"]));
+      if (name === "install" && args.some((a) => a.text === "-d")) return { targets: ops };
+      return { targets: ops.length >= 2 ? [ops.at(-1)] : [] };
+    }
+    case "rm":
+    case "rmdir":
+    case "touch":
+    case "mkdir":
+    case "truncate":
+      return { targets: operands(args, new Set(["-s", "--size", "-r", "--reference", "-d", "--date", "-t", "-m", "--mode"])) };
+    case "dd":
+      return { targets: args.filter((a) => a.text.startsWith("of=")).map((a) => ({ ...a, text: a.text.slice(3) })) };
+    default:
+      return { targets: [] };
+  }
+}
+
+/** Where a target word lands: `{ raw, file }`, `{ raw, file: null, why }` when unreadable, or null to ignore. */
+function place(word, dir) {
+  if (word.pipe) return null;
+  if (!word.literal) return { raw: word.text, file: null, why: "decided when the command runs, not readable from its text" };
+  if (NULL_DEVICES.has(word.text) || /^\/dev\/fd\/\d+$/.test(word.text)) return null;
+  // Git Bash writes `C:\x` as `/c/x`; read as a path on win32, that would be `C:\c\x`.
+  const t = process.platform === "win32" ? word.text.replace(/^\/([a-zA-Z])(?=\/|$)/, "$1:") : word.text;
+  if (path.isAbsolute(t)) return { raw: word.text, file: path.resolve(t) };
+  if (dir === null) return { raw: word.text, file: null, why: "relative to a directory a `cd` made unknowable" };
+  return { raw: word.text, file: path.resolve(dir, t) };
+}
+
+/** Every file a bash command's text writes, in order, or null when the text does not parse. */
+function bashWrites(command, cwd) {
+  const commands = readBash(command);
+  if (commands === null) return null;
+  const out = [];
+  let dir = cwd;
+  for (const c of commands) {
+    const w = commandWrites(c.words);
+    for (const t of [...c.writes, ...w.targets]) out.push(place(t, dir));
+    if (w.blind) out.push({ raw: "sed -i", file: null, why: w.blind });
+    if (w.script !== undefined) {
+      const inner = bashWrites(w.script, dir);
+      if (inner === null) out.push({ raw: "bash -c", file: null, why: "its script does not parse" });
+      else out.push(...inner);
+    }
+    if (w.cd === null) dir = null;
+    else if (w.cd !== undefined) {
+      if (!w.cd.literal) dir = null;
+      else if (path.isAbsolute(w.cd.text)) dir = path.resolve(w.cd.text);
+      else if (dir !== null) dir = path.resolve(dir, w.cd.text);
+    }
+  }
+  return out.filter((t) => t !== null);
+}
+
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {
@@ -239,9 +713,9 @@ process.stdin.on("end", () => {
           `that cannot be partitioned. Ask the caller to dispatch it instead.`;
       }
     } else if (agentType && input.tool_name === "Bash") {
-      // Bash is gated on WHAT IT RUNS, never on a path — it has none. This branch must come before
-      // the path logic, which would otherwise see a Bash call with no `file_path` and ask on every
-      // command any subagent runs.
+      // Bash is gated on WHAT IT RUNS, and since v5 on the files its text writes. It has no
+      // `file_path`, so this branch must come before the path logic, which would otherwise ask on
+      // every command any subagent runs.
       const command = String(input.tool_input?.command ?? "");
       const hit = deniedGitSubcommand(command);
       if (hit) {
@@ -251,63 +725,39 @@ process.stdin.on("end", () => {
           `commit on the caller's branch, and on this project pushing to \`main\` IS the launch. ` +
           `Agents end at a REPORT; the caller commits. Leave the tree dirty and say what changed.`;
       } else {
-        reason = `agent-write-scope: ${agentType} running a non-committing bash command`;
+        // v5: the files the command's text writes, each held to the same scope as a Write. Any
+        // write the scope would refuse, and any target that cannot be read, ASKS — see the v5 note.
+        const cwd = input.cwd || process.cwd();
+        const writes = bashWrites(command, cwd);
+        const flagged =
+          writes === null
+            ? ["the command does not parse, so what it writes cannot be read"]
+            : writes.flatMap((t) => {
+                if (t.file === null) return [`"${t.raw}" — ${t.why}`];
+                const v = scopeVerdict(agentType, cwd, t.file);
+                return v.decision === "allow" ? [] : [`"${t.raw}" — ${v.reason.replace(/^agent-write-scope: /, "")}`];
+              });
+        if (flagged.length > 0) {
+          decision = "ask";
+          reason =
+            `agent-write-scope: ${agentType} is running a bash command that writes where it may not, ` +
+            `or where this hook cannot tell: ${flagged.join("; ")}. A bash write is read from the ` +
+            `command's text, so it ASKS rather than denies. Approve it deliberately, or return the ` +
+            `finding instead of writing it.`;
+        } else {
+          reason = writes !== null && writes.length > 0
+            ? `agent-write-scope: ${agentType} running a bash command whose every write is in scope`
+            : `agent-write-scope: ${agentType} running a non-committing bash command`;
+        }
       }
     } else if (agentType) {
       const cwd = input.cwd || process.cwd();
       const raw = targetPath(input.tool_input);
-      if (!raw) {
+      if (raw) {
+        ({ decision, reason } = scopeVerdict(agentType, cwd, raw));
+      } else {
         decision = "ask";
         reason = `agent-write-scope: ${agentType} called ${input.tool_name} with no recognisable path field`;
-      } else if (!(agentType in SCOPES)) {
-        decision = "ask";
-        reason = `agent-write-scope: "${agentType}" has no declared write scope — approve deliberately, or add one to SCOPES`;
-      } else {
-        const allowed = SCOPES[agentType];
-        const file = path.resolve(cwd, raw);
-        if (allowed === null) {
-          // `null` is now "bounded by the manifest", not "ungated". The agent's OWN artefact
-          // directory is always in scope and is never named in a manifest: every spine writes a
-          // handoff artefact, so requiring it to be declared would mean every manifest carrying one
-          // identical line, and a line that is always the same is a line that will be forgotten.
-          const m = readManifest(cwd, agentType);
-          if (contains(path.resolve(cwd, ".handoff"), file)) {
-            // FIRST, and before the manifest is even consulted. Every spine writes a handoff
-            // artefact, so this is the one write that is in scope by definition — gating it on a
-            // declaration would mean a run could be stopped from REPORTING what it did, which is
-            // the opposite of what any of this is for.
-            reason = `agent-write-scope: ${agentType} writing its own artefact, which is always in scope`;
-          } else if (!m.ok) {
-            decision = "ask";
-            reason =
-              `agent-write-scope: ${agentType} writes without a declared scope — ${m.why}. ` +
-              `Approve this write deliberately, or bound the run first by writing ${MANIFEST}: ` +
-              `{"agent":"${agentType}","paths":["${path.dirname(raw).replace(/\\/g, "/")}/"]}. ` +
-              `It expires in 2h and must not be committed.`;
-          } else if (m.paths.map((r) => path.resolve(cwd, r)).some((root) => contains(root, file))) {
-            reason = `agent-write-scope: ${agentType} writing inside the scope declared for this run`;
-          } else {
-            decision = "deny";
-            reason =
-              `agent-write-scope: this run scoped ${agentType} to ${m.paths.join(", ")} — ` +
-              `"${raw}" is outside it. If the task genuinely needs that file, the CALLER widens ` +
-              `${MANIFEST} and says why; an agent widening its own scope is the thing this stops.`;
-          }
-        } else if (allowed.length === 0) {
-          decision = "deny";
-          reason =
-            `agent-write-scope: ${agentType} writes no files at all — its spine has it EMIT a JSON ` +
-            `object as its return message, which a wrapper merges. "${raw}" is a file it has no ` +
-            `remit to open. Return the finding instead.`;
-        } else if (!allowed.map((r) => path.resolve(cwd, r)).some((root) => contains(root, file))) {
-          decision = "deny";
-          reason =
-            `agent-write-scope: ${agentType} may only write to ${allowed.join(", ")} — ` +
-            `"${raw}" is outside it. Artefacts go to .handoff/<task-slug>/; report findings to ` +
-            `the caller instead of editing the tree.`;
-        } else {
-          reason = `agent-write-scope: ${agentType} writing inside its scope`;
-        }
       }
     }
   } catch {

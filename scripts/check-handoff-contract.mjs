@@ -2,7 +2,7 @@
 /**
  * scripts/check-handoff-contract.mjs — every handoff artefact carries a well-formed contract block.
  *
- * @kit check-handoff-contract v3 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-handoff-contract v5 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * PORTED FROM `pleks/scripts/check-handoff-contract.mjs`. It arrives because of dev-standards
@@ -40,12 +40,22 @@
  * denominator — so "0 artefacts" is visible rather than implied — and that `--selftest` carries the
  * real fixtures in both directions.
  *
+ * v5 (2026-09-11) READS THE ANCHOR INSTEAD OF ONLY SHAPING IT — life-therapy CF-2, CF-3, CF-4.
+ * The anchor records when the agent started, what tree it started on, and (since the spines'
+ * 2026-09-11 bump) which spine it ran. v4 checked that those fields existed and compared none of
+ * them. v5 prints two tells: a cited file edited DURING the run (L-41), and a spine stamp that the
+ * anchor's commit does not hold (L-39). Neither fails the gate. The exit code the gate's `&&` chain
+ * reads is now on a probe's path: `--selftest` spawns this file against fixture roots, one per exit
+ * (L-51). Before v5 a main-path `exit(0)` mutant left every probe green.
+ *
  * Run: node scripts/check-handoff-contract.mjs             (wired into `npm run check`)
- *      node scripts/check-handoff-contract.mjs --selftest  (probes both directions)
+ *      node scripts/check-handoff-contract.mjs --selftest  (probes both directions, and every exit)
+ *      node scripts/check-handoff-contract.mjs --root <dir> (another tree; what the exit probes use)
  */
 import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..").replace(/\\/g, "/");
 const HANDOFF = "/.handoff";
@@ -217,11 +227,223 @@ export function checkArtefact(path, text, enforceAnchor = true) {
   return out;
 }
 
+// ── v5: the two tells the anchor makes computable ─────────────────────────────────────────────────
+// Both PRINT and neither fails. An artefact's conclusion may stand on another leg (at pleks it did),
+// so a tell is a reason to re-read a paragraph, not a verdict on the agent.
+
+/** The anchor line's fields, or null when there is none. Every pattern stops at the line's end. */
+export function anchorOf(text) {
+  const line = /^[ \t]*anchor:[^\n]*$/m.exec(text)?.[0];
+  if (!line) return null;
+  const utc = /\butc=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)/.exec(line)?.[1] ?? null;
+  const stamp = /\bspine=([a-z-]+) v(\d+)\b/.exec(line);
+  // The same bounded key the anchor requirement accepts, so a cross-repo anchor yields every SHA.
+  const commits = [...line.matchAll(/\bcommit(?:\([^)]{1,64}\))?=([0-9a-f]{4,40})\b/g)].map((m) => m[1]);
+  return {
+    utc,
+    utcMs: utc ? Date.parse(utc) : null,
+    spine: stamp ? { agent: stamp[1], version: stamp[2] } : null,
+    commits,
+  };
+}
+
+const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/**
+ * The repo-relative file a backtick span cites, or null when it cites none. Read off the one real
+ * artefact life-therapy has: citations come as `lib/auth.ts:24-57`, `login/mfa/actions.ts:11-13,
+ * 44-58`, `lib/supabase/middleware.ts:updateSession`, and bare `proxy.ts` — so everything from the
+ * first `:` is a locator, not the path. Routes (`/admin`), packages (`@supabase/ssr`), globs,
+ * directories, `..` and absolute paths are not citations of a file in this tree.
+ */
+export function candidateOf(span) {
+  const head = span.trim().split(":")[0].replace(/^\.\//, "");
+  if (!head || head.length > 200 || /[\s*?|{}<>"'=,;\\]/.test(head) || /^[/@~-]/.test(head)) return null;
+  const segs = head.split("/");
+  const last = segs.at(-1);
+  const dot = last.lastIndexOf(".");
+  if (segs.some((s) => s === "" || s === "..") || dot <= 0 || !/^[A-Za-z0-9]{1,8}$/.test(last.slice(dot + 1))) return null;
+  return head;
+}
+
+/** Every cited file → the artefact lines citing it. The span is bounded, so a stray backtick is linear. */
+export function citations(text) {
+  const out = new Map();
+  text.split("\n").forEach((line, i) => {
+    for (const m of line.matchAll(/`([^`\n]{1,300})`/g)) {
+      const c = candidateOf(m[1]);
+      if (!c) continue;
+      if (!out.has(c)) out.set(c, []);
+      const at = out.get(c);
+      if (at.at(-1) !== i + 1) at.push(i + 1);
+    }
+  });
+  return out;
+}
+
+/**
+ * Where a cited path lands in THIS tree: `{path, mtimeMs}`, `{unresolved: why}`, or null for a bare
+ * name that matches no file (`user.id` is an identifier, not a citation). Exact first; then a unique
+ * suffix among `files`, because artefacts cite `rate-limit-db.ts` as often as `lib/rate-limit-db.ts`.
+ * An AMBIGUOUS suffix is unresolved rather than guessed. A cross-repo artefact citing a path that
+ * also exists here resolves here — the one wrong answer this cannot see.
+ */
+export function makeResolver(root, files, stat = statSync) {
+  const mtime = (rel) => {
+    try {
+      const s = stat(join(root, rel));
+      return s.isFile() ? s.mtimeMs : null;
+    } catch {
+      return null;
+    }
+  };
+  return (cand) => {
+    const direct = mtime(cand);
+    if (direct !== null) return { path: cand, mtimeMs: direct };
+    const hits = (files ?? []).filter((f) => f === cand || f.endsWith(`/${cand}`));
+    if (hits.length > 1) return { unresolved: `${hits.length} files end in it` };
+    if (hits.length === 1) {
+      const m = mtime(hits[0]);
+      return m === null ? { unresolved: "listed by git, not on disk" } : { path: hits[0], mtimeMs: m };
+    }
+    if (!cand.includes("/")) return null;
+    return { unresolved: files ? "no such file here" : "no such file here, and git ls-files did not answer" };
+  };
+}
+
+/**
+ * L-41's tell (life-therapy CF-4). A cited file whose mtime falls inside (anchor utc, artefact
+ * mtime] was edited WHILE the agent ran — a dispatcher and its agents share one tree — so the
+ * paragraph citing it may rest on bytes the agent never read. QUARANTINED, never failed.
+ *
+ * BOTH BOUNDS ARE THE POINT. Before utc, the agent read the edited bytes. After the artefact was
+ * written, the edit is staleness — a different lesson — and marking it would bury this one under
+ * every file anyone has touched since. Lower bound exclusive, upper inclusive. `utc=` is floored to
+ * the second, so an edit in that same second before the agent read the clock is marked too, which
+ * errs toward re-reading. An artefact edited after it was written moves its own upper bound; it has
+ * stopped being the agent's artefact, and this cannot tell.
+ *
+ * An artefact with no `utc=` predates the anchor and is NOT MEASURED, never passed. A cited path
+ * that does not resolve is NAMED: "I could not look" must not read as "nothing moved".
+ */
+export function tell(text, { writtenMs, resolvePath }) {
+  const a = anchorOf(text);
+  if (!a || a.utcMs === null) return { measured: false, why: "no anchor utc= — written before the anchor, or without it" };
+  if (writtenMs <= a.utcMs) return { measured: false, why: `written ${iso(writtenMs)}, not after its own anchor ${a.utc}` };
+  const quarantined = [], unresolved = [];
+  let resolved = 0;
+  for (const [cand, lines] of citations(text)) {
+    const r = resolvePath(cand);
+    if (!r) continue;
+    if (r.unresolved) {
+      unresolved.push(`${cand} (${r.unresolved})`);
+      continue;
+    }
+    resolved++;
+    if (r.mtimeMs > a.utcMs && r.mtimeMs <= writtenMs) quarantined.push({ path: r.path, lines, mtimeMs: r.mtimeMs });
+  }
+  return { measured: true, utc: a.utc, writtenMs, resolved, quarantined, unresolved };
+}
+
+/**
+ * The agents the L-41 tell applies to. NOT the implementer: it edits the files it cites, so every
+ * one would be marked by its own hand and the tell would say nothing. Named on every run it skips.
+ */
+export const TELL_AGENTS = new Set(["grounder", "census", "walker", "db-inspector"]);
+
+/**
+ * L-39's tell (life-therapy CF-3). The anchor stamps `spine=<agent> vN`, copied from the template
+ * of the spine the agent RAN; the spine the tree held at the anchor's commit is read from GIT, never
+ * from the working tree — an in-turn edit is the case this exists to expose, and the working tree
+ * has moved since in any case. A difference means the agent ran a spine its starting tree did not
+ * hold: the harness does not reload an agent file edited mid-session. PRINTED, never failed.
+ *
+ * No stamp means the artefact predates the field (spines before 2026-09-11): counted, not failed. A
+ * cross-repo anchor carries a commit per repo; the first whose tree holds the spine is this repo's,
+ * because a foreign SHA does not resolve here.
+ */
+export function compareStamp(text, readSpineAt) {
+  const a = anchorOf(text);
+  if (!a?.spine) return { kind: "unstamped" };
+  const { agent, version } = a.spine;
+  if (!a.commits.length) return { kind: "unmeasured", why: "the anchor names no commit to read the spine at" };
+  for (const sha of a.commits) {
+    const blob = readSpineAt(sha, agent);
+    if (blob === null) continue;
+    const held = new RegExp(`<!--\\s*SPINE:${agent}\\s+v(\\d+)\\s*-->`).exec(blob)?.[1];
+    if (!held) return { kind: "unmeasured", why: `.claude/agents/${agent}.md at ${sha} carries no SPINE marker` };
+    return held === version ? { kind: "match", sha } : { kind: "mismatch", sha, agent, stamped: version, held };
+  }
+  return { kind: "unmeasured", why: `no anchor commit (${a.commits.join(", ")}) holds .claude/agents/${agent}.md in this repo` };
+}
+
+/** `git show <sha>:<spine>` — the committed bytes, never the working tree's. Null when git says no. */
+export function gitSpineReader(root) {
+  return (sha, agent) => {
+    const r = spawnSync("git", ["show", `${sha}:.claude/agents/${agent}.md`], { cwd: root, encoding: "utf8", timeout: 10_000 });
+    return r.status === 0 ? r.stdout : null;
+  };
+}
+
+/** Tracked and untracked-unignored files, for suffix resolution. Null when git does not answer. */
+export function gitFiles(root) {
+  const r = spawnSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    { cwd: root, encoding: "utf8", timeout: 20_000, maxBuffer: 64 * 1024 * 1024 });
+  return r.status === 0 ? r.stdout.split("\0").filter(Boolean) : null;
+}
+
+/** The lines the live pass prints for the tells. Never a finding; the exit code does not read them. */
+export function tellLines(root, paths) {
+  const lines = [];
+  if (!paths.length) return lines;
+  const resolvePath = makeResolver(root, gitFiles(root));
+  const readSpineAt = gitSpineReader(root);
+  const n = { measured: 0, resolved: 0, quarantined: 0, skipped: 0, stamped: 0, mismatched: 0, unstamped: 0 };
+  for (const f of paths) {
+    const rel = f.replace(`${root}/`, "");
+    const text = readFileSync(f, "utf8");
+    if (text.length > MAX_ARTEFACT_BYTES) continue;
+    if (TELL_AGENTS.has(agentOf(f))) {
+      const t = tell(text, { writtenMs: statSync(f).mtimeMs, resolvePath });
+      if (!t.measured) {
+        lines.push(`   L-41 · ${rel}: NOT MEASURED — ${t.why}`);
+      } else {
+        n.measured++;
+        n.resolved += t.resolved;
+        n.quarantined += t.quarantined.length;
+        for (const q of t.quarantined) {
+          lines.push(`   ⚑ QUARANTINED ${rel}:${q.lines.join(",")} cites ${q.path} — edited ${iso(q.mtimeMs)}, inside the run (${t.utc} → ${iso(t.writtenMs)}); what that paragraph says may rest on bytes the agent never read (L-41)`);
+        }
+        if (t.unresolved.length) {
+          lines.push(`   L-41 · ${rel}: ${t.unresolved.length} cited path(s) NOT MEASURED, they do not resolve here: ${t.unresolved.join(" · ")}`);
+        }
+      }
+    } else {
+      n.skipped++;
+    }
+    const s = compareStamp(text, readSpineAt);
+    if (s.kind === "unstamped") n.unstamped++;
+    else n.stamped++;
+    if (s.kind === "mismatch") {
+      n.mismatched++;
+      lines.push(`   ⚑ SPINE ${rel} stamps ${s.agent} v${s.stamped}; .claude/agents/${s.agent}.md at ${s.sha} is v${s.held} — the agent ran a spine its starting tree did not hold (L-39): read its instructions as v${s.stamped}'s before calling it disobedient`);
+    }
+    if (s.kind === "unmeasured") lines.push(`   L-39 · ${rel}: NOT MEASURED — ${s.why}`);
+  }
+  lines.push(`   L-41 · ${n.measured} artefact(s) measured, ${n.resolved} citation(s) resolved, ${n.quarantined} edited during their run` +
+    (n.skipped ? ` · ${n.skipped} implementer artefact(s) not measured — it edits what it cites` : ""));
+  lines.push(`   L-39 · ${n.stamped} stamped, ${n.mismatched} ran a spine their commit did not hold · ${n.unstamped} predate the stamp`);
+  return lines;
+}
+
 const isEntry = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 
 if (isEntry && process.argv.includes("--selftest")) {
   let failed = 0;
-  const ok = (c, l) => { if (!c) failed++; console.log(`  ${c ? "✓" : "✗"} ${l}`); };
+  const ok = (c, l) => {
+    if (!c) failed++;
+    console.log(`  ${c ? "✓" : "✗"} ${l}`);
+  };
 
   const GOOD = [
     "anchor: task=redirect-map · agent=grounder · utc=2026-08-30T09:14:02Z · commit=93b9437",
@@ -317,7 +539,7 @@ if (isEntry && process.argv.includes("--selftest")) {
     "an UNFILLED template echoed back fires — it passes every label test and is still not a report");
 
   // Discovery, walked for real.
-  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const tmp = mkdtempSync(join(tmpdir(), "handoff-")).replace(/\\/g, "/");
   // Built from ONE segment, deliberately: upstream, a fixture assembled from parts survived a move
@@ -384,21 +606,183 @@ if (isEntry && process.argv.includes("--selftest")) {
       "an artefact past the parse cap is REFUSED with one finding — not truncated, which would report a well-formed contract for a file whose block sits past the cut");
   }
 
+  // ── v5: the path a citation names ────────────────────────────────────────────────────────────
+  // Every shape below is one the real life-therapy artefact carries, in both directions.
+  {
+    const cases = [
+      ["lib/auth.ts:24-57", "lib/auth.ts"],
+      ["login/mfa/actions.ts:11-13, 44-58", "login/mfa/actions.ts"],
+      ["lib/supabase/middleware.ts:updateSession", "lib/supabase/middleware.ts"],
+      ["app/(admin)/admin/(dashboard)/users/[id]/reset-mfa-button.tsx", "app/(admin)/admin/(dashboard)/users/[id]/reset-mfa-button.tsx"],
+      [".claude/rules/schema-changes.md", ".claude/rules/schema-changes.md"],
+      ["./lib/x.ts", "lib/x.ts"],
+      ["proxy.ts", "proxy.ts"],
+      ["/api/auth/role", null], ["@supabase/ssr", null], ["../yoros/lib/x.ts", null], [".handoff", null],
+      [".claude/rules/", null], ["supabase.auth.getUser()", null], ["C:\\dev\\life-therapy\\lib\\x.ts", null],
+      ["backup.?code|recovery.?code", null], ["prisma.student.findUnique", null], ["model Student { id String }", null],
+    ];
+    const wrong = cases.filter(([span, want]) => candidateOf(span) !== want);
+    ok(wrong.length === 0, `a citation's path is read off every span shape the real artefact carries (${cases.length} cases)` +
+      (wrong.length ? ` — wrong: ${wrong.map(([s]) => `\`${s}\` → ${candidateOf(s)}`).join(", ")}` : ""));
+    const cited = citations("see `lib/a.ts:3` and `lib/a.ts:9`\nthen `/admin` and `b.ts`\n");
+    ok(JSON.stringify([...cited]) === JSON.stringify([["lib/a.ts", [1]], ["b.ts", [2]]]),
+      "citations() maps each file to the lines citing it, once per line, and skips what is not a file");
+  }
+
+  // ── v5: L-41's window, both bounds, both directions ──────────────────────────────────────────
+  // The resolver is faked so the window itself is probed with exact times; the real resolver and
+  // real mtimes are exercised by the spawned run below.
+  {
+    const T0 = Date.parse("2026-08-31T06:00:32Z");
+    const W = T0 + 241_000;
+    const mt = { "lib/in.ts": T0 + 60_000, "lib/before.ts": T0 - 60_000, "lib/after.ts": W + 60_000, "lib/at-utc.ts": T0, "lib/at-written.ts": W };
+    const resolvePath = (c) => (c in mt ? { path: c, mtimeMs: mt[c] } : c.includes("/") ? { unresolved: "no such file here" } : null);
+    const art = (cites) => `anchor: task=t · agent=grounder · utc=2026-08-31T06:00:32Z · commit=93b9437\n${cites.map((c) => `- \`${c}\``).join("\n")}\n`;
+    const q = (cites) => tell(art(cites), { writtenMs: W, resolvePath }).quarantined.map((x) => x.path);
+    ok(q(["lib/in.ts"]).length === 1, "a cited file edited INSIDE the run is QUARANTINED");
+    ok(q(["lib/before.ts"]).length === 0, "KNOWN-GOOD: one edited before the anchor is not — the agent read those bytes");
+    ok(q(["lib/after.ts"]).length === 0, "KNOWN-GOOD: one edited AFTER the artefact was written is not — that is staleness, a different lesson");
+    ok(q(["lib/at-utc.ts"]).length === 0, "…the lower bound is exclusive: an mtime equal to utc= is not inside the run");
+    ok(q(["lib/at-written.ts"]).length === 1, "…the upper bound is inclusive: an mtime equal to the artefact's is");
+    const t = tell(art(["lib/gone.ts", "user.id"]), { writtenMs: W, resolvePath });
+    ok(t.unresolved.length === 1 && t.unresolved[0].startsWith("lib/gone.ts"),
+      "a cited path that does not resolve is NAMED, not passed — and a bare identifier is not a citation");
+    ok(!tell(art(["lib/in.ts"]).replace(/ · utc=\S+/, ""), { writtenMs: W, resolvePath }).measured,
+      "an artefact with no utc= predates the anchor: NOT MEASURED, never passed");
+    ok(!tell(art(["lib/in.ts"]), { writtenMs: T0 - 1, resolvePath }).measured,
+      "an artefact written before its own anchor is NOT MEASURED — its window is empty, not clean");
+    ok([...CONTRACT_AGENTS].filter((a) => !TELL_AGENTS.has(a)).join() === "implementer",
+      "the tell skips exactly the implementer — the one agent that edits what it cites, and what the skip line names");
+  }
+
+  // ── v5: the resolver, with a faked stat ──────────────────────────────────────────────────────
+  {
+    const disk = { "/r/lib/rate-limit-db.ts": 5, "/r/a/actions.ts": 6, "/r/b/actions.ts": 7 };
+    const stat = (p) => {
+      const k = p.replace(/\\/g, "/");
+      if (!(k in disk)) throw new Error("ENOENT");
+      return { isFile: () => true, mtimeMs: disk[k] };
+    };
+    const r = makeResolver("/r", ["lib/rate-limit-db.ts", "a/actions.ts", "b/actions.ts"], stat);
+    ok(r("lib/rate-limit-db.ts")?.path === "lib/rate-limit-db.ts", "an exact repo-relative path resolves");
+    ok(r("rate-limit-db.ts")?.path === "lib/rate-limit-db.ts", "a bare name with ONE suffix match resolves to it");
+    ok(r("actions.ts")?.unresolved?.includes("2 files"), "an AMBIGUOUS suffix is unresolved, not guessed");
+    ok(r("user.id") === null && r("lib/nope.ts")?.unresolved, "a bare non-match is an identifier; a slashed one is named unresolved");
+  }
+
+  // ── v5: L-39's stamp, against a faked git ────────────────────────────────────────────────────
+  {
+    const at = { "93b9437": "<!-- SPINE:grounder v7 -->\nbody", b0873a1: "<!-- SPINE:grounder v6 -->", "1111111": "no marker" };
+    const readAt = (sha, agent) => (agent === "grounder" && sha in at ? at[sha] : null);
+    const anch = (fields) => `anchor: task=t · agent=grounder · ${fields} · utc=2026-08-31T06:00:32Z\n`;
+    ok(compareStamp(anch("spine=grounder v7 · commit=93b9437"), readAt).kind === "match", "KNOWN-GOOD: a stamp its commit holds is silent");
+    const mm = compareStamp(anch("spine=grounder v6 · commit=93b9437"), readAt);
+    ok(mm.kind === "mismatch" && mm.stamped === "6" && mm.held === "7", "a stamp its commit does NOT hold is reported with both versions");
+    ok(compareStamp(anch("commit=93b9437"), readAt).kind === "unstamped", "an artefact with no stamp predates the field: counted, not failed");
+    ok(compareStamp(anch("spine=grounder v6 · commit(yoros)=7e9f127 · commit(life-therapy)=b0873a1"), readAt).kind === "match",
+      "a cross-repo anchor is read at the commit that resolves HERE, not at the first one written");
+    ok(compareStamp(anch("spine=grounder v6 · commit=deadbee"), readAt).kind === "unmeasured", "a commit that does not resolve here is NOT MEASURED");
+    ok(compareStamp(anch("spine=grounder v6 · commit=1111111"), readAt).kind === "unmeasured", "a spine with no SPINE marker at that commit is NOT MEASURED");
+  }
+
+  // ── v5: every exit path, through the process the gate runs (L-51; life-therapy CF-2) ─────────
+  // Each spawn points `--root` at a fixture, never at this tree: a clean fixture must stay clean in
+  // every adopter. None runs the gate chain (L-34).
+  {
+    const self = fileURLToPath(import.meta.url);
+    const spawn = (...args) => spawnSync(process.execPath, [self, ...args], { encoding: "utf8", timeout: 60_000 });
+    const git = (cwd, ...args) => spawnSync("git", args, { cwd, encoding: "utf8" });
+    const fx = mkdtempSync(join(tmpdir(), "handoff-exit-")).replace(/\\/g, "/");
+    const plant = (name, files) => {
+      for (const [rel, body] of Object.entries(files)) {
+        mkdirSync(dirname(join(fx, name, rel)), { recursive: true });
+        writeFileSync(join(fx, name, rel), body);
+      }
+      return join(fx, name);
+    };
+
+    const clean = spawn("--root", plant("clean", { ".handoff/t/01-grounder.md": GOOD }));
+    ok(clean.status === 0 && clean.stdout.includes("🤝 handoff-contract: 1 artefact(s)"),
+      `EXIT 0 — a fixture with one well-formed artefact passes through the real process (status ${clean.status})`);
+    const broken = spawn("--root", plant("broken", { ".handoff/t/01-grounder.md": GOOD.replace(/^Promote.*$/m, "") }));
+    ok(broken.status === 1 && broken.stderr.includes("Promote"),
+      `EXIT 1 — a fixture with a broken block fails through the real process (status ${broken.status})`);
+    const nowhere = spawn("--root", join(fx, "does-not-exist"));
+    ok(nowhere.status === 2, `EXIT 2 — a --root that is not a directory is refused, not read as 0 artefacts (status ${nowhere.status})`);
+
+    // The tells, on real files with real mtimes and a real git tree — and still EXIT 0, because a
+    // tell is never a failure. The tree is written with `git write-tree`: `git show <tree>:<path>`
+    // reads it exactly as it reads a commit, and no commit is made.
+    const T0 = Math.floor(Date.now() / 1000) * 1000 - 3_600_000;
+    const utc = iso(T0);
+    const cites = "Read `lib/in.ts:3`, `before.ts`, `lib/after.ts:9` and `lib/gone.ts`.\n";
+    const tells = plant("tells", {
+      "lib/in.ts": "x", "lib/before.ts": "x", "lib/after.ts": "x",
+      ".claude/agents/grounder.md": "<!-- SPINE:grounder v7 -->\nbody\n<!-- /SPINE:grounder -->\n",
+    });
+    git(tells, "init", "-q");
+    git(tells, "add", "-A");
+    const tree = git(tells, "write-tree").stdout.trim().slice(0, 12);
+    // …and then the working tree MOVES to the stamp's version, so a reader that looked at the file on
+    // disk would see agreement where the anchor's tree holds a difference (CF-3: never the working tree).
+    writeFileSync(join(tells, ".claude/agents/grounder.md"), "<!-- SPINE:grounder v6 -->\nbody\n<!-- /SPINE:grounder -->\n");
+    const artefact = (agent) => GOOD.replace(/^anchor:.*$/m, `anchor: task=t · agent=${agent} · spine=grounder v6 · utc=${utc} · commit=${tree}`).replace("## 1. Machinery map", `## 1. Machinery map\n${cites}`);
+    plant("tells", { ".handoff/t/01-grounder.md": artefact("grounder"), ".handoff/t/02-implementer.md": artefact("implementer") });
+    const s = (ms) => ms / 1000;
+    utimesSync(join(tells, "lib/in.ts"), s(T0 + 60_000), s(T0 + 60_000));
+    utimesSync(join(tells, "lib/before.ts"), s(T0 - 60_000), s(T0 - 60_000));
+    utimesSync(join(tells, "lib/after.ts"), s(T0 + 180_000), s(T0 + 180_000));
+    for (const a of ["01-grounder.md", "02-implementer.md"]) utimesSync(join(tells, ".handoff/t", a), s(T0 + 120_000), s(T0 + 120_000));
+    const told = spawn("--root", tells);
+    const out = told.stdout;
+    ok(told.status === 0, `EXIT 0 — a QUARANTINED citation and a spine mismatch are tells, not failures (status ${told.status})`);
+    ok(/QUARANTINED \.handoff\/t\/01-grounder\.md:\d+ cites lib\/in\.ts/.test(out),
+      "…the real run marks the file edited inside the window, with the artefact line citing it");
+    ok(!/cites lib\/before\.ts/.test(out) && !/cites lib\/after\.ts/.test(out),
+      "…and not the one edited before it, nor the one edited after");
+    ok(out.includes("1 artefact(s) measured, 3 citation(s) resolved, 1 edited during their run"),
+      "…having RESOLVED all three — `before.ts` through git's file list — so the unmarked two were measured, not dropped");
+    ok(!/QUARANTINED \.handoff\/t\/02-implementer/.test(out) && out.includes("1 implementer artefact(s) not measured"),
+      "…and does not measure the implementer's artefact, which says so");
+    ok(/01-grounder\.md: 1 cited path\(s\) NOT MEASURED[^\n]*lib\/gone\.ts/.test(out), "…and names the path that does not resolve");
+    ok(/SPINE \.handoff\/t\/01-grounder\.md stamps grounder v6; [^\n]* is v7/.test(out),
+      "…and reads the spine at the anchor's tree through git, reporting the stamp it does not hold");
+    rmSync(fx, { recursive: true, force: true });
+  }
+
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — fires on a missing, unfilled or self-contradicting block, quiet on a well-formed one, and enforces only the spines that carry it");
   process.exit(failed ? 1 : 0);
 }
 
 if (isEntry && !process.argv.includes("--selftest")) {
-  const { enforced, skipped } = partition(artefacts(ROOT));
+  // `--root` exists so the exit probes can point this file at a fixture instead of the adopter's
+  // tree (life-therapy CF-2: a clean fixture must stay clean in every adopter). A root that is not a
+  // directory exits 2: it would otherwise report "0 artefacts", which reads as a pass.
+  const at = process.argv.indexOf("--root");
+  let root = ROOT;
+  if (at > 0) {
+    const arg = process.argv[at + 1];
+    let isDir = false;
+    try { isDir = Boolean(arg) && statSync(arg).isDirectory(); } catch { isDir = false; }
+    if (!isDir) {
+      console.error(`❌ handoff-contract: --root ${arg ?? "(no value)"} is not a directory — nothing was checked`);
+      process.exit(2);
+    }
+    root = resolve(arg).replace(/\\/g, "/");
+  }
+  const { enforced, skipped } = partition(artefacts(root));
   const findings = enforced.flatMap((f) =>
-    checkArtefact(f.replace(`${ROOT}/`, ""), readFileSync(f, "utf8"), ANCHOR_AGENTS.has(agentOf(f))));
+    checkArtefact(f.replace(`${root}/`, ""), readFileSync(f, "utf8"), ANCHOR_AGENTS.has(agentOf(f))));
 
   // Named before the verdict, pass or fail. An artefact outside the rollout boundary is a thing the
   // check DID NOT LOOK AT, and a reader has to see that without reading the source.
   if (skipped.length) {
     console.log("   not checked — no contract block required of this writer (crawler-doctrine: stdout is parsed JSON; main: no spine):");
-    for (const f of skipped) console.log(`     · ${f.replace(`${ROOT}/`, "")}`);
+    for (const f of skipped) console.log(`     · ${f.replace(`${root}/`, "")}`);
   }
+  // The tells, before the verdict and whatever it is: they are never findings, so a red run must
+  // not hide them and a green one must not swallow them.
+  for (const l of tellLines(root, enforced)) console.log(l);
 
   if (findings.length) {
     console.error(`\n❌ handoff-contract: ${findings.length} finding(s) across ${enforced.length} artefact(s)\n`);

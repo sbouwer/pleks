@@ -2,7 +2,7 @@
 /**
  * scripts/check-hook-registration.mjs — a hook file is not a hook until settings wires it.
  *
- * @kit check-hook-registration v3 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-hook-registration v6 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * WHAT IT CATCHES. Delete the `hooks` block from `.claude/settings.json` and every gate goes inert
@@ -23,12 +23,25 @@
  * them; and matching `@twin` anywhere swallows prose ABOUT the markers, so the match is anchored to
  * a dedicated comment line.
  *
+ * PER RULE, where the hook can say what its rules are. A marker count sees a FILE: one `@twin`
+ * passed a hook holding nine rules with no floor behind eight. A hook that declares
+ * `// @rule-fallbacks <flag>` is run with that flag and prints every rule it holds with the
+ * fallback on it; each rule is then reconciled on its own — a fallback it lacks, a reason that is
+ * still a placeholder, a twin settings does not hold — and so is every `@twin` line, which must back
+ * one of those rules. A hook without the directive is read by its markers, as before.
+ *
+ * A TWIN MUST BE A RULE SETTINGS CAN MATCH. `:*` is a wildcard only at the end of a pattern; in
+ * `Bash(git merge:*main*)` the colon is literal, so the rule matches no command, and a string
+ * comparison between it and an identical `@twin` reconciles two strings that back nothing. Every
+ * gated Bash rule in that shape is a finding.
+ *
  * Where it came from is the MANIFEST row's `why` in dev-standards. These bytes are copied into
  * every adopter, so they say what the code does and nothing about where it was first run.
  *
  * Run: node scripts/check-hook-registration.mjs             (wired into `npm run check`)
  *      node scripts/check-hook-registration.mjs --selftest  (probes both directions)
  */
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,9 +49,51 @@ import { fileURLToPath } from "node:url";
 const HOOK_DIR = ".claude/hooks";
 const SETTINGS = ".claude/settings.json";
 
-/** A dedicated `// @twin <pattern>` comment line. Anchored: prose about twins is not a twin. */
-const TWIN = /^\s*\/\/\s*@twin\s+(\S.*?)\s*$/gm;
-const NO_TWIN = /^\s*\/\/\s*@no-twin\s+(\S.*?)\s*$/m;
+/**
+ * A dedicated `// @<tag> <value>` comment line. Anchored: prose about twins is not a twin.
+ *
+ * Read ONE LINE AT A TIME since v4. As whole-file `/m` patterns, `\s` could cross a newline: `^\s*`
+ * restarted at every line of a blank run (quadratic, which pleks's lint found), and `\s+` after the
+ * tag reached the NEXT line, so a bare `// @twin` took whatever followed it as its pattern.
+ */
+const TWIN = /^\s*\/\/\s*@twin\s+(\S.*)$/;
+const NO_TWIN = /^\s*\/\/\s*@no-twin\s+(\S.*)$/;
+const EVENT = /^\s*\/\/\s*@event\s+(\S+)/;
+const MATCHER = /^\s*\/\/\s*@matcher\s+(\S.*)$/;
+const NON_BLOCKING = /^\s*\/\/\s*@non-blocking\s+(\S.*)$/;
+const RULE_FALLBACKS = /^\s*\/\/\s*@rule-fallbacks\s+(\S+)/;
+
+/** Every value `re` declares in `src`, in file order, trailing whitespace trimmed. */
+export function directives(src, re) {
+  return src.split(/\r\n?|\n/).map((l) => re.exec(l)?.[1].trimEnd()).filter((v) => v !== undefined);
+}
+
+/** A path with everything through its LAST `hooks` directory removed — the file under it. */
+const underHooks = (p) => {
+  const i = p.replaceAll("\\", "/").lastIndexOf("/hooks/");
+  return i === -1 ? p : p.slice(i + "/hooks/".length);
+};
+
+/**
+ * The hook file a command names, read as v3's `([\w./\\$-]*\.claude[/\\]hooks[/\\][\w.-]+\.js)`
+ * read it: the first path-shaped word holding a `.claude/hooks/<name>.js`, the LAST such in that
+ * word, and the name up to its last `.js`. Scanned rather than matched: the class in front
+ * of `\.claude` also holds `.`, so that pattern backtracked from every start position.
+ */
+export function namedHookFile(cmd) {
+  const AT = /\.claude[/\\]hooks[/\\]([\w.-]+)/y;
+  for (const word of cmd.match(/[\w./\\$-]+/g) ?? []) {
+    let file = null;
+    for (let i = word.indexOf(".claude"); i !== -1; i = word.indexOf(".claude", i + 1)) {
+      AT.lastIndex = i;
+      const m = AT.exec(word);
+      const js = m ? m[1].lastIndexOf(".js") : -1;
+      if (js >= 1) file = m[1].slice(0, js + 3);
+    }
+    if (file) return file;
+  }
+  return null;
+}
 
 /**
  * THE SHIPPED PLACEHOLDER IS NOT A REASON.
@@ -79,6 +134,74 @@ export function isPlaceholderReason(reason) {
 }
 
 /**
+ * A Bash rule whose `:*` is not at the end — its colon is literal, so it matches no command. Returns
+ * the rule as its writer meant it (`:*` → ` *`), or null for a rule in a shape that matches.
+ */
+export function literalColonStar(rule) {
+  const m = /^Bash\((.*)\)$/s.exec(String(rule));
+  if (!m) return null;
+  const at = m[1].indexOf(":*");
+  if (at === -1 || at === m[1].length - 2) return null;
+  return `Bash(${m[1].replaceAll(":*", " *")})`;
+}
+
+/** What is wrong with one rule's fallback, or null: `{ twins: [...] }` or `{ noTwin: "..." }`, exactly one. */
+export function fallbackProblem(fb) {
+  if (fb === null || fb === undefined) return "has no fallback";
+  if (typeof fb !== "object" || Array.isArray(fb)) return "has a fallback that is not an object";
+  const keys = Object.keys(fb);
+  if (keys.length !== 1) return `has a fallback with ${keys.length === 0 ? "no key" : `keys ${keys.join(", ")}`} — it takes exactly one of twins or noTwin`;
+  if (keys[0] === "twins") {
+    const good = Array.isArray(fb.twins) && fb.twins.length > 0 && fb.twins.every((t) => typeof t === "string" && t.trim() !== "");
+    return good ? null : "has twins that are not a non-empty list of settings rules";
+  }
+  if (keys[0] === "noTwin") return typeof fb.noTwin === "string" ? null : "has a noTwin that is not a reason";
+  return `has a fallback keyed ${keys[0]} — it takes exactly one of twins or noTwin`;
+}
+
+/**
+ * Findings for one hook's rule list against settings and the hook's own `@twin` lines. Pure.
+ * `inv` is what the hook printed: `{ rules: [{ severity, rule, reason, fallback, inert }], strays }`.
+ */
+export function ruleFindings(file, inv, gated, fileTwins) {
+  const at = `${HOOK_DIR}/${file}`;
+  const out = [];
+  const backing = new Set();
+  for (const r of inv.rules) {
+    if (r.inert) continue;
+    const name = `${r.severity} rule ${r.rule}`;
+    const problem = fallbackProblem(r.fallback);
+    if (problem) {
+      out.push(`${at}: ${name} ${problem} — if this hook stops running, nothing stands behind "${String(r.reason).slice(0, 70)}". Give it { twins: ["<settings rule>"] } or { noTwin: "<why settings cannot say it>" }`);
+    } else if (r.fallback.noTwin !== undefined && isPlaceholderReason(r.fallback.noTwin)) {
+      out.push(`${at}: ${name}'s noTwin is the kit's unfilled placeholder — "${r.fallback.noTwin}". Answer it: the settings rule behind it, or why settings cannot say it`);
+    } else {
+      for (const t of r.fallback.twins ?? []) {
+        backing.add(t);
+        if (!gated.has(t)) out.push(`${at}: ${name} is backed by ${t}, which is in neither permissions.deny nor permissions.ask — the dormant layer has nothing to fall back to`);
+      }
+    }
+  }
+  for (const k of inv.strays) out.push(`${at}: its fallbacks name ${k}, which is none of its rules — a renamed rule leaves its fallback behind`);
+  for (const t of fileTwins) {
+    if (!backing.has(t)) out.push(`${at}: declares @twin ${t}, which backs none of its rules — put it in the fallback of the rule it backs, or remove the line`);
+  }
+  return out;
+}
+
+/** Run a hook with its `@rule-fallbacks` flag. The list it printed, or why there is none. */
+function listRules(root, file, flag) {
+  const r = spawnSync(process.execPath, [join(root, HOOK_DIR, file), flag], { cwd: root, input: "", encoding: "utf8", timeout: 10000 });
+  try {
+    const inv = JSON.parse(r.stdout);
+    if (inv !== null && typeof inv === "object" && Array.isArray(inv.rules) && Array.isArray(inv.strays)) return { inv };
+  } catch {
+    // fall through: no list is a finding, and the exit status says more than the parse error
+  }
+  return { why: `exit ${r.status}${r.error ? `, ${r.error.message}` : ""}${r.stderr ? `: ${r.stderr.trim().split("\n")[0]}` : ""}` };
+}
+
+/**
  * Claude Code's hook events. Anything else is a typo or an invention, and either way the block is
  * inert — settings does not validate event names, so `PreToolUsee` is silently ignored.
  */
@@ -112,7 +235,7 @@ export function registrations(settings) {
           /(?:^|\s)(?:node|npx|sh|bash)\s+["']?([^"'\s]*[/\\]\.claude[/\\]hooks[/\\][\w.-]+\.js)["']?/,
         );
         if (!m) continue;
-        out.push({ event, matcher: entry.matcher, file: m[1].replace(/.*[/\\]hooks[/\\]/, ""), command: h.command });
+        out.push({ event, matcher: entry.matcher, file: underHooks(m[1]), command: h.command });
       }
     }
   }
@@ -140,10 +263,8 @@ export function registrationFindings(settings, root, existsFn) {
         out.push(`${SETTINGS}: a ${event} entry has no matcher — it declares a scope nobody chose`);
       }
       for (const h of entry.hooks ?? []) {
-        const cmd = typeof h.command === "string" ? h.command : "";
-        const m = cmd.match(/([\w./\\$-]*\.claude[/\\]hooks[/\\][\w.-]+\.js)/);
-        if (!m) continue;
-        const file = m[1].replace(/.*[/\\]hooks[/\\]/, "");
+        const file = namedHookFile(typeof h.command === "string" ? h.command : "");
+        if (!file) continue;
         if (!existsFn(join(root, HOOK_DIR, file))) {
           out.push(`${SETTINGS}: ${event} registers ${file}, which does not exist in ${HOOK_DIR} — the registration resolves to nothing`);
         }
@@ -161,9 +282,23 @@ export function audit(root = ".") {
   if (!existsSync(settingsPath)) return [`${SETTINGS} is missing — no hook can be registered, so every hook: tag is a claim with no mechanism`];
   if (!existsSync(hookDir)) return [`${HOOK_DIR} is missing — nothing to reconcile`];
 
-  const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  // A finding, not a throw: an uncaught parse error also exits 1, so the gate cannot tell a crash
+  // from a verdict, and the reader gets a stack trace where the one fact they need is which file.
+  let settings;
+  try {
+    settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  } catch (e) {
+    return [`${SETTINGS} does not parse (${e.message}) — no registration in it can be read, so none can be reconciled`];
+  }
   const regs = registrations(settings);
   const gated = new Set([...(settings.permissions?.deny ?? []), ...(settings.permissions?.ask ?? [])]);
+
+  for (const list of ["deny", "ask"]) {
+    for (const rule of settings.permissions?.[list] ?? []) {
+      const reads = literalColonStar(rule);
+      if (reads) out.push(`${SETTINGS}: permissions.${list} holds "${rule}" — \`:*\` is a wildcard only at the end of a pattern, so this colon is literal and the rule matches no command. Write "${reads}"`);
+    }
+  }
 
   // Unknown event names are inert, and settings will not tell you.
   for (const event of Object.keys(settings.hooks ?? {})) {
@@ -188,8 +323,8 @@ export function audit(root = ".") {
     if (mine.length === 0) {
       out.push(`${HOOK_DIR}/${f}: no ${SETTINGS} entry EXECUTES it — the file exists and nothing invokes it`);
     } else {
-      const wantEvent = (/^\s*\/\/\s*@event\s+(\S+)/m.exec(src) ?? [])[1];
-      const wantMatcher = (/^\s*\/\/\s*@matcher\s+(\S.*?)\s*$/m.exec(src) ?? [])[1];
+      const wantEvent = directives(src, EVENT)[0];
+      const wantMatcher = directives(src, MATCHER)[0];
       if (!wantEvent || !wantMatcher) {
         out.push(`${HOOK_DIR}/${f}: declares no "// @event <Event>" and "// @matcher <pattern>" — without them nothing can check it is registered for the calls it gates`);
       } else {
@@ -201,7 +336,7 @@ export function audit(root = ".") {
         }
         // A hook on a non-blocking event cannot refuse anything. That is a defect for a GATE and
         // correct for an ANNOTATOR, so the file declares which it is: `// @non-blocking <why>`.
-        const nonBlocking = /^\s*\/\/\s*@non-blocking\s+(\S.*?)\s*$/m.exec(src);
+        const nonBlocking = directives(src, NON_BLOCKING)[0];
         for (const r of mine) {
           if (!BLOCKING_EVENTS.has(r.event) && !nonBlocking) {
             out.push(`${HOOK_DIR}/${f}: registered under ${r.event}, which cannot refuse a call — only PreToolUse blocks. If that is deliberate, declare "// @non-blocking <why>".`);
@@ -211,12 +346,23 @@ export function audit(root = ".") {
     }
 
     // 2 — TWIN DECLARATION.
-    const twins = [...src.matchAll(TWIN)].map((m) => m[1]);
-    const noTwin = NO_TWIN.exec(src);
-    if (twins.length === 0 && !noTwin) {
+    const twins = directives(src, TWIN);
+    const noTwin = directives(src, NO_TWIN)[0];
+    const flag = directives(src, RULE_FALLBACKS)[0];
+    if (flag !== undefined) {
+      // PER RULE. The @twin lines are reconciled through the rules they back, so not twice.
+      const { inv, why } = listRules(root, f, flag);
+      if (inv) out.push(...ruleFindings(f, inv, gated, twins));
+      else out.push(`${HOOK_DIR}/${f}: declares @rule-fallbacks, and \`node ${f} ${flag}\` printed no rule list (${why}) — no rule's fallback can be read, so none can be reconciled`);
+      if (noTwin !== undefined && isPlaceholderReason(noTwin)) {
+        out.push(`${HOOK_DIR}/${f}: its @no-twin reason is the kit's unfilled placeholder — "${noTwin}"`);
+      }
+      continue;
+    }
+    if (twins.length === 0 && noTwin === undefined) {
       out.push(`${HOOK_DIR}/${f}: declares neither a settings twin nor @no-twin with a reason — add "// @twin <settings pattern>" per rule, or "// @no-twin <why settings cannot express it>"`);
-    } else if (noTwin && isPlaceholderReason(noTwin[1])) {
-      out.push(`${HOOK_DIR}/${f}: its @no-twin reason is the kit's unfilled placeholder — "${noTwin[1]}". A project that installed and configured nothing reads as configured, which is worse than reading as unconfigured`);
+    } else if (noTwin !== undefined && isPlaceholderReason(noTwin)) {
+      out.push(`${HOOK_DIR}/${f}: its @no-twin reason is the kit's unfilled placeholder — "${noTwin}". A project that installed and configured nothing reads as configured, which is worse than reading as unconfigured`);
     }
 
     // 3 — TWIN RECONCILIATION. Ask is the floor; absent is the violation.
@@ -234,7 +380,10 @@ const isEntry = process.argv[1] && realpathSync(process.argv[1]) === realpathSyn
 
 if (isEntry && process.argv.includes("--selftest")) {
   let failed = 0;
-  const ok = (c, l) => { if (!c) failed++; console.log(`  ${c ? "✓" : "✗"} ${l}`); };
+  const ok = (c, l) => {
+    if (!c) failed++;
+    console.log(`  ${c ? "✓" : "✗"} ${l}`);
+  };
 
   ok(registrations({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: 'node "$D/.claude/hooks/g.js"' }] }] } }).length === 1,
     "registrations finds a PreToolUse command that EXECUTES a hook file");
@@ -248,8 +397,8 @@ if (isEntry && process.argv.includes("--selftest")) {
 
   // The fixture hook is a CORRECT hook: it declares the event and matcher it needs and names its
   // settings twin. Every case below unwires exactly one thing, so a finding is attributable.
-  const GOOD_HOOK = "// @event PreToolUse\n// @matcher Bash\n// @twin Bash(git push:*main*)\n";
-  const ASK = { ask: ["Bash(git push:*main*)"] };
+  const GOOD_HOOK = "// @event PreToolUse\n// @matcher Bash\n// @twin Bash(git push *main*)\n";
+  const ASK = { ask: ["Bash(git push *main*)"] };
   const RUNS = 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/g.js"';
   const entry = (matcher, command = RUNS, type = "command") => ({ matcher, hooks: [{ type, command }] });
   const write = (settings, hookSrc = GOOD_HOOK) => {
@@ -283,10 +432,10 @@ if (isEntry && process.argv.includes("--selftest")) {
   // …and the legitimate case it must not swallow.
   clean({ permissions: ASK, hooks: { UserPromptSubmit: [entry("Bash")] } },
     "KNOWN-GOOD: a declared @non-blocking annotator on a non-blocking event",
-    "// @event UserPromptSubmit\n// @matcher Bash\n// @non-blocking it annotates, it does not gate\n// @twin Bash(git push:*main*)\n");
+    "// @event UserPromptSubmit\n// @matcher Bash\n// @non-blocking it annotates, it does not gate\n// @twin Bash(git push *main*)\n");
   fires({ permissions: ASK, hooks: { UserPromptSubmit: [entry("Bash")] } }, "cannot refuse a call",
     "…and the SAME registration with no @non-blocking still fires",
-    "// @event UserPromptSubmit\n// @matcher Bash\n// @twin Bash(git push:*main*)\n");
+    "// @event UserPromptSubmit\n// @matcher Bash\n// @twin Bash(git push *main*)\n");
 
   fires({ permissions: ASK, hooks: { PreToolUse: [entry("Read")] } }, "a matcher that never sees its tool",
     "5/7 a matcher scoped to the wrong tool — registered, and it never fires");
@@ -300,7 +449,7 @@ if (isEntry && process.argv.includes("--selftest")) {
   // ── The declarations themselves ──────────────────────────────────────────────────────────────
   fires({ permissions: ASK, hooks: { PreToolUse: [entry("Bash")] } }, "declares no",
     "a hook with no @event/@matcher cannot be checked against its registration — that is a finding",
-    "// @twin Bash(git push:*main*)\n");
+    "// @twin Bash(git push *main*)\n");
   fires({ permissions: {}, hooks: { PreToolUse: [entry("Bash")] } }, "neither permissions.deny nor permissions.ask",
     "a declared twin missing from settings fires");
   fires({ permissions: ASK, hooks: { PreToolUse: [entry("Bash")] } }, "neither a settings twin nor @no-twin",
@@ -316,6 +465,44 @@ if (isEntry && process.argv.includes("--selftest")) {
     "prose mentioning @twin is not parsed as a twin declaration",
     "/**\n * That does not break the @twin design below; it explains it.\n */\n// @event PreToolUse\n// @matcher Bash\n// @no-twin content-shaped question\n");
 
+  // ── v6: PER RULE, where the hook lists its rules (yoros CF-4) ─────────────────────────────────
+  // Each fixture is a hook that prints its rule list when run with its flag, as bash-gate does.
+  const listing = (rules, strays = [], twinLines = "") =>
+    `// @event PreToolUse\n// @matcher Bash\n// @rule-fallbacks --fallbacks\n${twinLines}` +
+    `if (process.argv.includes("--fallbacks")) process.stdout.write(${JSON.stringify(JSON.stringify({ rules, strays }))});\n`;
+  const R = (fallback, extra = {}) => ({ severity: "deny", rule: "isX", reason: "a reason", fallback, inert: false, ...extra });
+  const wired = (permissions) => ({ permissions, hooks: { PreToolUse: [entry("Bash")] } });
+  clean(wired(ASK), "KNOWN-GOOD per rule: a twin in settings, a real reason, an inert rule with neither — and no file-level marker",
+    listing([R({ twins: ["Bash(git push *main*)"] }), R({ noTwin: "a glob cannot say it" }, { rule: "isY" }), R(null, { rule: "isZ", inert: true })]));
+  clean(wired(ASK), "KNOWN-GOOD per rule: an @twin line that backs a rule's fallback",
+    listing([R({ twins: ["Bash(git push *main*)"] })], [], "// @twin Bash(git push *main*)\n"));
+  fires(wired(ASK), "printed no rule list",
+    "per rule: a hook that declares the flag and answers it with a gating verdict — a v5 hook under a v6 directive — fires",
+    "// @event PreToolUse\n// @matcher Bash\n// @rule-fallbacks --fallbacks\nprocess.stdout.write(JSON.stringify({ hookSpecificOutput: { permissionDecision: \"ask\" } }));\n");
+  fires(wired(ASK), "deny rule isY has no fallback",
+    "per rule: the file declares a twin and a rule has no fallback — the CF-4 shape, which the marker count passed",
+    listing([R({ twins: ["Bash(git push *main*)"] }), R(null, { rule: "isY" })], [], "// @twin Bash(git push *main*)\n"));
+  fires(wired(ASK), "unfilled placeholder", "per rule: a noTwin that is still canon's placeholder fires",
+    listing([R({ noTwin: "Replace: the settings rule behind a force-push, or why a glob cannot say it" })]));
+  fires(wired({}), "is backed by Bash(git push *main*), which is in neither", "per rule: a rule's twin missing from settings fires",
+    listing([R({ twins: ["Bash(git push *main*)"] })]));
+  fires(wired(ASK), "which is none of its rules", "per rule: a fallback naming no rule fires — what a canon rename leaves behind",
+    listing([R({ noTwin: "a glob cannot say it" })], ["isRenamed"]));
+  fires(wired(ASK), "backs none of its rules", "per rule: an @twin line that backs no rule fires",
+    listing([R({ noTwin: "a glob cannot say it" })], [], "// @twin Bash(git push *main*)\n"));
+  fires(wired(ASK), "exactly one of twins or noTwin", "per rule: a fallback holding both a twin and a reason fires",
+    listing([R({ twins: ["Bash(git push *main*)"], noTwin: "and a reason" })]));
+  fires(wired(ASK), "printed no rule list", "per rule: a hook that declares the flag and prints no list fires",
+    "// @event PreToolUse\n// @matcher Bash\n// @rule-fallbacks --fallbacks\n");
+
+  // ── v6: a twin in a shape settings cannot match (yoros, 2026-09-11) ───────────────────────────
+  fires(wired({ ask: ["Bash(git push:*main*)"] }), "this colon is literal",
+    "a gated rule with `:*` before more text fires — it matches no command, and an identical @twin reconciled it",
+    "// @event PreToolUse\n// @matcher Bash\n// @twin Bash(git push:*main*)\n");
+  clean(wired({ ask: ["Bash(git push *main*)", "Bash(npm run test:*)"] }), "KNOWN-GOOD: a trailing `:*`, and ` *` anywhere, are shapes settings matches");
+  ok(literalColonStar("Bash(git merge:*main*)") === "Bash(git merge *main*)" && literalColonStar("Bash(ls:*)") === null && literalColonStar("Read(a:*b)") === null,
+    "literalColonStar rewrites a mid-pattern `:*`, and leaves a trailing one and a non-Bash rule alone");
+
   const yes = () => true, no = () => false;
   ok(registrationFindings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: 'node ".claude/hooks/g.js"' }] }] } }, ".", yes).length === 0,
     "KNOWN-GOOD: a matcher and a file that exists");
@@ -329,6 +516,39 @@ if (isEntry && process.argv.includes("--selftest")) {
     "KNOWN-GOOD: a matcher-less SessionStart entry is not a finding — that event takes no matcher");
 
   rmSync(tmp, { recursive: true, force: true });
+
+  // ── v4: directives are read one line at a time ──────────────────────────────────────────
+  // v3's `\s+` after the tag could cross a newline, so an EMPTY `// @twin` took the next line's
+  // text as its pattern and reconciled a twin nobody declared.
+  ok(directives("// @twin\nBash(git push:*)\n", /^\s*\/\/\s*@twin\s+(\S.*)$/).length === 0,
+    "a bare `// @twin` does not borrow the next line as its pattern (v3 did)");
+  ok(directives("// @matcher\n\nBash\n", /^\s*\/\/\s*@matcher\s+(\S.*)$/).length === 0,
+    "…nor does a bare `// @matcher`, across a blank line");
+  ok(JSON.stringify(directives("// @twin  A  \r\n  // @twin B\r\n", /^\s*\/\/\s*@twin\s+(\S.*)$/)) === '["A","B"]',
+    "KNOWN-GOOD: every twin, in order, trailing space and CRLF trimmed");
+
+  // ── v4: the named hook file, read the way v3's backtracking pattern read it ────────────
+  const nameCases = [
+    ['node "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-gate.js"', "bash-gate.js"],
+    ["node C:\\dev\\p\\.claude\\hooks\\g.js", "g.js"],
+    ["node x/.claude/hooks/a.js.bak", "a.js"],
+    ["node x/.claude/hooks/a.claude/hooks/b.js", "b.js"],
+    ["node x/.claude/hooks/a.js/.claude/hooks/b.js", "b.js"],
+    ["echo .claude/hooks/ then node .claude/hooks/c.js", "c.js"],
+    ["node .claude/hooks/.js", null],
+    ["node scripts/g.js", null],
+  ];
+  for (const [cmd, want] of nameCases) {
+    const got = namedHookFile(cmd);
+    ok(got === want, `namedHookFile(${JSON.stringify(cmd)}) → ${JSON.stringify(want)} (got ${JSON.stringify(got)})`);
+  }
+  const nested = registrations({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "node /x/hooks/y/.claude/hooks/g.js" }] }] } });
+  ok(nested.length === 1 && nested[0].file === "g.js",
+    `a registration's file is what follows the LAST hooks/ in its path (got ${JSON.stringify(nested[0]?.file)})`);
+  const win = registrations({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "node C:\\dev\\p\\.claude\\hooks\\g.js" }] }] } });
+  ok(win.length === 1 && win[0].file === "g.js",
+    `…and a Windows path's too, backslashes and all (got ${JSON.stringify(win[0]?.file)})`);
+
   // ── the shipped placeholder, both directions ────────────────────────────────────────────
   // The KNOWN-GOOD is load-bearing: a placeholder test that fires on real prose would make every
   // configured project red, and a check that cries wolf gets deleted rather than fixed.
@@ -352,6 +572,34 @@ if (isEntry && process.argv.includes("--selftest")) {
     }
   }
 
+  // ── THE EXIT CODE THE GATE READS, one spawn per path (L-51; life-therapy CF-2, yoros CF-7) ──
+  // Every probe above calls audit() in-process, so the `process.exit(1)` below was on no probe's
+  // path: turned to `exit(0)`, it left all of them green. The live run audits its cwd, so each spawn
+  // is given a fixture tree AS its cwd — never this project's — and asserts the line as well as the
+  // status, so a crash cannot pass as a finding.
+  {
+    const self = fileURLToPath(import.meta.url);
+    const fx = mkdtempSync(join(tmpdir(), "hookreg-exit-"));
+    const tree = (name, settings, hookSrc = GOOD_HOOK) => {
+      const d = join(fx, name);
+      mkdirSync(join(d, ".claude", "hooks"), { recursive: true });
+      writeFileSync(join(d, ".claude", "hooks", "g.js"), hookSrc);
+      if (settings !== null) writeFileSync(join(d, ".claude", "settings.json"), typeof settings === "string" ? settings : JSON.stringify(settings));
+      return d;
+    };
+    const run = (cwd) => spawnSync(process.execPath, [self], { cwd, encoding: "utf8" });
+    for (const [label, cwd, status, line] of [
+      ["EXIT 0 — a correctly wired hook", tree("clean", { permissions: ASK, hooks: { PreToolUse: [entry("Bash")] } }), 0, "🪝 hooks — every hook is registered"],
+      ["EXIT 1 — a hook nothing executes", tree("unwired", { permissions: ASK }), 1, "no .claude/settings.json entry EXECUTES it"],
+      ["EXIT 1 — no settings.json at all", tree("nosettings", null), 1, ".claude/settings.json is missing"],
+      ["EXIT 1 — a settings.json that does not parse is a finding, not a stack trace", tree("unparsed", "{ not json"), 1, ".claude/settings.json does not parse"],
+    ]) {
+      const r = run(cwd);
+      ok(r.status === status && r.stdout.includes(line), `${label}${r.status === status && r.stdout.includes(line) ? "" : ` — exited ${r.status}: ${(r.stdout + r.stderr).trim().split("\n").slice(-1)[0]}`}`);
+    }
+    rmSync(fx, { recursive: true, force: true });
+  }
+
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — registration, declaration and reconciliation all fire");
   process.exit(failed ? 1 : 0);
 }
@@ -363,5 +611,5 @@ if (isEntry && !process.argv.includes("--selftest")) {
     for (const f of findings) console.log(`  ${f}`);
     process.exit(1);
   }
-  console.log("🪝 hooks — every hook is registered in settings, declares its twin, and its twins are present");
+  console.log("🪝 hooks — every hook is registered in settings, every rule has its fallback, and every twin is in settings in a shape it can match");
 }

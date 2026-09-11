@@ -87,6 +87,223 @@ FIX        CAN OFFER, not on the credential's type — no factor of any kind →
              that half as M-132 rather than claiming M-127 closed it.
 ```
 
+### CF-7 · a mass mechanical rewrite is verified by recomputing the transform, not by reading its hunks
+
+```
+OBSERVED   A commit repaired 861 mojibake runs across four live, amend-forward SQL migration files
+           (~1,360 changed lines). The reviewable question — "did any repaired byte change SQL
+           SEMANTICS rather than rendering?" — is not answerable by reading hunks: at that volume
+           every hunk looks like the last one, attention degrades, and the one hunk that matters is
+           indistinguishable from the 860 that do not. Sampling answers a weaker question than the
+           one asked, and says so only if the reviewer is honest about the sample size.
+
+COMMAND    Instead of reading the diff, the reviewer reimplemented the cp1252 inverse independently
+           and recomputed `repair(origin/main)` for all four files, diffing the result against what
+           was committed:
+             005, 006, 012 → byte-identical to the commit
+             010           → sole residual is the 45-line tail added by a later commit in the range
+           Then, enumerating all 861 repairs BY DISTINCT OUTPUT rather than by site: every one
+           resolved to a box rule, dash, section sign, arrow, middot, bullet, ellipsis, times,
+           divide, approx or c-cedilla — **none produced a letter, digit or identifier character**.
+           Codepoint sets were compared against pre-corruption blobs to show nothing was lost.
+
+WHY IT IS  Nothing here is about mojibake, SQL, or this stack. The shape is: a mechanical transform
+CANON'S    applied at a volume no reviewer can read, where the review question is "did the transform
+           do only what it claims". Codemods, formatter migrations, mass renames, encoding repairs
+           and lint --fix sweeps all have it, and they are exactly the changes that get waved through
+           because the diff is enormous and boring. The method generalises as three moves:
+           (1) reimplement the transform independently and diff against the commit — this catches a
+           hand-edit smuggled into a mechanical change, which is the actual risk;
+           (2) enumerate outputs by DISTINCT VALUE, not by site — 861 sites collapse to ~11 classes,
+           which a human can genuinely check;
+           (3) assert a property over the output class ("no repair produced an identifier character")
+           rather than spot-checking instances.
+           Move (2) is what makes it cheap, and it is the one nobody reaches for unprompted.
+
+SMALLEST   Add it to the ledger as a review method, keyed on the trigger rather than the subject:
+FIX        a diff whose changes are mechanically generated and too numerous to read is reviewed by
+           recomputing the transform and diffing, and by enumerating distinct outputs — never by
+           sampling hunks. Must not become "all large diffs need a reimplementation": the trigger is
+           that the change claims to be MECHANICAL, which is what makes it independently recomputable
+           in the first place. A large hand-written diff has no transform to recompute and still
+           needs reading.
+```
+
+---
+
+### CF-8 · `bash-gate`'s protected-branch rule reads a merge's argument as its TARGET, but for `git merge` that argument is the SOURCE
+
+```
+OBSERVED   bash-gate v6 asks on `git merge main` run from a feature branch — the single most common
+           operation there, and one that does not touch the protected branch at all. `git push
+           origin main` targets main; `git merge main` merges main INTO the current branch. The rule
+           applies one argument test to both verbs, and the direction is inverted for one of them.
+
+COMMAND    $ node .claude/hooks/bash-gate.js   # payloads piped as PreToolUse JSON
+           ask   | "git merge -n main"      | bash-gate: this targets `main` …
+           ask   | "git merge main"         | bash-gate: this targets `main` …
+           ask   | "git merge origin/main"  | bash-gate: this targets `main` …
+           allow | "git merge feature-x"    | bash-gate: allowed — no gate matched
+           $ git branch --show-current
+           chore/kit-adopt-2026-09-11          # HEAD was NOT the protected branch for any of these
+
+           The NAMED arm of `targetsProtectedBranch`, verbatim:
+
+             if ((args.includes("push") || args.includes("merge")) &&
+               args.some((t) => t === b || t === `origin/${b}` || t === `refs/heads/${b}` ||
+                                t.endsWith(`:${b}`))) return true;
+
+           Its comment reads "NAMED: v4's test, kept whole. Every command it asked on still asks." —
+           so the conflation is INHERITED from v4 and preserved for continuity, not re-derived. That
+           is also why the BY REFERENCE arm below it, which already reads HEAD, never gets the
+           chance to answer: the NAMED arm returns true first.
+
+WHY IT IS  The direction of `git merge` is a property of git, not of this repository. On any project
+CANON'S    with a protected branch and feature branches, `git merge <protected>` is how a branch is
+           brought up to date, and this rule prompts on every one of them. That is the failure mode
+           canon's own kit names twice over: a gate that fires on ordinary work is one people learn
+           to wave through, and pleks's CLAUDE.md §3 rejected a `Bash(git -C*)` twin on exactly this
+           measurement. A rule that is right for `push` and inverted for `merge` also reads as
+           covered, because the finding it produces is well-formed and names a real branch.
+           The machinery to fix it is already present and already trusted: `headBranch()` and the
+           BY REFERENCE arm exist, and the "HEAD on protected" cases prove they work.
+
+SMALLEST   Split the NAMED arm by verb. For `push`, keep the argument test unchanged — every command
+FIX        it asks on today still asks. For `merge`, the protected branch is the DESTINATION, so the
+           test is `headBranch() === b`, which is what the BY REFERENCE arm would have answered had
+           it been reached. `git merge main` from a feature branch then allows; `git merge feature-x`
+           run while ON main still asks, which is the case that actually matters and which the
+           current rule MISSES — so this narrows one direction and widens the other.
+           Must not break: the four `+refspec` cases and the `endsWith(":"+b)` push spellings, none
+           of which involve `merge`. A probe both directions belongs with it — `git merge <protected>`
+           from a working branch must ALLOW, and `git merge <anything>` from the protected branch
+           must ASK — because the second half is what no existing case asserts.
+
+           NOT PATCHED LOCALLY, deliberately. The file is canon's outside its KIT:CONFIG regions,
+           and the error is in the safe direction (an extra prompt, never a missed gate).
+           UPDATE 2026-09-11: pleks does not run v6 at all — the adoption was reverted before
+           merge for CF-9 — so this finding is now reported against canon's file only. The corpus
+           case that recorded it (`git merge -n main` → `ask`) went back to `allow` with the
+           revert, and must return with CF-8 named at the site when v6 is re-adopted.
+```
+
+---
+
+### CF-9 · `bash-gate` v6 is WEAKER than the v4-lineage gate it replaces — 15 of 15 payloads go from deny/ask to allow
+
+```
+OBSERVED   Three mechanisms new in v6 each let through a command the previous gate refused. pleks
+           adopted v6 in `64e02a19` on the strength of its own probe (132 green) and the project
+           corpus (green), then reverted it before merge when the pre-merge walk found the gap.
+
+COMMAND    $ node diff-gates.mjs    # scratchpad; same payload through two gates, one run
+           # OLD = .claude/hooks/bash-gate.js at pleks 98d8a9a0 (v4 lineage + local rules)
+           # NEW = canon kit/project-kit/hooks/bash-gate.js v6 at dev-standards 2e79fdb, UNMODIFIED
+           WEAKER  old=deny  new=allow  ① if/then
+           WEAKER  old=deny  new=allow  ① bash -c
+           WEAKER  old=deny  new=allow  ① eval
+           WEAKER  old=deny  new=allow  ① timeout wrapper
+           WEAKER  old=deny  new=allow  ① xargs
+           WEAKER  old=deny  new=allow  ① sh -c rm
+           WEAKER  old=deny  new=allow  ① sudo -E rm
+           WEAKER  old=deny  new=allow  ① bash -c no-verify
+           WEAKER  old=deny  new=allow  ① then hard reset
+           WEAKER  old=ask   new=allow  ① bash -c plain push (ask)
+           WEAKER  old=deny  new=allow  ② here-string <<<
+           WEAKER  old=deny  new=allow  ② heredoc piped to sh
+           WEAKER  old=ask   new=allow  ② unquoted heredoc $()
+           WEAKER  old=deny  new=allow  ③ -m mask hides rm
+           WEAKER  old=deny  new=allow  ③ -m mask hides push
+           15 of 15 payloads: new gate weaker than old.
+           The same run against pleks's v6 WITH its regions filled (64e02a19): 15 of 15. Against
+           the reverted tree: 0 of 15. So the defect is canon's file, not pleks's region values.
+           (Payloads assemble their lethal tokens from parts; the shapes, with <P> standing for a
+           force-push and <R> for `rm -rf /*`: `if true; then <P>; fi` · `bash -c "<P>"` ·
+           `eval "<P>"` · `timeout 60 <P>` · `echo x | xargs <P>` · `sh -c '<R>'` ·
+           `sudo -E <R>` · `cat <<< EOF⏎<P>⏎EOF` · `cat <<'EOF' | sh⏎<P>⏎EOF` ·
+           `cat <<EOF⏎$(<P>)⏎EOF` · `echo -m 'a\' && <R> && echo 'b'`.)
+
+           ① COMMAND POSITION. `atCommand` asks whether a name is the segment's command WORD, via
+             `commandWordIndex`: skip `VAR=x` and the WRAPPERS set, take the next token. The
+             previous gate's `commandIndex` found the name at ANY token of the segment. So every
+             shell keyword (`then`, `do`, `!`), every command-runner not in WRAPPERS (`bash -c`,
+             `sh -c`, `eval`, `xargs`, `timeout`, `winpty`), and every WRAPPER given a flag
+             (`sudo -E`, `env -i`, `nice -n 5` — the skip stops at the flag, which becomes the
+             "command word") moves the real command off position 0 and out of every rule's sight.
+           ② HEREDOC MASKING. `maskSinkHeredocs` blanks the body of a heredoc whose receiver is in
+             HEREDOC_SINKS, and it runs inside `segments()`, before every rule. Its opener regex
+             `<<-?\s*(['"]?)([A-Za-z_]\w*)\1` also matches the last two characters of `<<<`, so a
+             here-string's following lines are masked though bash executes them; the receiver is
+             read BEFORE `<<`, so `cat <<'EOF' | sh` masks a body that `sh` runs; and an unquoted
+             delimiter's body still expands `$(…)`, which the mask discards.
+           ③ MESSAGE MASK. `maskMessageText` wraps the whole command before `segments()` (line
+             634), so it too precedes every rule. It honours `\` as an escape inside SINGLE
+             quotes, where bash does not: `'a\'` never closes, and the mask runs to the next `'`,
+             blanking ` && rm -rf /* && echo `.
+
+WHY IT IS  Nothing here is pleks-specific: all three are bash semantics read wrongly, and the run
+CANON'S    above used canon's bytes. Every adopter that re-copies v6 swaps a gate that caught these
+           for one that allows them, and its probe suite stays green through the swap — v6's probe
+           asserts v6's intended shapes, and a project corpus asserts the shapes its previous gate
+           was written for, so neither contains a case that exercises the new mechanisms. This is
+           the failure CLAUDE.md §6 records as the 2026-08-19 scar ("a probe suite confirms the
+           cases you thought of"), now in the gate every other rule depends on.
+
+SMALLEST   ① Keep `atCommand` for rules that need the command word (it is what makes `echo 'rm
+FIX           -rf /'` prose), but have the DENY rules — force-push, hard reset, rm-on-root,
+             --no-verify, the seam assignments — also match the name at ANY token of the segment,
+             as the previous gate did, accepting its documented false-deny on mentions. Opening a
+             segment at `then`/`do`/`else`/`!` and at `-c`'s argument is not enough on its own:
+             the runner list is open-ended, and a deny rule must fail toward deny.
+           ② Refuse `<<<` explicitly (a here-string is never a heredoc); mask only when the opener
+             line has no `|` after the `<<` token; mask only QUOTED-delimiter bodies, since an
+             unquoted body is expanded by the shell.
+           ③ Inside `'…'` a backslash is literal — end the span at the next `'`. And run the
+             message mask for the --no-verify rule only, which is the one it exists to serve,
+             rather than before every rule.
+           Must not break: every case in v6's probe, plus the fifteen above as deny/ask cases in
+           it, plus a differential run against the previous gate (see CF-10) showing 0 weaker.
+
+           Also observed on the same walk, NOT blocking, recorded so they are not lost:
+           · Abbreviated long options (`--no-veri`, `--har`) bypass BOTH gates — git accepts any
+             unambiguous prefix of a long option. True of pleks's current gate as well.
+           · `git push --mirror` only ASKS in both; it can rewrite or delete every remote ref.
+           · agent-write-scope v5 answers ASK for a Bash redirect outside `.handoff/` and DENY for
+             a Write to the same kind of path — one fence, two verdicts by tool.
+           · pleks-local, for the re-adoption: its v6 fallbacks named `Read(.env)` twins for a
+             Bash rule; a Read-tool rule cannot match `cat .env`. And its commit message claimed
+             4 twinned / 11 reasoned, and "no double claim", where the region held 7 / 8 and two
+             twins were each claimed by two rules. Corrected in the revert commit.
+```
+
+### CF-10 · the kit's adoption steps validate a REPLACEMENT gate with two suites that cannot see a regression
+
+```
+OBSERVED   Adopting bash-gate v6, pleks ran every check the kit asks for — v6's own probe, the
+           project's corpus, check-hook-registration — all green, and wrote "PROVED NO WEAKER" in
+           the commit and the PR. The claim was false (CF-9) and nothing in the procedure could
+           have shown it.
+
+COMMAND    $ node .claude/hooks/bash-gate.probe.mjs     → 132 probes pass     (at 64e02a19)
+           $ node scripts/check-bash-gate.mjs           → all pass, with 2 expectations changed
+           $ node diff-gates.mjs                        → 15 of 15 weaker     (same tree)
+
+WHY IT IS  A probe asserts the shapes its author thought of. The new gate's probe is written for
+CANON'S    the new mechanisms' INTENDED behaviour; the old corpus is written for the old
+           mechanisms. A regression lives exactly in the gap — shapes the old mechanism handled by
+           accident of design and the new one handles differently — and neither suite has a case
+           there by construction. Any project replacing any gate hits it.
+
+SMALLEST   Add to the kit's INSTALL steps for a gate row whose version changes a MECHANISM (not
+FIX        just a rule): run the previous gate and the new one over the same payloads and require
+           0 cases where the new verdict is looser (allow < ask < deny). Draw the payloads from
+           the mechanism DIFF — for each new function, the bash constructs it reinterprets — not
+           from either suite. A green corpus is necessary and is not this check.
+           Nominated for LESSONS.md, canon's to file: "a replacement gate is validated by
+           differential run against its predecessor on shapes drawn from the mechanism diff; its
+           own probe and the old corpus cannot see a regression."
+```
+
 ---
 
 ## 2 · Lesson answers
@@ -189,12 +406,33 @@ never *exempt*, so the reason has to argue it.
     **The narrowest fix I could see was narrower than the correct one**, and the lint rule was
     pointing at backtracking, not at the character class.
 
-- **⚠ Held, and canon owes the fix: M-KIT-28.** Canon's bytes still fail pleks's eslint on six other
-  kit rows — 21 problems in all. Two suppressions stay in place on canon's files until clean versions
-  ship (`check-hook-registration` ×9, `check-handoff-contract` ×1), and any of the six named rows
-  that a re-adoption would turn red is **held**, citing M-KIT-28. This is not a pin against a
-  version; it is the CF-5 class recurring on other rows, and the structural half of CF-5's fix —
-  run the estate's own rule set over the kit before shipping a `tracked` row — is what closes it.
+- **Adopted 2026-09-11 — canon: record in `kitAdopted`.** `check-hook-registration` v6,
+  `check-handoff-contract` v5, `check-install-platform` v3 (fresh, wired into `npm run check`),
+  `agent-write-scope` + probe v5, and the stamped spines census v10 · db-inspector v5 · grounder v7 ·
+  implementer v5 · walker v8 — all in `d6220076`. `check-claude-md` v17 in `96de5fc8`, its ceiling
+  renamed to `scripts/check-claude-md.ceiling.json`. agent-write-scope v5 was re-measured against
+  v4 after CF-9 surfaced, on the rule most likely to share the regression — subagent commit denial,
+  10 payloads including the wrapper and keyword shapes: **0 of 10 looser.**
+
+- **⚠ HELD — row `bash-gate` (+ `bash-gate.config`, `bash-gate-probe`), at pleks's v4-lineage gate
+  (`98d8a9a0`), against canon v6. Reason: CF-9 — v6 allows 15 payloads the held gate denies or
+  asks. Review: when canon ships a v6 successor that passes CF-10's differential run with 0 looser.**
+  Adopted in `64e02a19`, reverted before merge; nothing of v6 reached `main`. `check-hook-registration`
+  v6 is **silent** about the held gate's rules — measured, exit 0 with no per-rule lines — because the
+  held gate carries no `@rule-fallbacks` marker, so per-rule reconciliation never engages. Its floors
+  are the `@twin` lines at each rule, exactly as before v6. So the fallbacks region canon asked every
+  project to answer is **unanswered here by design, not by oversight**. When it is
+  re-adopted, the answered regions in `64e02a19` are the starting point (with CF-9's `.env` twin
+  correction), not a fresh derivation.
+
+- **⚠ Held, and canon owes the fix: M-KIT-28.** Canon's bytes still fail pleks's eslint. The
+  suppressions this bullet used to list (`check-hook-registration` ×9, `check-handoff-contract` ×1)
+  were pruned in `d6220076`, since the re-copied bytes no longer needed them. What remains are the
+  four rule `off`s in `eslint.config.mjs`: remove them and lint shows 10 warnings, **6 of them in
+  canon's own agent-write-scope v5 bytes** and 4 in pleks's own hooks. Any named row that a
+  re-adoption would turn red stays **held** under M-KIT-28. This is not a version pin; it is the
+  CF-5 class recurring on other rows, and CF-5's structural fix closes it: run the estate's own rule
+  set over the kit before shipping a `tracked` row.
 
 ---
 
@@ -211,6 +449,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | — | Row `canon-findings` adopted — this file | `ledgers/projects.json` `kitAdopted` | `fa7b92f` |
 | CF-4 | The baseline rule read `git log` from the PROJECT's repo, so an untracked plan produced "1 version(s) read" and a ✅ — a control reporting on a file whose history it had never seen | `delivery-report` **v2**, `planVersions` resolves the plan's own repository (`realpathSync` → `rev-parse --show-toplevel` → `ls-files --error-unmatch` → `check-ignore`) | `49ca9b9` |
 | CF-5 | `tracked` kit mode offered an adopter whose gate rejects canon's bytes no legal move — fix, disable and exempt are all forks | `kit/INSTALL.md`: hold the row. Plus the six sites repaired in `delivery-report` v2 | `49ca9b9` |
+| CF-6 | L-72's "a credential of this kind" has a narrow reading that leaves the threat open, and pleks took it | canon's own filing — relayed 2026-09-11 | `a108fd9` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**
 

@@ -668,6 +668,57 @@ better than the entry asked for.
   is reported, and a job at full cadence is not.
 - **Covering spec:** NEW
 
+### M-134 — an `ON CONFLICT DO NOTHING` with nothing to conflict on is a comment, not a guard
+
+- **Rule:** a conflict clause asserts that a unique key exists. Where none does, the clause is inert
+  and every replay re-inserts the whole set — while reading, at the call site, exactly like
+  idempotency.
+- **Where it lives:** `supabase/migrations/006_seed.sql` — the `prime_rates` history insert carries a
+  bare `ON CONFLICT DO NOTHING`, and `prime_rates` has **no unique constraint or index at all**.
+  Contrast `006:482`, which names a real `(clause_key)` target and therefore works.
+- **Rung:** check · **Blast:** money (adjacent — see the measurement)
+- **Observed 2026-09-11** against project `noexjtlrffkzzclibvbq`: **210 rows, 53 effective dates
+  duplicated.** The table has been replayed repeatedly and accumulated a copy each time.
+- **It is NOT a live money defect today, and the query that decides that is the entry's point.**
+  `getPrimeRateOn` (`lib/deposits/interestConfig.ts`) takes the latest row `<=` the date, so
+  duplicates matter only if they disagree:
+
+      select count(*) from (select effective_date from prime_rates
+        group by effective_date having count(distinct rate_percent) > 1) x    -- → 0
+
+  Every duplicate group agrees on its rate, so the lookup is deterministic in value if not in row.
+  **The hazard is the first correction.** The day a historical rate is amended, the amendment lands
+  as one more row on a date that already has duplicates carrying the old value, `count(distinct
+  rate_percent)` becomes 2, and which rate an interest calculation sees depends on physical row
+  order. That is a silent 0.5pp-class error on deposit and arrears interest, and nothing would fail.
+- **The fix is two-part and the order matters:** dedupe the 53 dates FIRST, then add the unique
+  index — adding it first simply errors, and deduping without adding it buys one clean day.
+- **Satisfied when:** `prime_rates` carries a unique key on `effective_date`, the seed's conflict
+  clause names it, and a check asserts that no `ON CONFLICT` clause in any migration targets a table
+  with no matching unique constraint — the general form, so the next inert clause is caught rather
+  than this one being fixed alone. Probe both directions.
+- **Covering spec:** NEW
+
+### M-135 — the mojibake check cannot see the files whose corruption would cost most
+
+- **Rule:** a scanner's aperture is part of its claim. One that reports "clean" while structurally
+  unable to read 84 tracked files is making a narrower statement than the one people will hear.
+- **Where it lives:** `scripts/check-mojibake.mjs:126` — `TEXT_EXT` is an extension allowlist, so
+  anything extensionless or with an unlisted extension is never scanned.
+- **Rung:** check · **Blast:** other
+- **Observed 2026-09-11** at `98d8a9a0`: 84 tracked files fall outside it. The ones that matter are
+  **the four `.githooks/*` scripts** — extensionless, gate-bearing, and carrying the exact box-rule
+  and dash characters whose corruption is the defect this check exists to find — plus `knip.jsonc`
+  (`.jsonc` does not match a `\.json$` anchor). **All are currently clean**, so this is an aperture
+  gap and not a live finding; it is filed because the check's green is read as covering them.
+- **Why it is not simply "add more extensions":** the gate-bearing files have no extension to add.
+  The durable form is to scan what git reports as text (`git ls-files` plus a binary test or
+  `.gitattributes`), which is a different question from "does this path end in `.sql`".
+- **Satisfied when:** the scanner's file set is derived from text-ness rather than extension, the
+  `.githooks/*` scripts are demonstrably inside it, and `--selftest` plants a corrupted sequence in
+  an extensionless tracked file and fails on it.
+- **Covering spec:** NEW
+
 ### M-033 — ✅ BUILT (found already shipped 2026-08-21) — `@typescript-eslint/no-explicit-any` is resolver-visible
 
 - **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`)
