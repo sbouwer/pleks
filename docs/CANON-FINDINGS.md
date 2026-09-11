@@ -131,6 +131,63 @@ FIX        a diff whose changes are mechanically generated and too numerous to r
 
 ---
 
+### CF-8 · `bash-gate`'s protected-branch rule reads a merge's argument as its TARGET, but for `git merge` that argument is the SOURCE
+
+```
+OBSERVED   bash-gate v6 asks on `git merge main` run from a feature branch — the single most common
+           operation there, and one that does not touch the protected branch at all. `git push
+           origin main` targets main; `git merge main` merges main INTO the current branch. The rule
+           applies one argument test to both verbs, and the direction is inverted for one of them.
+
+COMMAND    $ node .claude/hooks/bash-gate.js   # payloads piped as PreToolUse JSON
+           ask   | "git merge -n main"      | bash-gate: this targets `main` …
+           ask   | "git merge main"         | bash-gate: this targets `main` …
+           ask   | "git merge origin/main"  | bash-gate: this targets `main` …
+           allow | "git merge feature-x"    | bash-gate: allowed — no gate matched
+           $ git branch --show-current
+           chore/kit-adopt-2026-09-11          # HEAD was NOT the protected branch for any of these
+
+           The NAMED arm of `targetsProtectedBranch`, verbatim:
+
+             if ((args.includes("push") || args.includes("merge")) &&
+               args.some((t) => t === b || t === `origin/${b}` || t === `refs/heads/${b}` ||
+                                t.endsWith(`:${b}`))) return true;
+
+           Its comment reads "NAMED: v4's test, kept whole. Every command it asked on still asks." —
+           so the conflation is INHERITED from v4 and preserved for continuity, not re-derived. That
+           is also why the BY REFERENCE arm below it, which already reads HEAD, never gets the
+           chance to answer: the NAMED arm returns true first.
+
+WHY IT IS  The direction of `git merge` is a property of git, not of this repository. On any project
+CANON'S    with a protected branch and feature branches, `git merge <protected>` is how a branch is
+           brought up to date, and this rule prompts on every one of them. That is the failure mode
+           canon's own kit names twice over: a gate that fires on ordinary work is one people learn
+           to wave through, and pleks's CLAUDE.md §3 rejected a `Bash(git -C*)` twin on exactly this
+           measurement. A rule that is right for `push` and inverted for `merge` also reads as
+           covered, because the finding it produces is well-formed and names a real branch.
+           The machinery to fix it is already present and already trusted: `headBranch()` and the
+           BY REFERENCE arm exist, and the "HEAD on protected" cases prove they work.
+
+SMALLEST   Split the NAMED arm by verb. For `push`, keep the argument test unchanged — every command
+FIX        it asks on today still asks. For `merge`, the protected branch is the DESTINATION, so the
+           test is `headBranch() === b`, which is what the BY REFERENCE arm would have answered had
+           it been reached. `git merge main` from a feature branch then allows; `git merge feature-x`
+           run while ON main still asks, which is the case that actually matters and which the
+           current rule MISSES — so this narrows one direction and widens the other.
+           Must not break: the four `+refspec` cases and the `endsWith(":"+b)` push spellings, none
+           of which involve `merge`. A probe both directions belongs with it — `git merge <protected>`
+           from a working branch must ALLOW, and `git merge <anything>` from the protected branch
+           must ASK — because the second half is what no existing case asserts.
+
+           NOT PATCHED LOCALLY, deliberately. The file is canon's outside its KIT:CONFIG regions,
+           the error is in the safe direction (an extra prompt, never a missed gate), and pleks
+           merges through `gh pr merge` rather than local merges to main. pleks's own corpus case
+           was changed from `allow` to `ask` with this CF named at the site, so the expectation
+           records the finding instead of hiding it.
+```
+
+---
+
 ## 2 · Lesson answers
 
 From `node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks`. Read the entry from its
@@ -253,6 +310,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | — | Row `canon-findings` adopted — this file | `ledgers/projects.json` `kitAdopted` | `fa7b92f` |
 | CF-4 | The baseline rule read `git log` from the PROJECT's repo, so an untracked plan produced "1 version(s) read" and a ✅ — a control reporting on a file whose history it had never seen | `delivery-report` **v2**, `planVersions` resolves the plan's own repository (`realpathSync` → `rev-parse --show-toplevel` → `ls-files --error-unmatch` → `check-ignore`) | `49ca9b9` |
 | CF-5 | `tracked` kit mode offered an adopter whose gate rejects canon's bytes no legal move — fix, disable and exempt are all forks | `kit/INSTALL.md`: hold the row. Plus the six sites repaired in `delivery-report` v2 | `49ca9b9` |
+| CF-6 | L-72's "a credential of this kind" has a narrow reading that leaves the threat open, and pleks took it | canon's own filing — relayed 2026-09-11 | `a108fd9` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**
 
