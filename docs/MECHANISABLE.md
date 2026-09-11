@@ -596,7 +596,34 @@ better than the entry asked for.
 - **Rung:** check (the gate itself is code; the ratchet is a check that both mint paths call an assurance guard) · **Blast:** auth
 - **Observed 2026-09-10** by the walker on M-127's own commit, and it is the fix's own bypass: `requirePasskeyEnrolAssurance` accepts a `passkey_enroll` step-up satisfied by **either** factor, deliberately, so nobody is locked out. On a passkey-only account a stolen session therefore mints a TOTP factor for free, verifies with it, and satisfies the passkey guard — closing the front door while the side door lets you fetch the key. It is out of M-127's scope (a different surface, a different client, a different Supabase API) and is filed rather than folded in, because a fix that touches the browser MFA enrol path is not the same review.
 - **⚠ Ordering, and it runs the other way from the usual one.** Gating the TOTP mint is safe to ship alone — it strictly narrows. Gating `totp_unenroll` alone is **not**: a user whose only factor is a TOTP they can no longer produce must still be able to remove it, and the recovery path for that is not built. Mint first, unenrol second, and only with the recovery half beside it.
-- **Satisfied when:** enrolling a TOTP factor on an account that already holds ANY assurance factor requires step-up, decided **server-side** on the account's state — the same rule and, if the shape allows, the same guard as `lib/auth/passkeys/enrol-assurance.ts` rather than a second copy of it. Probe both directions: a bootstrap account (no passkey, no verified TOTP) must still enrol without step-up, and an account with either must be refused a bare session.
+- **⚠ THE FIX SKETCHED BELOW CANNOT BE BUILT, AND THE REASON RELOCATES THE ENTRY.** Measured
+  2026-09-11 at `e152a334`. "Gate the mint server-side" assumes Pleks is in the mint's path. It is
+  not: `supabase.auth.mfa.enroll` POSTs to GoTrue's `/auth/v1/factors` from the browser with the
+  user's access token, and no Pleks route is traversed. A server endpoint the client politely calls
+  first is not a gate — an attacker holding the session simply does not call it. Nor can the mint be
+  moved server-side: `GoTrueAdminMFAApi` exposes exactly **`listFactors` and `deleteFactor`**
+  (`@supabase/auth-js` types) — **there is no admin enrol**, so enrolment can only ever run on the
+  user's own session. The original "Satisfied when" is struck rather than deleted, because the
+  reason it is wrong is the finding.
+- **Where the fix actually belongs — the SPEND, not the mint.** `app/api/auth/step-up/route.ts:52`
+  is Pleks's code and is the point where a minted factor is turned into assurance. Two readings were
+  checked there and only one survived: `factors.totp[0]` does **not** accept an unverified factor —
+  `_listFactors` groups into the per-type arrays only inside `if (status === 'verified')`, so
+  `.totp` is verified-only by construction. So the attacker must complete enrolment, which they can,
+  and the chain holds.
+- **⚠ THE OBVIOUS ANCHOR IS RE-ROLLABLE, WHICH IS WHY THIS IS A RULING AND NOT A BUILD.** "A factor
+  created after the challenge was issued may not satisfy it" reads correct and is not: challenge
+  issuance is unauthenticated-by-possession and unlimited, so the attacker mints the factor, then
+  asks for a *fresh* challenge, and the factor now predates it. The only anchor they cannot re-roll
+  is the SESSION — the earliest `amr` timestamp from
+  `mfa.getAuthenticatorAssuranceLevel().currentAuthenticationMethods`, i.e. *a factor that did not
+  exist when this session was authenticated cannot assure it.* **That closes it and it has a real
+  cost:** a user who signs in and then enrols their first TOTP is refused their own step-up until
+  they re-authenticate. Raised as **G-10b** rather than chosen here — §8, a change with a lockout
+  consequence is CD's to rule, not a session's to pick.
+- **Satisfied when:** the anchor question is ruled, and the ruled rule is enforced at the step-up
+  spend with probes both directions — a factor predating the anchor satisfies a challenge, one
+  minted after it does not, and the bootstrap account with no factor at all is unaffected.
 
 ### M-133 — a cron that never fired and a cron that could not record are the same row: none
 
