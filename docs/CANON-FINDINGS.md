@@ -87,6 +87,48 @@ FIX        CAN OFFER, not on the credential's type — no factor of any kind →
              that half as M-132 rather than claiming M-127 closed it.
 ```
 
+### CF-7 · a mass mechanical rewrite is verified by recomputing the transform, not by reading its hunks
+
+```
+OBSERVED   A commit repaired 861 mojibake runs across four live, amend-forward SQL migration files
+           (~1,360 changed lines). The reviewable question — "did any repaired byte change SQL
+           SEMANTICS rather than rendering?" — is not answerable by reading hunks: at that volume
+           every hunk looks like the last one, attention degrades, and the one hunk that matters is
+           indistinguishable from the 860 that do not. Sampling answers a weaker question than the
+           one asked, and says so only if the reviewer is honest about the sample size.
+
+COMMAND    Instead of reading the diff, the reviewer reimplemented the cp1252 inverse independently
+           and recomputed `repair(origin/main)` for all four files, diffing the result against what
+           was committed:
+             005, 006, 012 → byte-identical to the commit
+             010           → sole residual is the 45-line tail added by a later commit in the range
+           Then, enumerating all 861 repairs BY DISTINCT OUTPUT rather than by site: every one
+           resolved to a box rule, dash, section sign, arrow, middot, bullet, ellipsis, times,
+           divide, approx or c-cedilla — **none produced a letter, digit or identifier character**.
+           Codepoint sets were compared against pre-corruption blobs to show nothing was lost.
+
+WHY IT IS  Nothing here is about mojibake, SQL, or this stack. The shape is: a mechanical transform
+CANON'S    applied at a volume no reviewer can read, where the review question is "did the transform
+           do only what it claims". Codemods, formatter migrations, mass renames, encoding repairs
+           and lint --fix sweeps all have it, and they are exactly the changes that get waved through
+           because the diff is enormous and boring. The method generalises as three moves:
+           (1) reimplement the transform independently and diff against the commit — this catches a
+           hand-edit smuggled into a mechanical change, which is the actual risk;
+           (2) enumerate outputs by DISTINCT VALUE, not by site — 861 sites collapse to ~11 classes,
+           which a human can genuinely check;
+           (3) assert a property over the output class ("no repair produced an identifier character")
+           rather than spot-checking instances.
+           Move (2) is what makes it cheap, and it is the one nobody reaches for unprompted.
+
+SMALLEST   Add it to the ledger as a review method, keyed on the trigger rather than the subject:
+FIX        a diff whose changes are mechanically generated and too numerous to read is reviewed by
+           recomputing the transform and diffing, and by enumerating distinct outputs — never by
+           sampling hunks. Must not become "all large diffs need a reimplementation": the trigger is
+           that the change claims to be MECHANICAL, which is what makes it independently recomputable
+           in the first place. A large hand-written diff has no transform to recompute and still
+           needs reading.
+```
+
 ---
 
 ## 2 · Lesson answers
