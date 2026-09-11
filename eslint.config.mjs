@@ -134,6 +134,17 @@ const eslintConfig = defineConfig([
       // refactor of four stable security hooks. A gate that arrives with a cleanup backlog gets
       // reverted, and the two rules above — a name that is not defined, a regex that backtracks —
       // are the ones with a demonstrated incident behind them in this very file.
+      //
+      // ⚠ THESE ARE NOT THE "10 SUPPRESSIONS" CANON SAID PLEKS COULD DROP ON 2026-09-11, and the
+      // distinction cost a wrong edit before it was measured. Canon meant ten entries in
+      // `eslint-suppressions.json` covering its OLD bytes (`check-handoff-contract` ×1,
+      // `check-hook-registration` ×1 + ×8 `super-linear-regex`); those were pruned the same day and
+      // canon was exactly right about them. These four `off`s are a different thing and STAY.
+      // Measured by removing them and running `scripts/lint.mjs`: 10 warnings, red at
+      // `--max-warnings 0` — 6 in canon's freshly-adopted `agent-write-scope` v5 bytes
+      // (×4 cognitive-complexity, ×2 nested-conditional in its probe) and 4 in pleks's OWN hooks
+      // (`bash-gate` ×1, `context-budget` ×2, `mcp-ddl-gate` ×1). The pleks half alone would keep
+      // this block alive regardless of what canon ships.
       "sonarjs/cognitive-complexity": "off",
       "sonarjs/no-nested-conditional": "off",
     },
@@ -153,6 +164,8 @@ const eslintConfig = defineConfig([
     // dev-standards edit followed by re-adoption everywhere, not an edit in this repo.
     files: [".claude/hooks/**/*.mjs"],
     languageOptions: { sourceType: "module" },
+    // Both KEPT after the 2026-09-11 measurement described in the block above: canon's own
+    // `agent-write-scope.probe.mjs` v5 trips `no-nested-conditional` twice on this glob.
     rules: {
       "sonarjs/cognitive-complexity": "off",
       "sonarjs/no-nested-conditional": "off",

@@ -37,19 +37,6 @@
       "count": 1
     }
   },
-  "scripts/check-handoff-contract.mjs": {
-    "sonarjs/no-unenclosed-multiline-block": {
-      "count": 1
-    }
-  },
-  "scripts/check-hook-registration.mjs": {
-    "sonarjs/no-unenclosed-multiline-block": {
-      "count": 1
-    },
-    "sonarjs/super-linear-regex": {
-      "count": 8
-    }
-  },
   "scripts/check-import-cycles.mjs": {
     "sonarjs/no-unenclosed-multiline-block": {
       "count": 1
