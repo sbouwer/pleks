@@ -414,11 +414,29 @@ never *exempt*, so the reason has to argue it.
   v4 after CF-9 surfaced, on the rule most likely to share the regression — subagent commit denial,
   10 payloads including the wrapper and keyword shapes: **0 of 10 looser.**
 
+- **Adopted 2026-09-11, later that day — canon: record in `kitAdopted`, and the pin
+  `kitPins.pleks.check-hook-registration` (v6, review 2026-09-25) is overtaken.**
+  `check-hook-registration` v7, from canon `98f9636`. It is a straight copy: the marker and two
+  finding messages ("the dormant layer" → "the fallback layer") change, and no check moves. There
+  is no KIT:CONFIG region in the diff. It was copied by hand, not applied, because `apply-kit`
+  refuses a pinned row and this session does not write canon's ledger.
+
 - **⚠ HELD — row `bash-gate` (+ `bash-gate.config`, `bash-gate-probe`), at pleks's v4-lineage gate
-  (`98d8a9a0`), against canon v6. Reason: CF-9 — v6 allows 15 payloads the held gate denies or
-  asks. Review: when canon ships a v6 successor that passes CF-10's differential run with 0 looser.**
+  (`98d8a9a0`), against canon v7. Reason: CF-9 — v6 allowed 15 payloads the held gate denies or
+  asks. Canon's v7 (`98f9636`) answers CF-9 and ships CF-10's differential as
+  `bash-gate-probe --against <previous gate>`. Canon measured v7 against this held gate as
+  **40 looser, 1 declared**. It says the other 39 are pleks's own policy or the held gate's old
+  any-token false-denies, and that none is a CF-9 shape. That is canon's classification, not
+  pleks's yet.**
+  **How it moves (Stéan's relay, 2026-09-11).** Take v7 with its probe, then run the probe
+  `--against` the held gate. pleks's two deliberate policies are the ask on **every** push and the
+  hard-reset deny. Both go into the hook's own deny/ask lists (its KIT:CONFIG), so they stay stricter
+  instead of being declared looser. Anything else v7 deliberately loosens is named in the probe's
+  new `loosened` region. **Review: the move lands when `--against` exits 0 with every looser
+  verdict either restored by those lists or named in `loosened`.** A looser verdict nobody can
+  argue for blocks the move, just as CF-9's fifteen did.
   Adopted in `64e02a19`, reverted before merge; nothing of v6 reached `main`. `check-hook-registration`
-  v6 is **silent** about the held gate's rules — measured, exit 0 with no per-rule lines — because the
+  v6 was **silent** about the held gate's rules, and v7 still is — both measured, exit 0 with no per-rule lines — because the
   held gate carries no `@rule-fallbacks` marker, so per-rule reconciliation never engages. Its floors
   are the `@twin` lines at each rule, exactly as before v6. So the fallbacks region canon asked every
   project to answer is **unanswered here by design, not by oversight**. When it is
