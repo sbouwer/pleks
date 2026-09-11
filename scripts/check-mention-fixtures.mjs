@@ -100,6 +100,10 @@ export const REGISTRY = {
     searches: false,
     reason: "Register pointer in its header. It classifies CHANGED PATHS from a git diff, never file contents.",
   },
+  "check-mojibake.mjs": {
+    searches: false,
+    reason: "Register pointer in its header (M-126). It DOES read every tracked text file, but it never searches for a token of any kind: its test is arithmetic on codepoints — re-encode a run to cp1252, try to decode those bytes as strict UTF-8 — so a marker token, being ASCII, cannot enter a run at all. It nevertheless has this file's problem in its OWN vocabulary and in the sharpest possible form, because it scans its own source: a fixture written as the corrupt characters would make the check fail on itself. Its fixtures are therefore built from codepoints, and it says so at the site.",
+  },
   "inject-file-headers.mjs": {
     searches: false,
     reason: "A codemod, not a gate: not wired into `npm run check`, run by hand, and its output is reviewed as a diff before it lands. A false positive costs a rejected hunk, not a wrong verdict.",

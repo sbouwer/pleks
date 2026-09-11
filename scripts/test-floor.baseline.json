@@ -19,6 +19,6 @@
     "A DROP WITH NO ENTRY HERE IS STILL A FINDING. If the floor falls again, the burden is to name the",
     "deleted suite and the commit that deleted it, in this file, before touching the number."
   ],
-  "minTests": 1460,
-  "minFiles": 128
+  "minTests": 1498,
+  "minFiles": 132
 }

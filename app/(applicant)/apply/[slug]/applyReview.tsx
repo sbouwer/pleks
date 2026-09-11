@@ -315,7 +315,7 @@ function AccountStep({ applicationId, fillToken, isCo, email, signedInEmail, rea
   onReady: () => void
 }>) {
   const { send, verify, sending, verifying, sent, error } = useEmailOtpSignup()
-  const { enrol, state: pkState, errorMsg: pkError } = useEnrolPasskey()
+  const { enrol, state: pkState, errorMsg: pkError, stepUpModal } = useEnrolPasskey()
   const [code, setCode] = useState("")
   const [binding, setBinding] = useState(false)
   const [authed, setAuthed] = useState<boolean>(!!signedInEmail)
@@ -383,6 +383,11 @@ function AccountStep({ applicationId, fillToken, isCo, email, signedInEmail, rea
             <CheckCircle2 className="size-3.5" /> Passkey added — sign in with Face ID / fingerprint next time.
           </p>
         )}
+        {/* M-127: this offer runs on a freshly created account, so it is normally the BOOTSTRAP case
+            and never steps up. It is rendered anyway — an applicant who already enrolled a passkey
+            on a previous application reaches this with one on the account, and without the modal
+            their "Add passkey" would fail with a bare "Cancelled". */}
+        {stepUpModal}
       </div>
     )
   }

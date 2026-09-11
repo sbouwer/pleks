@@ -93,6 +93,12 @@ export function SecureAccount({ redirectTo, onComplete }: Readonly<SecureAccount
             )
             : <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
         </div>
+        {/* M-127: adding a passkey to an account that already has one needs step-up. Both paths here
+            are normally BOOTSTRAP — the passkey backup is offered only when the primary was TOTP, so
+            the account still has zero — but this component is reachable on an already-secured
+            account. Rendered in the two ceremony phases only: `enrolPasskey` has exactly two callers
+            and each sets one of them immediately before awaiting. A third call site needs its own. */}
+        {passkey.stepUpModal}
       </Shell>
     )
   }
@@ -178,6 +184,7 @@ export function SecureAccount({ redirectTo, onComplete }: Readonly<SecureAccount
             )
             : <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
         </div>
+        {passkey.stepUpModal}
       </Shell>
     )
   }

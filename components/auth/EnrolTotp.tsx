@@ -14,6 +14,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { isPreviewHost } from "@/lib/auth/mfa-host"
+import { staleUnverifiedTotpFactors } from "@/lib/auth/totp-factors"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
@@ -117,7 +118,10 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
       const verifiedCount = allVerified.length
 
       // Clear any leftover unverified TOTP factors from previous incomplete attempts.
-      const unverified = (factors?.totp ?? []).filter(f => f.status !== "verified")
+      // Reads `all`, NOT `totp`: listFactors groups by type only for VERIFIED factors, so the
+      // obvious `factors.totp.filter(status !== "verified")` this replaced could never match and
+      // this loop had never cleared anything. See lib/auth/totp-factors.ts.
+      const unverified = staleUnverifiedTotpFactors(factors)
       for (const stale of unverified) {
         const { error: unenrolErr } = await supabase.auth.mfa.unenroll({ factorId: stale.id })
         if (unenrolErr) {

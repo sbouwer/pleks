@@ -31,7 +31,10 @@ export function PasskeyManager() {
   const [capable, setCapable] = useState(false)
   const [revoking, setRevoking] = useState<string | null>(null)
   const [confirmPk, setConfirmPk] = useState<string | null>(null)
-  const { enrol, state: enrolState, errorMsg: enrolError, reset } = useEnrolPasskey()
+  // Two step-up modals, two actions: `enrolStepUpModal` gates ADDING a passkey once the account has
+  // one (M-127), `stepUpModal` gates REMOVING one. Both must be rendered — they are never open at
+  // the same time, and each is null unless its own flow is waiting.
+  const { enrol, state: enrolState, errorMsg: enrolError, reset, stepUpModal: enrolStepUpModal } = useEnrolPasskey()
   const { submit, stepUpModal } = useStepUpSubmit("remove a passkey")  // revoke is re-auth-gated (Finding 1.3)
 
   async function loadPasskeys() {
@@ -70,8 +73,11 @@ export function PasskeyManager() {
   }
 
   async function handleEnrol() {
-    await enrol()
-    if (enrolState !== "error") {
+    // Branch on the RETURNED boolean, never on `enrolState`: this closure captured that value at
+    // render, so it is always the pre-click one and never "error" — so `reset()` always ran and wiped
+    // the `enrolError` message rendered above the button. Cancelling the step-up modal looked like
+    // nothing had happened at all. useEnrolPasskey returns a boolean for exactly this reason.
+    if (await enrol()) {
       await loadPasskeys()
       reset()
     }
@@ -160,6 +166,7 @@ export function PasskeyManager() {
         onConfirm={doRevoke}
       />
       {stepUpModal}
+      {enrolStepUpModal}
     </section>
   )
 }

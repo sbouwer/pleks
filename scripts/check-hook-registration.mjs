@@ -2,32 +2,29 @@
 /**
  * scripts/check-hook-registration.mjs — a hook file is not a hook until settings wires it.
  *
- * @kit check-hook-registration v2 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-hook-registration v3 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
- * PORTED FROM `pleks/scripts/check-hook-registration.mjs`, NOT REINVENTED. The logic is
- * project-agnostic and the incident behind it is not ours to re-earn: a walker found that nothing
- * in that repo read `.claude/settings.json`, so deleting its `hooks` block left every gate inert
- * while the check stayed green and two `@enforced hook:` tags still resolved — because that
- * resolver tested file PRESENCE. Two enforced tags, a probe suite claiming to drive the hook
- * "exactly as Claude Code would", and zero enforcement.
+ * WHAT IT CATCHES. Delete the `hooks` block from `.claude/settings.json` and every gate goes inert
+ * while the hook files, their probe suites and any `@enforced hook:` tag that resolves by file
+ * PRESENCE all stay green. A probe suite spawns each hook file directly, which is the right way to
+ * test its LOGIC and no way at all to test whether anything invokes it — dev-standards L-06, one
+ * layer out from where L-06 was first written. Running a denied command and reading the denial back
+ * is the right instinct and not a control: a manual proof lasts one session, and the next session
+ * inherits a claim instead of a mechanism.
  *
- * WHY THIS PROJECT NEEDED IT, specifically. On 2026-08-30 this session proved the hooks were live
- * by running `npm publish --dry-run` and reading the denial back. That was the right instinct and
- * it is not a control: a manual proof lasts one session, and the next session inherits a claim
- * instead of a mechanism. The probe suites here spawn each hook file directly, which is the right
- * way to test its LOGIC and no way at all to test whether anything invokes it — dev-standards L-06,
- * one layer out from where L-06 was first written.
+ * THE TWIN HALF: each hook declares `// @twin <settings pattern>` beside the rule it implements, or
+ * `// @no-twin <reason>` where the settings layer cannot express the question. The audit takes the
+ * set difference against `permissions.deny ∪ ask`. Deliberately NOT equal-or-stronger — settings
+ * speaks in prefix-globs and a hook in separator-aware regex, so **ask is the floor; absent is the
+ * violation**.
  *
- * THE TWIN HALF is LT's pattern, arriving with the port: each hook declares `// @twin <settings
- * pattern>` beside the rule it implements, or `// @no-twin <reason>` where the settings layer
- * cannot express the question. The audit takes the set difference against `permissions.deny ∪ ask`.
- * Deliberately NOT equal-or-stronger — settings speaks in prefix-globs and a hook in
- * separator-aware regex, so **ask is the floor; absent is the violation**.
+ * Two traps, both avoided here: the markers live in COMMENTS, so a comment-stripping read erases
+ * them; and matching `@twin` anywhere swallows prose ABOUT the markers, so the match is anchored to
+ * a dedicated comment line.
  *
- * Two traps LT hit and recorded, avoided here: the markers live in COMMENTS, so a comment-stripping
- * read erases them; and matching `@twin` anywhere swallows prose ABOUT the markers, so the match is
- * anchored to a dedicated comment line.
+ * Where it came from is the MANIFEST row's `why` in dev-standards. These bytes are copied into
+ * every adopter, so they say what the code does and nothing about where it was first run.
  *
  * Run: node scripts/check-hook-registration.mjs             (wired into `npm run check`)
  *      node scripts/check-hook-registration.mjs --selftest  (probes both directions)

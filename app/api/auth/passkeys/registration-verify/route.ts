@@ -2,13 +2,16 @@
  * app/api/auth/passkeys/registration-verify/route.ts — Verify registration and store passkey
  *
  * Route:  POST /api/auth/passkeys/registration-verify
- * Auth:   aal1 session required
+ * Auth:   aal1 session required, PLUS step-up once the account already holds an active passkey —
+ *         see lib/auth/passkeys/enrol-assurance.ts. This is the MINT: it is the half that must
+ *         consume the step-up token, because the credential row is written here.
  * Data:   writes to user_passkeys table via service-role client
  */
 import { verifyRegistrationResponse } from "@simplewebauthn/server"
 import type { RegistrationResponseJSON } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
+import { requirePasskeyEnrolAssurance } from "@/lib/auth/passkeys/enrol-assurance"
 import { bytesToB64url } from "@/lib/auth/passkeys/encoding"
 import { jwtIdentity } from "@/lib/auth/passkey-aal"
 import { issuePasskeyAal } from "@/lib/auth/passkey-aal-server"
@@ -27,8 +30,22 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response("Unauthenticated", { status: 401 })
 
-  const body = await req.json() as { response: RegistrationResponseJSON; label?: string }
+  const body = await req.json() as { response: RegistrationResponseJSON; label?: string; stepUpToken?: string | null }
   const { response, label } = body
+
+  // M-127. BEFORE the challenge is consumed, so a refusal does not also burn the WebAuthn ceremony.
+  // `consume: true` — this is the mint, and a single-use token must be spent exactly where the
+  // credential is written. registration-options refuses first in the normal flow; this is the
+  // backstop for a client that calls verify directly, and it is the one that actually gates the row.
+  const assurance = await requirePasskeyEnrolAssurance({
+    userId: user.id,
+    providedToken: body.stepUpToken ?? null,
+    consume: true,
+  })
+  if (!assurance.ok) {
+    await logAuthEvent({ userId: user.id, eventType: "passkey_enrolled", success: false, failureReason: "step_up_required" })
+    return Response.json({ challengeToken: assurance.challengeToken, error: assurance.error }, { status: 401 })
+  }
 
   const serviceDb = await createServiceClient()
 

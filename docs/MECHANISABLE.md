@@ -527,6 +527,147 @@ better than the entry asked for.
 - **Satisfied when:** a run where the primary witness returned nothing reports a state distinguishable from agreement, and a probe drives `fetchNagerZA` to `null` and asserts the route does NOT emit `ok`. ⚠ Do **not** "fix" this by making the fetch partial-tolerant — the all-or-nothing return is the deliberate anti-noise choice, and relaxing it trades a visible dark run for invented Class-B diffs.
 - **Covering spec:** ADDENDUM_70K Phase C (the sentinel), ADDENDUM_70L Phase A (the horizon that re-rated it)
 
+### M-126 — ✅ BUILT (2026-09-10) — mojibake sits in four migration files and nothing in the repo can see it
+
+- **Rule:** dev-standards **L-71** — a shell round-trip of a file is `decode → transform → encode`, and on Windows both codecs are chosen by the shell. `CLAUDE.md` §8 states the rule ("never author a pattern through a shell string… write the script to a file with an editor"). What it has no half of is **detection**, and the damage predates the rule.
+- **Where it lives:** `supabase/migrations/` — `010_platform_features.sql` (194), `005_operations.sql` (99), `012_property_extensions.sql` (94), `006_seed.sql` (49). Dominant sequence `U+00C3 U+00A2 U+00E2 U+201A U+00AC U+00E2 U+20AC U+0153` = an en dash `–` encoded **twice**; also the same doubling of `ç` inside `façade`. ⚠ **The sequences are named by codepoint here, not quoted literally, and that is deliberate** — `check-mojibake.mjs` scans tracked text, so a register that quoted the damage as bytes would fail the gate it asks for, and the only ways out are an allowlist entry (forbidden) or this. Codepoints are also the more useful notation: the third character of the corrupted box rule is `U+0090`, which is invisible in every editor.
+- **Rung:** check · **Blast:** other (see the severity note — it is **not** data-boundary today, and the reason it is not is luck)
+- **Observed 2026-09-10** by the legacy lesson triage, while answering L-71. Entered at **`b5636b9d`** (2026-07-06, *"chore(migrations): replay all 12 domain files clean from scratch"* (#133)) — a bulk mechanical rewrite of all twelve files, which is precisely L-71's shape.
+- **The severity, measured rather than assumed, and it moved twice.** Most hits are on comment lines and are cosmetic. **`006_seed.sql` is not**: line 53 is `INSERT INTO lease_clause_library` and roughly 32 of its 49 hits are inside the `$$…$$` clause bodies that render into generated lease documents — line 199 read *"its fa<ç doubled>ade"*. That looked like live corruption of legal text. **It is not, and the check that establishes it is the one that matters:** `SELECT` against prod 2026-09-10 returns **44 clauses, 0 corrupted** in `body_template` and `title`. Prod was seeded before 2026-07-06 and the insert carries `ON CONFLICT DO NOTHING` (`73f2ed61`), so the corrupt file has never overwritten the good rows — **and for the same reason can never repair itself either.**
+- **What is actually at risk, therefore:** any environment seeded from these files *after* the corruption — a fresh dev DB, a staging project, a disaster-recovery rebuild — gets garbled clause text in generated leases, and prod's cleanliness is exactly what would stop anyone noticing. This is L-71's own prediction ("would have committed cleanly, and the corruption would have surfaced as a mystery diff weeks later — or never").
+- **Satisfied when:** a check fails on a mojibake sequence anywhere in tracked text, probed both directions; and the four files are repaired **with an editor, never a shell rewrite** — repairing them through the tool that caused this is the failure mode, not a shortcut past it. ⚠ Repair is amend-in-place on `005`/`006`/`010`/`012`; **`007`/`008` must not be amended** and none of them needs to be. <!-- @enforced check:check-mojibake -->
+- **BUILT 2026-09-10.** `scripts/check-mojibake.mjs`, wired into `npm run check` with its selftest.
+  - **The counting in this entry's own heading was wrong, and the correction is the interesting part.** "436 sequences" came from grepping the `Ã`/`â€`/`Â` families — which is the detection this entry asked for, and it undercounted by half. The real figure is **861 corrupted runs** (005: 242 · 006: 61 · 010: 447 · 012: 111), because the dominant damage is a doubly-encoded box rule whose third character is `U+0090`, an invisible C1 control that no family grep names. **A blacklist of the mojibake you have already seen cannot find the mojibake you have not**, and the number it produces looks like a measurement.
+  - **So the check is not a blacklist.** It is the inverse transform: re-encode a run to cp1252 and try to decode those bytes as strict UTF-8. Correct text cannot survive that — an em dash is a lone continuation byte, and `═`/`→`/`⚠` are not in cp1252 at all — so success IS the diagnosis, with nothing enumerated and nothing to miss. It reports the repair, not just the location, because a check that says "something is wrong here" and cannot say what it should be sends the next person back to the shell that caused this.
+  - **The repair was run over all twelve files, and that was the test.** The eight clean ones came out byte-identical; only the four known-bad ones changed. Verified after: the four files' non-ASCII vocabulary is now a subset of the eight clean files' (`═ ─ — § → – • …`, plus `ç ÷ ≈ ·` at four legitimate sites), zero residue, and `findMojibake` run against `HEAD:` still reports all 861 — so the check would have caught the damage it was built for, not merely the fixtures.
+  - **It scans its own source, which forced two things.** Its probe fixtures are built from codepoints rather than written as characters, and `docs/MECHANISABLE.md` had this entry's example sequences rewritten to codepoint notation — the alternative was an allowlist entry, which `CLAUDE.md` §4 forbids and which would have hidden the next real one. It is registered `searches: false` in `check-mention-fixtures.mjs` with that reasoning.
+
+### M-127 — ✅ BUILT (2026-09-10) — a passkey can be MINTED on session state alone, while destroying one demands step-up
+
+- **Rule:** dev-standards **L-72** — authorise a credential-**minting** operation on the state of the **account** ("does this account already possess a credential of this kind?"), never on the state of the session. And review a create/destroy pair **as a pair**.
+- **Where it lives:** `app/api/auth/passkeys/registration-verify/route.ts:27` gates on `supabase.auth.getUser()` and nothing else, then inserts into `user_passkeys` at :85. Its counterpart `app/api/auth/passkeys/revoke/route.ts:36` calls `requireStepUp({ action: "passkey_unenroll" })`. `lib/auth/step-up.ts:11`'s `StepUpAction` union carries `passkey_unenroll` and `totp_unenroll` — **both destroy actions — and no enrol action at all.**
+- **Rung:** check (the residue is judgement — see below) · **Blast:** auth
+- **Observed 2026-09-10** by the legacy lesson triage, verified in the main session rather than taken from the census: the union was read at `lib/auth/step-up.ts:11` and both routes' gates read directly. `registration-options` does read existing `user_passkeys`, but only to build WebAuthn's `excludeCredentials` — a same-device duplicate guard, **never an authorization input**, and it does not bind a *different* device.
+- **Why the asymmetry is the default rather than an oversight,** in L-72's words: destructive operations advertise their danger and reviewers guard them; *add a device* reads as a preference. But minting is the privilege-granting half — it is the act that converts a session into an assured one on the next request, through the front door.
+- **Not yet an exploit claim, and the gap is stated rather than papered over:** whether pleks is reachable the way yoros was depends on how long a session survives past its assurance window here, which this entry does **not** establish. The finding is the asymmetry, which holds regardless.
+- **Satisfied when:** enrolment authorises on the assurance the ACCOUNT can offer — no factor of any kind permits a bare session, any factor requires step-up — through **one shared guard used by both routes**, so the challenge cannot be issued under one rule and redeemed under a weaker one. ⚠ The bootstrap case is the whole difficulty: enrolling requires being signed in, so the first enrolment cannot demand what every later one should. Do **not** resolve it with a standing fallback credential. **This line read "the account's key count — zero active passkeys permits a bare session" until 2026-09-10, and that spelling is the bug the build shipped and the walker caught** — see the BUILT bullet.
+- **BUILT 2026-09-10, `effb2481`.** `lib/auth/passkeys/enrol-assurance.ts` is the shared guard; both `registration-options` (`consume: false`) and `registration-verify` (`consume: true`) call it, and only the mint spends the single-use token. The passkey count is **account-wide, not rp-scoped** — deliberately narrower than the `excludeCredentials` read it sits beside, because a per-rp count would hand a second rp the bootstrap state. It **fails closed**: an unreadable count returns `-1`, not `0`. `010 §54` widens the `step_up_challenges.action` CHECK, and `lib/auth/__tests__/step-up-action-db-parity.test.ts` now fails the gate if the TS union and that constraint ever disagree — the twin-drift hazard the union's own comment used to only warn about. Two defects found while building and fixed in the same change: `requireStepUp` returned a **token with no row behind it** when the insert failed (an unsatisfiable modal, indistinguishable from a wrong code), and the client hook had no step-up path at all, so a second enrolment would have died as a bare "Cancelled". ⚠ **Ordering: the migration must reach an environment before the code** — see the §54 header.
+- **⚠ THE FIRST BUILD DID NOT CLOSE THE THREAT, AND THE ENTRY ABOVE IS WHY.** It counted passkeys, from this entry's own "Satisfied when" wording. A TOTP-only account holds zero passkeys, so it read as bootstrap and a stolen AAL1 session minted a passkey — and an AAL2 grant with it — without ever knowing the TOTP secret: the exact attack, surviving the fix aimed at it, past ten green tests that all asserted the passkey count. Caught by the walker on the commit, fixed before the push. **The register entry was one of the causes, not just the record of it** — a "Satisfied when" line is what the build is written against, so an under-specified one ships an under-specified fix. Filed to canon as **CF-6** (a clause for L-72 keying the bootstrap exemption to the assurance the account can offer, not the credential's type).
+- **The sibling half is NOT closed and is not claimed to be: → M-132.** The guard accepts a `passkey_enroll` step-up satisfied by either factor, deliberately, so on a passkey-only account a stolen session mints its own TOTP through the ungated browser path and spends it here.
+
+### M-128 — three send sites mark work "done" without reading whether the send succeeded
+
+- **Rule:** dev-standards **L-22** — detection, recording and notification are three different things, and a log table is not a notification channel. A function returning `{ success, error }` that never throws is silent by design; a bare `await` discards the only signal there is.
+- **Where it lives:** `app/api/cron/screening-portal-reminders/route.ts` (three sites) marks a reminder sent **and flips a never-retry flag** regardless of the result; `lib/messaging/whatsapp/sms-fallback.ts::sendSmsFallback` timestamps a failed send as sent; `app/api/cron/owner-statement-gen/route.ts` uses `Promise.allSettled` and branches on fulfilled/rejected only, so a *resolved* `{success:false}` counts as notified.
+- **Rung:** eslint or check · **Blast:** other
+- **Observed 2026-09-10** by the legacy lesson triage. Canon's L-22 entry carries an explicit note that **pleks had never been surveyed for this shape**; this is that survey. Several other sites discard the result *legitimately* and say so in-line (`lib/portal/inviteLandlord.ts`, contrasted at the site with `lib/portal/inviteTenant.ts`, which treats failure as hard) — the distinction is real and must survive any rule written here.
+- **The existing control does not cover this, and its own header says so.** `pleks/require-supabase-error-check` requires *binding* `error`, not branching on it, and `lib/supabase/logQueryError.ts`'s header admits it only logs. Logging satisfies that rule today by design — which is exactly L-22's point.
+- **Satisfied when:** a discarded failure result on a **notification** path fails the gate, with fire-and-forget expressible at the site (a named helper or a directive carrying its reason), never as a path list. Related: **M-121**, the same silence class on the digest channel itself.
+
+### M-129 — a kit row's verifier lives only in canon, so pleks's own gate cannot see it
+
+- **Rule:** dev-standards **L-63** — propagation is driven by the diff, so adopters get the artefact and not the mechanism that binds it. **L-69** is why it persists: the project's own session is the one least likely to run canon's gate.
+- **Where it lives:** `.claude/package.json` (kit row `claude-module-kind`, template, adopted at `aa3d106a`, PR #294). It declares `"type": "module"` so the `.claude/**` hooks load as ES modules instead of relying on Node ≥ 22.7's syntax-detection compensation — a hook that fails to load gates nothing.
+- **Rung:** check · **Blast:** other
+- **Observed 2026-09-10** by the legacy lesson triage, and a census claim was **corrected on the way**: canon does ship a verifier — `check-kit-drift`'s `typelessHooks()`, which resolves the type the way Node does and reports any hook still relying on the compensation. The gap is not that no mechanism exists; it is that **the only mechanism runs from canon**, so deleting or emptying `.claude/package.json` in pleks turns every hook back into a typeless `.js` and **`npm run check` stays green**.
+- **Satisfied when:** `npm run check` asserts that `.claude/package.json` exists and declares an explicit `type`, and that no `.claude/**/*.js` hook resolves to CommonJS. ⚠ It must assert this **from pleks's own tree** — a gate may never call canon's path (`CLAUDE.md` §1): a gate keyed on `C:/dev/dev-standards` fails on the first machine without that checkout, and fails *green* if the failure is swallowed.
+
+### M-130 — a baseline entry that has stopped suppressing anything outlives the decision it recorded
+
+- **Rule:** dev-standards **L-23** — write the reason where the decision lives, and a stale exemption must not outlive it. `CLAUDE.md` §4: *"an entry means read and classified, never exempt; every entry carries or points to its reason; they only shrink."*
+- **Where it lives:** the object-map allowlists carry a reason per entry (`scripts/migration-integrity.baseline.json`, `PUBLIC_ALLOWLIST`, `ACTION_ALLOWLIST`). The **array-of-path ESLint baselines do not** — `eslint-rules/require-org-scope-on-service-read.baseline.json` holds 80 bare paths, and the classification lives once in the rule file's header, which itself records that it sampled families rather than verifying all 149 sites.
+- **Rung:** check · **Blast:** data-boundary (these baselines silence the org-scope rules)
+- **Observed 2026-09-10** by the legacy lesson triage. Staleness detection exists for **exactly one** allowlist — `scripts/security/audit.mjs:906` catches a `PUBLIC_ALLOWLIST` entry whose route file was deleted, but not one that was reclassified. `ACTION_ALLOWLIST` has none; no ESLint baseline has one.
+- **pleks has already paid this cost once.** `CLAUDE.md` §6, 2026-08-22: the READ rule fired on the consent routes and was silenced by a file-level baseline entry *"classified once as debt, never re-read — and a baseline entry means read and classified, which this one had stopped being."*
+- **Satisfied when:** an entry in any baseline or allowlist that no longer suppresses a real finding fails the gate, so it must be removed or re-argued. Probe both directions: a live exemption must pass, a dead one must fail.
+
+### M-131 — the file-header template in `CLAUDE.md` is a second copy no check reads
+
+- **Rule:** dev-standards **L-67** — an example is a second implementation of a specification written in prose, and it drifts exactly like a second implementation in code, except no test covers it. Wherever a document teaches a format a checker enforces, the example and the checker are **one unit**.
+- **Where it lives:** `CLAUDE.md` §9 carries the `.ts`/`.tsx`/`.yml` header template. `scripts/check-file-headers.mjs` never reads it — it greps for `FILL:` tokens and carries its own independently hardcoded notion of the shape (`:67`). Change the template in §9 and nothing disagrees.
+- **Rung:** check · **Blast:** other
+- **Observed 2026-09-10** by the legacy lesson triage, and the contrast is what makes it actionable: pleks **already has** the single-source pattern in two places — `check-claude-md.mjs` and `check-rules-tracked.mjs` both `readFileSync` the live doc, and `CLAUDE.md` §4 states the principle for the identity-scoped-table allowlist (*"read FROM that rule file, so the doc is the single source — no mirrored constant to drift"*). This pair is the one that did not get it.
+- **Satisfied when:** `check-file-headers.mjs` derives the expected field set by parsing §9's template, so editing the doc moves the check. ⚠ Not by copying §9 into the script — that is the same defect with a shorter drift path.
+
+### M-132 — the SIBLING mint is ungated: a stolen session can enrol its own TOTP factor, then spend it
+
+- **Rule:** dev-standards **L-72** — authorise a credential-MINTING operation on the state of the ACCOUNT, never on the state of the session. M-127 applied it to passkeys; TOTP is the other half of the same pair and was left open.
+- **Where it lives:** `components/auth/EnrolTotp.tsx` → `enrollTotp` calls `supabase.auth.mfa.enroll` on the **browser** client, so the mint happens against the caller's own session with no server-side gate at all. `totp_unenroll` is in `STEP_UP_UNWIRED`, so the destroy half is ungated too — **both** halves of the TOTP credential are open while both halves of the passkey credential are now closed.
+- **Rung:** check (the gate itself is code; the ratchet is a check that both mint paths call an assurance guard) · **Blast:** auth
+- **Observed 2026-09-10** by the walker on M-127's own commit, and it is the fix's own bypass: `requirePasskeyEnrolAssurance` accepts a `passkey_enroll` step-up satisfied by **either** factor, deliberately, so nobody is locked out. On a passkey-only account a stolen session therefore mints a TOTP factor for free, verifies with it, and satisfies the passkey guard — closing the front door while the side door lets you fetch the key. It is out of M-127's scope (a different surface, a different client, a different Supabase API) and is filed rather than folded in, because a fix that touches the browser MFA enrol path is not the same review.
+- **⚠ Ordering, and it runs the other way from the usual one.** Gating the TOTP mint is safe to ship alone — it strictly narrows. Gating `totp_unenroll` alone is **not**: a user whose only factor is a TOTP they can no longer produce must still be able to remove it, and the recovery path for that is not built. Mint first, unenrol second, and only with the recovery half beside it.
+- **⚠ THE FIX SKETCHED BELOW CANNOT BE BUILT, AND THE REASON RELOCATES THE ENTRY.** Measured
+  2026-09-11 at `e152a334`. "Gate the mint server-side" assumes Pleks is in the mint's path. It is
+  not: `supabase.auth.mfa.enroll` POSTs to GoTrue's `/auth/v1/factors` from the browser with the
+  user's access token, and no Pleks route is traversed. A server endpoint the client politely calls
+  first is not a gate — an attacker holding the session simply does not call it. Nor can the mint be
+  moved server-side: `GoTrueAdminMFAApi` exposes exactly **`listFactors` and `deleteFactor`**
+  (`@supabase/auth-js` types) — **there is no admin enrol**, so enrolment can only ever run on the
+  user's own session. The original "Satisfied when" is struck rather than deleted, because the
+  reason it is wrong is the finding.
+- **Where the fix actually belongs — the SPEND, not the mint.** `app/api/auth/step-up/route.ts:52`
+  is Pleks's code and is the point where a minted factor is turned into assurance. Two readings were
+  checked there and only one survived: `factors.totp[0]` does **not** accept an unverified factor —
+  `_listFactors` groups into the per-type arrays only inside `if (status === 'verified')`, so
+  `.totp` is verified-only by construction. So the attacker must complete enrolment, which they can,
+  and the chain holds.
+- **⚠ THE OBVIOUS ANCHOR IS RE-ROLLABLE, WHICH IS WHY THIS IS A RULING AND NOT A BUILD.** "A factor
+  created after the challenge was issued may not satisfy it" reads correct and is not: challenge
+  issuance is unauthenticated-by-possession and unlimited, so the attacker mints the factor, then
+  asks for a *fresh* challenge, and the factor now predates it. The only anchor they cannot re-roll
+  is the SESSION — the earliest `amr` timestamp from
+  `mfa.getAuthenticatorAssuranceLevel().currentAuthenticationMethods`, i.e. *a factor that did not
+  exist when this session was authenticated cannot assure it.* **That closes it and it has a real
+  cost:** a user who signs in and then enrols their first TOTP is refused their own step-up until
+  they re-authenticate. Raised as **G-10b** rather than chosen here — §8, a change with a lockout
+  consequence is CD's to rule, not a session's to pick.
+- **Satisfied when:** the anchor question is ruled, and the ruled rule is enforced at the step-up
+  spend with probes both directions — a factor predating the anchor satisfies a challenge, one
+  minted after it does not, and the bootstrap account with no factor at all is unaffected.
+
+### M-133 — a cron that never fired and a cron that could not record are the same row: none
+
+- **Rule:** a failure-only digest's denominator must be the runs that were EXPECTED, not the rows that
+  happened to get written. Absence of evidence is reported here as evidence of health.
+- **Where it lives:** `lib/cron/withCronRun.ts:57-70` — the `cron_runs` insert is deliberately
+  best-effort, and a failed insert is swallowed with a `console.error` · `collectCronRunFailures`
+  (`:95-119`) builds `byJob` **from the returned rows** and increments `agg.total` per row, so the
+  denominator it prints is a count of successful recordings · `lib/observability/health.ts:127-136`
+  (`TRACKED_CRONS`) is the only place an expected cadence is declared, and it covers 8 of the 13
+  jobs that actually write rows.
+- **Rung:** check · **Blast:** other
+- **Observed 2026-09-11** against project `noexjtlrffkzzclibvbq`. On 2026-09-10 `mandatory_retry`
+  wrote **22** rows, for hours `00-16,18-21,23` — **hours 17 and 22 have no row at all**, where
+  2026-09-08 and 2026-09-09 each have a clean 24/24. The 03:00 digest reported
+  *"1/22 runs failed in 24h"*. The defensible statement is **1 known failure plus 2 unaccounted, out
+  of 24 expected**, and the digest cannot say the second half because nothing declares that 24 was
+  expected. The likely cause of the two gaps is the same Supabase `Gateway Timeout` window that
+  produced the 11:00 failure (`[mandatory-retry] Fetch error: Gateway Timeout`, Vercel error
+  clusters, with sibling clusters on `screening-jobs cron select` and `platform-email drain fetch`)
+  — so **the observability thins at exactly the moment the digest is being relied on.**
+- **The best-effort insert is CORRECT and is not what this entry asks to change.** Recording must
+  never mask the cron's own result; that is the right trade. The defect is that the digest reads the
+  resulting row count as if it were a run count, and says so with a confident denominator.
+- **The sharp end is a cron going fully dark, and it is silent for 5 of the 13 jobs.** Zero rows
+  means `byJob` has no key, the job produces no digest entry, and the digest is failure-only — so it
+  sends nothing. `checkCrons` catches that for the 8 names in `TRACKED_CRONS` via a freshness
+  threshold (fail-safe: a missing row reads as stale, which is noise rather than silence). The other
+  five write `cron_runs` and are in NO staleness map: **`screening_jobs` (2,885 rows, every 15m — the
+  highest-volume job on the platform), `cost-snapshots`, `expire_listings`, `expire-info-requests`,
+  `insurance-renewals`.** If any of those stops firing, both observability paths report nothing.
+  Same vacuous-pass shape as **M-123**: the check passes because it never ran.
+- **A doc claim was corrected while measuring this.** `.claude/rules/crons.md` said `TRACKED_CRONS`
+  tracks *"only top-level scheduled job_names that ACTUALLY write a cron_runs row (currently just
+  `["daily"]`)"*. It holds **8** names as at `d15e6f88`. The warning the sentence carries is still
+  right; its count had been stale for long enough to be read as the design.
+- **Satisfied when:** every job wrapped in `withCronRun` declares its expected cadence in ONE place
+  that both the digest and `checkCrons` read, and the digest reports a *shortfall* — rows seen
+  against rows expected — as its own condition, distinct from a failed run. A job with no declared
+  cadence must FAIL the check rather than be skipped, which is the half that makes it a ratchet
+  rather than a second list to forget. Probe both directions: a job missing N of its expected runs
+  is reported, and a job at full cadence is not.
+- **Covering spec:** NEW
+
 ### M-033 — ✅ BUILT (found already shipped 2026-08-21) — `@typescript-eslint/no-explicit-any` is resolver-visible
 
 - **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`)
@@ -2429,6 +2570,16 @@ The author identified the hazard, and defended the single field in front of them
 - **Rung:** check · **Blast:** other (statutory-notice arithmetic, via a missing holiday)
 - **Satisfied when:** every optional-credential dependency either reports its own absence in the
   artefact a human reads, or is removed.
+- **The OTHER optional-credential dependency on this path was confirmed LIVE 2026-09-10, by delivery,
+  and the distinction matters.** `sendCronDigest` (`lib/cron/cronDigest.ts:47-48`) reads BOTH
+  `ADMIN_EMAIL` and `RESEND_API_KEY` through `optionalEnv` and no-ops to `console.error` when either is
+  unset — the same shape as the Calendarific defect, on the channel that carries every cron's alerts.
+  Stéan received a holiday-sentinel digest on 2026-09-10; the sentinel calls `sendCronDigest`
+  (`app/api/cron/holiday-sentinel/route.ts:88`), and the no-key branch produces no email, so delivery
+  proves both vars resolve in prod. **That retires "is it configured?" and NOT "would we notice if it
+  stopped?"** — the silent-no-op branch is unchanged, so this entry stays open on the second question.
+  ⚠ Note also that `lib/env.ts:88` declares `RESEND_API_KEY` as `required: true` while this call site
+  reads it as optional; the schema and the call site disagree about whether its absence is survivable.
 - **The failure, concretely.** The holiday sentinel was documented in three places — the module
   docblock, the route header and the crons rule — as a TWO-witness design: Nager.Date plus
   Calendarific, with a `witnessDisagreement` escalation between them. `fetchCalendarificZA` read an

@@ -82,10 +82,16 @@ All use the same `x-cron-secret` header auth.
 **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — sketch: enumerate `app/api/cron/**/route.ts` on disk and assert each one appears either in the daily orchestrator's source or in this table's cPanel-entry list — an undocumented cron currently goes unnoticed the same way an undocumented public route used to (Category 8's disk-derived census, before it existed).
 
 **Health-check tracking:** `lib/observability/health.ts` `checkCrons` tracks only
-top-level scheduled `job_name`s that ACTUALLY write a `cron_runs` row (currently just
-`["daily"]`). Adding a name that no handler writes makes it read permanently stale and
-falsely degrades deep-health — this was the chronic "crons: degraded" cause. A completed
-"daily" row implies its in-orchestrator child + monthly jobs ran.
+top-level scheduled `job_name`s that ACTUALLY write a `cron_runs` row. Adding a name that
+no handler writes makes it read permanently stale and falsely degrades deep-health — this
+was the chronic "crons: degraded" cause. A completed "daily" row implies its
+in-orchestrator child + monthly jobs ran. **Read the map in the code, never a count here:**
+this sentence said *"currently just `["daily"]`"* until 2026-09-11, when it held eight
+names, and a triage pass read the stale count as the design.
+**The converse gap is the live one — M-133.** Being absent from `TRACKED_CRONS` is not
+neutral: a wrapped cron outside it that stops firing writes no row, so the failure-only
+digest has nothing to report AND no staleness threshold fires. Measured 2026-09-11, five of
+the thirteen jobs writing `cron_runs` are in no staleness map, `screening_jobs` among them.
 **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — sketch: assert every name in `TRACKED_CRONS` is written by at least one route calling `withCronRun` with that exact `job_name` — the precise mismatch that caused the chronic "crons: degraded" false positive this paragraph describes.
 
 **Post-launch (Pro) plan:** split the daily orchestrator into grouped endpoints
