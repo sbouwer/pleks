@@ -12,7 +12,7 @@
  * pattern-match. Calendarific was removed 2026-09-09 — its key was never set anywhere, so it had always
  * returned null. See runHolidayAudit below for why an inert control is worse than an absent one.
  */
-import { HOLIDAY_TABLE_COVERS_FROM, HOLIDAY_TABLE_COVERS_THROUGH } from "./saPublicHolidays"
+import { HOLIDAY_TABLE_COVERS_FROM, HOLIDAY_TABLE_COVERS_THROUGH, SA_PUBLIC_HOLIDAYS } from "./saPublicHolidays"
 import { auditLiveTable, isProclamationNotice, parseGazetteNotices, type ApiHoliday, type GazetteNotice, type HolidayAuditResult } from "./holidayAudit"
 
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/
@@ -137,13 +137,85 @@ async function fetchGovZaNotices(nowMs: number): Promise<GovZaNoticeReport | nul
   }
 }
 
+/**
+ * Normalise a notice URL for comparison. Deliberately MINIMAL — trim, drop a trailing slash, lowercase.
+ *
+ * The direction of failure decides how aggressive this may be. Too STRICT and an actioned proclamation
+ * keeps alerting: noisy, and the human can see why. Too LOOSE and a genuine new proclamation is silenced
+ * by resembling an old one — a statutory notice served on a day that is actually a public holiday, which
+ * is void. So this does not strip query strings, resolve redirects or compare paths fuzzily. Two URLs
+ * that differ in any way a human would notice are treated as two notices.
+ */
+function normaliseNoticeUrl(url: string): string {
+  // Scanned rather than `.replace(/\/+$/, "")`: the input is a string from a third-party feed, and that
+  // pattern backtracks super-linearly on a long run of slashes (sonarjs/super-linear-regex). Same result.
+  const trimmed = url.trim()
+  let end = trimmed.length
+  while (end > 0 && trimmed[end - 1] === "/") end--
+  return trimmed.slice(0, end).toLowerCase()
+}
+
+/**
+ * Notices already actioned — i.e. whose link is cited verbatim by a proclamation row already in the table.
+ *
+ * WHY THIS EXISTS, and it is this module's own argument applied to its other half. `auditLiveTable`
+ * already refuses to alert on an s2A row that no aggregator carries, for a reason it states plainly:
+ * "a CORRECT s2A row alerts every day, forever, and a digest that always fails is a digest nobody
+ * reads." The gov.za branch had the same defect and it had not been noticed, because it fires from the
+ * PUBLISHER rather than from a diff: a public-holiday notice sets `needsReview` unconditionally, so
+ * correctly adding the proclamation does not stop the alert. It stops when the notice rolls off a
+ * ten-item feed — days later, having emailed every morning in between, on the one channel whose whole
+ * value is that it is quiet.
+ *
+ * ⚠ IT MATCHES ON THE LINK, NEVER ON THE TITLE OR A DATE PARSED FROM IT. That restriction is the point:
+ * `announcesPublicHoliday` is deliberately title-matched and this module refuses to parse a date out of
+ * a notice title, because the real titles vary too much and a confident wrong holiday is worse than
+ * none. A URL is an exact string the publisher assigned, so comparing it introduces no interpretation.
+ *
+ * The acknowledgement is a BYPRODUCT OF CITING THE SOURCE PROPERLY, not a second list to maintain.
+ * A proclamation row whose `source` includes the gov.za URL silences its own notice; one that cites only
+ * "Proclamation 346 of 2026, Gazette 55352" keeps alerting until someone adds the link. There is no ack
+ * file to forget to update, and no way to silence a notice without recording why it was silenced.
+ */
+function actionedNoticeLinks(): Set<string> {
+  const links = new Set<string>()
+  for (const h of SA_PUBLIC_HOLIDAYS) {
+    if (!h.source) continue
+    for (const match of h.source.matchAll(/https?:\/\/\S+/g)) {
+      links.add(normaliseNoticeUrl(match[0]))
+    }
+  }
+  return links
+}
+
+/** Split gov.za notices into the ones a human still owes a decision on, and the ones already in the table. */
+export function partitionNotices(
+  proclamations: readonly GazetteNotice[],
+): { unactioned: GazetteNotice[]; actioned: GazetteNotice[] } {
+  const known = actionedNoticeLinks()
+  const unactioned: GazetteNotice[] = []
+  const actioned: GazetteNotice[] = []
+  for (const n of proclamations) {
+    // A notice with no link cannot be matched and is therefore never auto-acknowledged — the safe side.
+    if (n.link && known.has(normaliseNoticeUrl(n.link))) actioned.push(n)
+    else unactioned.push(n)
+  }
+  return { unactioned, actioned }
+}
+
 export interface HolidayAuditReport {
   ran: boolean
   nagerReachable: boolean
   primary: HolidayAuditResult | null
   /** null ⇒ gov.za could not be read this run. NOT the same as "no proclamations". */
   govZa: GovZaNoticeReport | null
-  /** True if anything needs a human: a Class-A/B diff, a proclamation notice, or an unprovable feed window. */
+  /** Notices announcing a public holiday that the table does NOT already cite. These are the ones that
+   *  need a human; `govZa.proclamations` remains the unfiltered list of what the feed carried. */
+  unactionedNotices: GazetteNotice[]
+  /** Announced AND already in the table, matched by link. Reported as INFO, never as a failure. */
+  actionedNotices: GazetteNotice[]
+  /** True if anything needs a human: a Class-A/B diff, an UNACTIONED proclamation notice, or an
+   *  unprovable feed window. An actioned notice is not a finding — the decision it asked for was made. */
   needsReview: boolean
 }
 
@@ -169,8 +241,14 @@ export interface HolidayAuditReport {
 export async function runHolidayAudit(nowMs: number = Date.now()): Promise<HolidayAuditReport> {
   const [nager, govZa] = await Promise.all([fetchNagerZA(), fetchGovZaNotices(nowMs)])
 
+  const { unactioned, actioned } = partitionNotices(govZa?.proclamations ?? [])
+
   if (!nager) {
-    return { ran: false, nagerReachable: false, primary: null, govZa, needsReview: !!govZa?.proclamations.length }
+    return {
+      ran: false, nagerReachable: false, primary: null, govZa,
+      unactionedNotices: unactioned, actionedNotices: actioned,
+      needsReview: unactioned.length > 0,
+    }
   }
 
   const primary = auditLiveTable(nager, HOLIDAY_TABLE_COVERS_FROM, HOLIDAY_TABLE_COVERS_THROUGH)
@@ -180,6 +258,8 @@ export async function runHolidayAudit(nowMs: number = Date.now()): Promise<Holid
     nagerReachable: true,
     primary,
     govZa,
-    needsReview: primary.hasAlerts || !!govZa?.proclamations.length || !!govZa?.windowOverrun,
+    unactionedNotices: unactioned,
+    actionedNotices: actioned,
+    needsReview: primary.hasAlerts || unactioned.length > 0 || !!govZa?.windowOverrun,
   }
 }

@@ -55,7 +55,11 @@ export async function GET(req: NextRequest) {
   } else if (audit.needsReview) {
     const a = audit.primary!.diffs.filter((d) => d.cls === "A").map((d) => d.date)
     const b = audit.primary!.diffs.filter((d) => d.cls === "B").map((d) => d.date)
-    const procs = audit.govZa?.proclamations ?? []
+    // UNACTIONED only. A notice the table already cites by link asked for a decision that has been
+    // made, and re-reporting it would keep this digest failing daily until the notice rolls off a
+    // ten-item feed — the exact "a digest that always fails is a digest nobody reads" failure the
+    // Nager branch already refuses. Still visible below, as INFO.
+    const procs = audit.unactionedNotices
     detail.holiday_audit = {
       status: "failed",
       error:
@@ -79,6 +83,16 @@ export async function GET(req: NextRequest) {
     detail.holiday_audit = { status: "ok" }
   }
 
+  // An acknowledged notice is worth SEEING and not worth emailing about: it is the feed still carrying a
+  // proclamation the table already answered. Logged, so "why is gov.za quiet about 4 November?" has an
+  // answer in the run output, and counted in the JSON below so the silence is measurable rather than assumed.
+  if (audit.actionedNotices.length) {
+    console.info(
+      `[holiday-sentinel] ${audit.actionedNotices.length} gazette notice(s) already cited by the table, not re-reported: ` +
+        audit.actionedNotices.map((p) => p.link).join(" | "),
+    )
+  }
+
   // gov.za unreachable is reported SEPARATELY from a clean audit. It is not needsReview — one blip on a
   // government website must not email an admin — but it must not read as "no proclamations" either.
   if (!audit.govZa) {
@@ -96,6 +110,8 @@ export async function GET(req: NextRequest) {
     audit: auditState,
     govZaReachable: !!audit.govZa,
     proclamationNotices: audit.govZa?.proclamations.length ?? 0,
+    unactionedNotices: audit.unactionedNotices.length,
+    acknowledgedNotices: audit.actionedNotices.length,
     feedWindowOverrun: !!audit.govZa?.windowOverrun,
     digested: digest.emailed,
   })
