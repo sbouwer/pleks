@@ -719,6 +719,30 @@ better than the entry asked for.
   an extensionless tracked file and fails on it.
 - **Covering spec:** NEW
 
+### M-136 — `context-budget.js` bills one API response once per content block, and it is the instrument every session reads
+
+- **Re-filed 2026-09-11. First filed 2026-08-24 as "M-096" on the unmerged `docs/e16-rebaseline`
+  branch** (commit `f8763972`). That number collided with `main`'s M-096 (the probe seam), and the
+  branch never merged, so the entry was never on `main`. It surfaced while salvaging E16's results.
+  **Still live as at `40f32f68`:** `.claude/hooks/context-budget.js:183` adds `billable(u)` once per
+  line, and the file never mentions `message.id`. The text below is the original, renumbered.
+- **Rule:** a transcript reader that sums `message.usage` must bill each API response **once**. One response occupies several transcript lines — text, thinking, and one per `tool_use` block — and every line repeats the same `usage` object.
+- **Where it lives:** `.claude/hooks/context-budget.js`, the per-line loop that accumulates `rec.tokens` / `rec.billable`. It has no notion of `message.id`.
+- **Rung:** hook · **Blast:** other
+- **Satisfied when:** extends:check:check-context-budget
+  — `extends:`, not a bare name. `check-context-budget.mjs` already exists and is already in the gate, but it asserts the hook is REGISTERED and shaped correctly, not that its arithmetic is right. Writing the bare name would have recorded this entry's mechanism as present; the register's own integrity check flagged exactly that on the first run, which is the flag working.
+- **Measured 2026-08-24 on E16 arm A** (session `f2781cac`, task 2 r1): 170 assistant lines carrying usage, **103 distinct `message.id`s**. Per-line 22,374,437 cache-read; per-id 14,520,451 — the latter matching the CLI's own `result` event to the token.
+- **⚠ THIS IS THE INSTRUMENT, NOT A REPORT.** `context-budget.js` re-injects the live context figure on every prompt, from outside the conversation, specifically so the number cannot go stale — CLAUDE.md §8 tags it `@enforced hook:context-budget` and builds its token-cost doctrine on it. Every figure it has printed is inflated by `lines ÷ ids`. The doctrine (cache-read dominates; compact on task boundaries; batch tool calls) is **unaffected in direction** — the ratios it rests on are between quantities inflated alike — but the absolutes quoted anywhere from that hook are not measurements.
+- **Why the twin fix does not port across.** `scripts/transcript-metrics.mjs` was corrected the same day by deduping on `message.id` within one pass, because it reads whole files. **This hook reads incrementally**, storing a byte offset per file and consuming only the new range each turn. A `Set` local to one read window would still double-count a response whose lines straddle a window boundary — rarer, quieter, and harder to notice than the bug it replaced. The seen-set has to persist in the hook's state file alongside the offsets, and that is the actual build.
+- **Do not "fix" it by switching to whole-file reads.** The incremental read is why the hook is cheap enough to run on every prompt; making it re-read every transcript per turn would trade a wrong number for a slow session, and a hook that costs noticeably gets disabled.
+- **Probe both directions, plus the boundary case that is the whole reason this is not a one-liner:** a response split across lines bills once; distinct ids still sum; and a response whose lines land in **two different incremental reads** must still bill once — that third probe is the one a naive port would fail.
+- **Related:** E16 (where this was found, and whose corroboration claim it retracted). The original
+  also cited "M-094 (a defect two artefacts inherit together agrees with itself)". M-094 was then,
+  and is now, *"the repo can see the SHAPE of production and never its CONTENTS"*, and its body
+  carries no such theme. **That citation is unresolved** and is not carried as a link.
+- **Provenance:** found 2026-08-24 during E16 arm A, by reconciling the harness against the CLI's `result` event — an independent reference that existed all along and had not been used. The pre-registration had cited this hook and `transcript-metrics.mjs` agreeing to three significant figures as "the closest thing available to a calibration"; they agreed because they shared this defect.
+- **Covering spec:** NEW
+
 ### M-033 — ✅ BUILT (found already shipped 2026-08-21) — `@typescript-eslint/no-explicit-any` is resolver-visible
 
 - **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`)

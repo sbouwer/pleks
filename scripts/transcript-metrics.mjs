@@ -127,6 +127,27 @@ export function aggregate(records, { since = null, until = null, activeGapMs = A
   let firstTs = null
   let lastTs = null
   const stamps = []
+  // ⚠ ONE API RESPONSE CAN OCCUPY SEVERAL TRANSCRIPT LINES, EACH REPEATING THE SAME `usage` OBJECT.
+  // A response containing text + thinking + three tool_use blocks is written as multiple records
+  // sharing one `message.id`, and every one of them carries the FULL usage for that response. Summing
+  // per line therefore bills a response once per content block.
+  //
+  // Measured 2026-08-24 on E16 arm A (session f2781cac, task 2 r1): 170 assistant lines with usage,
+  // 103 distinct ids. Per-line 22,374,437 cache-read; per-id 14,520,451 — and the per-id figure
+  // matches the CLI's own `result` event EXACTLY, which is the independent reference this file did
+  // not previously have.
+  //
+  // WHY IT COULD NOT BE ABSORBED AS "uniform inflation": the factor is lines÷ids, a BEHAVIOURAL
+  // property. An arm emitting more tool calls per response inflates more than one that does not, so
+  // it biases arm-vs-arm comparison along exactly the axis E16 measures.
+  //
+  // ⚠ AND IT INVALIDATES THIS FILE'S OWN CORROBORATION CLAIM. `docs/EXPERIMENTS.md` cited this script
+  // agreeing with `.claude/hooks/context-budget.js` to three significant figures as "the closest
+  // thing available to a calibration". If both summed per line they agreed BECAUSE THEY SHARED THIS
+  // DEFECT — the same trap `check-migration-forward-refs.mjs`'s header names: a defect two artefacts
+  // inherited together agrees with itself. Independent verification needs an independent reference
+  // point, and the CLI's `result` event is one; `context-budget.js` was never one.
+  const billed = new Set()
 
   for (const r of records) {
     const ts = r.timestamp
@@ -139,7 +160,12 @@ export function aggregate(records, { since = null, until = null, activeGapMs = A
     }
 
     const u = r.message?.usage
-    if (u) {
+    // A record with usage but NO id cannot be deduplicated and is counted — erring toward
+    // over-counting rather than silently dropping spend, because a missing id is an unknown shape
+    // and dropping it would understate cost in whichever arm happens to produce it.
+    const id = r.message?.id
+    if (u && (!id || !billed.has(id))) {
+      if (id) billed.add(id)
       turns++
       tokens.input += u.input_tokens || 0
       tokens.cacheWrite += u.cache_creation_input_tokens || 0
@@ -208,8 +234,26 @@ export function subagentFiles(projectDir, sessionId) {
  * spawning turn, so it is reported rather than failed. Fewer transcripts than `Agent` calls is the
  * dangerous direction — spend that happened and was not found — and that is the FINDING.
  */
+/**
+ * ⚠ THE DELEGATION TOOL IS SPELLED `Task` IN SOME SESSIONS AND `Agent` IN OTHERS, and reading only
+ * one of them silently kills this whole function.
+ *
+ * Measured 2026-08-24 on E16 arm B (session `eaefff58`): the `system/init` event of a `claude -p`
+ * session lists its delegation tool as **`Task`**. The orchestrating session that wrote this file
+ * calls the same tool `Agent`, which is the only reason the original spelling ever looked right.
+ *
+ * The failure is silent AND aimed at the dangerous direction. With `agentCalls` stuck at 0, the
+ * shortfall `agentCalls - depth1` can never be positive, so the finding this function exists to
+ * raise — spend that happened and whose transcripts were not found — becomes unraisable. It would
+ * have reported "0 delegation calls" beside a pile of subagent transcripts and exited 0.
+ *
+ * Both spellings are summed rather than one being chosen: they are the same tool, a session may in
+ * principle expose either, and a session exposing both would be under-counted by picking one.
+ */
+const DELEGATION_TOOL_NAMES = ["Agent", "Task"]
+
 export function reconcile(subs, mainToolCalls, { windowed = false } = {}) {
-  const agentCalls = mainToolCalls.Agent || 0
+  const agentCalls = DELEGATION_TOOL_NAMES.reduce((n, k) => n + (mainToolCalls[k] || 0), 0)
   const depths = {}
   let noMeta = 0
   for (const s of subs) {
@@ -232,6 +276,35 @@ export function reconcile(subs, mainToolCalls, { windowed = false } = {}) {
     // only assertable on a whole-session read.
     finding: !windowed && shortfall > 0 ? shortfall : 0,
   }
+}
+
+export const VALUE_FLAGS = new Set(["--since", "--until", "--project-dir", "--label", "--expect-subagents", "--active-gap"])
+export const BOOL_FLAGS = new Set(["--selftest", "--probe", "--json"])
+
+/**
+ * Read a flag's value, accepting BOTH `--name value` and `--name=value`.
+ *
+ * ⚠ THIS READ ONLY THE SPACE-SEPARATED FORM, AND THE FAILURE WAS SILENT. `--expect-subagents=false`
+ * matched nothing, fell through to the `?? "true"` default, and the run proceeded with the OPPOSITE
+ * setting to the one asked for. The harmless direction is a solo arm printing a spurious warning.
+ * The dangerous one is `--expect-subagents=true` on a delegating arm: the operator believes the
+ * missing-sidecar assertion is armed and it is not — a control that reads as present while doing
+ * nothing, the same class as the `Task`/`Agent` spelling defect noted above.
+ */
+export function parseFlag(args, name) {
+  const eq = args.find((a) => a.startsWith(`${name}=`))
+  if (eq !== undefined) return eq.slice(name.length + 1)
+  const i = args.indexOf(name)
+  return i === -1 ? null : args[i + 1] ?? null
+}
+
+/** Every `--token` not in the known sets. Silently ignoring these is what hid the bug above. */
+export function unknownFlags(args) {
+  return args.filter((a) => {
+    if (!a.startsWith("--")) return false
+    const bare = a.includes("=") ? a.slice(0, a.indexOf("=")) : a
+    return !VALUE_FLAGS.has(bare) && !BOOL_FLAGS.has(bare)
+  })
 }
 
 function durationMs(a, b) {
@@ -264,6 +337,33 @@ function selftest() {
   t("counts a turn only for a record carrying usage, not every line", () => {
     const a = aggregate([rec("2026-01-01T00:00:00Z", U(1, 0, 0, 1)), { timestamp: "2026-01-01T00:00:01Z", type: "user" }])
     return a.turns === 1
+  })
+  // ── the per-message-id defect, both directions (found on E16 arm A, 2026-08-24) ──────────────
+  t("ONE RESPONSE SPLIT ACROSS LINES IS BILLED ONCE — the defect that inflated arm A by 54%", () => {
+    // A response with text + thinking + a tool_use is three records sharing one id, each repeating
+    // the SAME usage. Per-line summing charged it three times.
+    const u = U(0, 0, 100, 10)
+    const a = aggregate([
+      { timestamp: "2026-01-01T00:00:00Z", message: { id: "msg_1", usage: u } },
+      { timestamp: "2026-01-01T00:00:01Z", message: { id: "msg_1", usage: u } },
+      { timestamp: "2026-01-01T00:00:02Z", message: { id: "msg_1", usage: u } },
+    ])
+    return a.tokens.cacheRead === 100 && a.tokens.output === 10 && a.turns === 1
+  })
+  t("KNOWN-GOOD: DISTINCT ids still sum — the dedup must not swallow real separate responses", () => {
+    const a = aggregate([
+      { timestamp: "2026-01-01T00:00:00Z", message: { id: "msg_1", usage: U(0, 0, 100, 10) } },
+      { timestamp: "2026-01-01T00:00:01Z", message: { id: "msg_2", usage: U(0, 0, 100, 10) } },
+    ])
+    return a.tokens.cacheRead === 200 && a.turns === 2
+  })
+  t("a usage record with NO id is counted — err toward over-counting, never silent loss", () => {
+    // An unknown shape must not vanish: dropping it would understate whichever arm produces it.
+    const a = aggregate([
+      { timestamp: "2026-01-01T00:00:00Z", message: { usage: U(0, 0, 50, 5) } },
+      { timestamp: "2026-01-01T00:00:01Z", message: { usage: U(0, 0, 50, 5) } },
+    ])
+    return a.tokens.cacheRead === 100 && a.turns === 2
   })
   t("weighting matches context-budget.js: cache read 0.1, cache write 1.25", () => {
     return weightedUnits({ input: 100, cacheWrite: 100, cacheRead: 100, output: 100 }) === 100 + 125 + 10 + 100
@@ -368,6 +468,42 @@ function selftest() {
   })
   t("FINDING when transcripts are MISSING — fewer depth-1 files than Agent calls understates cost", () => {
     return reconcile([sub(1), sub(1)], { Agent: 5 }).finding === 3
+  })
+  // ── the tool-name defect, both directions (found on E16 arm B, 2026-08-24) ────────────────────
+  t("`Task` COUNTS AS DELEGATION — the spelling a `claude -p` session actually uses", () => {
+    // Reading only `Agent` pinned agentCalls at 0, which makes the shortfall unraisable: the
+    // dangerous direction becomes undetectable while the script still exits 0.
+    return reconcile([sub(1), sub(1)], { Task: 5 }).finding === 3
+  })
+  t("BOTH spellings sum — a session exposing each would be under-counted by picking one", () => {
+    return reconcile([sub(1)], { Agent: 2, Task: 2 }).finding === 3
+  })
+  t("THE SILENT DEFECT: `--expect-subagents=false` must parse, not fall through to the default", () => {
+    return parseFlag(["--expect-subagents=false"], "--expect-subagents") === "false"
+  })
+  t("KNOWN-GOOD: the space-separated spelling still parses", () => {
+    return parseFlag(["--expect-subagents", "false"], "--expect-subagents") === "false"
+  })
+  t("an absent flag reads null, so the caller's ?? default applies", () => {
+    return parseFlag(["--json"], "--expect-subagents") === null
+  })
+  t("`--name=` with an empty value yields \"\", NOT null — an explicit empty is not an absent flag", () => {
+    return parseFlag(["--label="], "--label") === ""
+  })
+  t("a value containing `=` survives — only the FIRST separator splits", () => {
+    return parseFlag(["--project-dir=C:/x=y/z"], "--project-dir") === "C:/x=y/z"
+  })
+  t("A TYPO IS FATAL, NOT IGNORED — the thing that made the defect above invisible", () => {
+    return unknownFlags(["--expect-subagent=false"]).length === 1
+  })
+  t("KNOWN-GOOD: every real flag, in both spellings, is accepted", () => {
+    return unknownFlags(["--json", "--expect-subagents=false", "--since", "x", "--project-dir=/p"]).length === 0
+  })
+  t("KNOWN-GOOD: a positional argument is not mistaken for an unknown flag", () => {
+    return unknownFlags(["abc123-session-id", "--json"]).length === 0
+  })
+  t("KNOWN-GOOD: an unrelated tool is NOT counted as delegation", () => {
+    return reconcile([sub(1)], { Bash: 99, Read: 40 }).finding === 0
   })
   t("no finding when depth-1 files EXCEED Agent calls — the safe direction, reported not failed", () => {
     return reconcile([sub(1), sub(1), sub(1)], { Agent: 1 }).finding === 0
@@ -478,8 +614,16 @@ function probe(projectDir) {
 
 // ── argv ──────────────────────────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2)
-const VALUE_FLAGS = new Set(["--since", "--until", "--project-dir", "--label", "--expect-subagents", "--active-gap"])
-const flag = (name) => { const i = args.indexOf(name); return i === -1 ? null : args[i + 1] ?? null }
+const flag = (name) => parseFlag(args, name)
+
+// An unrecognised flag is FATAL, not ignored. Silently dropping one is exactly what hid the
+// `--expect-subagents=` defect documented on parseFlag: the run looked configured and was not.
+const unknown = unknownFlags(args)
+if (unknown.length) {
+  console.error(`✗ unknown flag: ${unknown.join(" ")}`)
+  console.error(`   known: ${[...VALUE_FLAGS, ...BOOL_FLAGS].sort().join(" ")}`)
+  process.exit(1)
+}
 // Positional = any bare token whose PRECEDING token is not a value-taking flag. The previous
 // version located that predecessor with args.indexOf(a), which returns the FIRST index of the
 // value — so a positional equal to an earlier string was misjudged. find()'s index parameter is
