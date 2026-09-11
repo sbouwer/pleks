@@ -5,14 +5,25 @@ paths:
   - "lib/observability/**"
 ---
 
-## CRON ARCHITECTURE — ALL CRONS TRIGGERED FROM CPANEL
+## CRON ARCHITECTURE — TWO SCHEDULERS: CPANEL (HTTP) + `pg_cron` (IN-DATABASE)
+
+**⚠ READ THIS FIRST — corrected 2026-09-11.** This file used to open with "ALL crons triggered from
+cPanel" and state that "EVERY cron is now triggered from cPanel". That was **incomplete**: five
+retention purges run *inside Postgres* on `pg_cron` and appear in no table below. Anyone treating the
+cPanel table as the full inventory would conclude they had seen every scheduled job in the system —
+which is how the `pg_cron` tier came to be mistaken for unversioned drift during the 2026-08-17
+replay-vs-production diff. The correction was written that day, on a branch that never merged, so
+this file went on saying "ALL" for another three and a half weeks.
+
+There are **two** schedulers. The split is deliberate; see the `pg_cron` section at the bottom.
 
 **No cron runs from `vercel.json`.** Vercel Cron was removed (2026-05-29): its auth model
 injects `Authorization: Bearer <CRON_SECRET>` and that injection did not arrive reliably,
 so scheduled runs 401'd before the handler executed. cPanel curl crons (explicit
 `x-cron-secret` header, hitting `app.pleks.co.za` directly — no redirect to strip the
-header) are what work, so EVERY cron is now triggered from cPanel on the Yoros hosting
-account (`yoroscoz` user). `vercel.json` is just `{ "buildCommand": "next build" }` — do
+header) are what work, so every **HTTP-triggered** cron runs from cPanel on the Yoros hosting
+account (`yoroscoz` user) — the in-database purges are the other tier, below.
+`vercel.json` is just `{ "buildCommand": "next build" }` — do
 NOT re-add a `crons` array, and do NOT put `npm run check` in `buildCommand` (it broke
 deploys; check belongs in CI + pre-push).
 **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — sketch: a check parses `vercel.json` and fails if it gains a `crons` key or a `buildCommand` containing `npm run check`. (Note: `vercel.json` is strict JSON, so this doctrine cannot live as an in-file comment — rung 4 single-file doctrine does not apply; a script is the only carrier.)
@@ -78,6 +89,8 @@ All use the same `x-cron-secret` header auth.
 - Once daily is fine → add to `app/api/cron/daily/route.ts` orchestrator
 - Needs higher frequency → add a cPanel curl entry AND document it in this table
 - Monthly → add to the `dayOfMonth === N` gate in `daily/route.ts`
+- **Pure in-database row expiry** (no app logic, no external call) at a sub-daily cadence → `pg_cron`,
+  and add it to the table in the `pg_cron` section at the bottom of this file
 
 **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — sketch: enumerate `app/api/cron/**/route.ts` on disk and assert each one appears either in the daily orchestrator's source or in this table's cPanel-entry list — an undocumented cron currently goes unnoticed the same way an undocumented public route used to (Category 8's disk-derived census, before it existed).
 
@@ -101,4 +114,64 @@ monthly jobs self-reporting `cron_runs` (only when they fire) so silent month-en
 non-execution becomes observable before the first pilot month-end.
 
 ---
+
+## THE `pg_cron` TIER — five retention purges that run INSIDE Postgres
+
+**Decision record: `brief/build/_ADDENDUM/ADDENDUM_67E_CRON_RELIABILITY.md` §C-5.**
+
+**Decision (SB + CC).** Not drift, not an oversight, and **not** something to "fix" by moving into a
+migration or onto cPanel. Recorded here because the cPanel table above is not the whole inventory.
+
+**Why the database schedules these and not cPanel/Vercel.** Vercel Cron was removed entirely
+(2026-05-29, see top of this file). Of the five purges, two need a **15-minute** cadence —
+`purge-expired-step-ups` and `purge-passkey-challenges` are auth-hygiene sweeps where a short window
+IS the security property, and a once-daily sweep would leave expired step-up challenges and stale
+passkey ceremonies live for up to 24 hours. Running them in-database avoids an HTTP round trip, a
+shared secret, and a public endpoint for what is a pure `DELETE … WHERE expires_at < now() - interval`.
+
+### The five jobs (production `cron.job`, read 2026-09-11; first seen 2026-08-17)
+
+| Job | Schedule | Runs |
+|-----|----------|------|
+| `purge-expired-step-ups` | `*/15 * * * *` | `DELETE FROM step_up_challenges WHERE expires_at < now() - interval '1 hour'` |
+| `purge-passkey-challenges` | `*/15 * * * *` | `DELETE FROM passkey_challenges WHERE expires_at < now() - interval '1 hour'` |
+| `purge-auth-events` | `0 3 1 * *` (monthly) | `SELECT purge_old_auth_events();` |
+| `purge-ai-usage` | `0 3 2 * *` (monthly) | `SELECT purge_old_ai_usage();` — rows older than 2 years |
+| `purge-cost-snapshots` | `30 3 2 * *` (monthly) | `SELECT purge_old_cost_snapshots();` — periods older than 36 months |
+
+This is an observation: read `cron.job` for the current set, not this table. On 2026-09-11 all five
+were `active`, pg_cron was 1.6.4, and each one's latest `cron.job_run_details` row was `succeeded`.
+
+**Where each part lives, and the part that lives nowhere.** The three purge **functions** are
+versioned in `supabase/migrations/010_platform_features.sql`. Of the five **schedules**, three are
+recorded there as commented-out `cron.schedule(...)` calls (`purge-auth-events`,
+`purge-expired-step-ups`, `purge-passkey-challenges`, near lines 697, 698 and 773).
+**`purge-ai-usage` and `purge-cost-snapshots` are in no file in this repository** — not even as a
+comment. Production's `cron.job` is the only record of them, and this table is the only versioned copy.
+
+### ⚠ Do NOT uncomment those lines to "version" them
+
+`pg_cron` is a hosted-Supabase extension. It is **not** in the local Supabase CLI image, so a
+`cron.schedule(...)` statement in a migration aborts the whole 001→012 replay on any local or CI
+database — the same failure mode as the 004/005 forward reference that broke CI on 2026-08-17. If this
+is ever versioned, it must be behind
+`IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron')`.
+
+### The two real consequences (both open — C-5a and C-5b in ADDENDUM_67E)
+
+1. **A restored or rebuilt project does not get these five schedules**, and nothing announces their
+   absence. Acceptable for a deliberate design — but the re-creation step needs to live somewhere a
+   person rebuilding would actually look. For two of the five, the table above is the only place it
+   lives at all.
+2. **Nothing verifies the purges purge.** `scripts/check-retention-claims.mts` gates published claim ⇄
+   `lib/popia/retention.ts` config. Nothing exercises config ⇄ actual deletion. Because the FUNCTIONS
+   are versioned, a dbtest can call them directly — insert a row past its window, invoke the function,
+   assert it is gone — with no `pg_cron` needed. That closes the arrow the claim-drift gate cannot reach.
+   (As at `40f32f68`, no `*.dbtest.ts` names any of the three functions.) Nor does anything in the app
+   read `cron.job_run_details`: these jobs write no `cron_runs` row, so the health check above cannot
+   see one stop.
+
+**When adding a new scheduled job**, the "When adding a new cron job" list above carries a fourth branch:
+pure in-database row expiry with no app logic and a sub-daily cadence → `pg_cron`, **and add it to the
+table above**.
 
