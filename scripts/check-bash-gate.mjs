@@ -149,12 +149,7 @@ const CASES = [
   // bodies would make `cat <<EOF` a universal envelope, which is the hole the quoted-`--no-verify`
   // ruling refused. The cost is one word of prose before the example; the mitigation is the ALLOW
   // probe below it. If this probe ever flips to allow, check what was widened to achieve it.
-  // WAS "deny", AS AN ACCEPTED FALSE POSITIVE — the gate this replaces could not tell a heredoc's
-  // body from a command, so prose DESCRIBING the bypass was denied as though it were the bypass.
-  // Canon's v6 masks heredoc bodies and allows it. The expectation is corrected rather than the
-  // accepted cost restored: this is the adoption paying for itself, and an accepted cost that has
-  // stopped being incurred is not a cost to keep asserting.
-  ["a heredoc line STARTING with the assignment is PROSE, not a command", bash("git commit -F - <<'MSG'\nPLEKS_HOOK_PROBE=1 git commit is the bypass\nMSG"), "allow"],
+  ["ACCEPTED cost: a heredoc line STARTING with the assignment is denied as prose", bash("git commit -F - <<'MSG'\nPLEKS_HOOK_PROBE=1 git commit is the bypass\nMSG"), "deny"],
   ["…and the mitigation: any word first makes it prose again", bash("git commit -F - <<'MSG'\nThe bypass is PLEKS_HOOK_PROBE=1 git commit\nMSG"), "allow"],
 
   // ── ASK ─────────────────────────────────────────────────────────────────────────────────────
@@ -237,14 +232,7 @@ const CASES = [
   // pattern wide enough to catch them would be wrong in the direction that gets a gate deleted.
   ["git revert -n is --no-commit, not --no-verify", bash("git revert -n HEAD"), "allow"],
   ["git cherry-pick -n is --no-commit", bash("git cherry-pick -n abc1234"), "allow"],
-  // WAS "allow", AND THE `-n` HALF OF IT STILL HOLDS — `isNoVerify` correctly ignores `-n` on
-  // merge, where it means --no-stat. What flipped this to "ask" is a DIFFERENT rule in the adopted
-  // gate: canon's `targetsProtectedBranch` fires because `main` appears as an argument. For `push`
-  // that means pushing TO main and is right; for `merge` the argument is the SOURCE — `git merge
-  // main` on a feature branch merges main IN and does not touch main at all. Filed as CF-8. Kept as
-  // "ask" rather than patched locally: the gate is canon's outside its regions, the error is in the
-  // safe direction, and pleks merges through `gh pr merge`, not local merges to main.
-  ["git merge -n main asks — not for the -n, which is --no-stat, but for CF-8", bash("git merge -n main"), "ask"],
+  ["git merge -n is --no-stat", bash("git merge -n main"), "allow"],
   ["git log -n 5 is a count", bash("git log -n 5"), "allow"],
   // M-072's DISCRIMINATING HALF — the `-n` that belongs to a DIFFERENT command in the chain. The
   // raw-string rules put `[^\n]*` between the git verb and the flag, and `[^\n]*` spans `;`, `&&`

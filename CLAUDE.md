@@ -162,32 +162,21 @@ writes the gate-ok marker, so it is `--no-verify` that also leaves evidence clai
 passed; `PLEKS_BRANCH_PROBE` defeats the default-branch guard on its own). The deny is keyed on
 assignment syntax at command position, so `check-git-hooks.mjs` — which sets the seam through
 `spawnSync`'s `env` object, never a shell assignment — needs no exemption and is not carved out.
-Denied since the v6 adoption, 2026-09-11: **`--force-with-lease` and `--force-if-includes`** — canon
-calls these the safe forms and lets them through to an ask, and this repo does not. The lease only
-refuses when the remote moved since your last fetch, so on a ref nobody else touched it is a plain
-force-push under a safer name, and §5 says a pushed commit is fixed FORWARD. Also denied: a
-**`+refspec`** push (`git push origin +main`), where the `+` IS `--force` for that ref.
 **Hook-ask:** `git push` · `.env` files · prod database operations · `git clean -f` (untracked AND
 ignored files, no undo and no reflog — the deny list above reads as though destructive filesystem
 acts are covered, and this was the hole in that reading; added 2026-09-09 from a 21-payload
 comparison against canon's kit copy, the one case of 21 where this gate was the weaker of the two).
-Also asked since v6: a **merge or push that lands on `main`**, and **`gh pr merge`** — the base
-branch is on the server, so the command cannot say where it lands. The protected-branch rule reads
-HEAD, not just the argument; its one known defect is that `git merge main` from a feature branch
-asks although it does not touch `main` (**CF-8**, filed, not patched locally — the file is canon's
-outside its config regions and the error is in the safe direction).
 **Settings twins** (`.claude/settings.json`, coarse, consulted only when the hook is dead): the
-Supabase MCP mutation tools, deny entries for force-push and hard-reset, and `Bash(gh pr merge*)`.
-**Every rule now carries its own fallback in the hook** — a twin, or a reason settings cannot
-express it — and `check-hook-registration` reconciles all fifteen against the live settings file, so
-a rule whose floor is missing is a finding rather than an assumption.
+Supabase MCP mutation tools, plus deny entries for force-push and hard-reset.
 
 **Those Bash twins cover CANONICAL INVOCATIONS ONLY, and hook-dead is not "degraded but complete".**
 Settings speak in prefix globs, so `Bash(git push --force*)` matches exactly that spelling.
-`git -C /repo push --force`, an absolute path, an env prefix or an alias **passes the twin** — the
-hook catches all of them because it token-matches (find `git`, then `push`, then a force flag as a
-standalone token anywhere after). **The hook is the control; the twin is a partial floor for
-canonical forms.** Not fixed by widening: `Bash(git*)` at `ask` prompts on every `git status`, and a
+`git -C /repo push --force`, an absolute path or an env prefix **passes the twin** — the hook
+catches all three because it token-matches within each command segment (find `git`, then `push`,
+then a force flag as a standalone token anywhere after). **An alias passes BOTH:** `gp` names no
+`git` token, so nothing reading the command text can see what it expands to — this line claimed
+the hook caught it until 2026-09-11, when the pre-merge walk of the v6 adoption found it false.
+**The hook is the control; the twin is a partial floor for canonical forms.** Not fixed by widening: `Bash(git*)` at `ask` prompts on every `git status`, and a
 twin that fires constantly is deleted within a day, which trades something narrow for nothing.
 A narrower `Bash(git -C*)` twin — the single likeliest bypass vehicle — was **considered and
 rejected on measurement**: `git -C` appears 112 times in this machine's transcripts, almost all

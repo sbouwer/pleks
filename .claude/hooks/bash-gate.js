@@ -1,417 +1,270 @@
 /**
- * bash-gate.js — PreToolUse gate for Bash. KIT FILE, install at `.claude/hooks/`.
+ * .claude/hooks/bash-gate.js — PreToolUse gate for Bash (unattended-autonomy profile)
  *
- * @kit bash-gate v6 — tracked OUTSIDE its `KIT:CONFIG` regions. Those regions are yours;
- * everything else is canon's, and `check-kit-drift.mjs` reconciles it.
+ * WHY THIS EXISTS: allow-rules cannot cover commands containing $() command substitution or
+ * multiline/awk/heredoc bodies — Claude Code's injection analysis decomposes them and prompts
+ * regardless of any allow rule, which stalls unattended sessions. A PreToolUse hook decides
+ * BEFORE the permission system: "allow" skips the prompt; "ask"/"deny" force the gate.
  *
- * WHY THIS EXISTS, and it is not the reason you would guess. Allow-rules in
- * settings.json cannot cover commands containing `$()` substitution, heredocs,
- * or multiline awk/node bodies — Claude Code's injection analysis decomposes
- * them and prompts regardless of any allow rule, which stalls an unattended
- * session on `ls`. A PreToolUse hook answers BEFORE the permission system, so
- * `allow` skips the prompt. It exists for session friction first and danger
- * second, which is why `0-GREENFIELD.md` phase 0.4 installs it on day ZERO,
- * before there is any code to protect.
+ * Posture: allow everything EXCEPT the named gates below.
  *
- * POSTURE: ALLOW EVERYTHING EXCEPT the named gates. The ALLOW cases matter more
- * than the DENY cases — a gate that over-matches has failed at its job while
- * looking maximally safe. Every rule below is a TOKEN test at COMMAND POSITION
- * inside one shell SEGMENT, never a substring test on the whole string, because
- * every false-deny this file's ancestors recorded came from one of three shapes:
- * a pattern spanning `&&`/`;`/`|` into a neighbouring command, a verb matched
- * inside prose or a quoted argument, or punctuation touching the target
- * (`\rm`, `(rm`, `/"*"`). Segments, normalised tokens and a position check
- * remove all three at once. ONE rule also reads the segments BEFORE its own, and only to learn
- * which branch its segment lands on: the protected-branch ask (v5, below).
- *
- * v2 (2026-09-08) is the harvest of four field copies. Measured before it:
- * canon ALLOWED `git push -f`, `\rm -rf /`, `(rm -rf /*)`, `rm -rf /"*"` and
- * `git commit --no-verify`; false-DENIED `rm -rf .next && du -sh /`; and ASKED
- * on `git fetch origin main && git push origin feature/x` with a reason that
- * named the wrong segment. Each is a probe case now.
- *
- * v5 (2026-09-10) is yoros's measurement of v4: the protected-branch gate asked only when a command
- * NAMED the branch, so the ordinary deploy sequence — `git checkout main && git merge x && git push`
- * — was allowed end to end, and `git push origin +main` force-pushed it. The branch a segment lands
- * on is now resolved (see "WHICH BRANCH" below), and a `+refspec` is a force-push.
- *
- * v6 (2026-09-11) is yoros CF-4: a fallback was declared per FILE, so one `@twin` passed a hook
- * holding nine rules with no floor behind eight. Every rule now carries its own — see "WHAT STANDS
- * BEHIND EACH RULE" below — and `node bash-gate.js --fallbacks` lists them for the checks to read.
- *
- * A REASON IS ALWAYS SET, INCLUDING ON ALLOW. An empty reason makes an allow
- * indistinguishable from a hook that ran and decided nothing.
- *
- * IT FAILS TO A PROMPT, NEVER TO SILENCE. Unparseable input asks, and so does
- * valid JSON that is not an object: `JSON.parse` accepts a bare string, and
- * reading `tool_input` off one yields `undefined` and a silent allow. That hole
- * shipped green in two projects' copies behind probes that never sent one.
+ * ⚠ THIS HEADER USED TO SAY the settings rule list was "belt-and-braces" with these patterns,
+ * because deny/ask rules in settings.json "still take precedence over a hook allow". Corrected
+ * 2026-08-21: the layers are SERIAL, not redundant — the hook answers first, and its twin in
+ * settings.json is DORMANT while the hook lives. "Belt-and-braces" describes two controls both
+ * firing; that is not what happens, and reading it that way is how a gap in one layer looks
+ * covered by the other. Worse, the precedence claim it rested on is itself the open question:
+ * whether a hook's `allow` GRANTS anything or merely declines to deny is recorded as UNRESOLVED in
+ * docs/EXPERIMENTS.md (E12). This header asserted as settled the thing the register calls open.
+ * The twins are a fallback for when the hook is dead, and each is tagged `@twin` at its rule.
  */
 // @event PreToolUse
 // @matcher Bash
-// @rule-fallbacks --fallbacks
-
-/* KIT:CONFIG twins — the settings rules behind the gates below, as `// @twin <rule>` lines, for
- * the reader: the record of what was probed and why lives best beside the pattern. Optional since
- * v6, when each rule came to carry its own fallback (the fallbacks region, and the third element
- * of your own entries). `check-hook-registration.mjs` reconciles every @twin here against settings
- * AND against those fallbacks, so a line that backs none of the rules is a finding. */
-/* KIT:CONFIG /twins */
-
-// THE BRANCH CONFIG IS A MODULE, NOT A REGION HERE, and the reason is the probe.
-//
-// Until 2026-09-09 `PROTECTED_BRANCH` was declared in a KIT:CONFIG region of THIS file and again
-// in one of `bash-gate.probe.mjs`, bound only by a sentence in the probe's region asking a human to
-// keep them equal. Set the probe to `master` and leave this at `main` and the probe fails — loud
-// and safe. Set THIS to `master` and leave the probe at `main` and the probe PASSES, exercising a
-// branch nothing protects while the branch that is protected is never tested. M-KIT-07.
-//
-// This hook consumes stdin at top level and exports nothing, so the probe cannot import it. A value
-// two artefacts must agree on therefore lives in a module they BOTH import — the shape
-// `agent-write-scope` reached first (M-KIT-06).
-//
-// ⚠ PORTING NOTE. This makes the file ESM. If YOUR project has no `"type": "module"`, a `.js` here
-// is CommonJS and `import` is a syntax error — Node ≥22.7 reparses it as ESM and prints a
-// MODULE_TYPELESS_PACKAGE_JSON warning to stderr on EVERY hook invocation, which is a compensation,
-// not a fix, and it is version-dependent. Set `"type": "module"`, or convert this file. Do not
-// assume either way. → M-KIT-17.
-import { PROTECTED_BRANCH, PROTECTED_REASON } from "./bash-gate.config.mjs";
-import { readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
-
-/* KIT:CONFIG seams — shell variables that, set as a leading assignment, bypass this
- * project's git hooks (a `.githooks` probe seam: `X_HOOK_PROBE=1 git commit …`). An
- * ungated `--no-verify` by another name. Empty means the rule is inert. Setting them
- * through a spawn's `env` object is invisible to this rule by design; only the shell
- * spelling is denied, and the legitimate driver never spells it. */
-// M-096. `PLEKS_HOOK_PROBE=1 PLEKS_PRECOMMIT_CMD=true git commit` substitutes the gate command AND
-// still writes the gate-ok marker — `--no-verify` that also leaves evidence claiming the gate
-// passed. `PLEKS_BRANCH_PROBE` defeats the default-branch guard on its own, with no master switch.
-// `check-git-hooks.mjs` sets these through spawnSync's `env` object, never a shell assignment, so
-// the legitimate driver is invisible to this rule and needs no carve-out. Kept in step with the
-// .githooks by a probe case that reads the seams the gate scripts actually honour.
-const SEAM_VARS = ["PLEKS_HOOK_PROBE", "PLEKS_PRECOMMIT_CMD", "PLEKS_PREPUSH_CMD", "PLEKS_DRIFT_CMD", "PLEKS_BRANCH_PROBE"];
-/* KIT:CONFIG /seams */
-
-/* KIT:CONFIG deny — this project's own irreversible acts, beyond the canonical set.
- * Each entry is `[rule, reason, fallback]`. A RegExp is tested against ONE SEGMENT's text, so
- * it cannot span `&&`, `;` or `|` into a neighbouring command; a function receives
- * `(tokens, segmentText, command)` for a segment. Prefer `atCommand(tokens, "name")`.
- * The fallback is what stands behind the rule when this hook is not running, in the shape the
- * fallbacks region below describes. An entry without one is a check-hook-registration finding. */
-// BOTH ENTRIES RESTORE A DENY THAT CANON SHIPS AS AN ASK, and both were measured against the gate
-// this file replaces rather than assumed. Canon's own `ask` region says severity is the project's
-// call and names `git reset --hard` as the worked example; this is that, plus one canon did not
-// anticipate.
-const PROJECT_DENY = [
-  // CANON PERMITS THIS ONE DELIBERATELY — `isForcePush` is built on `FORCE_LONG = /^--force(?:=.*)?$/`
-  // and its doc line calls `--force-with-lease` and `--force-if-includes` "the SAFE forms". Under
-  // canon's design a lease-force falls through to `targetsProtectedBranch`, so it ASKS when it
-  // targets main and is ALLOWED on a feature branch. That is coherent policy and this is not a
-  // finding against canon — it is a stricter one. CLAUDE.md §3 denies force-push flat, and §5 says a
-  // pushed commit is immutable and is fixed FORWARD. The lease changes who loses the race, not
-  // whether published history is rewritten: it only refuses when the remote moved since your last
-  // fetch, so on a ref nobody else touched it succeeds silently and is a plain force-push wearing a
-  // safer name. Measured before restoring: canon returned `ask` on both spellings where the gate
-  // this replaces returned `deny`.
-  [(t) => atCommand(t, "git") && argsOf(t).includes("push") &&
-     argsOf(t).some((a) => a === "--force-with-lease" || a.startsWith("--force-with-lease=") ||
-                           a === "--force-if-includes" || a.startsWith("--force-if-includes=")),
-   "--force-with-lease is still a force-push — it rewrites published history and only refuses when the remote moved since your last fetch; a pushed commit is fixed forward",
-   { twins: ["Bash(git push --force*)"] }],
-
-  // Canon asks. CLAUDE.md §3 lists it under Hook-denied, and the reason is that the thing it
-  // destroys is the thing no gate downstream can see: uncommitted work has no reflog entry.
-  [(t) => atCommand(t, "git") && argsOf(t).includes("reset") && argsOf(t).includes("--hard"),
-   "git reset --hard discards uncommitted work with no undo and no reflog — denied here, not asked",
-   { twins: ["Bash(git reset --hard*)"] }],
-];
-/* KIT:CONFIG /deny */
-
-/* KIT:CONFIG ask — acts that are legitimate but must not happen unattended. Same
- * shape as deny. Severity is yours: a project that wants `git reset --hard` DENIED
- * rather than asked lists it here with its reason and the canon ask never fires. */
-const PROJECT_ASK = [
-  // CLAUDE.md §3: "announce intent, then push" — this hook is what makes the announcement the
-  // CONTENT of an approval rather than a courtesy. Canon has no plain-push rule; its push gates are
-  // force, refspec and protected-branch, all narrower than "every push".
-  [(t) => atCommand(t, "git") && argsOf(t).includes("push"),
-   "pushing to origin requires approval — announce what is in the batch and what was verified",
-   { twins: ["Bash(git push*)"] }],
-
-  // ANCHORED ON A PATH BOUNDARY, NOT ON THE SURROUNDING CHARACTERS, and the anchor set is the whole
-  // rule. The pattern this replaces was `\.env(\.|["'\s]|$)`, matching `.env` followed by a dot
-  // ANYWHERE — so `process.env.NODE_ENV`, `import.meta.env` and `rg "\.env" docs/` all asked, in a
-  // hook whose stated posture is unattended autonomy. What separates a path from a property access
-  // is what comes BEFORE: an identifier character means a property, a separator means a file.
-  // ⚠ THE LEADING SET IS NOT DECORATION — the first anchored cut dropped four separators that carry
-  // real reads, found by adversarial review: `cat C:\dev\pleks\.env`, `type .\.env`, `cat <.env`,
-  // `echo X >.env` and `cat *.env`. On Windows, this repo's platform, omitting `\` alone un-gated
-  // every absolute path to a secrets file. ACCEPTED COST, chosen not discovered: `\` makes
-  // `rg "\.env"` ask, because a regex-escape backslash is indistinguishable from a path separator
-  // without knowing the command's quoting. An extra prompt on a grep is cheap; a silent read of a
-  // secrets file is the thing the rule exists to stop.
-  [/(?:^|[\s"'=/\\<>*])\.env(\.|["'\s]|$)/,
-   "touching .env files requires approval",
-   { twins: ["Read(.env)", "Read(.env.*)"] }],
-
-  // ⚠ A REGEX OVER THE SEGMENT, NOT `atCommand(t, "supabase")`, and the first draft of this entry
-  // got it wrong: under `atCommand` the command word of `npx supabase db reset` is `npx`, so the
-  // rule matched the bare spelling and missed every runner-prefixed one. Caught by this project's
-  // own corpus, which carries both spellings — the same defect class the R4 note below describes,
-  // committed while porting the rule that the note is attached to. The operation is "run the
-  // supabase CLI's db push/reset", however it is invoked.
-  [/\bsupabase\s+db\s+(?:push|reset)\b/,
-   "prod database operations require approval",
-   { noTwin: "settings matches a command PREFIX and the subcommand sits two words in with global flags legal between them (`supabase --workdir x db push`), so a prefix glob covers one spelling of several. The MCP path to the same act IS twinned — the Supabase mutation tools are in permissions.ask — and mcp-ddl-gate shows the statement before asking; it is the `supabase db` CLI path that settings cannot reach." }],
-
-  // ── R4, control-aim audit 2026-08-22 ──────────────────────────────────────────────────────────
-  // The rule above matches the TOOL (`supabase db`) rather than the OPERATION (writes to
-  // production) — twin-the-vehicle, inverted. Probed both directions at 5ddbaee1: `supabase db push`
-  // asked, and `node supabase/reconcile/apply-prod.mjs --confirm` was ALLOWED. That script's own
-  // header says "⚠ WRITES TO PRODUCTION", it posts a whole SQL file through the Management API — and
-  // the gate this replaces cited it twice as the source of its ReDoS lesson, so it was read by
-  // whoever last hardened the hook and still was not gated.
-  // It is not ungoverned: it demands --confirm, refuses any file but 01_reconcile.sql, and refuses a
-  // script not wrapped in BEGIN/COMMIT. Those are rung-0 — INSIDE the thing being invoked — and the
-  // actor who types --confirm is the actor this hook exists to interrupt. Under the stated
-  // unattended-autonomy posture, rung 0 is not a gate.
-  // Matched on the SCRIPT PATH, not on `node`: the operation is "run the prod-apply script", however
-  // it is spelled. `node x`, `npx tsx x`, an absolute path, a different runner and a bare `./x` all
-  // carry the same path token. Backslashes accepted for Windows spellings. Anchored on a separator
-  // so a file merely NAMED in prose (`rg apply-prod`) still asks rather than silently differing from
-  // the real thing — the same accepted cost as the `.env` rule above.
-  [/reconcile[/\\]apply-prod\.mjs/,
-   "applying a reconciliation script to PRODUCTION requires approval",
-   { noTwin: "the act is running a script, and settings globs a command prefix — the path can appear after any runner (`node`, `npx tsx`, an absolute path, a bare `./`), so no prefix rule reaches the shapes that matter. A twin naming one runner would read as cover for a rule matching one invocation in five." }],
-];
-/* KIT:CONFIG /ask */
-
-/* KIT:CONFIG fallbacks — what stands behind each of CANON's rules if this hook stops running.
- *
- * One entry per canon rule, keyed by its function's name, in one of two shapes:
- *   { twins: ["Bash(git push *main*)", …] } — rules in settings `permissions.deny` or `.ask`
- *   { noTwin: "why a settings rule cannot say it" } — a reason, never a placeholder
- * Canon ships every entry UNFILLED, because which floor a rule deserves is this project's call,
- * and `check-hook-registration` fails an entry until it is answered. It also fails a twin that is
- * not in settings, and a key naming no rule — a canon rename leaves its fallback behind.
- *
- * WRITE A TWIN IN THE SHAPE SETTINGS READS. `:*` is a wildcard only at the END of a pattern; in
- * `Bash(git merge:*main*)` the colon is literal and the rule matches no command. Write
- * `Bash(git merge *main*)`. The space before a `*` is a word boundary: `Bash(git push --force *)`
- * does not match `--force-with-lease`.
- *
- * SIZE A TWIN AS IF IT IS LIVE. Claude Code's permissions page (read 2026-09-11) says a matching ask
- * rule still prompts when this hook returns allow, and a deny still blocks — so a twin wider than
- * its rule fires on commands the rule allows. life-therapy measured an ask NOT prompting under a
- * live hook on 2026-08-18. Until the two agree, a twin that would be wrong while the hook is alive
- * is a `noTwin`, with that as its reason. */
-// ANSWERED AGAINST THE LIVE settings.json, not from memory — every twin below was read out of
-// `permissions.deny`/`permissions.ask` before it was written here. The recurring reason for a
-// `noTwin` is one fact about settings, stated once and not repeated in full at each entry:
-// **settings matches a command PREFIX, and a flag or a target can sit anywhere after the verb.**
-// CLAUDE.md §3 already records why the answer is not simply to widen — `Bash(git*)` at ask prompts
-// on every `git status`, and a twin that fires constantly is deleted within a day, which trades
-// something narrow for nothing.
-const CANON_FALLBACKS = {
-  // The target is not adjacent to the flags and the flags are not one spelling: `rm -fr /*`,
-  // `rm -r -f /`, `rm --recursive --force /*`, `rm --no-preserve-root -rf /`, `rm -rf foo /` and
-  // `sudo rm -rf /*` are all the act, and a prefix glob reaches at most the first. life-therapy
-  // measured the same gap on the same rule; recorded rather than invented, so the hole is visible
-  // instead of implied.
-  isDestructiveRm: { noTwin: "the target is an argument that need not follow the flags, and the flags have six live spellings — a prefix glob covers one of them, which reads as cover for a rule matching one shape in six" },
-
-  isForcePush: { twins: ["Bash(git push --force*)", "Bash(git push -f*)"] },
-
-  // `git push origin +main:main`. The `+` sits inside a refspec that comes AFTER the remote name, so
-  // a glob would have to enumerate remotes, and settings treats `*` as a wildcard only at the END of
-  // a pattern — there is no shape that says "a later argument starting with +".
-  isForceRefspec: { noTwin: "the + is inside a refspec positioned after the remote name, and settings has no mid-pattern wildcard — no prefix rule can reach an argument whose position is not fixed" },
-
-  // `git commit -m x --no-verify` is the ordinary spelling and a prefix rule cannot see a flag that
-  // trails the message. Denied rather than asked upstream, because the whole point of the flag is to
-  // skip the gate the ask would be protecting.
-  isNoVerify: { noTwin: "the flag sits anywhere in the line, so `Bash(git commit --no-verify*)` misses `git commit -m x --no-verify`, which is how it is actually written" },
-
-  // `Bash(PLEKS_*)` would cover ONLY the bare leading-assignment spelling. `export PLEKS_HOOK_PROBE=1; git commit`
-  // and an assignment sitting behind another (`FOO=1 PLEKS_HOOK_PROBE=1 git commit`) both pass it.
-  isSeamAssignment: { noTwin: "a seam assignment need not lead the command — `export X=1; git commit` and `FOO=1 X=1 git commit` both defeat a leading-prefix glob, so a twin would match one shape in three while reading as cover for all of them" },
-
-  // The PUSH half is genuinely covered, by the wider `Bash(git push*)` ask — but that rule is already
-  // claimed as the fallback of this project's own push gate, and naming it twice would be a double
-  // claim on one settings rule. The MERGE half has no cover at all: the protected branch is an
-  // ARGUMENT (`git merge main`, `git push origin main`), and settings cannot bind an argument value.
-  // Recorded as uncovered rather than half-twinned, because a fallback naming the half that works is
-  // how a gap comes to read as closed.
-  targetsProtectedBranch: { noTwin: "the branch is an argument, not a prefix, so settings cannot say `whose target is main`; the push half is incidentally covered by the wider `Bash(git push*)` ask claimed on this project's own push rule, and the merge half is not covered at all" },
-
-  // ADDED TO settings.json IN THIS COMMIT, after the rarity test CLAUDE.md §3 requires: `gh pr merge`
-  // is canonically spelled as a prefix, appears only on a deliberate merge, and so cannot become the
-  // constantly-firing twin that gets deleted within a day — the measurement that rejected a
-  // `Bash(git -C*)` twin for the opposite reason.
-  isPrMerge: { twins: ["Bash(gh pr merge*)"] },
-
-  // Pre-empted by this project's PROJECT_DENY entry, which denies rather than asks — canon's rule
-  // never fires here. The settings rule behind it is real and is a DENY, so the floor is stronger
-  // than the hook's canon severity rather than weaker.
-  isHardReset: { twins: ["Bash(git reset --hard*)"] },
-
-  // The force flag clusters (`-fdx`, `-xdf`) and can sit anywhere after `clean`, so a prefix glob
-  // matches one spelling and misses the rest — the same reason `--no-verify` carries no twin.
-  isForceClean: { noTwin: "the force flag clusters with other letters (`-fdx`, `-xdf`) and its position after `clean` is not fixed, so a prefix glob reaches one spelling of several" },
-};
-/* KIT:CONFIG /fallbacks */
-
-// ── Canon machinery. Every rule is a token test at command position in one segment. ──
 
 /**
- * Strip the shell punctuation that carries no meaning for these rules, so one token
- * compares as one word: `/"*"` and `'/'*` are both `/*` to the shell, `(rm` hides a
- * command in a subshell, `\rm` is the standard alias-bypass idiom. Quotes come out
- * ANYWHERE, because mid-token is exactly where they were used to hide.
- * A character loop, not a regex: an anchored greedy class backtracks across a run of
- * the same character, and this runs in front of every Bash call.
+ * Is this an `rm` aimed at a filesystem root or a bare home directory?
+ *
+ * NOT A REGEX, on purpose, and the reason is measured rather than stylistic. The regex this
+ * replaced — `\brm\b.*?(?:\s)["']?[\/~][/*]*["']?(?=\s|$)` — was QUADRATIC: the lazy `.*?` rescans
+ * the whole tail from every `rm` token in the string, so cost grows with (rm-count × length).
+ * Doubling the input quadrupled the time (measured 4.02×), and this gate runs in front of EVERY
+ * Bash call:
+ *      10KB command   6.6ms      (the linear predecessor: 0.003ms)
+ *      60KB commit    61ms       — this repo writes register entries that long
+ *      100KB          679ms
+ *      500KB          17,057ms
+ * This function is one pass over the tokens: 500KB in ~27ms, and flat per character.
+ *
+ * That is the ReDoS lesson, learnt for the FOURTH time in this repo — the email check, the money
+ * formatter, and `supabase/reconcile/apply-prod.mjs:40`, which says in a comment "a gate is not the
+ * place for it" and chose a plain line scan for exactly this reason. It had never been promoted to
+ * the cross-repo ledger, so it was available to be re-learnt. It is filed now.
+ *
+ * The matching doctrine is `deniedGitSubcommand`'s, twenty lines from here: DO NOT PARSE THE FLAG
+ * GRAMMAR. Find the command, then look for a lethal target as a STANDALONE TOKEN anywhere after it.
+ * Flag order, flag spelling, and the target's position all stop mattering, which is what defeated
+ * every earlier attempt: `-fr`, `-f`, `-r -f`, `--recursive --force`, `--no-preserve-root -rf`, and
+ * `rm -rf foo /` (target not adjacent to the flags).
+ *
+ * Normalisations, each closing shapes an earlier cut let through — every one found by adversarial
+ * review rather than by the author, which is the reason this rule now has a probe per shape:
+ *   · SEGMENT PER COMMAND on `;`, `&`, `|` and newline, matching `rm` within a segment. A
+ *     whitespace-only split yields the single token `/*;echo` for `rm -rf /*;echo done` and the
+ *     target hides inside it — `(?=\s|$)` is a CHARACTER test, not a token boundary, the same defect
+ *     class as the pattern it replaced.
+ *   · JOIN BACKSLASH-NEWLINE FIRST, before segmenting, or the newline separator tears a continued
+ *     command in half at exactly the point an attacker would choose it.
+ *   · STRIP QUOTES, GROUPING AND A LEADING BACKSLASH. `/"*"` and `'/'*` are both `/*` to the shell;
+ *     `(rm -rf /*)` hides the command in a paren; `\rm` is the standard alias-bypass idiom and
+ *     without the strip the rule silently stands down. Quotes come out ANYWHERE in the token,
+ *     because mid-token is precisely where they were used to hide.
+ *
+ * KNOWN FALSE-DENY, accepted: a command that merely MENTIONS the string
+ * (`echo 'rm -rf /' >> notes.md`) is denied. For a DENY rule that is the correct direction to be
+ * wrong in — a false deny costs a rephrase, a false allow costs the filesystem.
+ *
+ * An earlier cut ALSO false-denied `rm -rf .next && du -sh /`, and recorded it as accepted. It was
+ * not accepted, merely unsegmented: `seenRm` was set once and carried to the end of the string. Per-
+ * segment reset removes it for free while keeping every deny case, and the lesson is worth more than
+ * the fix — a cost written down as "accepted" stops being re-examined, so an unnecessary one can sit
+ * in a comment indefinitely looking like a considered trade.
+ *
+ * NOT COVERED, recorded rather than chased: a variable-expanded target (`rm -rf "$HOME"`) contains
+ * no literal `/` or `~`, so nothing reading the command TEXT can see the value; and `cd / && rm -rf *`
+ * hides the danger in the preceding `cd`, the target being a bare `*` that is correctly allowed.
+ */
+/**
+ * Strip the shell punctuation that carries no meaning for these rules, so one token compares as one
+ * word. `/"*"` and `'/'*` are both `/*` to the shell; `(rm` hides a command inside a subshell paren;
+ * `\rm` is the standard alias-bypass idiom. Quotes come out ANYWHERE, because mid-token is exactly
+ * where they were used to hide.
+ *
+ * A CHARACTER LOOP, NOT A REGEX, and that is not fussiness: `/^[\\({[]+|[)}\]]+$/` is super-linear
+ * (an anchored greedy class backtracks across a run of the same character) and `sonarjs/
+ * super-linear-regex` flags it. This file is the wrong place to argue that the input is short.
  */
 function normToken(t) {
   const s = t.replace(/["'`]/g, "");
-  let i = 0;
-  let j = s.length;
+  let i = 0, j = s.length;
   while (i < j && "\\({[".includes(s[i])) i++;
   while (j > i && ")}]".includes(s[j - 1])) j--;
   return s.slice(i, j);
 }
 
 /**
- * Commands whose stdin is DATA, never code. A heredoc feeding one of these is prose
- * and its body is masked before any rule runs — so `git commit -F - <<'MSG'` may
- * discuss `rm -rf /` without tripping the gate, which is the workaround this file's
- * v1 advertised and could not honour. An UNLISTED receiver keeps its body (`bash
- * <<EOF`, `python -`, `psql`, `ssh host`): unknown fails toward deny, so a heredoc
- * is never a universal envelope. Extend the list, do not invert it.
- */
-const HEREDOC_SINKS = new Set([
-  "cat", "tee", "git", "gh", "grep", "egrep", "fgrep", "rg", "sed", "awk", "head", "tail",
-  "wc", "sort", "uniq", "cut", "tr", "diff", "less", "more", "jq", "yq", "base64", "md5sum",
-  "sha256sum", "curl", "wget", "dd", "od", "xxd", "hexdump", "column", "fold", "paste",
-]);
-
-const WRAPPERS = new Set(["sudo", "env", "command", "exec", "nohup", "nice", "time", "builtin"]);
-
-/** Index of the command word in a segment: past leading `VAR=x` assignments and wrappers. */
-function commandWordIndex(tokens) {
-  let i = 0;
-  while (i < tokens.length && (WRAPPERS.has(tokens[i]) || /^[A-Za-z_]\w*=/.test(tokens[i]))) i++;
-  return i < tokens.length ? i : -1;
-}
-
-/** Is `name` this segment's command (as `name`, `/usr/bin/name`, `\name`, or after `sudo`)? */
-function atCommand(tokens, name) {
-  const i = commandWordIndex(tokens);
-  if (i === -1) return false;
-  const t = tokens[i];
-  return t === name || t.endsWith("/" + name);
-}
-
-/** Everything after the command word — the arguments, as tokens. */
-function argsOf(tokens) {
-  const i = commandWordIndex(tokens);
-  return i === -1 ? [] : tokens.slice(i + 1);
-}
-
-/**
- * Mask heredoc BODIES whose receiver is a sink. Opener `<<-?['"]?ID['"]?`; terminator
- * is the bare ID on its own line. No terminator → nothing masked (keep the body,
- * fail toward deny). The receiver is the command word of the last segment on the
- * opener's line before `<<`.
+ * A command string as SEGMENTS of normalised tokens — one segment per shell command.
  *
- * ONE PASS. Bare-identifier lines are indexed first, then each opener binary-searches
- * for its terminator — a scan-to-end per opener measured QUADRATIC (20k unterminated
- * openers: 4 s), and a hook that can be made to hang has failed at the one job it has.
- */
-function maskSinkHeredocs(command) {
-  const lines = command.split("\n");
-  const bare = new Map(); // ID → ascending line numbers where the line is exactly that ID
-  for (let j = 0; j < lines.length; j++) {
-    const m = /^[ \t]*([A-Za-z_]\w*)[ \t]*$/.exec(lines[j]);
-    if (m) (bare.get(m[1]) ?? bare.set(m[1], []).get(m[1])).push(j);
-  }
-  const firstAfter = (list, i) => {
-    let lo = 0;
-    let hi = list.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (list[mid] > i) hi = mid;
-      else lo = mid + 1;
-    }
-    return lo < list.length ? list[lo] : -1;
-  };
-  const out = [];
-  // Emits line i, and a sink heredoc's masked body if one opens there. Returns the last line
-  // consumed — the terminator, or i itself — so the loop never reassigns its own counter.
-  const consume = (i) => {
-    const line = lines[i];
-    out.push(line);
-    const m = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1/.exec(line);
-    if (!m) return i;
-    const before = line.slice(0, m.index);
-    const seg = before.split(/[;&|]+/).pop() ?? "";
-    const tokens = seg.split(/\s+/).map(normToken).filter(Boolean);
-    const cw = commandWordIndex(tokens);
-    const receiver = cw === -1 ? "" : tokens[cw].replace(/^.*\//, "");
-    if (!HEREDOC_SINKS.has(receiver)) return i;
-    const j = firstAfter(bare.get(m[2]) ?? [], i);
-    if (j === -1) return i; // unterminated: keep the body
-    for (let k = i + 1; k < j; k++) out.push("");
-    out.push(lines[j]);
-    return j;
-  };
-  let i = 0;
-  while (i < lines.length) i = consume(i) + 1;
-  return out.join("\n");
-}
-
-/**
- * A command string as SEGMENTS of normalised tokens — one per shell command. Line
- * continuations are joined first, or `\`+newline tears a command in half at exactly
- * the point an attacker would choose. `$(` and backticks open a segment too, so a
- * substitution is a command position and not a hiding place.
+ * Shared by every rule below that needs to know where a command starts, which is the consolidation
+ * this file kept re-deriving: three rules had each grown their own idea of a token boundary out of
+ * `\s`, `\b` and lookaheads, and every one of them was defeated by punctuation touching the target.
+ *
+ * Continuations are joined BEFORE segmenting, or the newline separator tears a continued command in
+ * half at exactly the point an attacker would choose it.
  */
 function segments(command) {
-  return maskSinkHeredocs(command)
+  return command
     .replace(/\\\r?\n/g, " ")
-    .split(/[;&|\n]+|\$\(|`/)
-    .map((seg) => ({ text: seg.trim(), tokens: seg.split(/\s+/).map(normToken).filter(Boolean) }))
-    .filter((s) => s.tokens.length > 0);
+    .split(/[;&|\n]+/)
+    .map((seg) => seg.split(/\s+/).map(normToken).filter(Boolean));
+}
+
+/** Does this segment run `name` (as `name`, `/usr/bin/name` or `\name`)? Returns the token index. */
+function commandIndex(tokens, name) {
+  const re = new RegExp(`^(?:[^\\s]*/)?${name}$`);
+  return tokens.findIndex((t) => re.test(t));
 }
 
 /**
- * Blank the TEXT of a `-m`/`--message` value, quotes left in place, before scanning
- * for FLAGS. The message is git's argument, not a switch — denying `git commit -m
- * "we ban --no-verify"` means the gate forbids writing down the rule it enforces.
- * NOT "strip quotes": `git commit "--no-verify"` IS the flag once the shell strips
- * the quotes, and `normToken` treats it so. Only the value of `-m` is inert.
+ * Is this an `rm` aimed at a filesystem root or a bare home directory?
+ *
+ * NOT A REGEX, on purpose, and the reason is measured rather than stylistic. The regex this
+ * replaced — a lazy expansion after the command token — was QUADRATIC: it rescans the whole tail
+ * from every `rm` token, so cost grows with (occurrences × length). Doubling the input quadrupled
+ * the time (measured 4.02×), and this gate runs in front of EVERY Bash call:
+ *      10KB command   6.6ms      (the linear predecessor: 0.003ms)
+ *      60KB commit    61ms       — this repo writes register entries that long
+ *      100KB          679ms
+ *      500KB          17,057ms
+ * Token matching is one pass: 500KB in ~27ms, flat per character.
+ *
+ * That is the ReDoS lesson for the FOURTH time in this repo — the email check, the money formatter,
+ * and `supabase/reconcile/apply-prod.mjs:40`, which says in a comment "a gate is not the place for
+ * it" and chose a plain line scan for exactly this reason. The repo also had `sonarjs/
+ * super-linear-regex` configured the whole time and `.claude/**` was in `globalIgnores`, so the one
+ * mechanism that catches this class was pointed away from the file that most needed it.
+ *
+ * The matching doctrine is `deniedGitSubcommand`'s: DO NOT PARSE THE FLAG GRAMMAR. Find the command,
+ * then look for a lethal target as a STANDALONE TOKEN anywhere after it in the same segment. Flag
+ * order, flag spelling and target position all stop mattering, which is what defeated every earlier
+ * attempt: `-fr`, `-f`, `-r -f`, `--recursive --force`, `--no-preserve-root -rf`, and a target that
+ * does not follow the flags at all.
+ *
+ * KNOWN FALSE-DENY, accepted: a command that merely MENTIONS the string is denied — this commit's
+ * own message had to be written to a file because of it. For a DENY rule that is the correct
+ * direction to be wrong in: a false deny costs a rephrase, a false allow costs the filesystem.
+ *
+ * An earlier cut ALSO false-denied a delete followed by an unrelated command reading a root path,
+ * and recorded it as accepted. It was not accepted, merely unsegmented — the seen-flag was set once
+ * and carried to the end of the string. Per-segment reset removes it for free, and the lesson is
+ * worth more than the fix: a cost written down as "accepted" stops being re-examined, so an
+ * unnecessary one can sit in a comment indefinitely looking like a considered trade.
+ *
+ * NOT COVERED, recorded rather than chased: a variable-expanded target contains no literal `/` or
+ * `~`, so nothing reading the command TEXT can see the value; and a `cd` to root followed by a
+ * delete of `*` hides the danger in the `cd`, the target being a bare `*` that is correctly allowed.
+ */
+function isDestructiveRm(command) {
+  // `/` or `~`, then only more slashes and stars. `/tmp/scratch` and `~/projects` fail because a
+  // NAMED segment follows — the two cases that separate a gate from a wall.
+  const LETHAL_TARGET = /^[/~][/*]*$/;
+  for (const tokens of segments(command)) {
+    const at = commandIndex(tokens, "rm");
+    if (at === -1) continue;
+    if (tokens.slice(at + 1).some((t) => LETHAL_TARGET.test(t))) return true;
+  }
+  return false;
+}
+
+/**
+ * Is this a force push? Same doctrine, and it was carrying the same defect.
+ *
+ * The regex here was `git\s+push\s+[^\n]*(--force|-f\s)` — an unbounded class followed by an
+ * alternation, which `sonarjs/super-linear-regex` flags for the same backtracking reason as the
+ * `rm` rule's. It also inherited the same blind spot: `-f` required a trailing SPACE, so
+ * `git push -f` at the end of a line matched only via the `[^\n]*` swallowing nothing, and any
+ * punctuation-adjacent spelling was a coin flip. Tokens remove the question.
+ */
+function isForcePush(command) {
+  const FORCE = /^(?:-f|--force(?:-with-lease)?(?:=.*)?)$/;
+  for (const tokens of segments(command)) {
+    const git = commandIndex(tokens, "git");
+    if (git === -1) continue;
+    // `git -C dir push --force` — the subcommand is not always adjacent, which is the same
+    // "target follows the flags" assumption that defeated the rm rule.
+    if (!tokens.slice(git + 1).includes("push")) continue;
+    if (tokens.slice(git + 1).some((t) => FORCE.test(t))) return true;
+  }
+  return false;
+}
+
+/**
+ * `git clean -f` deletes untracked files permanently, and `-x` takes the IGNORED ones too — so one
+ * command removes `.env.local`, every build artefact and every uncommitted draft, with no undo and
+ * nothing in the reflog. `isDestructiveRm` does not reach it: this is not `rm`, and the paths are
+ * relative to the repo rather than aimed at a root.
+ *
+ * ASKED, not denied — a clean rebuild is a legitimate reason to run it, and a false deny in the
+ * DENY list is the expensive direction to be wrong in (the rule directly above says why).
+ *
+ * ⚠ FOUND BY MEASUREMENT, NOT BY READING, on 2026-09-09. pleks's gate was run against canon's kit
+ * copy on 21 payloads; this was the ONE case of the 21 where pleks was WEAKER (canon asks, pleks
+ * allowed). The other differences all ran the other way, which is the reason this rule was added
+ * here rather than the whole hook being adopted. CLAUDE.md's Hook-denied list names `rm -rf` and
+ * reads as though destructive filesystem acts are covered; this was the hole in that reading.
+ *
+ * Token-matched via `segments`/`commandIndex` like its neighbours, not pattern-matched: the force
+ * flag clusters (`-fdx`, `-xdf`), separates (`-f -d -x`) and spells out (`--force`), and a regex
+ * over that space is how this file has been wrong four times. `-n`/`--dry-run` is git's own
+ * rehearsal flag and carries no `f`, so it does not fire.
+ */
+function isForceClean(command) {
+  const SHORT_F = /^-[a-eg-z]*f[a-z]*$/;
+  for (const tokens of segments(command)) {
+    const git = commandIndex(tokens, "git");
+    if (git === -1) continue;
+    const args = tokens.slice(git + 1);
+    if (!args.includes("clean")) continue;
+    if (args.some((t) => t === "--force" || SHORT_F.test(t))) return true;
+  }
+  return false;
+}
+
+/**
+ * Blank the TEXT of a `-m` / `--message` argument, leaving its quotes in place.
+ *
+ * Only ever call this before scanning for FLAGS. A flag inside a commit message is prose — the
+ * message is git's argument, not a switch — and denying it means the gate forbids writing down the
+ * rule it enforces. That is not hypothetical: the commit documenting M-072 was refused because its
+ * body described a hard reset, and re-measuring M-072 could not be done inline at all because a
+ * Bash command carrying the flag as a quoted TEST CASE was denied by the hook under test.
+ *
+ * ⚠ THIS IS NOT "STRIP QUOTES", AND THE DIFFERENCE IS A BYPASS. `normToken` already removes quote
+ * characters, so `git commit "--no-verify"` normalises to the bare flag — and it really is a flag,
+ * because the shell strips the quotes before git ever sees it. Blanking every quoted span would
+ * therefore wave through the exact command this rule exists to stop. Only the value of `-m` is
+ * inert, because git treats it as message text whatever it spells.
+ *
+ * Hand-scanned rather than matched: a regex for "quoted span after a flag" is an unbounded class
+ * inside an alternation, which is the ReDoS shape this file has now been bitten by four times.
+ * One pass, no backtracking.
  */
 function maskMessageText(command) {
   const out = command.split("");
-  const isSpace = (c) => c === " " || c === "\t" || c === "\r" || c === "\n";
+  const isSpace = (c) => c !== undefined && (c === " " || c === "\t" || c === "\r" || c === "\n");
+  // A `while` rather than a `for`, because the scan JUMPS past a masked span and reassigning a
+  // for-loop counter is `sonarjs/updated-loop-counter`. The jump is what keeps this one pass.
   let i = 0;
   while (i < command.length) {
     let flagLen = 0;
     if (command.startsWith("--message", i)) flagLen = 9;
     else if (command.startsWith("-m", i)) flagLen = 2;
-    const after = command[i + flagLen];
-    const standalone = flagLen > 0 && (i === 0 || isSpace(command[i - 1])) && (after === undefined || isSpace(after));
+    // Must be a standalone token: preceded by whitespace/start, followed by whitespace/end.
+    const standalone =
+      flagLen > 0 && (i === 0 || isSpace(command[i - 1])) && !(command[i + flagLen] !== undefined && !isSpace(command[i + flagLen]));
     if (!standalone) {
       i++;
       continue;
     }
+
     let k = i + flagLen;
     while (k < command.length && isSpace(command[k])) k++;
     const quote = command[k];
     if (quote !== '"' && quote !== "'") {
+      // An UNQUOTED -m value is a single token and cannot hide a flag behind whitespace; leave it.
       i = k > i ? k : i + 1;
       continue;
     }
+
     let end = k + 1;
     while (end < command.length && command[end] !== quote) {
       if (command[end] === "\\") end++;
@@ -423,425 +276,236 @@ function maskMessageText(command) {
   return out.join("");
 }
 
-// A root, a bare home, a drive root, or any of those followed only by more `/` and `*`.
-// `/tmp/scratch` and `~/projects` fail because a NAMED segment follows — the two cases
-// that separate a gate from a wall.
-const LETHAL_TARGET = /^(?:[/~][/*]*|[A-Za-z]:[/\\]?[/*]*|\$\{?HOME\}?[/*]*)$/;
-const FORCE_LONG = /^--force(?:=.*)?$/;
-// Everything before the FIRST `f` is a letter other than `f`, so there is one way to match and
-// nothing to backtrack over. `[A-Za-z]*f` accepted the same strings in quadratic time.
-const SHORT_CLUSTER_WITH_F = /^-[A-Za-eg-z]*f[A-Za-z]*$/;
-
-function isDestructiveRm(tokens) {
-  return atCommand(tokens, "rm") && argsOf(tokens).some((t) => LETHAL_TARGET.test(t));
-}
-
-/** `git … push … --force|-f|-xf` — `--force-with-lease` and `--force-if-includes` are the SAFE forms and pass. */
-function isForcePush(tokens) {
-  if (!atCommand(tokens, "git")) return false;
-  const args = argsOf(tokens);
-  if (!args.includes("push")) return false;
-  return args.some((t) => FORCE_LONG.test(t) || SHORT_CLUSTER_WITH_F.test(t));
-}
-
-/** `--no-verify` on the hooked verbs, and `-n` only where `-n` MEANS it (commit, push). */
-function isNoVerify(tokens) {
-  if (!atCommand(tokens, "git")) return false;
-  const args = argsOf(tokens);
-  const verb = args.find((t) => ["commit", "push", "merge", "revert", "cherry-pick"].includes(t));
-  if (!verb) return false;
-  if (args.includes("--no-verify")) return true;
-  return ["commit", "push"].includes(verb) && args.includes("-n");
-}
-
-/** A leading `SEAM_VAR=…` assignment — the only spelling of the seam the Bash tool can reach. */
-function isSeamAssignment(tokens) {
-  if (SEAM_VARS.length === 0) return false;
-  let i = 0;
-  if (tokens[0] === "export" || tokens[0] === "env") i = 1;
-  for (; i < tokens.length; i++) {
-    const eq = tokens[i].indexOf("=");
-    if (eq <= 0) break;
-    if (SEAM_VARS.includes(tokens[i].slice(0, eq))) return true;
+/**
+ * `--no-verify`, and `-n` where `-n` MEANS `--no-verify`.
+ *
+ * Was two regexes over the raw command string with `[^\n]*` between the git verb and the flag —
+ * and `[^\n]*` spans `;`, `&&` and `|`, so the flag did not have to belong to the git command at
+ * all. Measured at `f7c51d89` and still failing at `3e785e61`: `git push > "$LOG" 2>&1; grep -n
+ * "vitest" "$LOG"` was DENIED as "-n is --no-verify on commit/push", where the `-n` is grep's.
+ *
+ * M-068 gave this file `segments()` and fixed the `rm` and force-push rules with it; these two were
+ * left behind, which is the finding M-072 actually records — **a lesson landing on one rule does
+ * not propagate to its neighbours**, now the fourth instance in this one file.
+ *
+ * `-n` is deliberately NOT denied on merge/revert/cherry-pick, where it means `--no-stat` and
+ * `--no-commit`. A false deny in a DENY list is the expensive direction to be wrong in.
+ */
+function isNoVerify(command) {
+  const LONG_VERBS = ["commit", "push", "merge", "revert", "cherry-pick"];
+  const SHORT_VERBS = ["commit", "push"];
+  for (const tokens of segments(maskMessageText(command))) {
+    const git = commandIndex(tokens, "git");
+    if (git === -1) continue;
+    // `git -C dir commit` — the verb is not always adjacent, same as isForcePush.
+    const rest = tokens.slice(git + 1);
+    const verb = rest.find((t) => LONG_VERBS.includes(t));
+    if (!verb) continue;
+    if (rest.includes("--no-verify")) return true;
+    if (SHORT_VERBS.includes(verb) && rest.includes("-n")) return true;
   }
   return false;
 }
 
-// ── WHICH BRANCH A GIT ACT LANDS ON, WHEN THE COMMAND DOES NOT SAY (v5, yoros CF-3 and CF-5) ──
-//
-// v4 asked only when a merge or push NAMED the protected branch. Measured by yoros on the real hook:
-//
-//   git checkout main && git merge rebuild && git push     allow   ← the ordinary deploy sequence
-//   git push  ·  git push origin HEAD  ·  git merge rebuild  allow   (while main is checked out)
-//   git push origin rebuild:refs/heads/main                  allow
-//   git push --all origin  ·  git push --mirror origin       allow
-//   git push origin +main                                    allow   ← a force-push to the deploy branch
-//
-// L-14's general form, in canon's own hook: a gate that matches how a target APPEARS misses it when
-// it is supplied BY REFERENCE. So the target is resolved: the branch a checkout or switch EARLIER IN
-// THE SAME COMMAND moved to, else the one `.git/HEAD` names, else UNKNOWN, which asks. What follows is
-// yoros's stopgap (`bash-gate.refs.mjs`, mutation-tested 6 of 6), lifted with its reasoning.
-//
-// ⚠ `.git/HEAD` IS READ ONLY WHEN `CLAUDE_PROJECT_DIR` IS SET, and that is sound rather than
-// convenient. Every project registers this hook as `node "$CLAUDE_PROJECT_DIR/.claude/hooks/…"`, so
-// a hook running under the harness has it. Unset means a probe or a hand run, and reading the
-// probe's own checkout there would make its bare-push cases pass or fail by which branch is out.
-// Unset is NOT_READ, which asserts nothing; set and unreadable is UNKNOWN, which asks.
-//
-// `gh pr merge` merges into the PR's base, which lives on the server and not in the command, so it is
-// UNKNOWN and asks, whatever the base turns out to be.
-//
-// NOT COVERED, stated so it is not mistaken for cover: a push through an alias or a script, and
-// `git rebase`/`reset` onto the protected branch, which move the local branch and deploy nothing
-// until a push this does see.
+/**
+ * The `.githooks` PROBE SEAM, set as a shell assignment. An ungated `--no-verify` by another name.
+ *
+ * `.githooks/pre-commit` substitutes `$PLEKS_PRECOMMIT_CMD` for `npm run check` when
+ * `PLEKS_HOOK_PROBE=1` — so `PLEKS_HOOK_PROBE=1 PLEKS_PRECOMMIT_CMD=true git commit -m x` runs the
+ * hook, runs `true` as the gate, and then reaches `git write-tree > …/pleks-gate-ok`, which also
+ * satisfies `prepare-commit-msg`. The commit gate is skipped end to end, and unlike `--no-verify`
+ * it leaves a marker saying the gate PASSED. `PLEKS_PREPUSH_CMD` and `PLEKS_DRIFT_CMD` do the same
+ * to `pre-push`. `PLEKS_BRANCH_PROBE` is a SECOND, INDEPENDENT vehicle and needs no master switch:
+ * `pre-commit:25` reads `BRANCH="${PLEKS_BRANCH_PROBE:-$(git branch --show-current)}"` before the
+ * guard tests it, so setting it alone spoofs the branch name and defeats the default-branch guard.
+ * Hence all five are denied, not just `PLEKS_HOOK_PROBE`.
+ *
+ * WHY THIS NEEDS NO CARVE-OUT FOR THE CHECK THAT DRIVES THE SEAM, which was the apparent dilemma
+ * (M-096): an exemption would publish the bypass string inside the control, and a path this hook
+ * cannot see would be a deliberate blind spot. Neither is necessary. `check-git-hooks.mjs` sets
+ * these through `spawnSync`'s `env` OBJECT, in-process — it never constructs a shell assignment,
+ * and neither does `check-prepush-composition.mjs:111`. A rule keyed on shell assignment syntax is
+ * therefore structurally invisible to both, with nothing exempted. That is the whole design: deny
+ * the only spelling reachable through the Bash tool, and the legitimate driver is not spelling it.
+ *
+ * AT COMMAND POSITION, not anywhere in the string — this is M-069/M-072's trap, and the rule that
+ * cost this file four separate false-denies is *match the token at a position, never the string*.
+ * `grep PLEKS_HOOK_PROBE .githooks/pre-commit` must stay allowed: writing about the seam, or
+ * grepping for it, is not setting it. A shell assignment is only an assignment while it PRECEDES
+ * the command word, so the scan stops at the first token that is not one — everything after that
+ * is an argument. `export`/`env` are the two verbs that put the assignment one token later.
+ *
+ * ONE ACCEPTED FALSE-DENY, found while writing this rule's own commit message and recorded rather
+ * than worked around. `segments()` splits on newlines, so a HEREDOC BODY line that BEGINS with the
+ * assignment (`git commit -F - <<'MSG'` … a line starting `PLEKS_HOOK_PROBE=1 git commit` …) is
+ * tokenised as a command and denied, though nothing executes it. Same class as the M-072 case this
+ * file already records: a gate that forbids writing down the rule it enforces. NOT fixed by masking
+ * heredoc bodies — `cat <<EOF` would then become a universal envelope for anything, which is the
+ * hole the quoted-`--no-verify` ruling twenty lines up refused for exactly this reason. The cost is
+ * one word of prose before the example on the line, and the rule stays a rule rather than a shape
+ * anyone can wrap their way out of. Probed, so the cost stays visible instead of being rediscovered.
+ */
+const SEAM_VARS = ["PLEKS_HOOK_PROBE", "PLEKS_PRECOMMIT_CMD", "PLEKS_PREPUSH_CMD", "PLEKS_DRIFT_CMD", "PLEKS_BRANCH_PROBE"];
 
-/** Outside the harness: no HEAD was read, and nothing is known either way. */
-const NOT_READ = undefined;
-/** Inside it, and still unknown: detached, unreadable, or another repository. This ASKS. */
-const UNKNOWN = null;
+function isHookSeamAssignment(command) {
+  for (const tokens of segments(command)) {
+    let i = 0;
+    if (tokens[0] === "export" || tokens[0] === "env") i = 1;
+    for (; i < tokens.length; i++) {
+      const eq = tokens[i].indexOf("=");
+      // Not an assignment → this is the command word. Anything further right is an argument.
+      if (eq <= 0) break;
+      if (SEAM_VARS.includes(tokens[i].slice(0, eq))) return true;
+    }
+  }
+  return false;
+}
 
-/** The branch `.git/HEAD` names, following a `.git` FILE (a worktree or submodule) to its gitdir. */
-function readHeadBranch(root) {
-  if (!root) return NOT_READ;
+const chunks = [];
+process.stdin.on("data", (c) => chunks.push(c));
+process.stdin.on("end", () => {
+  let decision = "allow";
+  let reason = "bash-gate: default allow (unattended profile)";
   try {
-    let gitDir = join(root, ".git");
-    if (statSync(gitDir).isFile()) {
-      const line = readFileSync(gitDir, "utf8").split(/\r?\n/).find((l) => l.startsWith("gitdir:"));
-      if (!line) return UNKNOWN;
-      gitDir = resolve(root, line.slice("gitdir:".length).trim());
+    const input = JSON.parse(Buffer.concat(chunks).toString("utf8").replace(/^﻿/, ""));
+    const cmd = (input.tool_input && input.tool_input.command) || "";
+
+    // Each rule names its settings twin — the coarse layer that answers if this hook is ever
+    // dead. Pattern adopted from life-therapy. The twin is DORMANT while the hook lives and is
+    // deliberately NOT equal-or-stronger: settings speaks in prefix-globs, the hook in
+    // separator-aware regex, so ask is the floor and ABSENT is the violation.
+    const DENY = [
+      // @twin Bash(git push --force*)
+      // @twin Bash(git push -f*)
+      [isForcePush, "force push is denied"],
+      // @twin Bash(git reset --hard*)
+      [/git\s+reset\s+--hard/, "hard reset is denied"],
+      // @no-twin no settings pattern was ever written for this. LT measured the same gap on the
+      // same rule; recorded here rather than invented, so the hole is visible instead of implied.
+      // ⚠ DENIED THE HARMLESS SHAPE AND PERMITTED THE LETHAL ONES until 2026-08-21. The original was
+      // `rm\s+-rf?\s+["']?[\/~]["']?(\s|$)`, requiring whitespace-or-end IMMEDIATELY after the root
+      // character — so bare `rm -rf /` was caught, while `rm -rf /*` and `rm -rf ~/*` were waved
+      // through. The inverse of the intended coverage: modern `rm` refuses a bare `/` without
+      // `--no-preserve-root` anyway, so the ONE shape the rule stopped is the one the OS already
+      // stops. Its regex replacement closed those and opened two new holes of its own (six more
+      // bypasses, and a quadratic blowup) before adversarial review caught both.
+      // Rationale, doctrine, measurements and the accepted false-denies: see `isDestructiveRm`.
+      [isDestructiveRm, "rm -rf on root/home is denied"],
+      // CLAUDE.md forbids --no-verify BY NAME ("which is why it is forbidden") and, until now,
+      // nothing anywhere refused it: the .githooks gates cannot see the flag that skips them, and
+      // no check can observe a hook that did not run. `-n` is the short spelling and skips the same
+      // hooks; `--no-verify` on push skips pre-push. Denied rather than asked, because the whole
+      // point of the flag is to skip the gate the ask would be protecting.
+      // @no-twin a settings pattern matches a command PREFIX, and the flag can sit anywhere in the
+      // command line (`git commit -m x --no-verify`), so `Bash(git commit --no-verify*)` would miss
+      // the ordinary spelling. The hole is recorded rather than papered over with a rule that reads
+      // like cover and matches almost nothing.
+      //
+      // ⚠ WAS TWO RAW-STRING REGEXES, and both spanned command separators (M-072, fixed 2026-08-21):
+      // `[^\n]*` between the git verb and the flag matches straight through `;`, `&&` and `|`, so the
+      // flag never had to belong to the git command. `git push > "$LOG" 2>&1; grep -n "vitest" "$LOG"`
+      // was DENIED as "-n is --no-verify on commit/push" — grep's `-n`. Same defect class as the rm
+      // rule and the `.env` rule above, in the same file, for the FOURTH time: the pattern matched
+      // characters AROUND the thing instead of the thing, and `segments()` — built for the rm rule —
+      // was never carried across to its neighbours. Rationale and the no-bypass boundary (a quoted
+      // `--no-verify` is still a flag) are at `isNoVerify` / `maskMessageText`.
+      [isNoVerify, "--no-verify (or -n on commit/push) skips the commit gate and is forbidden"],
+      // The same class as the line above, wearing a different spelling: the .githooks probe seam
+      // substitutes the gate command outright, and unlike --no-verify it leaves a marker claiming
+      // the gate PASSED. Denied rather than asked, for the same reason — the whole point of the
+      // assignment is to replace the gate the ask would be protecting.
+      // @no-twin `Bash(PLEKS_*)` would cover ONLY the bare leading-assignment spelling; settings
+      // matches a command PREFIX, so `export PLEKS_HOOK_PROBE=1; git commit` and an assignment
+      // sitting behind another (`FOO=1 PLEKS_HOOK_PROBE=1 git commit`) both pass it. Recorded as a
+      // hole rather than written as a twin that reads like cover and matches one shape in three.
+      // Rationale, the no-carve-out design and the command-position boundary: see the function.
+      [isHookSeamAssignment, "the .githooks probe seam substitutes the commit/push gate and is forbidden"],
+    ];
+    const ASK = [
+      // @twin Bash(git push*)
+      [/git\s+push\b/, "pushing to origin requires approval"],
+      // @no-twin the force flag can sit anywhere after `clean` and clusters with other letters
+      // (`-fdx`, `-xdf`), so a settings prefix-glob would match one spelling and miss the rest —
+      // the same reason `--no-verify` carries no twin two rules up.
+      [isForceClean, "git clean -f deletes untracked files permanently — ignored files too with -x, so .env.local and uncommitted drafts go with them"],
+      // @twin Read(.env)
+      // @twin Read(.env.*)
+      // ANCHORED ON A PATH BOUNDARY, not on the surrounding characters. The old pattern was
+      // `\.env(\.|["'\s]|$)`, which matched `.env` followed by a dot ANYWHERE — so
+      // `node -e "console.log(process.env.NODE_ENV)"` asked, and so did `import.meta.env` and
+      // `rg "\.env" docs/`. In a hook whose stated posture is unattended autonomy, the residual
+      // friction landed on shapes agents use constantly.
+      //
+      // Same defect class as the rm rule twenty lines up and as the git rule before it: the pattern
+      // matched characters AROUND the thing instead of the thing. Third instance in this one file,
+      // which is the actual finding — a lesson landing on one rule does not propagate to its
+      // neighbours, and the sweep has to be the whole file, not the rule that prompted it.
+      //
+      // `.env` must now START a path token: at the beginning, or after whitespace, a quote, an `=`,
+      // or a `/`. An identifier character before it (`process`, `meta`) means it is a property
+      // access, not a file.
+      // ⚠ THE LEADING ANCHOR SET NARROWED THIS RULE, and the first cut of it dropped four separators
+      // that carry real reads. Found by adversarial review: `cat C:\dev\pleks\.env`, `type .\.env`,
+      // `cat <.env`, `echo X >.env` and `cat *.env` ALL asked under the old unanchored pattern and
+      // were silently allowed by the anchored one. On Windows — this repo's platform — the omission
+      // of `\` alone un-gated every absolute path to a secrets file.
+      //
+      // The anchor is still the right discriminator, and the trailing side cannot do this job: the
+      // false positive being fixed was `process.env.NODE_ENV`, which is `.env` followed by `.`, and
+      // so is `.env.local`. What separates them is what comes BEFORE — an identifier character
+      // (`process`, `meta`) means a property access; a separator means a path.
+      //
+      // ACCEPTED COST, chosen rather than discovered: adding `\` makes `rg "\.env"` ask, because the
+      // regex-escape backslash is indistinguishable from a path separator without knowing the
+      // command's quoting. That probe was flipped from allow to ask deliberately. An extra prompt on
+      // a grep is cheap; a silent read of a secrets file is the thing this rule exists to stop.
+      [/(?:^|[\s"'=/\\<>*])\.env(\.|["'\s]|$)/, "touching .env files requires approval"],
+      // @no-twin ad-hoc prod SQL through the CLI has no settings pattern — the other gap LT
+      // measured. The MCP path is covered by mcp-ddl-gate; the `supabase db` CLI path is not.
+      [/supabase\s+db\s+(push|reset)/, "prod database operations require approval"],
+      // ── R4, control-aim audit 2026-08-22 ────────────────────────────────────────────────────
+      // The rule ABOVE matched the TOOL (`supabase db`) rather than the OPERATION (writes to
+      // production) — twin-the-vehicle, inverted. Probed both directions at 5ddbaee1:
+      // `supabase db push` asked, and `node supabase/reconcile/apply-prod.mjs --confirm` was
+      // ALLOWED. That script's own header says "⚠ WRITES TO PRODUCTION", it posts a whole SQL file
+      // through the Management API — and this very file cites it twice as the source of the ReDoS
+      // lesson, so it was read by whoever last hardened this hook and still was not gated.
+      //
+      // It is not ungoverned: it demands --confirm, refuses any file but 01_reconcile.sql, and
+      // refuses a script not wrapped in BEGIN/COMMIT. Those are rung-0 — INSIDE the thing being
+      // invoked — and the actor who types --confirm is the actor this hook exists to interrupt.
+      // Under the stated unattended-autonomy posture, rung 0 is not a gate.
+      //
+      // Matched on the SCRIPT PATH, not on `node`: the operation is "run the prod-apply script",
+      // however it is spelled. `node x`, `npx tsx x`, an absolute path, a different runner and a
+      // bare `./x` all carry the same path token, so all of them ask. Backslashes are accepted for
+      // Windows spellings. Anchored on a separator so a file merely NAMED in prose — `rg
+      // apply-prod` — still asks rather than silently differing from the real thing; an extra
+      // prompt on a grep is the same accepted cost as the `.env` rule four lines up.
+      [/reconcile[/\\]apply-prod\.mjs/, "applying a reconciliation script to PRODUCTION requires approval"],
+    ];
+
+    // A rule is a RegExp or a predicate. The `rm` rule is a function because the regex form of it
+    // was quadratic in a gate that runs before every Bash call — see `isDestructiveRm`.
+    const hits = (rule, s) => (typeof rule === "function" ? rule(s) : rule.test(s));
+
+    for (const [rule, why] of DENY) {
+      if (hits(rule, cmd)) { decision = "deny"; reason = "bash-gate: " + why; break; }
     }
-    const head = readFileSync(join(gitDir, "HEAD"), "utf8").trim();
-    const REF = "ref: refs/heads/";
-    return head.startsWith(REF) ? head.slice(REF.length).trim() || UNKNOWN : UNKNOWN;
-  } catch {
-    return UNKNOWN;
-  }
-}
-
-let headMemo = null;
-function headBranch() {
-  if (headMemo === null) headMemo = { v: readHeadBranch(process.env.CLAUDE_PROJECT_DIR || null) };
-  return headMemo.v;
-}
-
-/**
- * Drop shell redirections, which the tokens keep: `git push > "$LOG" 2>&1` is a probe case, and read
- * as arguments it would make `>` a remote and `$LOG` a refspec, which is an explicit destination and
- * allows. `>` / `2>>` / `&>` take the next token; `>out` / `2>/dev/null` carry theirs.
- */
-function dropRedirections(args) {
-  const out = [];
-  for (let i = 0; i < args.length; i++) {
-    const t = args[i];
-    if (/^(?:\d*|&)[<>]{1,2}&?$/.test(t)) {
-      i++;
-      continue;
-    }
-    if (/^(?:\d*|&)[<>]/.test(t)) continue;
-    out.push(t);
-  }
-  return out;
-}
-
-/** git's global options that take a value as the NEXT token, and those that point it elsewhere. */
-const GLOBAL_WITH_VALUE = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"]);
-const ELSEWHERE = /^(?:-C|--git-dir(?:=.*)?|--work-tree(?:=.*)?)$/;
-
-/** `{ verb, rest, elsewhere }` for a git segment's arguments (the tokens after `git`). */
-function gitVerb(args) {
-  const a = dropRedirections(args);
-  let elsewhere = false;
-  let i = 0;
-  while (i < a.length && a[i].startsWith("-")) {
-    if (ELSEWHERE.test(a[i])) elsewhere = true;
-    i += GLOBAL_WITH_VALUE.has(a[i]) ? 2 : 1;
-  }
-  return { verb: a[i] ?? "", rest: a.slice(i + 1), elsewhere };
-}
-
-/** A token that names a PATH rather than a branch: a file checkout leaves the branch alone. */
-const looksLikePath = (t) => t.includes(".") || t.includes("\\") || t.startsWith("/");
-
-/**
- * The branch after a `git checkout` / `git switch` segment, given the one before it. A path checkout
- * (`--`, or a file) leaves it alone. `-` and `--detach` make it UNKNOWN: the previous branch is not
- * in the command.
- */
-function branchAfter(args, current) {
-  const { verb, rest, elsewhere } = gitVerb(args);
-  if (elsewhere || (verb !== "checkout" && verb !== "switch")) return current;
-  if (rest.includes("--")) return current;
-  const create = verb === "checkout" ? ["-b", "-B", "--orphan"] : ["-c", "-C", "--create", "--force-create", "--orphan"];
-  for (let i = 0; i < rest.length; i++) {
-    if (create.includes(rest[i])) return rest[i + 1] ?? UNKNOWN;
-    if (rest[i] === "--detach" || (rest[i] === "-d" && verb === "switch")) return UNKNOWN;
-  }
-  const positional = rest.filter((t) => !t.startsWith("-") || t === "-");
-  if (positional.length === 0) return current;
-  if (positional[0] === "-") return UNKNOWN;
-  // `--track origin/main` creates and checks out a LOCAL `main`, so the remote prefix comes off.
-  const tracks = rest.some((t) => t === "-t" || t === "--track" || t.startsWith("--track="));
-  if (tracks && positional.length === 1 && positional[0].includes("/")) return positional[0].slice(positional[0].indexOf("/") + 1);
-  if (positional.length > 1 || looksLikePath(positional[0])) return current;
-  return positional[0];
-}
-
-/** A path for comparison: forward slashes, `/c/` as `c:/`, lower case, no trailing slash. */
-function normPath(p) {
-  let s = p.replace(/\\/g, "/").replace(/^\/([a-z])\//i, "$1:/").toLowerCase();
-  while (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
-  return s;
-}
-
-/** The branch after a `cd` / `pushd`: the same one if it stays in this repository, else UNKNOWN. */
-function branchAfterCd(target, current, root) {
-  if (target === undefined || target === "-" || target === "~" || target.startsWith("~/")) return UNKNOWN;
-  const absolute = /^(?:\/|[A-Za-z]:[\\/])/.test(target);
-  if (!absolute) return target.split(/[\\/]/).includes("..") ? UNKNOWN : current;
-  if (!root) return UNKNOWN;
-  const t = normPath(target);
-  const r = normPath(root);
-  return t === r || t.startsWith(r + "/") ? current : UNKNOWN;
-}
-
-/** `git push` options that take a value as the NEXT token; those that push every branch. */
-const PUSH_WITH_VALUE = new Set(["-o", "--push-option", "--repo", "--receive-pack", "--exec"]);
-const PUSH_ALL = new Set(["--all", "--mirror", "--branches"]);
-/** The current-branch aliases a refspec may use. */
-const SELF_REF = new Set(["HEAD", "@"]);
-
-/**
- * What a `git push`'s arguments land on: `{ all, current, branches, forced }`. `all` is --all /
- * --mirror. `current` is a push of the checked-out branch (no refspec, or `HEAD`). `branches` are the
- * destination BRANCH names, with `+` and `refs/heads/` taken off. `forced` is any `+refspec`.
- */
-function pushTargets(rest) {
-  const flags = [];
-  const positional = [];
-  for (let i = 0; i < rest.length; i++) {
-    const t = rest[i];
-    if (t.startsWith("-")) {
-      flags.push(t);
-      if (PUSH_WITH_VALUE.has(t)) i++;
-    } else positional.push(t);
-  }
-  const refspecs = positional.slice(1);
-  const all = flags.some((f) => PUSH_ALL.has(f));
-  const tagsOnly = refspecs.length === 0 && flags.includes("--tags");
-  const out = { all, current: false, branches: [], forced: false };
-  if (refspecs.length === 0) {
-    out.current = !all && !tagsOnly;
-    return out;
-  }
-  for (const spec of refspecs) {
-    if (spec.startsWith("+")) out.forced = true;
-    const s = spec.startsWith("+") ? spec.slice(1) : spec;
-    const colon = s.lastIndexOf(":");
-    const src = colon === -1 ? s : s.slice(0, colon);
-    const dst = colon === -1 ? s : s.slice(colon + 1) || src;
-    if (SELF_REF.has(dst) || (colon === -1 && SELF_REF.has(src))) out.current = true;
-    else out.branches.push(dst.startsWith("refs/heads/") ? dst.slice("refs/heads/".length) : dst);
-  }
-  return out;
-}
-
-/**
- * Does segment `index` merge, pull or push into the protected branch? `plan` is every segment as
- * `{ kind: "git" | "cd" | "popd" | "other", args }`; the segments before `index` say which branch is
- * checked out when this one runs.
- */
-function reachesProtected(plan, index, { protectedBranch, head, root }) {
-  let current = head;
-  for (let i = 0; i < index; i++) {
-    const s = plan[i];
-    if (s.kind === "git") current = branchAfter(s.args, current);
-    else if (s.kind === "cd") current = branchAfterCd(s.args.find((t) => !t.startsWith("-")), current, root);
-    else if (s.kind === "popd") current = UNKNOWN;
-  }
-  const s = plan[index];
-  if (s.kind !== "git") return false;
-  const { verb, rest, elsewhere } = gitVerb(s.args);
-  const here = elsewhere ? UNKNOWN : current;
-  // NOT_READ (outside the harness) is not UNKNOWN: nothing was read, so nothing is asserted.
-  const onProtected = here === protectedBranch || here === UNKNOWN;
-  if (verb === "merge") {
-    if (rest.some((t) => ["--abort", "--quit", "--continue"].includes(t))) return false;
-    return onProtected;
-  }
-  if (verb === "pull") {
-    // A bare pull syncs the branch with its own upstream. Naming ANOTHER branch merges it in.
-    const positional = rest.filter((t) => !t.startsWith("-"));
-    const merged = positional.slice(1).map((t) => (t.startsWith("+") ? t.slice(1) : t).split(":")[0]);
-    return merged.some((b) => b !== here) && onProtected;
-  }
-  if (verb === "push") {
-    const t = pushTargets(rest);
-    if (t.all) return true;
-    if (t.branches.includes(protectedBranch)) return true;
-    return t.current && onProtected;
-  }
-  return false;
-}
-
-const planOf = (segs) =>
-  segs.map((s) => ({
-    kind: atCommand(s.tokens, "git") ? "git"
-      : atCommand(s.tokens, "cd") || atCommand(s.tokens, "pushd") ? "cd"
-      : atCommand(s.tokens, "popd") ? "popd" : "other",
-    args: argsOf(s.tokens),
-  }));
-
-function targetsProtectedBranch(tokens, _text, _command, ctx) {
-  if (!atCommand(tokens, "git")) return false;
-  const args = argsOf(tokens);
-  const b = PROTECTED_BRANCH;
-  // NAMED: v4's test, kept whole. Every command it asked on still asks.
-  if ((args.includes("push") || args.includes("merge")) &&
-    args.some((t) => t === b || t === `origin/${b}` || t === `refs/heads/${b}` || t.endsWith(`:${b}`))) return true;
-  // BY REFERENCE: everything else that lands there.
-  if (!ctx) return false;
-  return reachesProtected(ctx.plan, ctx.index, { protectedBranch: b, head: headBranch(), root: process.env.CLAUDE_PROJECT_DIR || null });
-}
-
-/**
- * `git push origin +main`: a `+` on a refspec IS `--force` for that ref. v4 read it as a branch name
- * that did not equal `main`, and allowed it (yoros CF-5). Denied with or without a lease flag beside
- * it: what `+` does alongside `--force-with-lease` is not something this file should have to know.
- */
-function isForceRefspec(tokens) {
-  if (!atCommand(tokens, "git")) return false;
-  const { verb, rest } = gitVerb(argsOf(tokens));
-  return verb === "push" && pushTargets(rest).forced;
-}
-
-/** `gh pr merge`: the base branch is on the server, so the command cannot say where this lands. */
-function isPrMerge(tokens) {
-  if (!atCommand(tokens, "gh")) return false;
-  const args = argsOf(tokens);
-  const i = args.indexOf("pr");
-  return i !== -1 && args[i + 1] === "merge";
-}
-
-function isHardReset(tokens) {
-  return atCommand(tokens, "git") && argsOf(tokens).includes("reset") && argsOf(tokens).includes("--hard");
-}
-
-function isForceClean(tokens) {
-  if (!atCommand(tokens, "git")) return false;
-  const args = argsOf(tokens);
-  return args.includes("clean") && args.some((t) => t === "--force" || SHORT_CLUSTER_WITH_F.test(t));
-}
-
-const CANON_DENY = [
-  [isDestructiveRm, "rm aimed at a filesystem root or home directory"],
-  [isForcePush, "force-push without --force-with-lease"],
-  [isForceRefspec, "a +refspec force-pushes that ref — push without the +, or use --force-with-lease"],
-  [isNoVerify, "--no-verify (or -n on commit/push) skips the project's own gate"],
-  [isSeamAssignment, "sets a hook probe seam — the gate would report PASSED without running"],
-];
-const CANON_ASK = [
-  [targetsProtectedBranch, PROTECTED_REASON],
-  [isPrMerge, "gh pr merge merges into the PR's base branch, which is on the server and not in this command — if it is the protected branch, this is the deploy"],
-  [isHardReset, "git reset --hard discards uncommitted work with no undo"],
-  [isForceClean, "git clean -f deletes untracked files permanently — drafts are untracked until committed"],
-];
-
-// A function rule also receives `{ plan, index }`: every segment's kind and arguments, and which one
-// this is. Only the protected-branch rule reads it — which branch a segment lands on is decided by
-// the segments before it — and a project rule may ignore it.
-const fires = (rule, seg, command, ctx) =>
-  typeof rule === "function" ? rule(seg.tokens, seg.text, command, ctx) : rule.test(seg.text);
-
-function decide(command) {
-  // Flag scans run on the message-masked text; the rm rule on the unmasked text, so
-  // `-m "rm -rf /"` is prose either way (rm is not at command position there).
-  const segs = segments(maskMessageText(command));
-  const plan = planOf(segs);
-  const hit = (rule) => segs.some((s, index) => fires(rule, s, command, { plan, index }));
-  for (const [rule, why] of [...CANON_DENY, ...PROJECT_DENY]) {
-    if (hit(rule)) return ["deny", why];
-  }
-  for (const [rule, why] of [...CANON_ASK, ...PROJECT_ASK]) {
-    if (hit(rule)) return ["ask", why];
-  }
-  return ["allow", "allowed — no gate matched"];
-}
-
-// ── v6: WHAT STANDS BEHIND EACH RULE IF THIS HOOK STOPS RUNNING (yoros CF-4) ──
-//
-// L-16: a rule held at the hook layer alone needs a fallback, reconciled as a set difference. Until
-// v6 the fallback was declared per FILE — one `@twin` line anywhere passed — so the difference taken
-// was twins against settings, and rules against twins was never taken: two twins backed one rule of
-// nine and the check was green. The fallback now sits ON the rule, and this lists every rule with
-// its fallback, so a count can see a rule that has none. Canon's rules take theirs from the
-// fallbacks region by function name; a project's carry theirs as the third element of the entry.
-//
-// `node bash-gate.js --fallbacks` prints the list as JSON and reads no stdin. Claude Code never
-// passes an argument, so a gating run cannot reach it. `inert` marks the one rule that cannot fire:
-// the seam rule, with no seams configured, needs no floor until it has something to hold.
-function inventory() {
-  const canonRule = (severity) => ([rule, reason]) => ({
-    severity,
-    owner: "canon",
-    rule: rule.name,
-    reason,
-    fallback: Object.hasOwn(CANON_FALLBACKS, rule.name) ? CANON_FALLBACKS[rule.name] : null,
-    inert: rule === isSeamAssignment && SEAM_VARS.length === 0,
-  });
-  const projectRule = (severity, table) => ([, reason, fallback], i) => ({
-    severity,
-    owner: "project",
-    rule: `${table}[${i}]`,
-    reason,
-    fallback: fallback ?? null,
-    inert: false,
-  });
-  const names = new Set([...CANON_DENY, ...CANON_ASK].map(([rule]) => rule.name));
-  return {
-    rules: [
-      ...CANON_DENY.map(canonRule("deny")),
-      ...PROJECT_DENY.map(projectRule("deny", "PROJECT_DENY")),
-      ...CANON_ASK.map(canonRule("ask")),
-      ...PROJECT_ASK.map(projectRule("ask", "PROJECT_ASK")),
-    ],
-    strays: Object.keys(CANON_FALLBACKS).filter((k) => !names.has(k)),
-  };
-}
-
-/** The gating run: one hook payload on stdin, one decision on stdout. */
-function gate() {
-  const chunks = [];
-  process.stdin.on("data", (d) => chunks.push(d));
-  process.stdin.on("end", () => {
-    let decision = "allow";
-    let reason = "bash-gate: allowed — no gate matched";
-    try {
-      // Buffers, not string concatenation: a multibyte character split across chunks
-      // would corrupt the JSON. A leading BOM (Windows) is stripped — written as the
-      // escape so it survives a diff, an editor and a control-byte assertion.
-      const raw = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
-      const input = JSON.parse(raw);
-      if (input === null || typeof input !== "object" || Array.isArray(input)) {
-        throw new TypeError("hook input is not an object");
+    if (decision === "allow") {
+      for (const [rule, why] of ASK) {
+        if (hits(rule, cmd)) { decision = "ask"; reason = "bash-gate: " + why; break; }
       }
-      const command = String(input.tool_input?.command ?? "");
-      const [d, why] = decide(command);
-      decision = d;
-      reason = "bash-gate: " + why;
-    } catch {
-      decision = "ask";
-      reason = "bash-gate: could not parse hook input — failing to a prompt, not to silence";
     }
-    process.stdout.write(
-      JSON.stringify({
-        hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: decision, permissionDecisionReason: reason },
-      }),
-    );
-  });
-}
-
-if (process.argv.includes("--fallbacks")) {
-  process.stdout.write(JSON.stringify(inventory()));
-} else {
-  gate();
-}
+  } catch {
+    decision = "ask";
+    reason = "bash-gate: could not parse hook input — failing to a prompt, not to silence";
+  }
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: decision,
+      permissionDecisionReason: reason,
+    },
+  }));
+});
