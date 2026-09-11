@@ -610,6 +610,16 @@ and inference is what L-68 names as the gap. It does not widen §5's write scope
 it removes the question of whether spawning was permitted, not the bounds on what a spawned agent
 may do.
 
+**EXTENDED — Stéan, 2026-09-11, from this date onwards.** *"I also authorise you, Claude Code, to run
+workflows and deep-research on your own judgement, without asking each time. Keep a workflow under 15
+agents unless I say otherwise, and say in one line what you're starting and why when you start it.
+This changes nothing about pushing or the hooks."* Same L-68 shape as the clause above and recorded
+for the same reason: an authorisation that has to be inferred is the gap the lesson names. **Three
+bounds travel with it, and they are the grant's own terms, not additions** — under 15 agents absent a
+wider instruction; one line of announcement at the start, naming what and why; and no change to §3's
+push gate or any hook. §5's write scope is untouched, so a workflow's writes stay bounded by
+`.handoff/write-manifest.json` exactly as an implementer's do.
+
 **Classify per site, never sweep.** Two sites identical to twenty-five others were correct for a
 reason invisible to the regex.
 

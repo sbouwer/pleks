@@ -598,6 +598,49 @@ better than the entry asked for.
 - **⚠ Ordering, and it runs the other way from the usual one.** Gating the TOTP mint is safe to ship alone — it strictly narrows. Gating `totp_unenroll` alone is **not**: a user whose only factor is a TOTP they can no longer produce must still be able to remove it, and the recovery path for that is not built. Mint first, unenrol second, and only with the recovery half beside it.
 - **Satisfied when:** enrolling a TOTP factor on an account that already holds ANY assurance factor requires step-up, decided **server-side** on the account's state — the same rule and, if the shape allows, the same guard as `lib/auth/passkeys/enrol-assurance.ts` rather than a second copy of it. Probe both directions: a bootstrap account (no passkey, no verified TOTP) must still enrol without step-up, and an account with either must be refused a bare session.
 
+### M-133 — a cron that never fired and a cron that could not record are the same row: none
+
+- **Rule:** a failure-only digest's denominator must be the runs that were EXPECTED, not the rows that
+  happened to get written. Absence of evidence is reported here as evidence of health.
+- **Where it lives:** `lib/cron/withCronRun.ts:57-70` — the `cron_runs` insert is deliberately
+  best-effort, and a failed insert is swallowed with a `console.error` · `collectCronRunFailures`
+  (`:95-119`) builds `byJob` **from the returned rows** and increments `agg.total` per row, so the
+  denominator it prints is a count of successful recordings · `lib/observability/health.ts:127-136`
+  (`TRACKED_CRONS`) is the only place an expected cadence is declared, and it covers 8 of the 13
+  jobs that actually write rows.
+- **Rung:** check · **Blast:** other
+- **Observed 2026-09-11** against project `noexjtlrffkzzclibvbq`. On 2026-09-10 `mandatory_retry`
+  wrote **22** rows, for hours `00-16,18-21,23` — **hours 17 and 22 have no row at all**, where
+  2026-09-08 and 2026-09-09 each have a clean 24/24. The 03:00 digest reported
+  *"1/22 runs failed in 24h"*. The defensible statement is **1 known failure plus 2 unaccounted, out
+  of 24 expected**, and the digest cannot say the second half because nothing declares that 24 was
+  expected. The likely cause of the two gaps is the same Supabase `Gateway Timeout` window that
+  produced the 11:00 failure (`[mandatory-retry] Fetch error: Gateway Timeout`, Vercel error
+  clusters, with sibling clusters on `screening-jobs cron select` and `platform-email drain fetch`)
+  — so **the observability thins at exactly the moment the digest is being relied on.**
+- **The best-effort insert is CORRECT and is not what this entry asks to change.** Recording must
+  never mask the cron's own result; that is the right trade. The defect is that the digest reads the
+  resulting row count as if it were a run count, and says so with a confident denominator.
+- **The sharp end is a cron going fully dark, and it is silent for 5 of the 13 jobs.** Zero rows
+  means `byJob` has no key, the job produces no digest entry, and the digest is failure-only — so it
+  sends nothing. `checkCrons` catches that for the 8 names in `TRACKED_CRONS` via a freshness
+  threshold (fail-safe: a missing row reads as stale, which is noise rather than silence). The other
+  five write `cron_runs` and are in NO staleness map: **`screening_jobs` (2,885 rows, every 15m — the
+  highest-volume job on the platform), `cost-snapshots`, `expire_listings`, `expire-info-requests`,
+  `insurance-renewals`.** If any of those stops firing, both observability paths report nothing.
+  Same vacuous-pass shape as **M-123**: the check passes because it never ran.
+- **A doc claim was corrected while measuring this.** `.claude/rules/crons.md` said `TRACKED_CRONS`
+  tracks *"only top-level scheduled job_names that ACTUALLY write a cron_runs row (currently just
+  `["daily"]`)"*. It holds **8** names as at `d15e6f88`. The warning the sentence carries is still
+  right; its count had been stale for long enough to be read as the design.
+- **Satisfied when:** every job wrapped in `withCronRun` declares its expected cadence in ONE place
+  that both the digest and `checkCrons` read, and the digest reports a *shortfall* — rows seen
+  against rows expected — as its own condition, distinct from a failed run. A job with no declared
+  cadence must FAIL the check rather than be skipped, which is the half that makes it a ratchet
+  rather than a second list to forget. Probe both directions: a job missing N of its expected runs
+  is reported, and a job at full cadence is not.
+- **Covering spec:** NEW
+
 ### M-033 — ✅ BUILT (found already shipped 2026-08-21) — `@typescript-eslint/no-explicit-any` is resolver-visible
 
 - **Rule:** "`any` types leaking through (fix them, don't suppress)" (`CLAUDE.md`)
