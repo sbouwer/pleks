@@ -436,8 +436,10 @@ the failure is quiet: everything builds, everything typechecks, nothing looks wr
 
 ### ⚠ CONSEQUENCE, AND IT IS NOT SMALL
 
-`CLAUDE.md` §7 tells you to spawn the implementer with `isolation: "worktree"`, and that is the
-documented default for the mechanical-transform lever. **On any feature branch, that agent is
+As at the time of this experiment, `CLAUDE.md` §7 **told** you to spawn the implementer with
+`isolation: "worktree"`, and that was the documented default for the mechanical-transform lever.
+(Corrected to the opposite instruction in `fd818c0c`; `.claude/commands/build.md` was NOT swept at
+the same time and went on instructing the refuted form until `2026-08-25` — see the sweep note below.) **On any feature branch, that agent is
 working on a different tree from the one you are.** Three ways it goes wrong, all of them silent:
 
 1. **Its `npm run check` green is worthless to you.** It was measured on a tree that does not exist
@@ -1178,7 +1180,13 @@ pass over `compactMetadata.preTokens` and needs no session in a particular state
 
 ---
 
-## E16 · What do the three delegation modes actually cost, and is the work worth it? — **PRE-REGISTERED 2026-08-23, NOT YET RUN**
+## E16 · What do the three delegation modes actually cost, and is the work worth it? — **HALF-ANSWERED, TASK 2 ONLY: the workflow did 2.2× the work for 2.0× the spend, at a LOWER price per unit of work. Whether that work was worth doing is UNMEASURED**
+
+⚠ **E16 is task 2's nine runs and nothing else.** It was pre-registered as 27 runs (3 tasks × 3 arms
+× 3 replicates); tasks 1 and 3 were **substituted after six runs and conditioned on task 2's result**,
+so they carry their own id and their own pre-registration — **E17**, at the end of this file. The
+split exists to make a pooled headline unwriteable: under one id somebody eventually writes "E16
+found X across 27 runs", and that sentence spans a design change without saying so.
 
 **Question.** For the same task, how do (A) the main session working alone, (B) the original
 agent-handover protocol, and (C) the current agent workflow compare on **wall-clock, tokens, and
@@ -1191,14 +1199,48 @@ disbelieved by someone who was not there.
 
 ### Design
 
-**Baseline commit: `fbbc59f4`** (`main`, immediately after PR #264 merged). **27 runs: three tasks ×
-three arms × three replicates** (settled 2026-08-23 — see the decisions section), **each in a fresh
-worktree cut explicitly from that SHA and discarded after.**
+**Baseline commit: `1c9b6bbd`** (`main`, immediately after PR #265 merged). Pre-registered as **27
+runs: three tasks × three arms × three replicates** (settled 2026-08-23 — see the decisions section),
+**each in a fresh worktree cut explicitly from that SHA and discarded after.**
 
-⚠ **The worktree must be pinned to `fbbc59f4` explicitly. E10 established that `isolation: "worktree"`
+⚠ **E16 as REPORTED is the nine runs of task 2 (M-022).** Task 2 ran first as a pilot; on its
+sixth run, tasks 1 and 3 were **substituted** — M-093 → **M-061**, M-064 → **M-087** — chosen because
+delegation should pay on them, which is a choice conditioned on what task 2 had already shown. Those
+eighteen runs are **E17**, at the end of this file, with their own pre-registration saying so. The
+paragraphs below are the design as pre-registered on 2026-08-23 and are left standing as the record
+of what was fixed in advance; where a later section contradicts one, the later section is the state.
+
+⚠ **The worktree must be pinned to `1c9b6bbd` explicitly. E10 established that `isolation: "worktree"`
 bases the tree on `origin/main` rather than the session's HEAD** — that is harmless here only because
 the baseline IS `main`, and it is the reason this experiment was sequenced after the merge rather
 than before it. Pin it anyway; do not rely on the default agreeing.
+
+**⚠ RE-BASELINED 2026-08-24, BEFORE ANY ARM RAN, from `fbbc59f4` to `1c9b6bbd` — recorded here rather
+than silently swapped, because a pre-registration whose parameters move without a note is not one.**
+The original pin was `fbbc59f4` (`main` immediately after PR #264), and its stated rationale was that
+the baseline **is** `main`, so E10's `origin/main` default would agree rather than diverge. PR #265
+merged on 2026-08-24 and that stopped being true: `main` moved to `1c9b6bbd`, the explicit pin became
+load-bearing instead of belt-and-braces, and a single worktree created without it would silently have
+got a different tree from the other 26.
+
+Two reasons for moving rather than holding, and the second is the one that decides it:
+- The doc's own rationale for `fbbc59f4` — baseline equals `main` — now points at `1c9b6bbd`. Holding
+  the old SHA would keep the letter of the pre-registration while discarding the reason for it.
+- **Task 1 (M-093) is a build PLUS a migration on platform email retry, and PR #265 moved
+  `010_platform_features.sql`** (the `is_platform` declaration was hoisted ~2400 lines to sit above
+  its first reader). Work built at `fbbc59f4` would have to be rebased across that change to be
+  usable, and this design's stated reason for choosing real register tasks is that the surviving
+  arm's output is usable.
+
+**Why this does not compromise the pre-registration.** The property pre-registration protects is that
+parameters were fixed *before the results were seen*. **No arm has run.** Nothing here is being
+adjusted in light of an outcome, because there is no outcome. The tasks, arms, metrics, rubric,
+blinding procedure and replicate count are all untouched — and all three tasks (M-093, M-022,
+M-064) are still open at `1c9b6bbd`, verified against `docs/MECHANISABLE.md` at that SHA rather than
+assumed. *(As at 2026-08-24 this paragraph describes the 2026-08-23 pre-registration only: M-093 and
+M-064 were later replaced, after runs existed — which is exactly the compromise its last sentence
+names, and precisely why the replacements are E17 and not E16.)* **What would compromise it is re-baselining once a run exists**; if a tree has been cut,
+this pin is frozen and a rerun starts a new experiment with a new id.
 
 Same three tasks in every arm, so arm-vs-arm is a like-for-like comparison and nothing is confounded
 by task difficulty. The cost of that choice is stated: 27 task-runs for three tasks' worth of
@@ -1214,9 +1256,112 @@ paraphrased, because a paraphrase is where a strawman gets in.
 
 | Arm | What it is | Definition source |
 |---|---|---|
-| **A · solo** | Main session only. No `Agent` call for the whole run. Expect zero subagent transcripts — the one arm where finding none is correct. | n/a |
-| **B · stock subagents** | Delegation exactly as documented: subagents defined by `name` + `description` frontmatter, Claude deciding when to delegate from the description, results returning as a summary. No handoff-contract artefacts, no `.claude/handoff/` directory, no pipeline stages. | `code.claude.com/docs/en/sub-agents` |
+| **A · solo** | Main session only, **enforced** — launched with `--disallowed-tools Agent Task`, both spellings. Expect zero subagent transcripts: the one arm where finding none is correct. | n/a |
+| **B · delegation reachable, no workflow** | A plain brief. The `Agent`/`Task` tools are enabled and this repo's agents are advertised from their own `description` frontmatter. **No pipeline instruction** — B is never told to `/build`, and nothing directs it to the handoff contract. ⚠ **NOT a free-choice arm for tasks 1 and 2, and was never one** — see *The instruction that voids arm B*, below. **Becomes one from task 3**, via the levelled authorisation shipped 2026-08-26 in that same section; every B result already reported predates it. | `code.claude.com/docs/en/sub-agents` |
 | **C · this repo's workflow** | The five tuned agents (`grounder`/`census`/`db-inspector`/`implementer`/`walker`), the handoff contract (`scripts/check-handoff-contract.mjs`), the write-scope hook, and the `/build`→`/walk`→`/wrap` sequence. | `.claude/agents/*.md`, `4-AGENT-PIPELINES.md` §9 |
+
+⚠ **B was NOT stripped down to stock agents, and the row above said it had been until 2026-08-24.**
+The original wording promised "no handoff-contract artefacts, no `.claude/handoff/` directory, no
+pipeline stages" — a *suppression* that was never implemented. What actually ran is stronger for the
+comparison and weaker as a claim about stock Claude Code: **B and C are bit-identical in tree and tool
+configuration and differ ONLY in the prompt.** This repo's twelve agents are advertised to B exactly
+as they are to C. So B is not "Claude Code out of the box" — it is *this repo, without the workflow*,
+which is the contrast actually of interest. Corrected here rather than quietly rewritten, because
+a reader who took the old row at face value would read a B result as evidence about stock behaviour.
+
+### The instruction that voids arm B — found 2026-08-25, after task 1's nine runs
+
+**Every `claude` session on this account carries the standing instruction *"Do not call the AgentTool
+unless the user requested it."*** It is injected at the account level, not by this repo: it reproduces
+in an empty scratch directory with no `CLAUDE.md` anywhere up-tree, and survives unsetting
+`CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_MESSAGING_*` and `CLAUDE_PID`.
+There is no `managed-settings.json` and no HKLM policy key on this machine. It was found by *asking a
+`claude -p` run in an empty directory to print its own instructions* — one run, free, and it should
+have been the first probe rather than the last.
+
+**So arm B was never a free-choice arm, and every B result that reads as a judgment is compliance.**
+B's brief contains no request for an agent, so the instruction binds; 0-for-6 across both tasks is
+what an instructed refusal looks like, and it is indistinguishable in the transcript from a model
+weighing the task and declining. **Arm C escapes the same instruction not by evading it but by
+satisfying it** — `/build`, `/walk` and `/wrap` are skills the user invoked, and `/build` opens with a
+`grounder` spawn, so C's delegation *is* user-requested. The consequence is sharper than a caveat:
+**the workflow's causal role in this experiment includes AUTHORISING delegation, not only sequencing
+it.** Any C÷B ratio therefore prices *authorised-and-structured* against *prohibited*, and calling
+that "the workflow's overhead" over-attributes the whole gap to structure.
+
+Two prior claims in this register are retracted by this, and both are struck at their own sites
+below: that B "declined every time" **given a free choice**, and that B's refusal is evidence about
+**model judgment**. `Task` being *enabled* was true and irrelevant — the arm was instructed not to use
+it, and reporting the enabled tool as though it made the choice free is the error.
+
+⚠ **The general form, because this is its second instance.** An arm defined by what is *absent* from
+its prompt is only a control if you have read everything present in its context — and the account-level
+system prompt is not in the prompt file, not in the repo, and not in the transcript. Both times this
+register has been wrong about arm B, the cause was the same: a claim about what B *chose*, resting on
+the assumption that the prompt file was the whole input.
+
+**The fix is to LEVEL THE AUTHORISATION, not to strip the instruction** — the instruction is real and
+stays. Tasks 1 and 2 are reported as they ran — **forced solo · constrained solo · authorised
+workflow** — never as "delegation vs no delegation".
+
+**SHIPPED 2026-08-26, binding task 3 onward.** `run-arm.sh` passes
+`--append-system-prompt "$(cat authorisation.txt)"` — through the *invocation*, never the brief, so the
+briefs stay bit-identical across arms — and `cmd.txt` records the file's sha256 per cell, so a silent
+edit between cells is detectable.
+
+| arm | authorisation | tools | prompt |
+|---|---|---|---|
+| **A** | identical | `--disallowed-tools Agent Task` | plain brief |
+| **B** | identical | all | plain brief |
+| **C** | identical | all | `/build` → `/walk` → `/wrap` |
+
+**Two things in that table were NOT in the plan this paragraph originally described, and both are
+corrections rather than refinements.**
+
+**1 · The authorisation goes to all three arms, not to B alone.** The plan said "A prohibited
+(`--disallowed-tools`, unchanged)". But the defect was never *"B lacked permission"* — it was *"the
+arms differed in an instruction nobody had read"*, which is this section's own general form. Levelling
+selectively re-creates that in a new place. All three now carry byte-identical text, so **A vs B differ
+by one flag and B vs C by the prompt** — one dimension each, which is what the design claimed from the
+start.
+
+**2 · The first draft of the authorisation was a nudge.** It read *"use subagents where they earn their
+keep"* — a recommendation, not a permission, and an arm told delegation earns its keep and then scored
+on whether it delegates measures compliance with the recommendation. That is this experiment's standing
+warning ("any wording that moves B measures COMPLIANCE rather than judgment") applied to the fix rather
+than to the arm, and the fix walked into it. The shipped text says the opposite in as many words: *"this
+is an authorisation, not an instruction: working solo and delegating are both fully acceptable, and
+neither is preferred."*
+
+**Probed both directions before first use, and the probe replaced its own predecessor.** The per-cell
+capture that asked each session to reproduce its system prompt is **dead as at 2026-08-26** — the same
+invocation now declines outright, *with and without* the flag, so its `NOT-REPORTED` verdict could no
+longer distinguish *the clause is gone* from *the question was refused*. A control whose negative
+reading is ambiguous cannot fail. It is replaced by a behavioural probe that asks about the **binding**
+rather than the text — *"if a step would be well served by spawning a subagent, are you permitted to do
+that without asking me first?"*:
+
+| session | reply |
+|---|---|
+| unauthorised | "**Yes** — my operating instructions for this session say **not to call the Agent tool unless you request it**, so I'd need your go-ahead first" |
+| authorised | "**Yes** — this session's authorization explicitly permits me to spawn subagents … leaving the decision of whether delegation actually helps to my judgement" |
+
+The unauthorised session names the prohibition **verbatim and unprompted** — a fourth independent
+replication, and the first from a session that refuses to quote its own prompt. **Both opened with
+"Yes", and one contradicted itself in the next clause**, so the classifier scores the REASON and never
+the verdict token; a yes/no grep would have called the defect fixed while it was still live. Three
+verdicts, not two — `AUTHORISED` / `PROHIBITED` / `UNCLEAR` — so a refusal cannot collapse into either
+answer.
+
+⚠ **One limit the probe cannot reach, and arm A cannot either.** Run with A's exact flags, the session
+replied *"this session's authorization explicitly covers spawning subagents … I can delegate at my own
+discretion."* **It has no `Agent` tool and does not know it.** So `AUTHORISED` means *permission
+granted*, never *capability present*, and no self-report can catch `--disallowed-tools` silently
+failing — the class that has now voided cells twice. The detector that can needs no model:
+`delegation-requests.mjs` counts Agent requests in the stream, so a **successful** Agent call in an
+arm-A stream means the flag did not bind and the cell is void. **Unsuccessful** attempts are expected
+under the levelled authorisation and are data, not defects — they say A wanted to delegate, a reading
+arm A could not previously produce at all.
 
 The documented behaviour arm B is being held to, verbatim from that page:
 
@@ -1234,6 +1379,34 @@ spend out of the main transcript and into files the main transcript never refere
 confound below. And the main session sees **only the summary**, so any quality difference between B
 and C must come from what the delegation prompt asked for and what the report was required to carry,
 not from the main session having watched the work.
+
+**⚠ AMBIGUITY IN ARM B, RESOLVED 2026-08-24 BEFORE ARM B RAN (Stéan's call).** The definition above
+reads two ways, and they measure different things: the repo's five tuned agents **are** `name` +
+`description` frontmatter agents, so "delegation exactly as documented" does not by itself say
+whether they are present.
+
+**Resolved: arm B keeps the same agents and loses the WORKFLOW.** Arm B is a plain prompt with
+delegation allowed and Claude deciding whether to delegate from the descriptions; arm C is the same
+tree invoked through `/build` → `/walk` → `/wrap`. The isolated variable is therefore **the
+workflow**, not the agent definitions.
+
+Why not the other reading: removing `.claude/agents/` from an arm-B tree makes
+`check-rules-tracked.mjs` fail on "a file git tracks that is gone from disk", so all nine arm-B runs
+would have failed **criterion 1** for a reason having nothing to do with the task, and the experiment
+would have reported "stock delegation cannot get the gate green" — manufactured entirely by the
+harness. Exempting that check per-arm would have added a second tree difference to an experiment
+designed to have one variable.
+
+**The probe that forced this, and why it is recorded rather than quietly worked around:** the plan was
+to suppress the tuned agents at invocation with the CLI's agent-definition flag. Probed both
+directions in the arm-B worktree at `1c9b6bbd` — the control listed `census, crawler-doctrine,
+db-inspector, grounder, implementer, walker` alongside the stock set, and the flag **changed nothing**:
+it merges, it does not replace. An arm B configured that way would have been arm C under a different
+label, producing a "workflow makes no difference" result that no reader could have detected from the
+output. **Consequence for scoring:** arm B may legitimately choose not to delegate at all, and zero
+subagents is then a real finding about the default rather than a harness failure — the reconciliation
+finding only fires when `Agent` calls happened and their transcripts are missing, so it stays quiet
+here correctly.
 
 ⚠ **Arm B is not "arm C minus the good parts".** It is the documented default with the repo's
 customisations removed — which means arm B still gets `CLAUDE.md` (the docs are explicit that "every
@@ -1266,7 +1439,7 @@ and would be the single easiest place for this experiment to lie to itself.
 | weighted cost units | same multipliers `.claude/hooks/context-budget.js` already applies |
 | turn count · tool calls by type | transcript line counts |
 | subagent count · **max spawn depth** · spend by agent type | `agent-*.meta.json` sidecars |
-| reconciliation shortfall | depth-1 sidecars vs `Agent` tool calls in the main transcript |
+| reconciliation shortfall | depth-1 sidecars vs `Agent`/`Task` tool calls in the main transcript |
 
 **Why active time as well as wall-clock.** Wall-clock over a session that sat overnight measures when
 the human went to bed. Active time is the closest honest proxy for how long the work took, and it is
@@ -1337,6 +1510,14 @@ Per task, decided now:
 4. **Baseline/allowlist discipline** — entries carry reasons; nothing widened to make the gate green.
 5. **Register hygiene** — is the entry closed honestly, including what the build does NOT cover?
 6. **Adversarial survival** — `walker` run identically against all 27 outputs; count surviving findings.
+   ⚠ **Each walker report is written to its own numbered path — `<task>/<replicate>/walker.md` — and
+   never appended to a shared artefact.** This is **M-076** landing on the one criterion that spans
+   all 27 runs: the register entry's finding is that the practice had drifted to appending walker
+   output in place, which across 27 runs would leave 26 of them overwritten and the 27th reading as
+   the whole result. The run outputs are already path-separated by the blinding procedure below; the
+   *reports* need the same treatment and do not get it for free. Stated as protocol because M-076's
+   sequential-numbering half is unbuilt — nothing will fail if this is skipped, which is precisely
+   why it is written down.
 
 Criteria 1, 2, 3 and 6 are countable by someone who was not present. Criteria 4 and 5 are judgement,
 and are marked as such in the results table rather than blended into a single score.
@@ -1389,10 +1570,44 @@ main-transcript-only harness would have reported that session as costing ~153M i
 would have understated any delegating arm by roughly that fraction. (The session was still running
 when measured, so those totals grew as it went; the ratio is the durable part, not the absolutes.)
 
-**Independently corroborated.** `.claude/hooks/context-budget.js` computes agent spend by its own
-route and reported "36 invocations, ~43.9M billable-equivalent" for the same session. Two
+**⚠ RETRACTED 2026-08-24 — THE "CORROBORATION" WAS TWO COPIES OF ONE DEFECT AGREEING.** This
+paragraph read: *"Independently corroborated. `.claude/hooks/context-budget.js` computes agent spend
+by its own route and reported '36 invocations, ~43.9M billable-equivalent' for the same session. Two
 implementations, written for different purposes, agreeing to three significant figures — which is
-worth more than either number alone, and is the closest thing available to a calibration.
+worth more than either number alone, and is the closest thing available to a calibration."*
+
+It is not a calibration. **Both scripts summed `message.usage` per transcript LINE**, and one API
+response occupies several lines — text, thinking, and one per `tool_use` block — each repeating the
+same `usage` object. Both therefore billed a response once per content block, and they agreed
+because they shared the defect. This is precisely the trap `check-migration-forward-refs.mjs`'s own
+header names: *"a defect both artefacts inherited together agrees with itself. Independent
+verification needs an independent reference point."* Agreement between two instruments is evidence
+only when they are independent, and these two were not — they were written by the same hand from the
+same wrong model of the transcript format.
+
+**Found by an actual independent reference, which existed the whole time and was not used:** the
+CLI's own `result` event. On E16 arm A (task 2, r1, session `f2781cac`, 2026-08-24) the transcript
+held **170 assistant lines with usage but only 103 distinct `message.id`s**. Per-line: 22,374,437
+cache-read. Per-id: 14,520,451 — matching the `result` event exactly, to the token.
+
+**Why this could not be waved through as uniform inflation.** The factor is `lines ÷ ids`, which is
+behavioural: an arm emitting more tool calls per response inflates more than one that does not. It
+biases arm-vs-arm comparison along the exact axis this experiment measures.
+
+`scripts/transcript-metrics.mjs` was corrected the same day to bill once per `message.id`, with
+probes in all three directions (split response billed once; distinct ids still summed; a usage
+record with no id counted rather than dropped, erring toward over-counting rather than silent loss).
+**`.claude/hooks/context-budget.js` is NOT fixed** — its incremental-offset reader needs the seen-set
+persisted across reads, which is a build rather than a line. Filed as **M-136** (first filed as
+"M-096" on the unmerged E16 branch, where the number collided with `main`'s). Until it lands,
+every figure that hook has printed — including the per-turn context cost in this repo's own session
+banners — is inflated by that factor.
+
+**What survives of the numbers above.** The 43.90M and ~197M absolutes are wrong and are left
+standing above only so this retraction has something to point at. The **22.3% ratio is probably
+approximately right** — main and subagent transcripts inflate by similar factors, so the quotient
+largely cancels — but it is now an unverified estimate rather than a measurement, and the argument
+for summing subagent files does not depend on its precision.
 
 **What the same run says about weighting.** main + subagents: 1,410M cache-read against 7.16M
 output. Counting output tokens — the intuitive proxy — would have measured about half a percent of
@@ -1408,7 +1623,7 @@ counting a different thing.
 
 That turns a stated imprecision into two assertions the harness now makes:
 
-- **Reconciliation.** Depth-1 sidecars are matched against `Agent` calls. *Fewer* transcripts than
+- **Reconciliation.** Depth-1 sidecars are matched against `Agent`/`Task` calls. *Fewer* transcripts than
   calls is a FINDING and exits non-zero — that is spend which really happened and was not found, and
   it is the direction that flatters a delegating arm. *More* is reported, not failed. A windowed read
   never raises it, because a window legitimately clips the spawning turn out of the main transcript.
@@ -1417,6 +1632,14 @@ That turns a stated imprecision into two assertions the harness now makes:
   were nested. Max depth is reported per arm. This was the review's sharpest point: if arm C's agents
   fan out further than assumed and those transcripts went uncounted, arm C's cost would be understated
   and the experiment would flatter its own method. They are counted, and now they are also labelled.
+
+⚠ **The delegation tool has TWO spellings and the harness must count both.** A `claude -p` session
+names it `Task`; an orchestrating session names the same tool `Agent`. Counting only `Agent` reported
+**zero delegations for a session that had delegated** — silent, and in the direction that makes a
+delegating arm look solo. Fixed before the E16 batch (`transcript-metrics.mjs`, and `live.sh` in the
+run harness); the two labels above said `Agent` alone until 2026-08-24 and are corrected rather than
+left, because a label that names one half of what a control checks is how the next reader concludes
+the other half is unchecked.
 
 Spend by agent type for that session, which is the shape arm C is expected to produce:
 `census×12 17.32M · implementer×5 13.00M · grounder×14 7.20M · walker×4 6.12M`. Note that `census`
@@ -1483,7 +1706,1064 @@ unmeasured for tasks 2 and 3 by construction, and the finding must say so.
 
 ### Next action
 
-The 27 runs. Per run: fresh worktree pinned to `fbbc59f4`, `--probe` re-run first, the arm's slice
+The 27 runs. Per run: fresh worktree pinned to `1c9b6bbd`, `--probe` re-run first, the arm's slice
 bounded by `--since`/`--until`, `--expect-subagents=false` on arm A so its empty result is quiet and
-the delegating arms stay loud, `--json` captured verbatim as the record, and `/usage` sampled for the
-window per M-21. Arm order randomised within each task; the order recorded per row.
+the delegating arms stay loud, `--json` captured verbatim as the record, `walker` written to
+`<task>/<replicate>/walker.md` per criterion 6, and `/usage` sampled for the window per M-21. Arm
+order randomised within each task; the order recorded per row.
+
+⚠ **A fresh worktree has no `node_modules`, and the install is NOT part of the arm.** Verified
+2026-08-24 by cutting one at `1c9b6bbd`: `git worktree add` copies the tracked tree only, so
+`npm run check` — criterion 1, run identically in every tree — cannot execute until dependencies are
+installed. Two consequences, both protocol rather than build:
+- **`npm ci` runs BEFORE the arm's clock starts**, and its duration is excluded from both wall-clock
+  and active time. An install counted into the run would add several minutes of identical cost to all
+  27 rows, compressing every between-arm difference toward zero — noise that flatters nothing in
+  particular but blunts the whole comparison.
+- **The transcript directory does not exist until a session has run in that worktree.** The same
+  verification showed `--probe` correctly refusing to guess and naming the four candidate dirs rather
+  than falling back to one. So the per-run `--probe` in this list means *probe the harness in the
+  main checkout against a session with known `Agent` calls*, before the batch — not inside a
+  worktree that has no transcripts yet. Metrics for an arm are read AFTER it completes, from the
+  worktree's own cwd-derived slug.
+
+⚠ **The pin is `1c9b6bbd`, not `fbbc59f4`** — see the re-baselining note in Design. This line said
+`fbbc59f4` until 2026-08-24 and is called out rather than quietly corrected, because a baseline that
+disagrees with itself between a doc's header and its run instructions is the failure this repo has
+already paid for once: a status corrected in one place and left standing in four others reads as
+reviewed. Both places now say `1c9b6bbd`, and `grep fbbc59f4` over this file should return only the
+re-baselining note's own history.
+
+### RESULT — task 2 (M-022), nine runs, 2026-08-24
+
+Every figure below is read by `transcript-metrics.mjs` from the transcripts, or is the CLI's own
+`result.total_cost_usd`. **Nothing here is a number an arm reported about itself.** Reconciliation is
+clean in all nine rows: depth-1 sidecars equal `Agent`/`Task` calls, max depth 1.
+
+| run | arm | wall | main active | sub active | main turns | cacheWrite | cacheRead | output | **weighted** | **cost** | deleg |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| r1 | A | 29.5m | 19.4m | — | 103 | 205k | 14.52M | 77k | 1.79M | $11.24 | 0 |
+| r1 | B | 23.1m | 11.9m | — | 46 | 175k | 6.96M | 57k | 0.97M | $6.64 | **0** |
+| r1 | C | 51.7m | 17.1m | 12.6m | 71 | 181k | 10.58M | 80k | 2.08M | $13.66 | 2 |
+| r2 | A | 24.7m | 13.5m | — | 68 | 167k | 9.41M | 63k | 1.21M | $7.96 | 0 |
+| r2 | B | 19.2m | 9.6m | — | 47 | 156k | 6.32M | 57k | 0.88M | $6.14 | **0** |
+| r2 | C | 46.5m | 19.1m | 10.9m | 85 | 233k | 15.05M | 116k | 2.45M | $16.32 | 2 |
+| r3 | A | 22.1m | 11.5m | — | 51 | 159k | 7.00M | 64k | 0.96M | $6.70 | 0 |
+| r3 | B | 17.4m | 9.4m | — | 49 | 144k | 6.13M | 53k | 0.85M | $5.84 | **0** |
+| r3 | C | 42.2m | 17.7m | 11.6m | 84 | 215k | 13.32M | 97k | 2.49M | $15.75 | 2 |
+
+⚠ **`result.usage` is NOT a session total and must not be used** — on r1/C it reports 5.50M cache-read
+against the harness's 10.58M for the main session alone. `total_cost_usd` from the same event **is**
+trustworthy and **does include subagent spend**: verified rather than assumed, twice. On r2 the cost
+ratio C÷A is 2.05× against a main+subagent weighted ratio of 2.02× (main-only would give 1.58×); and
+on r1, C's main-only weighted total (1.36M) is *lower* than A's (1.79M) while C costs more — which is
+impossible if the figure were main-only.
+
+### The negative control, and why it comes before the numbers
+
+**Arms A and B behaved identically** — solo, zero delegations, three replicates each. So *any* measure
+on which A and B separate is a measure that cannot be trusted to separate C, because it is separating
+two arms that did the same thing. **A-vs-B is this experiment's negative control**, and it is free: it
+was already in the design, nobody had to build it, and it went unread for the first eight runs.
+
+With three runs per arm, complete separation of two arms is exactly one of the C(6,3)=20 label
+assignments — **one-sided exact permutation p = 0.05**. That is the *same* strength as C-vs-A. So
+"every C run cost more than every A run" cannot be evidence for the workflow's premium while "every A
+run cost more than every B run" is dismissed as noise. It is one property of the design, and the
+control prices it.
+
+**Raw dollar cost FAILS the control.** A separates from B on cost (A [6.70, 11.24] vs B [5.84, 6.64]),
+so the C-vs-A cost separation carries no more weight than a separation between two arms known to be
+doing the same work. **Cost is therefore not the metric to lead with, and an earlier draft of this
+section led with it** — stated here rather than quietly swapped, because leading with the one measure
+that fails its own control is the error, not the phrasing.
+
+### Medians with full ranges — never a mean
+
+Per the pre-registration: *median and full range per cell, never a mean, never a single number without
+its spread.* This matters here rather than being ceremony — arm A is skewed by r1/A, and a mean pulls A
+up, which **shrinks C's apparent premium by 12%** (C÷A reads 1.77× on means against 1.98× on medians).
+The banned statistic understated the effect being tested; it would have been the ninth defect running
+in the direction that flatters the hypothesis, and the first in the write-up rather than the harness.
+
+| measure | A | B | C | C÷A | C÷B | C vs A | C vs B | **A vs B — CONTROL** |
+|---|---|---|---|---|---|---|---|---|
+| **$ per min of work** | 0.58 [0.58, 0.59] | 0.62 [0.56, 0.64] | **0.54** [0.46, 0.54] | **0.92×** | **0.87×** | separates | separates | **overlaps ✓** |
+| **model-min of work** | 13.5 [11.5, 19.4] | 9.6 [9.4, 11.9] | 29.7 [29.3, 30.0] | 2.20× | 3.09× | separates | separates | **overlaps ✓** |
+| weighted tokens (M) | 1.21 [0.96, 1.79] | 0.88 [0.85, 0.97] | 2.45 [2.08, 2.49] | 2.02× | 2.78× | separates | separates | overlaps, **by 0.01M** |
+| wall-clock (min) | 24.7 [22.1, 29.5] | 19.2 [17.4, 23.1] | 46.5 [42.2, 51.7] | 1.88× | 2.42× | separates | separates | overlaps ✓ |
+| main active (min) | 13.5 [11.5, 19.4] | 9.6 [9.4, 11.9] | 17.7 [17.1, 19.1] | 1.31× | 1.84× | **overlaps** | separates | overlaps ✓ |
+| cost ($) | 7.96 [6.70, 11.24] | 6.14 [5.84, 6.64] | 15.75 [13.66, 16.32] | 1.98× | 2.57× | separates | separates | **SEPARATES ✗** |
+
+"Separates" = the two arms' full ranges do not overlap, p = 0.05 exact. **Model-minutes of work is
+`main active + subagent active`, and it is a WORK quantity, not a duration** — the rule that subagent
+time never sums into a run's *duration* is intact above, where wall-clock and main-active are reported
+separately and subagent time is its own column in the per-run table. Summing them as work is a
+different quantity, and it is labelled as one.
+
+**Two rows survive the control comfortably and both point the same way.** `$/min-of-work` is the
+cleanest of the set — A's range sits entirely *inside* B's, so the control is not merely passed but
+passed with room, and C separates from both **below** them:
+
+> **C does more work and pays LESS per unit of it.** C's premium is that it does 2.2× the work, not
+> that its work is dearer — per model-minute it is 8% cheaper than A and 13% cheaper than B.
+
+That inverts the naive reading of the cost column, and it is the finding this section exists to carry.
+Whether 2.2× the work was *worth doing* on this task is the quality question below, and the answer
+there is no — but "the workflow burns tokens inefficiently" is not what these numbers say.
+
+⚠ **Weighted tokens passes the control by 0.01M** (A's [0.96, 1.79] against B's [0.85, 0.97]). That is
+a hair, not a margin. It is reported as passing because it passes, and flagged because one more
+replicate could move it either way.
+
+⚠ **Main active does NOT separate C from A** (C [17.1, 19.1] against A [11.5, 19.4]). Any claim about
+C being faster or slower *in main-session work* remains unsupported — as it was when withdrawn earlier.
+
+### The two-measure agreement is calibration, not corroboration
+
+Weighted units and `total_cost_usd` are **two functions of one set of counts** — both derive from
+`message.usage`. They are not independent references, and a defect both inherit would agree with
+itself. This register has already retracted exactly that claim once; it is not being made again.
+
+What the agreement *does* establish is worth keeping, and it is a different claim: **the 1.25× / 0.1×
+multipliers and the summation path reconcile with the vendor's own cost computation.** Dollars per
+weighted-M come out at **A $6.58 [6.28, 6.98] · B $6.87 [6.85, 6.98] · C $6.57 [6.33, 6.66]** — the
+three medians spanning **~4.6%**, and every individual run **~11%**, across arms whose token *shapes*
+differ by design. That is a calibration check on this repo's cost model, and it passes. It says nothing
+about whether C÷A is 1.98×.
+
+### Four findings, in order of how much they constrain the conclusion
+
+**1 · Arm B never delegated — 0 for 3.** B and C are bit-identical in tree and tool configuration; B
+simply was not told to run the pipeline. **So A-vs-B is not delegation-vs-no-delegation** — it is two
+solo arms that differ only in whether the tool was reachable, and the experiment as designed cannot
+answer "does delegation help" from this pair.
+
+> ⚠ **RETRACTED 2026-08-25 — the clause "given a free choice on this task, the model declined every
+> time", and the framing of this as evidence about model judgment.** B had no free choice: every
+> session on this account carries *"Do not call the AgentTool unless the user requested it"*, and B's
+> brief requests nothing. See *The instruction that voids arm B* above. The finding that survives is
+> the narrower one left standing: A-vs-B is solo-vs-solo, which is what makes it a usable negative
+> control. What does **not** survive is any reading of B's 0-for-3 as the model's own assessment of
+> the task.
+
+**2 · A÷B is therefore a floor on this harness's noise, and it is wider than a single figure suggests.**
+The honest floor is the **per-replicate** spread, not a ratio of medians and not a range across
+measures: on cost **1.15× · 1.30× · 1.69×**, on weighted tokens **1.13× · 1.38× · 1.85×**. An earlier
+draft quoted "1.39–1.47×", which is the gap between *two measures' mean ratios* — a between-measure
+range wearing the label of a noise range, and it reads about a third tighter than the truth. At its top
+end that floor (1.69×) **exceeds r1's entire C÷A cost margin of 1.22×**.
+
+One caveat against calling it pure noise: A exceeded B in **all three** replicates, and A carries nearly
+all the within-arm variance (weighted max÷min: **A 1.87×**, B 1.14×, C 1.20×). Whether
+`--disallowed-tools` itself perturbs behaviour, or A is simply the high-variance arm, is not decidable
+from three points and is **not** claimed either way here.
+
+**3 · Quality is UNSCORED — not tied.** Three of the six criteria were checked, all three came out
+level, and **all three were effectively pre-solved by the brief.** Criteria 4 and 5 need blind scoring
+and have not had it. Criterion 6, adversarial survival, is the one most likely to discriminate and it
+**has not been run as a comparison at all.**
+
+What was checked, and why each is weaker than it looks:
+- **Gate green** (criterion 1) — nine of nine. The brief's own exit condition is "end at `npm run check`
+  green", so this measures whether each arm did as it was told.
+- **Both-direction `--selftest`** (criterion 2) — nine of nine. The brief says "follow this repo's
+  conventions as stated in `CLAUDE.md`", and CLAUDE.md already mandates probing both directions. It
+  measured **compliance**, which was total.
+- **Decoy declined** (criterion 3) — nine of nine. But `docs/MECHANISABLE.md`'s own M-022 entry, which
+  the brief points every arm at, already **names the honeytoken and states the live population is
+  zero**: *"a naive grep for `ON CONFLICT (email)` scores 1/2 — it flags the honeytoken seed."* The
+  arms were handed the trap along with the task.
+
+⚠ **And criterion 2's green is itself refuted where anyone looked.** Arm C's own `walker` on r1 found
+that one of that build's cited probe arms is **vacuous** — `ok(Object.keys(ALLOW).length === 0 || …)`
+short-circuits on an empty `ALLOW`, so it asserts nothing and *"there is no negative direction at
+all"* — alongside **four silent-miss classes** in a detector whose gate was green: unterminated
+literals blanking a file to EOF, `DO LANGUAGE plpgsql $$` bodies read as literals (44 live sites), a
+spaced or commented dot in `auth . users`, and dynamic `EXECUTE format(...)` SQL (5 live sites).
+
+**Running an arm's `--selftest` and seeing it pass cannot detect any of that** — which is this repo's
+own scar restated: *a probe suite confirms the cases you thought of; it cannot report the class you did
+not.* The measurement that found it was an adversarial pass, and **only arm C got one**, because only
+`/walk` spawns `walker`. A and B's outputs have never been walked. So the arms are not level on
+quality; **they are unequally examined**, and the arm examined hardest is the only one with a public
+list of its own defects.
+
+**Scoring criterion 6 fairly needs an independent adversarial pass over all nine outputs, blind to
+arm.** That is unrun work, and until it is run "quality is a tie" is not a finding this experiment
+supports.
+
+**4 · C's overhead is delegation, not more main-session work.** Main-active does not even separate C
+from A (C [17.1, 19.1] against A [11.5, 19.4]) while total work separates cleanly at 2.20× — the
+entire gap lives in the subagents (median 11.6m, **overlapping** the parent's wall clock and never
+summed into its duration) and in the cache-read those fresh contexts drive.
+
+### What this does and does not license
+
+**It licenses:** on a narrow read-and-classify surface, the workflow did **2.2× the work** of a solo
+session (3.1× an unprompted one) for **2.0× the spend** — at a *lower* price per unit of work than
+either solo arm. Both of those clear the negative control. This repo's own doctrine says do not
+delegate such a surface, and arm B — free to choose — agreed with the doctrine three times out of
+three. Arm C delegated twice per run anyway, because **`/build` opens with an unconditional `grounder`
+spawn** (`.claude/commands/build.md`) — its first delegation is never a judgment call. Task 2 is thus
+the one cell in the whole design where mandate and judgment could visibly diverge, and they did.
+
+**It does not license "the workflow is overhead."** Three separate reasons, and the third is the one
+that decides it:
+- Task 2 was chosen as a surface where delegation *should* lose, and it lost. Generalising one
+  deliberately unfavourable cell to the method is the error E17 exists to avoid.
+- The premium is **volume of work, not inefficiency** — C is cheaper per model-minute than either solo
+  arm. "It costs more" and "it wastes" are different claims and only the first is supported.
+- **The benefit side of the ledger was never measured.** Quality is unscored, not tied (finding 3), and
+  the only adversarial pass anyone ran found four silent-miss classes and a vacuous probe arm — in the
+  arm that *had* the pass. A verdict on whether 2.2× the work bought anything requires walking all nine
+  outputs blind, and that has not been done.
+
+**It does not license "the workflow pays for itself" either.** Same missing measurement, other
+direction.
+
+---
+
+## E17 · Does the workflow's cost gap close on tasks where delegation actually pays? — **TASK 1 RUN (9/9): the gap did NOT close, it widened — but the premise was never tested, because arm B is under a standing prohibition on delegating. Quality still UNMEASURED**
+
+⚠ **Task selection was CONDITIONED ON E16's RESULT, and this section is written before any E17 run.**
+That is the whole reason for a separate id. E16's task 2 was a narrow read-and-classify surface where
+this repo's own doctrine says *do not delegate* — so its cost gap measures the price of delegating
+where delegation was not warranted, and generalising it to "the workflow is overhead" would be
+reading one deliberately unfavourable cell as the whole table. E17 asks the complementary question on
+tasks chosen because delegation *should* pay. Choosing the tasks after seeing E16 is a real degree of
+freedom; it is declared here rather than defended later.
+
+**Tasks.** M-061 (census-shaped: a repo-wide classification sweep, `data-boundary`) and M-087 (an
+`ok()` helper — implementer-shaped, and recorded in the brief as *a decision, not a cleanup*). Chosen
+to be different from each other, not only from task 2: they should attract **different agent types**
+for **different reasons**, so a delegation result cannot be an artefact of one agent's shape.
+
+**Same as E16, unchanged:** harness (`transcript-metrics.mjs`, frozen from r2 of task 2 onward, with
+the two exceptions recorded in the run protocol), rubric, baseline `1c9b6bbd`, arm definitions,
+launcher, and the strictly-sequential rule. Arms A/B/C are as E16 defines them — and note that **B
+and C are bit-identical in tree and tool configuration and differ ONLY in the prompt.** B is a plain
+brief with delegation reachable; C is `/build` → `/walk` → `/wrap`.
+
+**One brief-level change, applied to tasks 1 and 3 only and NOT retro-fitted to task 2:** both briefs
+end with *"In the report, state whether you used subagents and why or why not."* That asks the arm to
+**report** a choice, never to make one — a brief that nudged toward delegating would destroy the
+measurement it exists to take.
+
+### Falsifiable prediction, registered BEFORE the runs
+
+Both delegating arms are expected to delegate here — **B by judgment, C by pipeline mandate** (`/build`
+opens with an *unconditional* `grounder` spawn, so C's first delegation is never a judgment call; this
+was verified in `.claude/commands/build.md`, and it makes task 2 the only cell in the design where
+mandate and judgment could visibly diverge). Therefore:
+
+- **COST CONVERGES.** E16's gap is the cost of delegating where it was not warranted; it should shrink
+  where it is.
+- **QUALITY DIVERGES.** Criterion 6 (adversarial findings surviving) is where a structured pipeline
+  should separate from a free-form one, if it separates anywhere.
+
+⚠ **Criterion 2 is retired as a discriminator, on E16's evidence, before E17 runs.** Both briefs say
+"follow this repo's conventions as stated in `CLAUDE.md`" — the same clause task 2 carried — and
+CLAUDE.md already mandates probing both directions. On task 2 it scored 9/9 and measured compliance,
+not quality; it will do the same here. Worse, E16 showed the measurement is not even sound: arm C's
+own `walker` found a **vacuous** probe arm inside a build whose `--selftest` ran green, which running
+a selftest cannot detect. **That drops the mechanically-countable criteria from four to three and puts
+the weight on criterion 6** — which means E17 is only worth running if criterion 6 is actually scored.
+
+**Therefore, registered as a REQUIREMENT of E17, not an optional extra:** an independent adversarial
+pass over every arm's output, **blind to arm**, scored on findings that survive. Without it E17 measures
+cost against an unmeasured benefit, which is the exact hole E16 ended in. Note this cannot be arm C's
+own `walker` output — that is part of C's process, and only C produces it.
+
+Falsification, stated in advance — and stated against **both** solo arms, because C÷B alone is the
+largest of the three ratios and quoting it is how this result would flatter itself:
+
+- **Gap holds AND quality equal** → the workflow is overhead, and E16's task-2 result generalises.
+- **Gap converges AND quality equal** → the workflow is neutral.
+- **B declines to delegate anyway** → that task reverts to *solo-vs-workflow* and is REPORTED AS SUCH,
+  not as delegation-vs-delegation. B delegating on tasks 1 and 3 is a **hypothesis, not a fact**: on
+  task 2, B declined in every replicate.
+  **RESOLVED, and against the prediction: B declined all three times on task 1 as well — 0 for 6.**
+  The registered prediction "both delegating arms are expected to delegate here, B by judgment" is
+  **FALSIFIED**, and the reason is not the task: B is under a standing account-level prohibition it
+  was never going to break (see *The instruction that voids arm B*). The pre-registered branch above
+  therefore fires — tasks 1 and 2 are **solo-vs-workflow**, reported as such.
+
+⚠ **The noise floor is A÷B, and it is not small.** A and B behaved identically on task 2 — neither
+delegated, in any replicate — so the spread between them is this harness's floor for a two-arm cost
+comparison, and on r1 it exceeded the C-vs-A margin of the same replicate. Any E17 "convergence" claim
+must clear that floor before it is a finding rather than a reading.
+
+### No pooled headline — pre-registered, not left to the id alone
+
+Three tasks **built to disagree**. How they combine is a free parameter sitting directly on the axis
+of interest, so it is fixed now: **three per-task results reported side by side, no pooled number, and
+any cross-task claim stated qualitatively.**
+
+### RESULT — task 1 (M-061), nine cells, all gates green · run 2026-08-24/25
+
+**What ran.** Baseline `1c9b6bbd`, Latin square (r1 `A B C` · r2 `B C A` · r3 `C A B`) rather than
+task 2's fixed rotation, which leaves position confounded with arm across the whole task; with n=3 a
+square removes that confound exactly, where randomisation removes it only in expectation. Strictly
+sequential throughout — one shared `node_modules` junction, and `vitest` writes `.vitest-count.json`
+into it, so two arms at once score each other's trees.
+
+Two cells were lost and replaced, both recorded rather than quietly re-run: **r2/A** was launched on
+top of a still-running r1/C by a driver whose timeout returned a code the batch loop ignored — killed,
+tree removed junction-first, transcript quarantined, re-run. **r3/B** died on *"API Error: Connection
+lost mid-response"*, retried as **r3x/B** with the void cell retained as evidence. Scored spend
+**$182.18**, plus **$12.47** on the two void cells.
+
+**Arms as they actually were: forced solo (A) · constrained solo (B) · authorised workflow (C).** B
+delegated zero times, for the reason above; this is not delegation-vs-delegation and is not reported
+as such.
+
+| measure | A | B | C | C÷A | C÷B | **A vs B — CONTROL** |
+|---|---|---|---|---|---|---|
+| **$ per min of work** | 0.72 [0.70, 0.83] | 0.66 [0.66, 0.75] | **0.60** [0.58, 0.60] | **0.83×** | **0.90×** | overlaps ✓ |
+| **model-min of work** | 19.2 [15.7, 22.9] | 22.0 [18.9, 30.1] | 52.0 [46.1, 52.7] | 2.71× | 2.36× | overlaps ✓ |
+| weighted tokens (M) | 2.21 [2.13, 2.69] | 2.40 [2.03, 3.56] | 5.09 [4.64, 5.18] | 2.30× | 2.12× | overlaps ✓ |
+| cost ($) | 13.50 [13.06, 16.49] | 14.57 [12.38, 22.61] | 30.22 [27.89, 31.46] | 2.24× | 2.07× | overlaps ✓ |
+| wall-clock (min) | 48.7 [30.2, 56.3] | 56.8 [31.1, 82.6] | 106.6 [58.0, 108.0] | 2.19× | 1.88× | overlaps ✓ |
+| main active (min) | 19.2 [15.7, 22.9] | 22.0 [18.9, 30.1] | 30.7 [26.4, 37.4] | 1.60× | 1.40× | overlaps ✓ |
+| turns | 103 [97, 129] | 119 [98, 178] | 166 [150, 198] | 1.61× | 1.39× | overlaps ✓ |
+
+**All seven measures survive the negative control on this task** — including the two that failed it on
+task 2. **Cost and turns both separate A from B on task 2 and overlap on task 1**, which is itself the
+useful reading: the control is not a property of a measure, it is a property of a measure *on a task*,
+and a measure cleared once is not cleared for good. Neither may be headlined from task 2; both are
+reportable here, with that history attached.
+
+**The registered prediction was COST CONVERGES. It did not.** The gap on this task is *wider* than
+task 2's, not narrower: C÷A on cost 2.24× against task 2's 1.98×, on work 2.71× against 2.20×. The
+prediction rested on B delegating by judgment and C's premium being the price of delegating where it
+was not warranted; with B prohibited, the comparison never tested that. **The prediction is recorded
+as falsified on the numbers and unevaluable on its premise** — those are different failures and
+collapsing them would flatter the design.
+
+**What replicates cleanly across both tasks is the price-per-unit result, and it strengthened.**
+C does more work and pays less per unit of it: **$0.60/work-min against A's $0.72 and B's $0.66**, with
+C's full range [0.58, 0.60] sitting entirely below both. Task 2 read 0.54 vs 0.58/0.62 on the same
+measure. Two tasks, two different shapes, same direction, control cleared both times.
+
+**Delegation depth tracked the task, and the wall-clock consequence is the sharper finding.** C's three
+runs spawned 2 · 3 · 6 agents (`grounder` every time; `census`×3, `implementer` and `walker` as the
+task demanded). **r3/C did the most delegation and finished FASTEST in wall-clock — 58.0 min against
+r1/C's 106.6 — at equal work and equal cost.** The difference is not efficiency, it is overlap: r1/C
+blocked 25.9 min waiting on a single awaited agent; r3/C's largest idle gap was 3.9 min. **Backgrounded
+agents overlap main work; awaited ones serialise it**, and only wall-clock can see the difference —
+work, tokens and cost are identical across the two. A pipeline that delegates more is not necessarily
+slower, and may be considerably faster.
+
+**Task 1 was census-shaped, and the transcripts say so.** An earlier reading of this register claimed
+task 1 was mis-shaped for delegation; that is **withdrawn** — r3/C's three `census` spawns carry prompts
+reading *"I need FACTS per site so I can classify"*, which is the KNOW/HOLD split applied correctly:
+delegate what you need to know, hold what you need to judge.
+
+**Still unmeasured, and it is the same hole task 2 ended in: criterion 6.** Cost is now measured twice
+and quality zero times. Two preconditions are recorded before those 18 review runs — **arm C's output
+enters review already walked**, so C must be bundled twice (pre-walk and post-walk, with the pre-walk
+state reconstructed as *final tree minus every edit postdating the walker's return*, and reconstructed
+BEFORE bundling, since re-shuffling afterwards invalidates the blind labels); and the **resolved system
+prompt must be captured per run**, which is owed anyway now that an unread system prompt has voided an
+arm once. Until criterion 6 runs, this register may state what the workflow *costs* and must not state
+what it *buys*.
+
+### The blind was built, then MEASURED — 2026-08-25. Three harness leaks, and what remains
+
+The corpus exists: 12 bundles per task (A · B · C-post · C-pre × 3 replicates), deterministic shuffle,
+key written outside the corpus, `.handoff/**` excluded, each bundle carrying `CHANGES.diff` against
+`1c9b6bbd` so the reviewer scores the CHANGE and not the baseline.
+
+**Balanced tell counts were not a measured blind, and the direct probe is what found that.** The
+build reported residual tells at A 9 · B 8 · C-post 8 · C-pre 7 and read the evenness as evidence the
+blind held. It is not: that measures the blind's INPUTS. The probe — hand a session one bundle, ask it
+to name which of four conditions produced it — measures the blind. It found three leaks in a row, and
+every one of them was the harness handing over the answer:
+
+1. **mtimes.** `fs.copyFileSync` PRESERVES modification time and `diff -ruN` writes each file's mtime
+   into its own `---`/`+++` header lines, so every bundle shipped a second-resolution record of when
+   its session wrote each file. A probe named the arm from it in as many words: *"mtimes run strictly
+   sequential 19:13→19:29 across all 17 files — one continuous worker"*. Fixed by freezing every
+   copied and shadow file to one instant BEFORE the diff runs, and stripping the header timestamps as
+   an independent second guard.
+2. **Corpus nested under the key.** Bundles sat at `review/<task>/<label>`, two directories below
+   `<task>-KEY.tsv` and three below `wt/`, `out/`, `PROTOCOL.md` and `run-arm.sh`. One probe quoted its
+   own key row back verbatim, all six fields. Fixed by moving the corpus outside the experiment tree.
+3. **The answer key on standard input.** `blind-probe.sh` looped `done < "$KEY"`, which makes the key
+   the loop's fd 0 — and `claude -p` reads stdin as ADDITIONAL PROMPT TEXT. Several probes cited a
+   *"Manifest row in the prompt"*. Bash re-seeks between iterations on a regular-file redirect, so the
+   loop still completed all twelve and nothing looked wrong. Fixed by reading the key into an array
+   and closing stdin on the call.
+
+**The first two full-power runs scored 10/10 and 24/24 against a 25% chance line. Neither measured the
+arms.** The decisive argument needed no diagnosis: **arms A and B are the negative control — zero
+delegations each, six cells each — so no property of their output can separate them, yet the probe
+separated them perfectly.** A result that beats what the data can possibly contain is a harness result.
+Recorded as `LESSONS` L-55: an implausibly STRONG result impeaches the instrument exactly as an
+implausibly weak one does, and the tell is the extremity itself, before any diagnosis.
+
+**Confinement is now audited rather than assumed** (`escape-audit.mjs`). Path auditing alone would not
+have caught leak 3, which opened no file — so the load-bearing check is channel-independent: any trial
+whose own words contain key vocabulary is flagged and discarded.
+
+#### The clean run — 24 trials, both harness channels closed
+
+| contrast | score | expected | p | reading |
+|---|---|---|---|---|
+| C-family vs solo | **24/24** | 12 | 6.0e-8 | **decisive leak — the ONLY row carrying its own evidence** |
+| C-post vs C-pre | 9/12 | 6 | 0.073 | **unproven — NOT a pass** |
+| A vs B (within solo) | 10/12 | 6 | 0.019 | **noise — settled below on evidence, not on p** |
+| 4-way exact | 19/24 | 6 | 4.0e-8 | **NOT independent — arithmetically forced by the rows above** |
+
+⚠ **ONE decisive leak, two unmeasured contrasts, and a fourth row that is not evidence at all.** Four
+contrasts were tested on one dataset with no correction; at Bonferroni the threshold is 0.0125, which
+neither marginal row clears. And 9/12 must not be read as a pass: at n=12 a two-way contrast fails at
+10/12, so 9/12 is ONE TRIAL BELOW the failure line, and p=0.073 means a perfect blind produces this or
+worse 7% of the time. Calling that "holds" is the four-trial error committed at a larger n — the same
+mistake this harness already made once and wrote a header about.
+
+⚠ **THE 4-WAY ROW IS ARITHMETICALLY FORCED AND MUST NOT BE QUOTED AS A HEADLINE.** When the family
+call is right 24 times out of 24, a four-way answer is correct exactly when the within-family answer
+is — so 10 + 9 = 19 could not have come out otherwise. It corroborates nothing. **The 4.0e-8 belongs
+to the 24/24 row and nowhere else**, and "the blind leaks four ways" overstates a result that is one
+decisive binary carrying two unmeasured ones. Reporting the composite as though it were independent
+evidence is how a single measurement gets counted twice.
+
+**A-vs-B is settled as NOISE — on positive evidence, not on an underpowered p-value.** All twelve solo
+evidence lines reason from ABSENCE: *"no subagent trace"*, *"no reviewer"*, *"no `.claude/handoff/`
+artefacts"*, *"one continuous narrative"*. Every one of those argues for SOLO, which is what both 1
+and 2 are. **An evidence line that argues for a category cannot discriminate within it** — so the probe
+committed to a digit and then wrote a justification for the class, and 10/12 is a coin flip wearing a
+rationale.
+
+**General form, and it makes the evidence lines conditionally readable rather than worthless: an
+evidence line is diagnostic ONLY where its contrast is above chance.** At 24/24 the lines name real
+channels and can be mined for what leaks. At 10/12 they are post-hoc, and **nothing in the line itself
+distinguishes the two cases — only the contrast does.** Read them in that order, never the reverse.
+
+**The residual leak is intrinsic, not harness.** C's deliverables narrate their own production —
+`docs/MECHANISABLE.md` entries reading *"found 2026-08-25 by the walker on the M-061 diff"* and
+*"raised by the `walker` agent"*. No bundling change reaches that without editing the artefact under
+review. The non-docs hits in the tells file are NOT this: they are baseline vocabulary every arm
+inherited (`// org-scope guard (caller-ID census)`, an AST `walker`), which is why raw per-path tell
+counts overstate the spread.
+
+#### Consequence for criterion 6, and the two runs that decide the scope
+
+**C vs A/B cannot be run blind by this method.** That is the comparison criterion 6 was designed
+around, so the scope decision is not cosmetic. Two measurements were launched before choosing, because
+both are cheap and each replaces an assumption with a number:
+
+**1 · Stability repeat, FIRST — the twelve C bundles, two further independent passes.** The contrast
+criterion 6 depends on is C-post vs C-pre, and it is the one still unmeasured. If the SAME bundles
+miss on every pass, a real channel exists and the evidence lines name it; if the misses move, the
+contrast is noise at n=12 and simply has not been measured. No new cells, and it decides the scope
+question by measurement rather than by a p-value four contrasts have already spent. **The solo bundles
+are deliberately NOT re-probed** — A-vs-B is settled above on the evidence lines, and spending trials
+there would buy nothing.
+
+**2 · Code-only variant, only if step 1 leaves anything to decide** (`bundle.mjs --code-only`,
+`docs/**` and root `*.md` excluded). Its premise was checked directly against the corpus rather than
+assumed, and it is **weaker than the raw tell counts suggested in both directions**:
+
+| string | bundles carrying it | verdict |
+|---|---|---|
+| `the walker` | A, B, C-post, C-pre alike | **baseline vocabulary** (an AST walker) — not a tell at all |
+| `the walk caught` · `M-061 diff` | C-post and C-pre only | real C-FAMILY tell, and shared by both C variants |
+| `closed-list version shipped` | exactly one bundle, C-post | real C-POST tell — **and it lives in a test file, not in `docs/`** |
+
+So excluding `docs/**` **narrows the C-vs-solo channel without closing it**, while leaving the
+C-post-only narration that sits in code — which is backwards relative to which contrast is needed.
+⚠ **And if adopted it bites C-pre/C-post specifically:** part of what a walk contributes IS writing
+down what it found, so excluding docs narrows *"did the walk improve the deliverable"* to *"did the
+walk change the code"*. Narrower, arguably sharper, and it must be stated in the write-up rather than
+discovered in review.
+
+**The decision rule, fixed before the result arrives:** if C-post-vs-C-pre proves stable AND leaking,
+then criterion 6 **cannot be run blind by this method at all** — not on the wide comparison and not on
+the narrow one — and the honest report is that the quality question stays unanswered rather than
+answered unblinded. If it proves noise, the C-pre/C-post comparison stands as criterion 6's scope and
+the code-only variant becomes a bonus that might restore the wider one.
+
+Until that reports, criterion 6's scope is undecided and no quality claim is licensed.
+
+### The stability repeat reported — 2026-08-26. Stable, one-sided, and still unmeasured
+
+Twelve C bundles (six C-post, six C-pre), three independent passes each, 36 trials, solo probes, no
+new cells. **Errors are deterministic** — a bundle called wrong on pass 1 is called wrong on passes 2
+and 3, with one bundle per task splitting 2/3. So the 9/12 above is **not sampling noise**, and the
+first thing that follows is negative: more passes over these same bundles cannot settle anything,
+because the answers are already reproducible. Only more replicates could, and replicates mean cells.
+
+**Concentration alone does not license a leak reading, and the first cut of `stability.mjs` said it
+did.** A probe that answers the same digit for every bundle also produces perfectly stable errors —
+deterministically uninformative. The verdict line was wrong in principle before it was checked against
+this data, and is now replaced by the answer distribution per class plus a bundle-level Fisher test.
+Pooled over both tasks:
+
+| true class | answered 3 (post) | answered 4 (pre) |
+|---|---|---|
+| C-post | 18 | **0** |
+| C-pre | 11 | 7 |
+
+**Not bias — a one-sided detector.** Pure always-answer-3 would give 18/0 and 18/0; the seven `4`s
+falsify it. Every `4` call is correct: **precision 7/7 at trial level, 3/3 at bundle level, recall
+39%.** The probe has a positive test for C-pre and defaults to C-post when it does not fire.
+
+The evidence lines name both halves, and they are the same fact seen twice:
+
+- **It calls `pre` on doc/code INCONSISTENCY** — *"MECHANISABLE.md claims an in-rule
+  `CLASSIFIED_CROSS_ORG_SAFE` list and startup assertion shipped; the rule file contains neither"* ·
+  *"`maskSql` returns a string, but `conflictFindings` destructures `{ masked, unterminated }` — the
+  shipped check can never fire"*. That is the definition of C-pre: the state where the register
+  already describes fixes the code has not received.
+- **It wrongly calls `post` on walker MENTION** — *"cites applied reviewer findings: walker
+  F1/F2/F3…"* · *"Found by adversarial review"*. **C-pre bundles already carry walker-attribution
+  prose**, so mention-of-walker does not separate the two, and the probe treats it as if it does.
+
+**Statistically it does not clear the bar.** At the correct unit — the bundle, since three passes over
+one bundle are three looks at the same content — it is 9/12 majority-correct (p=0.073) and Fisher on
+the 2×2 gives p=0.091. Per task, p=0.20 and p=0.50. Nothing near 0.05, let alone the Bonferroni
+0.0125 four contrasts have already spent.
+
+#### Applying the pre-registered decision rule
+
+The rule fixed two sections above admits two outcomes: *stable AND leaking* kills option 1, *noise*
+keeps it. **The result is neither, and saying so is the finding**: stable, mechanistically explained,
+one-sided — and below significance. So the rule does not decide it, and the honest statement of where
+that leaves criterion 6 has three parts:
+
+1. **C vs A/B is dead as a blind comparison** — 24/24, p=6.0e-8, intrinsic. Unchanged.
+2. **C-post vs C-pre is not certified as leaking.** It is also **not certified as blind**, and the
+   asymmetry matters: 7/7 precision on the positive call is stronger evidence of a real channel than
+   p=0.09 admits, it is just too rare a call to prove at n=6 per class.
+3. **The channel, if real, is one criterion 6 cannot remove — because it IS what criterion 6
+   measures.** C-pre is identified by doc/code contradictions; the walk exists to remove doc/code
+   contradictions; a reviewer counting surviving defects would be reading the same lines the probe
+   reads to name the arm. Excluding `docs/**` does not help — both quoted `pre` calls above cite a
+   `.mjs` file as one side of the contradiction.
+
+**Scope decision: criterion 6 runs on C-post vs C-pre, and reports its blind as UNVERIFIED with the
+mechanism named** — not as verified, and not as broken. That is a weaker claim than the experiment was
+designed to support, and it is the strongest one the measurements license. The code-only variant is
+**not adopted**: it was built and its premise measured, and it narrows the wrong contrast (§ above)
+while leaving this one's identified channel intact.
+
+**One finding here outlives the blind question entirely.** C-pre snapshots contain prose attributing
+findings to a walker that had not yet run against them. That is a **reconstruction defect in the
+corpus builder, not a blind defect** — the `.handoff/` narration and register entries were written by
+earlier legs of the pipeline citing an earlier walk, and the cut point does not separate them. Any
+future C-pre/C-post comparison must either cut before that narration exists or state that it does not.
+
+### C-pre cannot be reconstructed for the file that matters — 2026-08-26
+
+The stability probe's misreads pointed at the C-pre snapshots, so the snapshots were opened. Two
+defects came out, they are independent, and **neither is the one that was being looked for.**
+
+#### 1 · Five of six C-pre cells contain POST-walk content, and `prewalk.mjs` said so at the time
+
+Every cell ships a `RECONSTRUCTION.md` giving each file its own verdict. Read back across all six C
+cells (`prewalk-out/*/RECONSTRUCTION.md`, walker-return stamps 2026-08-24/25):
+
+| cell | unsound files | which | share of bundle bytes |
+|---|---|---|---|
+| `task1-r1-C` | 1 of 22 | `docs/MECHANISABLE.md` | 46% |
+| `task1-r2-C` | 1 of 34 | `docs/MECHANISABLE.md` | 41% |
+| `task1-r3-C` | 1 of 42 | `docs/MECHANISABLE.md` | 37% |
+| `t2-r1-C` | 1 of 8 | `scripts/check-sql-conflict-target.mjs` | 9% |
+| `task2-r2-C` | **0 of 5** | — | — |
+| `task2-r3-C` | 1 of 8 | `scripts/check-sql-onconflict.mjs` | 11% |
+
+The verdict is identical in all five: *"record not provably complete AND a post-walk shell command
+writes to this file; **POST-walk content substituted, which understates the walk**."*
+
+**The root cause is that the C sessions wrote those files through bash rather than Edit/Write.** A
+transcript rewind inverts recorded mutations; a heredoc or a `sed` leaves nothing to invert. So the
+one file per cell that the walk most changed is precisely the one that cannot be rewound — not by
+coincidence, but because the biggest artefact is the one a session is most likely to write with a
+shell command.
+
+**Consequence: criterion 6's C-pre-vs-C-post comparison cannot be scored on this corpus.** For task 1
+the walk's principal output IS `MECHANISABLE.md`, unsound in all three cells and 37–46% of the bundle;
+for task 2 it is the check script, unsound in two of three. Scoring only sound files would delete the
+deliverable from task 1 entirely and leave task 2 with a single clean cell. **The instrument was
+honest and the pipeline downstream ignored it** — `bundle.mjs` correctly withholds `RECONSTRUCTION.md`
+from a blind bundle (it names the cell and the arm), but nothing else ever read it, so a per-file
+`UNSOUND` verdict travelled no further than the directory it was written in.
+
+**This binds task 3's design, which is why it was diagnosed before task 3 ran rather than after.**
+Transcript rewind is defeated by shell writes and always will be, so pre-walk state must be captured
+**live** — a `run-arm.sh` change, made before nine cells are spent, not discovered in their analysis.
+
+**BUILT 2026-08-26, binding task 3 onward.** `tree-snapshot.sh` records the worktree every 10s by
+staging into a **private `GIT_INDEX_FILE`** and calling `write-tree`, so it produces a real tree object
+without ever touching the session's index or lock — `git stash create` and a bare `git add -A` both
+race the session's own git commands, which is why neither is used. It reads the **filesystem**, which
+every write channel must pass through by definition, so a heredoc is as visible as an `Edit`.
+
+**The verdict is a witness, not an estimate, and that is the point.** A timer cannot land on the cut
+instant, so "nearest sample" is an approximation of unknown size — the exact species of quantity this
+experiment has twice mistaken for a measurement. But **two identical consecutive trees prove no write
+landed between them, from any channel.** `snapshot-select.mjs` therefore returns `EXACT` (tree
+unchanged across the cut — the sample *is* the pre-walk state, provably), `BRACKET` (changed, with the
+window and staleness reported so a reader can weigh it), or `NO-COVER` (no sample precedes the cut) —
+three verdicts, because collapsing "imprecise" into "absent" is exactly what made the retired
+system-prompt control useless. **The verdict is written into a `SNAPSHOT.md` that ships with the
+tree**, which is the half `prewalk.mjs` got right and the pipeline around it got wrong: an honest
+per-file `UNSOUND` that no consumer is obliged to read is a comment.
+
+**Probed on every channel and both failure directions.** Idle → identical trees; a tool write → new
+tree; **a shell heredoc → new tree** (the class that defeated the predecessor); emitting the pre-cut
+tree and grepping for the post-cut heredoc line → absent, with the two lines written *before* the
+recording still present. Selector verdicts probed at three cut instants, one per outcome.
+
+Two defects surfaced in the probing and are fixed: a `trap … EXIT INT TERM` that cleaned up **and kept
+looping**, so `kill` removed the lock and left an unlocked writer that the next run silently doubled up
+on — caught only by counting samples against the interval, since both writers emitted correct rows;
+and `git archive | tar` failing on Windows because GNU tar reads `C:/…` as a remote `host:path`,
+replaced by `ls-tree` + `cat-file` per blob, which also guarantees content comes from the object
+database rather than from a worktree the session may still be writing to.
+
+⚠ **It runs for all three arms, not only C.** A and B have no walk to cut at and nothing will consume
+their logs — but an arm-specific recording is an arm-specific difference, and this experiment has twice
+been wrecked by precisely that shape.
+
+#### 2 · The probe's misreads are HOUSE STYLE, not walk evidence
+
+The obvious hypothesis — that the probe called C-pre bundles "post" because they contained substituted
+post-walk content — **is false, and the numbers above refute it.** `task2-r2-C` has a fully sound
+reconstruction, zero unsound files, and was still misread 3/3; `task1-r1-C` and `task1-r2-C` carry
+41–46% post-walk bytes and were called correctly. The two defects do not line up.
+
+What actually fires the probe's default is the phrase it quoted: *"Found by adversarial review."*
+Counting files carrying `adversarial review` across all 24 bundles, **every bundle in both tasks has
+at least one, including every arm A bundle** (task 1: A cells carry 3, 4 and 5 such files; task 2:
+uniformly 1–2 across all four classes). Arm A cannot spawn anything. The phrase is inherited from
+`CLAUDE.md` §6 — *"Caught by adversarial review, and the reason a new control gets one before it is
+believed"* — and every arm reads `CLAUDE.md`.
+
+**Third instance of one class**, after `the walker` (an AST walker) and `caller-ID census`: **the
+repo's own doctrine vocabulary appears in every arm's output, because every arm reads the doctrine.**
+A tell-counter matching on that vocabulary measures the baseline, not the arm — which is why the raw
+per-path tell counts overstated the spread, and why this one fooled a probe rather than a script.
+
+It also settles the reading left open yesterday. The post/pre contrast is not merely *below
+significance*; the mechanism behind its errors is now identified and it is **not the walk**. The probe
+defaults to "post" on repo idiom that carries no information about which arm produced it.
+
+### RESULT — task 3 (M-087), nine cells, all gates green · scored 2026-08-26/27
+
+Latin square (r1 `A B C` · r2 `B C A` · r3 `C A B`), strictly sequential. All nine cells completed and
+scored; `r3/C` outlived the driver's wall ceiling, self-completed at exit 0 and was scored from its own
+transcript. Medians with full ranges, per the rule above — no arm mean is quoted, because arm C's
+would describe no cell that ran.
+
+| arm | cost median | cost range | wall median | turns median | turns range | agents |
+|---|---|---|---|---|---|---|
+| A | $8.65 | $5.60 – $9.35 | 25.9 m | 78 | 50 – 83 | 0 (tool removed) |
+| B | $14.67 | $5.13 – $15.60 | 21.7 m | 75 | 51 – 149 | 0 · 2 · 0 |
+| C | $32.46 | $23.56 – $65.21 | 69.2 m | 181 | 112 – 282 | 3 · 3 · 8 |
+
+#### 1 · A and B do not separate at n=3; C does
+
+**A's range and B's range overlap across most of their span** ($5.60–$9.35 against $5.13–$15.60), and
+B's own within-arm spread is **3.04×** — larger than the 1.70× ratio between the A and B medians it
+would have to beat. The A-vs-B comparison is therefore not resolvable at this n, and no reading of it
+should be recorded as a result. **C is separated**: its cheapest cell ($23.56) exceeds the most
+expensive non-C cell in the square ($15.60) by 1.5×, so the C contrast survives the spread that
+destroys the A/B one. This is a statement about resolving power, not about which arm is better.
+
+#### 2 · The most expensive B cell is a TOOL-STRATEGY outlier, not a delegation one
+
+`r3/B` cost $15.60 over 149 turns with **zero `Agent` calls** — `reconciliation.agentCalls` = 0, so
+delegation cannot be any part of the explanation. It is the only cell in the square where `Read`
+outnumbers `Bash` (78 vs 54). `r1/B` ran the same task, same arm, same authorisation, with **3 Reads
+and 45 Bash calls in 51 turns for $5.13**. The delta is entirely in how the tree was inspected: file
+by file through `Read`, versus searching with `Bash`. Cache reads track it exactly — 24.32M against
+5.72M — which is what the cost-is-turns×context model predicts.
+
+Batching was measured as a candidate explanation and **partly cleared**. Grouping `tool_use` blocks by
+`message.id` (the raw record count is not the unit — `stream.jsonl` splits one model message across up
+to 3 records, 65 ids in `r3/B` alone): `r1/B` 1.24 calls/message, `r3/A` 1.21, `r3/B` 1.05, `r3/C`
+1.02, `r2/C` 1.01. Batching is low everywhere and lowest in the expensive cells, but the spread is far
+too small to carry a 3× cost difference. **The read-versus-search choice does; the batching does not.**
+
+#### 3 · Arm C never ran two agents at once IN TASK 3 — and the first version of this finding was measured wrong
+
+**Corrected 2026-08-27, before the criterion-6 pass, and the correction is larger than the number.**
+The first measurement swept `[tool_use → tool_result]` for each `Agent` call. For an agent launched in
+the **background** that pair times the DISPATCH, not the run: `task3-r1-C`'s walker records **19 ms**
+against a real ~11.6 minutes, its `tool_result` being the "Async agent launched" metadata. This is the
+identical fault that corrupted the gate-overlap pass two sections above, in a second place, found only
+because the criterion-6 cut needed a walker return and 19 ms is not a walk. **Timing dispatch instead
+of execution undercounts in the direction that hides concurrency**, so every span here was re-derived
+async-aware, resolving each launch to the record carrying its `agentId`.
+
+What survives, what does not, and what is now deliberately unmeasured:
+
+- **The task-3 claim holds.** All three task-3 C cells show peak overlap **1** under both candidate
+  resolution rules, so it is robust to the ambiguity below. `r3/C`'s 8 agents ran strictly one at a
+  time across a 206.2-minute span. Part of that is structural and must stay serial — a
+  verify→fix→re-verify chain cannot be parallelised, because walk N reads the tree walk N−1 changed.
+- **The GENERALISATION was wrong and is withdrawn.** The heading previously read "arm C never ran two
+  agents at once" and the body concluded the fan-out "was available and unused". False across the
+  corpus: **`task1-r3-C` ran three `census` agents concurrently** — launched 05:45:36, 05:45:45,
+  05:45:54, all returning 05:48:48, ~2.9 minutes of genuine three-way overlap. Arm C had already
+  fanned out, thirteen days before `2d8eaa48` told it to. The correct statement is narrow: *task 3's*
+  C cells did not fan out.
+- **Arm B fanned out too, unprompted.** `task3-r2-B` ran `census` (09:06:19–09:14:28) and
+  `implementer` (09:13:17–09:18:24) concurrently, 1.2 minutes of overlap — peak 2 in the arm with no
+  prescribed workflow at all. Whatever `2d8eaa48` buys arm C, it is not a capability only C has.
+- **Per-cell agent-minutes are NOT restated, and that is the finding.** Resolving an async completion
+  admits two defensible rules — the first record after dispatch carrying the `agentId`, or the last —
+  and on `task1-r1-C` they disagree by **84 agent-minutes** (6.5 vs 90.0). The record shape does not
+  settle it: a completion arrives as a `queue-operation`+`attachment` pair in one cell and as
+  `user`+`attachment` in another, with later mentions of the same id that may be follow-ups or may be
+  the notification. **Left unmeasured rather than published under an unsettled rule** — this register
+  has a scar for exactly that (328 → 29 → 21), and a fourth number is not owed here. Peak overlap is
+  reported because it is invariant across both rules; duration is not because it is not.
+
+`2d8eaa48` stands as a change to the instructions, not as a fix for an absence it now turns out was
+never total.
+
+#### 4 · Arm B's "never delegates" was true for six runs and is no longer true
+
+Per-cell `agentCalls`: task 1 `0, 0`; task 2 `0, 0, 0`; task 3 `0, 2, 0`. The six zeros are tasks 1
+and 2, which ran **before** the levelling authorisation was added — the same "first six runs" that
+`run-arm.sh` names in its own comment. The fix is present and wired as at 2026-08-27:
+`run-arm.sh:64` sets `EXTRA=(--append-system-prompt "$AUTH")` for B and C, `:65` adds
+`--disallowed-tools Agent Task` for A alone, and `EXTRA` reaches the invocation at `:114` and `:171`.
+Post-fix, B delegated in **one of three** cells. That is thin, and no claim about B's default rests on
+it — but "arm B has never exercised choice" is now false, and the ladder A→B→C is intact.
+
+#### 5 · The shared `node_modules` junction is a MEASUREMENT hazard, and it was checked rather than assumed
+
+`npm run check` writes `node_modules/.vitest-count.json` and reads it back in the same command
+(`package.json` writes it, `scripts/check-test-floor.mjs` reads it), and every worktree's
+`node_modules` is a junction to the main checkout's — verified same inode, and a write through a
+worktree junction was readable at the main repo path. Two concurrent runs therefore race on one
+physical file, and the dangerous direction is silent: a partially-collected run that reads the other's
+complete report goes **green**, which is exactly the failure `check-test-floor.mjs` exists to catch.
+Code failing the real gate would then sit in the corpus and read as arm C carrying more criterion-6
+defects, attributed to the workflow.
+
+Live, not theoretical: **19 subagent gate executions across 7 cells, every one an arm-C cell.** So the
+corpus was checked directly.
+
+- **Overlap analysis, corrected once.** The first pass timed `[tool_use → tool_result]` and reported
+  several walker gate runs at 0.0 m. Those were not instant — the harness **backgrounded** them, so
+  the pair timed the dispatch and not the run, making every backgrounded run invisible to an overlap
+  test. Corrected by bounding a backgrounded run at the point its output is read back into the
+  transcript. **Two real overlaps, both in `task3-r2-C`, both main-session against walker**, the
+  clearer one `10:22:27→10:23:51` against `10:22:56→10:24:29` — 55 seconds genuinely concurrent.
+  Three further flagged pairs were false positives: commands that merely *mentioned* the gate.
+- **Verdict: the corpus is clean.** `task3-r2-C` re-gated serially on 2026-08-27 at exit 0, 1371 tests
+  across 126 files — the identical count it reported at the time. Across all 27 cells every
+  full-suite run recorded `126 passed`; the only `1 failed (1)` is a single-file run in `task1/r3x/B`,
+  an ordinary test failure, not a collection failure.
+
+#### 6 · A SECOND shared channel through the same junction, found by tripping over it
+
+`node_modules/.vite/vitest` is also shared by every worktree. Running vitest in a worktree and then in
+the main checkout produced a **total collection failure** — `import 0ms`, `Tests no tests`, 126/126
+files failed — which self-repairs on the next run. Reproduced 2/2 on 2026-08-27, and it is what broke
+a push mid-session. **Recorded as a reproducible trigger, NOT as a diagnosis:** a later push failed
+and then succeeded with no intervening change, and `stdin`-at-EOF and `GIT_DIR` were both tested and
+cleared, so the cause is not isolated. **Third occurrence, 2026-08-27, weakens the stated trigger
+further:** it fired after only `git` reads inside a worktree — `snapshot-select.mjs` taking the
+criterion-6 cuts — with no worktree vitest run at all, and self-repaired on the next invocation. So
+"vitest in a worktree, then in main" is **not necessary**, only sufficient in the two cases observed.
+**Fourth occurrence, 2026-08-28, breaks the self-repair half:** the same 126/126 `import 0ms` failure
+fired in the main checkout with no worktree activity of any kind that session, and it did **not** clear
+on the next invocation — it cleared only after `rm -rf node_modules/.vite/vitest`. So "self-repairs on
+the next run" is also not a property of the fault, and the only intervention that has worked every time
+is deleting that directory. The shared-`node_modules` neighbourhood is right; the mechanism remains unidentified. `check-test-floor.mjs`'s own header names an undiagnosed
+worker-import fault; this is plausibly it, and the honest statement is that the trigger is known and
+the mechanism is not. It did not touch the corpus — see the `126 passed` sweep above.
+
+The general form is the one worth keeping: **the junction shares more than the file anybody listed.**
+The count file was reasoned about in advance; the vite cache was not, and was found only by hitting it.
+
+#### 7 · What task 3 does NOT license — criterion 6 has not been run
+
+`review/` holds `KEY.tsv`, a blind probe, two C-pass repeats and a residual-tells file for tasks 1 and
+2, and **nothing for task 3** (checked 2026-08-27). Task 3's cost side is measured and its benefit
+side is not — which is the hole `CRITERION6.md` opens by naming, now reproduced one task later. No
+conclusion about whether arm C's extra spend bought anything on M-087 is available, and the table
+above must not be read as one.
+
+### Arms redefined for the NEXT batch (Stéan, 2026-08-27)
+
+The ladder is stated explicitly, and the change is to C:
+
+- **A — control.** No agents ever (`--disallowed-tools Agent Task`). Unchanged.
+- **B — choice, standard workflow.** Free to delegate or not, no prescribed sequence.
+- **C — choice, prescribed HOW.** Free to spawn none, one or many; when it does spawn, through this
+  repo's own agents and their contracts rather than a generic agent handed a paragraph.
+
+**A→B isolates whether delegation helps at all; B→C isolates whether prescribing the sequence helps,
+given the same agents.** Agent tuning is held constant across B and C, so it is not measured — but it
+is not confounding either, and it is a third question needing its own experiment rather than a second
+variable in this one. The alternative, stripping the tuned agents from B's tree, was **rejected**: the
+CLI's agent-definition flag merges rather than replaces (probed both directions in the arm-B
+worktree at `1c9b6bbd`, recorded above), and
+editing B's tree would add a second tree difference to a one-variable design.
+
+The mandates that prevented C from expressing "none" are removed in `f75d5d45`: `/build`'s grounder
+was described as *unconditional* and `/walk` told the session to spawn a walker, so C's first
+delegation was never a judgment call. The register already recorded the cost of that — on task 2, arm
+B chose not to delegate 3/3 in agreement with this repo's own doctrine, while arm C delegated anyway.
+Grounding remains unconditional **as a precondition**; only the route is now a judgement.
+
+### Criterion 6 on task 3 — PRE-REGISTERED 2026-08-27, before a bundle exists
+
+Registered in advance because a rubric written after seeing the numbers is a rationalisation, and
+because two of the four decisions below were taken specifically to stop a result reading as more than
+it is. Nothing here has been scored yet.
+
+#### Why this runs at all, when the same criterion is dead on tasks 1 and 2
+
+Criterion 6 has never produced a number in this programme. On tasks 1 and 2 it cannot: C-vs-A/B is
+dead as a blind comparison (24/24, p=6.0e-8, intrinsic), and the fallback C-post-vs-C-pre contrast is
+unscorable there because 5 of 6 C-pre snapshots contain post-walk content — a transcript rewind cannot
+invert a heredoc, and the file it fails on is each cell's principal deliverable (37–46% of task 1's
+bundle bytes).
+
+**Task 3 is the first corpus where the pre-walk state is soundly recoverable**, because `run-arm.sh`
+was changed to record the tree live at 10-second sampling before those nine cells were spent. The cut
+is taken from filesystem evidence, not transcript inference, and it is **EXACT in all three C cells** —
+where *exact* is a proof, not a proximity: identical tree shas either side of the cut instant show no
+write landed across it.
+
+| cell | cut instant (first walker's return) | tree | verdict | stale |
+|---|---|---|---|---|
+| `task3-r1-C` | 2026-08-26T08:54:13Z | `5ba00210` | EXACT | 4 s |
+| `task3-r2-C` | 2026-08-26T10:11:03Z | `baf3bd3c` | EXACT | 4 s |
+| `task3-r3-C` | 2026-08-27T06:42:00Z | `b556049e` | EXACT | 6 s |
+
+`r1/C`'s walker was launched **async**, so its `tool_result` is dispatch metadata 19 ms later and the
+real return is the completion notification 11.6 minutes on. Both instants were cut and **both yield
+tree `5ba00210`** — independently corroborated by the transcript, which shows 7 tool calls in that
+window and **zero** `Edit`/`Write`. The distinction is immaterial for this cell and is recorded because
+it will not be immaterial in the next one.
+
+Declining to score this leaves the programme with zero quality numbers, and the next batch will need
+its own blind validation which may also fail — the identifiability channel belongs to C's output, not
+to this corpus. *We could have measured it and chose not to* is a worse position than a caveated
+number.
+
+#### The cut is the FIRST walker's return, and that changes what the number is called
+
+Six walkers in one cell means the intervention is not a walk; it is a **walk phase**. Cutting at the
+first return measures the whole phase — including fixes prompted by walkers 2–6 and any re-walking
+they did — which is the honest description of what arm C actually does. Cutting at the last return
+understates it by capturing an already-mostly-fixed tree; cutting per-walker measures six different
+things across a corpus of three cells.
+
+**Stated before the numbers, because afterwards it reads as an excuse:** the quantity is *what the
+walk phase removed*, and **the phase is of variable size across cells** — one walker in `r1/C` and
+`r2/C`, six in `r3/C`. A between-cell comparison of the delta is therefore **not comparing like with
+like**. That is fine for the headline question (did the phase remove defects) and **disqualifying for
+any per-walker or per-minute efficiency claim**. No such claim may be derived from this table later.
+
+#### The tautology guard — score the OVERLAP, not the counts
+
+C-post is C-pre plus fixes for defects the walker found. **So the walk necessarily removes the defects
+it detected, and measuring that is measuring nothing** — it confirms the pipeline is wired, which was
+never in doubt. The counts alone cannot distinguish that from a quality effect.
+
+The scored quantity is therefore the **overlap between the independent reviewer's findings and the
+walker's own report**, per bundle:
+
+- Findings the reviewer raises on C-pre that the walker **also** named → the tautological component.
+  Expected to fall to near zero in C-post by construction. Reported, never counted as an effect.
+- Findings the reviewer raises that the walker **never mentioned** → the real signal. If C-post carries
+  fewer of these than C-pre, the walk phase improved the deliverable beyond its own report. If the two
+  are level, the walk did what it said and no more.
+
+The walkers' reports are already on disk in the cell transcripts, so this costs nothing beyond the
+join. Rubric classes, evidence bar and per-class reporting are unchanged from `CRITERION6.md`; this
+adds a dimension to the scoring, it does not relax one.
+
+#### The terminal shape, stated up front so no reader performs the join themselves
+
+> **The cost axis compares arms; the quality axis compares C to itself; this design can never join
+> them.**
+
+C-vs-A/B quality is intrinsically unblindable, so the surviving quality contrast is within arm C. The
+cost result compares three arms. Nothing licenses multiplying one by the other, and the sentence
+belongs above the numbers rather than in a limitations note below them.
+
+**This is not a failed experiment, and the write-up must not apologise as though it were.** A three-arm
+cost result across three tasks, with C separating cleanly at 3.75×, plus a documented account of *why*
+the obvious way to measure what that buys cannot work, is a finding — and an uncommon one, because it
+requires having tried to blind the comparison rather than assuming it was blindable. **The failure to
+measure quality is itself a result, provided it is reported as one rather than as a gap.** The blind on
+the surviving contrast reports UNVERIFIED with its mechanism named: 7/7 precision on the positive call,
+p=0.09, and a channel criterion 6 cannot remove because that channel *is* what criterion 6 measures.
+
+#### The scorer is NOT blind, so the scorer's discretion is removed instead
+
+Validating the tell distribution required joining tells to `KEY.tsv`, so the session doing the scoring
+knows which label is which arm. The reviewers remain blind and confined to one bundle each, which is
+what the measurement rests on — but the pre-registered "key opened last" step existed to protect the
+**scorer** too, and that protection is gone. It is replaced by removing the discretion it was guarding,
+fixed here before any findings file is opened:
+
+**1 · Confirmation sample — by FINDING, not by bundle.** Rank every finding across all bundles by
+`severity DESC, label ASC, file ASC, line ASC` and confirm **every `critical` plus the first ten
+`major`**. Deterministic, computable before anything is read, and with no bundle-level choice left in
+it. Sampling "every nth by label" would be equally blind but would draw from the wrong stratum:
+`minor` findings do not move the primary metric, so confirming them spends the effort where nothing
+turns on it.
+
+**2 · Rejection criteria, fixed in advance.** Knowing the key does not only bias *which* findings get
+checked — it biases *how hard one looks for a reason to reject one*. A finding is inadmissible on
+exactly two grounds: it **fails one of the rubric's four required fields**, or **executing its scenario
+against the real tree does not reproduce**. Nothing else. Not "on inspection this looks weak", not
+"the reviewer misread the intent". **If it is admissible by the rubric and it reproduces, it counts,
+whichever bundle it came from.**
+
+#### What counts as RESOLVED — the threshold, fixed before the spread is known
+
+The first three bundles returned **3, 2, 1** findings. At that magnitude the repeat is not a
+robustness nicety, it is the entire result: `t3-03` is reviewed twice over identical input, and
+
+> **a between-arm difference is reportable only if it exceeds the observed within-bundle repeat
+> spread.**
+
+If the two `t3-03` passes return, say, 1 and 4, reviewer noise dominates any plausible arm difference
+and the honest report is **unresolved at n=1 per bundle** — not a ranking with a caveat. If they
+return 1 and 1, a between-bundle difference of 2 may carry something. Fixing this now costs nothing;
+fixing it after seeing the spread is exactly the freedom the rubric closed everywhere else.
+
+**One repeat is a single pair, which is an observation of reviewer variance rather than an estimate of
+it.** If the finished corpus is uniformly low (all counts 0–3), a **second repeat on a different
+bundle** runs before scoring — about 20 minutes against a result that otherwise cannot be interpreted
+at all.
+
+#### The walker-report extraction was lossy, and the error ran in the dangerous direction
+
+Caught by a completeness check made **before** the join rather than after. The first extraction kept
+each walker's LAST assistant message; every report is written across 3–22 blocks, so it dropped
+127–5,582 bytes per report — `r2/C` lost 47% of its text, `r3/C`'s second walker 58%, and `r1/C`
+declared **six** findings while the kept text enumerated **three**.
+
+**A dropped walker finding lands in the "the reviewer found it, the walker never mentioned it" bucket
+— the one bucket that reads as a real quality effect.** So the defect would have manufactured exactly
+the result the tautology guard exists to detect. Fixed by concatenating every assistant block, which
+also errs in the safe direction: more walker text can only make *"the walker already named this"*
+easier to satisfy, biasing **against** a quality effect rather than towards one.
+
+The first version of the completeness check was itself discarded as **vacuous** — it compared against
+a delivered copy it often failed to locate, and `text.includes("")` is true, so three reports passed a
+check that could not fail. That is the rubric's own `VACUOUS_PROBE` class, occurring in the instrument
+built to apply it, and it is recorded rather than quietly replaced.
+
+### RESULT — criterion 6, task 3. The programme's first quality number, and it is a null
+
+**Fourteen review runs, 2026-08-28: the 12 bundles reviewed once each, and 2 of those reviewed a
+second time** — an earlier draft of this line said "thirteen plus two repeats", which double-counts
+the first repeat and does not reconcile to 14. **23 findings across the 12 pass-1 bundles: 0
+critical, 8 major, 15 minor.** All 8 majors were confirmed against their own trees — the full
+pre-registered sample, with no discretion in which were checked.
+
+#### 1 · The tautology guard, which is the result — not the counts
+
+**Every confirmed major, in C-pre and C-post alike, sits in a file the cell's own walker had already
+named. Six of six.** The "walker never mentioned it" bucket — the only bucket that could evidence a
+quality effect — is **empty for the majors**, and on all findings it is 1 of 7 for C-post against 1 of
+6 for C-pre: identical, and essentially nothing.
+
+**The guard returning all-YES is itself a finding about the guard.** Matching is by file path, which
+over-counts "already named" and errs against detecting an effect — the safe direction, as registered —
+but at this granularity it cannot separate *the walker named this defect* from *the walker touched
+this file*. So the correct phrasing is **no effect detectable**, not *no effect*.
+
+Two readings fit the convergence, and neither is established:
+
+- **The walk looks in the right places and does not finish the job there.** Reviewer and walker,
+  briefed differently and run independently, found the same regions interesting.
+- **A shared blind spot.** Reviewer and walker are the same model. Agreement between two passes of one
+  model on which files are interesting is weak evidence about the files and strong evidence only about
+  the model.
+
+Distinguishing them needs a reviewer that is not Claude, or defect-level rather than file-level
+matching. Neither exists here, and naming both beats picking one.
+
+#### 2 · The counts, and the one that moves after confirmation
+
+| arm | all findings (3 bundles) | median | **confirmed majors** |
+|---|---|---|---|
+| A | 3, 1, 2 → 6 | 2 | 2 |
+| B | 1, 1, 2 → 4 | 1 | **0** |
+| C-post | 2, 2, 3 → 7 | 2 | **1** |
+| C-pre | 3, 1, 2 → 6 | 2 | **4** |
+
+On raw findings the walk phase shows **no gain and a nominally wrong direction** (C-post 7 against
+C-pre 6) — a total dominated by minors. On **confirmed majors it drops 4 → 1, and every C cell falls**:
+`r1-C` 1→0, `r2-C` 1→0, `r3-C` 2→1.
+
+**That reduction is exactly what §1 discounts.** All four C-pre majors were in walker-named files, so
+their disappearance from C-post is the walk removing what the walk found — the tautology the guard
+exists to catch, not evidence the pipeline builds better. It is reported because the direction is
+consistent across all three cells and somebody re-deriving this will find it; it is **not** claimed.
+
+#### 3 · The instrument: a 12.5% refutation rate, and the one that failed
+
+`t3-02`'s major was **REFUTED**. It claimed two unsuppressed `sonarjs/no-unenclosed-multiline-block`
+violations would fail lint; eslint exits **0** with zero output on that file in that tree, and
+`eslint.config.mjs:391` in the same tree records that the rule **left the `scripts/**` list on
+2026-08-26 when M-087 was ruled**. The reviewer reasoned correctly from a premise its own bundle
+contradicted.
+
+So an Opus 5 adversarial pass at this depth produced **1 unreproducible major in 8**. That is a number
+about criterion 6 as an instrument rather than about any arm, and it is the only one in this run that
+speaks to whether the measurement can work at all. It also lands where it costs most: the refuted
+major was C-post's, so the un-confirmed reading would have shown C-post with 2 majors instead of 1.
+**Confirmation changed the numbers it was run to protect.**
+
+One confirmation reproduced **verbatim**: `t3-09`'s major predicted
+`❌ 1 probe-reporter problem(s): scripts/lib/probe.mjs:60 — hand-rolled probe reporter`, and executing
+that tree's ratchet against its own tree printed exactly that. `t3-01` and `t3-11`'s CI-shallow leg
+were confirmed by mechanism rather than execution — the trigger is a host privilege state and a
+depth-1 clone — and that boundary is stated rather than blurred.
+
+#### 4 · Overriding a pre-registered threshold, with both halves stated
+
+The registered rule was *a between-arm difference is reportable only if it exceeds the observed
+within-bundle repeat spread*. **Measured spread: 0 across both pairs — which by the letter licenses
+reporting these differences. It is not accepted, and the reason is the exception rather than the sin.**
+
+The two pairs behaved differently in a way the threshold could not see. `t3-04` reproduced **the same
+defect** (`check-probe-helper.mjs:27`, both passes, same severity). `t3-03` reproduced **the same
+count** — 1 and 1 — while sharing **zero findings**: a minor at `:23` against a major at `:180`. So
+counts reproduced 2/2 and content reproduced 1/2. **A floor of 0 on the count with content unmeasured
+is not a floor of 0; agreement on volume without agreement on substance is agreement by coincidence.**
+
+The threshold was written against counts because nobody anticipated the two could diverge. Overriding
+a pre-registered rule on evidence found afterwards is normally the cardinal sin here; this is the
+exception on two conditions, both met: the evidence shows the rule **measured the wrong quantity**, and
+the override moves the verdict toward **less claimed, not more**.
+
+#### 5 · The power limitation is a property of the DESIGN, not a hedge on the result
+
+Counts of 1–3 per bundle, one pass per bundle, three bundles per arm. **At this defect density nothing
+could have separated the arms** — the design had almost no dynamic range, and that is true independent
+of how the arms actually performed. This must not be read as *the arms are equal*; it is *this
+instrument could not have told them apart*. A reader who supplies "so the workflow makes no
+difference" has drawn a conclusion the data cannot support in either direction.
+
+#### 6 · What this licenses, and the shape E17 now closes in
+
+**Criterion 6 on task 3: no arm separates, and no quality effect is detectable for the walk phase.**
+Combined with the cost result, E17's terminal statement is the one fixed above the numbers:
+
+> The cost axis compares arms; the quality axis compares C to itself; this design can never join them.
+
+Cost is measured, three arms, three tasks, C separating cleanly at 3.75×. Quality is measured once,
+within arm C, and returns a null with a documented account of why the wider comparison is
+intrinsically unblindable. **That the quality question resisted measurement is the finding** — reported
+as a result, not as a gap, and it required building the blind, the repeat, the tautology guard and the
+confirmation pass to establish rather than assume.
