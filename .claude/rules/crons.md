@@ -28,7 +28,12 @@ NOT re-add a `crons` array, and do NOT put `npm run check` in `buildCommand` (it
 deploys; check belongs in CI + pre-push).
 **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — sketch: a check parses `vercel.json` and fails if it gains a `crons` key or a `buildCommand` containing `npm run check`. (Note: `vercel.json` is strict JSON, so this doctrine cannot live as an in-file comment — rung 4 single-file doctrine does not apply; a script is the only carrier.)
 
-### The daily orchestrator (cPanel, 05:00 UTC)
+**⚠ cPanel's clock is SAST (UTC+2), not UTC — measured 2026-09-14.** The daily entry below is `0 5`,
+and that morning's digest reported `ranAt 2026-09-14T03:00:04.770Z`. So **every hour in a cPanel entry
+is SAST**: the daily orchestrator runs at 03:00 UTC, application-reminders at 04:00 UTC and
+holiday-sentinel at 05:00 UTC. This file called them UTC until that date.
+
+### The daily orchestrator (cPanel, 05:00 SAST = 03:00 UTC)
 `/api/cron/daily` — orchestrates all truly-daily jobs sequentially (~11s, mostly I/O
 wait). cPanel entry:
 ```
@@ -38,16 +43,33 @@ The route declares `runtime="nodejs"` + `maxDuration=90` (Hobby caps at 60s rega
 honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-month check.
 
 ### cPanel curl crons (yoroscoz hosting)
-| Job | Endpoint | Cadence | HTTP method |
-|-----|----------|---------|-------------|
-| mandatory-retry | `/api/cron/tenant-comms/mandatory-retry` | Every 1h | POST |
-| screening-line-runner | `/api/cron/screening-line-runner` | Every 15m | GET |
-| bank-feed-sync | `/api/cron/bank-feed-sync` | Every 4h | GET |
-| arrears-sequence | `/api/cron/arrears-sequence` | Every 4h | GET |
-| maintenance-delay-check | `/api/cron/maintenance-delay-check` | Every 4h | GET |
-| check-links | `/api/cron/check-links` | Every 4h | GET |
-| application-reminders | `/api/cron/application-reminders` | Daily 06:00 UTC | GET |
-| holiday-sentinel | `/api/cron/holiday-sentinel` | Daily | GET |
+
+Schedules as set in cPanel on 2026-09-14 (minute and hour fields, **SAST**). This is an observation:
+cPanel is the record, and this table is a copy of it.
+
+| Job | Endpoint | Minute · Hour (SAST) | HTTP method |
+|-----|----------|----------------------|-------------|
+| daily (orchestrator) | `/api/cron/daily` | `0` · `5` | GET |
+| screening-line-runner | `/api/cron/screening-line-runner` | `3,18,33,48` · `*` | GET |
+| screening-jobs | `/api/cron/screening-jobs` | `8,23,38,53` · `*` | GET |
+| mandatory-retry | `/api/cron/tenant-comms/mandatory-retry` | `27` · `*` | POST |
+| bank-feed-sync | `/api/cron/bank-feed-sync` | `11` · `*/4` | GET |
+| check-links | `/api/cron/check-links` | `36` · `*/4` | GET |
+| arrears-sequence | `/api/cron/arrears-sequence` | `41` · `*/4` | GET |
+| maintenance-delay-check | `/api/cron/maintenance-delay-check` | `56` · `*/4` | GET |
+| expire-listings | `/api/cron/expire-listings` | `30` · `4` | GET |
+| application-reminders | `/api/cron/application-reminders` | `0` · `6` | GET |
+| holiday-sentinel | `/api/cron/holiday-sentinel` | `0` · `7` | GET |
+
+**⚠ Keep the HTTP crons OFF the quarter-hour, and off each other's minute — measured 2026-09-14.**
+Until that date most of these ran at `:00`/`*/15`, so every quarter-hour several requests reached
+Supabase in the same second. From 2026-09-09 to 2026-09-14, the minutes off the quarter-hour carried
+1,400–1,700 requests a day with **zero** edge 504s. On the quarter-hour, the 504 rate climbed
+0.6% → 7.5% while request volume stayed flat. The pg_cron `*/15` purges below were measured and
+ruled out: they finish in 9–30ms. (All measured from Supabase's edge logs and `cron.job_run_details`
+on 2026-09-14.) **A new cron gets
+its own minute:** not `0`, `15`, `30` or `45`, and not a minute another job already uses. The three
+daily `:00` entries are alone in their hour's minute, so they are left as they are.
 
 > **holiday-sentinel** (ADDENDUM_70K Phase C): diffs the SA public-holiday table against Nager.Date, watches
 > gov.za's notices feed for gazetted proclamations, and moves the 90-day horizon nag here. Quiet by default —
@@ -74,16 +96,19 @@ honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-m
 > frequency AND `GOVZA_POLL_INTERVAL_MS` in `lib/dates/holidayAuditFetch.ts` together; the constant's only
 > job is to mirror the line below, and a stale constant reports clean while blind.
 >
-> cPanel entry (LIVE since 2026-07-11):
+> cPanel entry (LIVE since 2026-07-11; 07:00 SAST = 05:00 UTC):
 > ```
 > 0 7 * * *  /usr/bin/curl -s -m 60 -X GET "https://app.pleks.co.za/api/cron/holiday-sentinel" -H "x-cron-secret: <CRON_SECRET>" > /dev/null 2>&1
 > ```
 
 All use the same `x-cron-secret` header auth.
 
-> **Note:** `application-reminders` is the one *daily* job triggered standalone here rather than from the daily
-> orchestrator (it predates it). It could be folded into `/api/cron/daily` later to gain failure-digest
-> coverage; until then its failures surface only in logs/Sentry (it does use the C-1 await+log belt).
+> **Note:** `application-reminders` and `expire-listings` are *daily* jobs triggered standalone here rather
+> than from the daily orchestrator. Both are wrapped in `withCronRun`, so a failure reaches the digest
+> through `cron_runs`. The digest runs at 03:00 UTC, so expire-listings (02:30 UTC) is reported half an
+> hour later, while application-reminders (04:00 UTC) waits ~23h for the next morning's digest. This
+> note said until 2026-09-14 that
+> application-reminders' failures surfaced "only in logs/Sentry". That was true before it was wrapped.
 
 **When adding a new cron job**, decide:
 - Once daily is fine → add to `app/api/cron/daily/route.ts` orchestrator
