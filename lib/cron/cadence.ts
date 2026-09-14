@@ -19,12 +19,12 @@
 // their first run (≤~4h for the 4-hourly ones, ≤~24h for the daily ones). That's a truthful, self-healing
 // "degraded" — not "down", since "daily" itself stays fresh — not a bug.
 export const TRACKED_CRONS: Readonly<Record<string, number>> = {
-  daily:                   48 * 60 * 60 * 1000,  // daily 05:00 UTC (orchestrator)
+  daily:                   48 * 60 * 60 * 1000,  // daily 05:00 SAST = 03:00 UTC (orchestrator; cPanel's clock is SAST)
   screening_line_runner:    2 * 60 * 60 * 1000,  // every 15m
   mandatory_retry:          3 * 60 * 60 * 1000,  // every 1h
   bank_feed_sync:           9 * 60 * 60 * 1000,  // every 4h
   arrears_sequence:         9 * 60 * 60 * 1000,  // every 4h
   maintenance_delay_check:  9 * 60 * 60 * 1000,  // every 4h
   check_links:              9 * 60 * 60 * 1000,  // every 4h
-  application_reminders:   30 * 60 * 60 * 1000,  // daily 06:00 UTC
+  application_reminders:   30 * 60 * 60 * 1000,  // daily 06:00 SAST = 04:00 UTC
 }
