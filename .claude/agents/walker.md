@@ -280,6 +280,11 @@ Two production fail-opens (#11, #12) were caught by this agent — by a reader w
   while the invariant quietly inverted at the other end. This is the case that named the step.
 - A fix applied to one `replacePlaceholders`-shaped call site while its near-copies under
   different names went unescaped.
+- **The cron digest's grader (2026-09-14, caught pre-PR, L-31).** The reader was hardened to trust
+  the tail of `cron_runs` ("failing = the latest run failed"), while the writer, `withCronRun`,
+  dropped rows silently on the very failures being graded. postgrest-js RETURNS its errors, so the
+  `catch` around the insert never fired. A job that was down read as "intermittent, has succeeded
+  since". The writer was one file away and shared no name with the reader.
 
 ### SA-legal surface (step 6) — wrongness here VOIDS NOTICES
 

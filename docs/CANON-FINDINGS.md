@@ -374,6 +374,18 @@ session does not re-report the old ones:**
   of the tree. Canon's own half (`bd58b28`, 2026-08-19) precedes it, so the later of the two governs.
   **Canon: rewrite L-66's line to 2026-08-20, evidence `fd818c0c`.**
 
+**Evidence for L-31, 2026-09-14. Not an answer; L-31 is not open for pleks.** This is a fresh instance,
+caught by the pre-PR walk of `fix/cron-digest-intermittent` (walker F1). The digest's reader was changed
+to trust *recency*: "failing" meant the latest `cron_runs` row had failed. The writer drops rows
+silently on exactly the failures being graded. Its insert's `{ error }` was never read, and postgrest-js
+returns errors rather than throwing (`shouldThrowOnError = false`, and fetch rejections are converted
+too), so the `catch` around the insert was dead code. The result: a job that failed once, succeeded
+once and then stopped recording read "intermittent, has succeeded since" for a day. **The portable
+shape is a change to what a reader trusts, not to what it reads:** the query and the rows were the
+same before and after, so nothing in the diff pointed at the writer. Fixed in the same PR: the writer
+reads and reports the error, and the reader treats a success older than the job's staleness limit as
+stale. The walker's project surface carries it under step 3.
+
 **The 5 open lessons below are NOT answers**, and that is the point — `--emit-open` should keep
 reporting them until pleks carries them. They are listed so the next session knows the triage
 finished rather than stopped. **⚠ Canon: do not lift this list.** None is an `Applied:` value; each

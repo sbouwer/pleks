@@ -3,7 +3,7 @@
  *
  * Auth:   Server-only — called from /api/health/deep (token-gated) and /api/status (ISR-cached)
  * Data:   prime_rates (DB probe), Resend domains API (email probe), storage.listBuckets,
- *         cron_runs (per-job freshness thresholds in TRACKED_CRONS; every cron writes a row via withCronRun)
+ *         cron_runs (per-job freshness thresholds in TRACKED_CRONS, lib/cron/cadence.ts; every cron writes a row via withCronRun)
  * Notes:  Promise.all across all 4 checks; 5s per-component timeout; never throws.
  *         DB is the only critical dependency — email/storage/crons degrade, not down.
  *         Email check auto-skips when RESEND_API_KEY is absent (not yet configured).
@@ -16,6 +16,7 @@ import { HOLIDAY_TABLE_COVERS_THROUGH } from "@/lib/dates/saPublicHolidays"
 import { HOLIDAY_HORIZON_WARN_DAYS } from "@/lib/leases/cpaRenewal"
 import { saDateISO } from "@/lib/dates"
 import { APP_VERSION, SENTRY_ENVIRONMENT_PUBLIC, optionalEnv } from "@/lib/env"
+import { TRACKED_CRONS } from "@/lib/cron/cadence"
 
 export type ComponentStatus = "ok" | "degraded" | "down"
 
@@ -116,24 +117,7 @@ async function checkStorage(supabase: SupabaseClient): Promise<HealthReport["com
   }
 }
 
-// Tracked top-level scheduled crons → how long since the last SUCCESS before "stale". Thresholds are ~2–3× the
-// cadence so a single transient miss doesn't flap. Every external (cPanel-triggered) cron now writes a cron_runs
-// row via withCronRun (lib/cron/withCronRun.ts), so they're all observable here — this is what finally lets
-// checkCrons track more than "daily". The orchestrator's IN-PROCESS children are still covered by a fresh
-// "daily" row (don't add them — they don't self-insert), and monthly jobs run inside it (day-of-month gated).
-// Note: right after the withCronRun deploy the newly-tracked crons have no rows yet, so they read stale until
-// their first run (≤~4h for the 4-hourly ones, ≤~24h for the daily ones). That's a truthful, self-healing
-// "degraded" — not "down", since "daily" itself stays fresh — not a bug.
-const TRACKED_CRONS: Record<string, number> = {
-  daily:                   48 * 60 * 60 * 1000,  // daily 05:00 UTC (orchestrator)
-  screening_line_runner:    2 * 60 * 60 * 1000,  // every 15m
-  mandatory_retry:          3 * 60 * 60 * 1000,  // every 1h
-  bank_feed_sync:           9 * 60 * 60 * 1000,  // every 4h
-  arrears_sequence:         9 * 60 * 60 * 1000,  // every 4h
-  maintenance_delay_check:  9 * 60 * 60 * 1000,  // every 4h
-  check_links:              9 * 60 * 60 * 1000,  // every 4h
-  application_reminders:   30 * 60 * 60 * 1000,  // daily 06:00 UTC
-}
+// TRACKED_CRONS (per-job staleness thresholds) lives in lib/cron/cadence.ts, shared with the daily digest.
 const MAX_TRACKED_THRESHOLD_MS = Math.max(...Object.values(TRACKED_CRONS))
 
 async function checkCrons(supabase: SupabaseClient): Promise<HealthReport["components"]["crons"]> {
