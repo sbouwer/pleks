@@ -66,10 +66,20 @@ interface EmailLayoutProps {
 
 const DEFAULT_ACCENT = "#1a56db"
 // Dark-mode logo swap — the dark-ink Pleks wordmark vanishes on the dark card mail clients force in dark mode,
-// so show the light-ink variant there. Covers prefers-color-scheme (Apple Mail/iOS/Gmail app) + Outlook.com.
+// so show the light-ink variant there. Covers prefers-color-scheme (Apple Mail/iOS) + Outlook.com ([data-ogsc]).
+// The rule reveals the dark variant's WRAPPER (see DARK_LOGO_HIDDEN), so it has to undo every hiding property
+// the wrapper carries, not just display.
+const DARK_LOGO_SHOW = "display:block!important;max-height:none!important;overflow:visible!important"
 const LOGO_SWAP_CSS =
-  "@media (prefers-color-scheme: dark){.pl-logo-light{display:none!important}.pl-logo-dark{display:inline-block!important}}" +
-  "[data-ogsc] .pl-logo-light{display:none!important}[data-ogsc] .pl-logo-dark{display:inline-block!important}"
+  `@media (prefers-color-scheme: dark){.pl-logo-light{display:none!important}.pl-logo-dark{${DARK_LOGO_SHOW}}}` +
+  `[data-ogsc] .pl-logo-light{display:none!important}[data-ogsc] .pl-logo-dark{${DARK_LOGO_SHOW}}`
+// How the dark variant is hidden everywhere the swap CSS does not apply. Until 2026-09-14 this was a bare
+// `display:none` on the <img>, and a client that drops that (classic Outlook's Word engine ignores it on
+// images) or strips the <head> <style> showed BOTH wordmarks stacked. So the hiding sits on a wrapper and is
+// layered: display:none for most clients, mso-hide:all for Word-engine Outlook, and max-height:0 with
+// overflow:hidden for a client that keeps neither.
+const DARK_LOGO_HIDDEN = { display: "none", maxHeight: 0, overflow: "hidden", msoHide: "all" }
+const DARK_LOGO_IMG = { display: "block", msoHide: "all" }  // Word does not always carry mso-hide into children
 
 /**
  * Header brand mark: an org's uploaded logo if set; else the Pleks wordmark PNG (light/dark swap) for
@@ -84,7 +94,9 @@ function HeaderLogo({ branding, accent }: Readonly<{ branding: OrgBranding; acce
     return (
       <>
         <Img className="pl-logo-light" src={absoluteUrl("/logo/pleks-wordmark-light.png")} alt="Pleks" height={36} style={{ display: "block" }} />
-        <Img className="pl-logo-dark" src={absoluteUrl("/logo/pleks-wordmark-dark.png")} alt="Pleks" height={36} style={{ display: "none" }} />
+        <div className="pl-logo-dark" style={DARK_LOGO_HIDDEN}>
+          <Img src={absoluteUrl("/logo/pleks-wordmark-dark.png")} alt="Pleks" height={36} style={DARK_LOGO_IMG} />
+        </div>
       </>
     )
   }
