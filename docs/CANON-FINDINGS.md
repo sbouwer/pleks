@@ -304,6 +304,42 @@ FIX        just a rule): run the previous gate and the new one over the same pay
            own probe and the old corpus cannot see a regression."
 ```
 
+### CF-11 · a literal `..` test is not a path-traversal guard wherever the path later passes through a URL parser
+
+```
+OBSERVED   pleks's storage-path guard rejected `path.includes("..")`, and a caller-supplied key of
+           `%2e%2e/%2e%2e/%2e%2e/{otherOrg}/{app}/id_document` passed it and resolved into another
+           organisation's prefix. Found by the pre-merge walk of PR #268 (2026-09-07); fixed before
+           merge. Its PROMOTE line nominated a lesson for canon, and that nomination was never
+           relayed. It surfaced on 2026-09-11 when the handoff directory holding it was cleared.
+
+COMMAND    Walker, against PR #268's head `3cc8edbd` (the handoff record, verbatim):
+             "The WHATWG URL parser … defines a double-dot path segment as `..` or `%2e%2e` /
+              `%2E%2E` / `.%2e` / `%2e.` (ASCII case-insensitive). Verified by parsing all four
+              forms: each pops a segment. `@supabase/storage-js` … applies no percent-encoding,
+              so the encoded form reaches `fetch` intact and is resolved client-side exactly as
+              `..` is."
+           The fix, and why it is shaped as it is, is at the site:
+           `app/api/applications/[id]/documents/upload/route.ts:48-58`, with probes in
+           `lib/applications/applicationStoragePath.test.ts` ("REJECTS percent-encoded dot
+           segments after a valid prefix").
+
+WHY IT IS  Nothing here is pleks's stack. Any string test for traversal is checked against one
+CANON'S    definition of a dot segment, and the parser that later resolves the path uses another,
+           wider one. A client SDK that builds `${base}/object/${key}` without encoding hands the
+           key to `new URL`/`fetch`, which apply the WHATWG rule on every runtime. The guard looks
+           correct and a probe with a literal `../` passes, which is the 2026-08-19 scar's shape:
+           the probe confirms the spelling its author had in mind.
+
+SMALLEST   A lesson, not a kit change. Nominated for LESSONS.md, canon's to file: "a path guard
+FIX        that string-tests `..` is checked against a narrower definition of a dot segment than the
+           URL parser the path later reaches; allowlist the caller-supplied component against a
+           closed set, so that no decode depth has to be chosen." The allowlist is what pleks
+           shipped (`parseDocKey`). A sanitiser would have to pick a decode depth and match every
+           layer's idea of one — Next's params, URLSearchParams, the SDK — which is the same
+           mismatch moved elsewhere.
+```
+
 ---
 
 ## 2 · Lesson answers
