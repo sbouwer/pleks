@@ -2,7 +2,7 @@
 /**
  * scripts/check-hook-registration.mjs — a hook file is not a hook until settings wires it.
  *
- * @kit check-hook-registration v6 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-hook-registration v7 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * WHAT IT CATCHES. Delete the `hooks` block from `.claude/settings.json` and every gate goes inert
@@ -178,7 +178,7 @@ export function ruleFindings(file, inv, gated, fileTwins) {
     } else {
       for (const t of r.fallback.twins ?? []) {
         backing.add(t);
-        if (!gated.has(t)) out.push(`${at}: ${name} is backed by ${t}, which is in neither permissions.deny nor permissions.ask — the dormant layer has nothing to fall back to`);
+        if (!gated.has(t)) out.push(`${at}: ${name} is backed by ${t}, which is in neither permissions.deny nor permissions.ask — the fallback layer does not hold it`);
       }
     }
   }
@@ -368,7 +368,7 @@ export function audit(root = ".") {
     // 3 — TWIN RECONCILIATION. Ask is the floor; absent is the violation.
     for (const t of twins) {
       if (!gated.has(t)) {
-        out.push(`${HOOK_DIR}/${f}: declares @twin ${t}, which is in neither permissions.deny nor permissions.ask — the dormant layer has nothing to fall back to`);
+        out.push(`${HOOK_DIR}/${f}: declares @twin ${t}, which is in neither permissions.deny nor permissions.ask — the fallback layer does not hold it`);
       }
     }
   }
