@@ -13,7 +13,8 @@ import { NextRequest } from "next/server"
 import { isCronAuthorised } from "./auth"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
-import type { CronJobDetail } from "./cronDigest"
+import { classifyCronRuns, type CronJobDetail, type CronRunRow } from "./cronDigest"
+import { TRACKED_CRONS } from "./cadence"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -57,7 +58,7 @@ export function withCronRun(jobName: string, handler: CronHandler): CronHandler 
     // Best-effort cron_runs row — recording must never mask the cron's own result.
     try {
       const db = await createServiceClient()
-      await db.from("cron_runs").insert({
+      const { error } = await db.from("cron_runs").insert({
         job_name:      jobName,
         started_at:    startedAt.toISOString(),
         finished_at:   new Date().toISOString(),
@@ -65,8 +66,9 @@ export function withCronRun(jobName: string, handler: CronHandler): CronHandler 
         error_message: errorMessage,
         metadata,
       })
+      if (error) reportLostRow(jobName, status, error.message)
     } catch (e) {
-      console.error(`[cron:${jobName}] failed to write cron_runs:`, e instanceof Error ? e.message : String(e))
+      reportLostRow(jobName, status, e instanceof Error ? e.message : String(e))
     }
 
     return response
@@ -74,9 +76,28 @@ export function withCronRun(jobName: string, handler: CronHandler): CronHandler 
 }
 
 /**
+ * A cron_runs row that was not written. Best-effort stays right — recording must never mask the cron's own
+ * result — but a lost row is not neutral: the digest grades from these rows, so a job whose runs cannot record
+ * reads healthier than it is. Until 2026-09-14 this path was unreachable: postgrest-js RETURNS its errors
+ * (fetch rejections included) rather than throwing, and the returned `error` was never read, so the catch
+ * alone saw nothing (walker F1). Sentry, not only the log, because the lost row is the evidence missing
+ * from the one report anyone reads.
+ */
+function reportLostRow(jobName: string, status: string, message: string): void {
+  console.error(`[cron:${jobName}] failed to write cron_runs (run ${status}):`, message)
+  Sentry.captureMessage("cron_runs row not written", {
+    level: "warning",
+    tags:  { cron_job: jobName, kind: "cron_runs_lost" },
+    extra: { runStatus: status, message },
+  })
+}
+
+/**
  * Roll up the last `sinceHours` of cron_runs into per-job digest entries — ONLY for jobs that failed (a failed
  * run, or non-zero emails-failed from the belt). Excludes "daily" (the orchestrator's own row; its sub-jobs are
  * reported in-process). Returned to the orchestrator and merged into the digest detail.
+ * The grading — failing (still failing now) versus intermittent (failed, then succeeded) — is
+ * classifyCronRuns, kept pure in cronDigest.ts so it is probed without a database.
  */
 export async function collectCronRunFailures(sinceHours = 24): Promise<Record<string, CronJobDetail>> {
   const db = await createServiceClient()
@@ -87,35 +108,13 @@ export async function collectCronRunFailures(sinceHours = 24): Promise<Record<st
     .select("job_name, status, error_message, metadata, finished_at")
     .neq("job_name", "daily")
     .gte("finished_at", since)
+    // NEWEST first: PostgREST caps a response at max_rows (1000 in supabase/config.toml), and a cap must drop
+    // the oldest rows, never the tail the grade is decided from. classifyCronRuns re-sorts, so this order
+    // matters only for which rows survive a cap.
+    .order("finished_at", { ascending: false })
   if (error) {
     console.error("[cron-digest] failed to read cron_runs:", error.message)
     return {}
   }
-
-  const byJob: Record<string, { total: number; failed: number; emailsFailed: number; lastError?: string }> = {}
-  for (const row of data ?? []) {
-    const job = (row.job_name as string) ?? "unknown"
-    const agg = (byJob[job] ??= { total: 0, failed: 0, emailsFailed: 0 })
-    agg.total++
-    if (row.status === "failed") {
-      agg.failed++
-      if (row.error_message) agg.lastError = row.error_message as string
-    }
-    const ef = (row.metadata as { failed?: number } | null)?.failed
-    if (typeof ef === "number") agg.emailsFailed += ef
-  }
-
-  const detail: Record<string, CronJobDetail> = {}
-  for (const [job, agg] of Object.entries(byJob)) {
-    if (agg.failed === 0 && agg.emailsFailed === 0) continue
-    let error: string
-    if (agg.failed > 0) {
-      const tail = agg.lastError ? ` — ${agg.lastError}` : ""
-      error = `${agg.failed}/${agg.total} runs failed in ${sinceHours}h${tail}`
-    } else {
-      error = `${agg.emailsFailed} email(s) failed across ${agg.total} runs in ${sinceHours}h`
-    }
-    detail[job] = { status: agg.failed > 0 ? "failed" : "partial", failed: agg.emailsFailed || agg.failed, error }
-  }
-  return detail
+  return classifyCronRuns((data ?? []) as CronRunRow[], sinceHours, { now: Date.now(), freshnessMs: TRACKED_CRONS })
 }

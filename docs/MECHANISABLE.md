@@ -632,9 +632,10 @@ better than the entry asked for.
 - **Where it lives:** `lib/cron/withCronRun.ts:57-70` — the `cron_runs` insert is deliberately
   best-effort, and a failed insert is swallowed with a `console.error` · `collectCronRunFailures`
   (`:95-119`) builds `byJob` **from the returned rows** and increments `agg.total` per row, so the
-  denominator it prints is a count of successful recordings · `lib/observability/health.ts:127-136`
-  (`TRACKED_CRONS`) is the only place an expected cadence is declared, and it covers 8 of the 13
-  jobs that actually write rows.
+  denominator it prints is a count of successful recordings · `TRACKED_CRONS` is the only place an
+  expected cadence is declared, and it covers 8 of the 13 jobs that actually write rows. (It was at
+  `lib/observability/health.ts:127-136` as at `d15e6f88`, and moved to `lib/cron/cadence.ts` on
+  2026-09-14.)
 - **Rung:** check · **Blast:** other
 - **Observed 2026-09-11** against project `noexjtlrffkzzclibvbq`. On 2026-09-10 `mandatory_retry`
   wrote **22** rows, for hours `00-16,18-21,23` — **hours 17 and 22 have no row at all**, where
@@ -660,6 +661,15 @@ better than the entry asked for.
   tracks *"only top-level scheduled job_names that ACTUALLY write a cron_runs row (currently just
   `["daily"]`)"*. It holds **8** names as at `d15e6f88`. The warning the sentence carries is still
   right; its count had been stale for long enough to be read as the design.
+- **Part landed 2026-09-14, on `fix/cron-digest-intermittent`.** `TRACKED_CRONS` moved to
+  `lib/cron/cadence.ts`, and both `checkCrons` and the digest's grader now read it. For a tracked
+  job that has rows in the window, a success older than its limit now grades *failing*. The
+  insert's returned `{ error }` is read and reported to Sentry. It had been dead code:
+  postgrest-js returns errors rather than throwing. **Still open, and still this entry:**
+  - a tracked job with NO row in the window;
+  - the five wrapped jobs in no map;
+  - the shortfall denominator (rows seen against rows expected);
+  - the ratchet that fails a job with no declared cadence.
 - **Satisfied when:** every job wrapped in `withCronRun` declares its expected cadence in ONE place
   that both the digest and `checkCrons` read, and the digest reports a *shortfall* — rows seen
   against rows expected — as its own condition, distinct from a failed run. A job with no declared

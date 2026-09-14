@@ -144,7 +144,10 @@ async function handler(_req: NextRequest): Promise<Response> {
 
   if (error) {
     console.error("[mandatory-retry] Fetch error:", error.message)
-    return NextResponse.json({ error: "DB error" }, { status: 500 })
+    // The real message, not a flat "DB error": withCronRun copies `error` into cron_runs, and the digest
+    // is the only place anyone reads it. On 2026-09-14 this route was the one job of four whose cause
+    // the digest could not name. The route is cron-secret gated, like its siblings that already do this.
+    return NextResponse.json({ error: `DB error: ${error.message}` }, { status: 500 })
   }
 
   const retries = (rows ?? []) as RetryRow[]
