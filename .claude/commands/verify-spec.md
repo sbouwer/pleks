@@ -54,7 +54,7 @@ widen:
 > seven-spec pass was classifiable on exactly that basis; the `brief/`-internal ones were not, and
 > recording one `not-found` asserted a determination no read can make.
 >
-> **Return one row per claim and nothing else.** No rewriting of the spec. No recommendations. No
+> **Write one row per claim to the artefact, and nothing else.** No rewriting of the spec. No recommendations. No
 > ranking. No opinion on whether a refutation matters. A row that editorialises is a row that has
 > made a ruling that is not yours to make.
 >

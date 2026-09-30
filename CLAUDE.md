@@ -592,17 +592,40 @@ section that never mentioned joint applications).
 
 | Agent | For | Access |
 |---|---|---|
-| `grounder` | Before writing code: map the machinery a task touches | read-only |
-| `census` | Repo-wide counts / find-all-usages, returned **classified** | read-only |
-| `db-inspector` | Live-data claims; every answer carries its query | read-only, SELECT |
+| `grounder` | Before writing code: map the machinery a task touches | one artefact, hook-scoped |
+| `census` | Repo-wide counts / find-all-usages, returned **classified** | one artefact, hook-scoped |
+| `db-inspector` | Live-data claims; every answer carries its query | one artefact + SELECT-only SQL |
 | `implementer` | Pre-scoped mechanical transform; returns misfit judgment sites | write — **bounded per run by `.handoff/write-manifest.json`**; undeclared means `ask`, not allow (§5); **main checkout — NOT `isolation: worktree`** (E10); never commits, which IS gated |
-| `walker` | Adversarial pre-PR review — tries to **refute** | read-only |
+| `walker` | Adversarial pre-PR review — tries to **refute** | one artefact, hook-scoped |
+| `scout` | "Go find out X" when no pipeline step fits — replaces `Explore` and `general-purpose` | one artefact, hook-scoped |
 
-Mechanical reading → the read-only three. Mechanical writing → the implementer, **in your own
+**"Read-only" is not a thing an agent can be** (E8). The `tools:` frontmatter is a GRANT, not a
+withholding, so the Access column names what actually bounds each agent: `agent-write-scope` denies
+any write outside `.handoff/` for the artefact agents, and denies commit/merge/rebase/cherry-pick/
+revert/am/push through `Bash` for all of them. A spine or description saying "read-only" describes
+manners, not capability.
+
+Mechanical reading → grounder, census, db-inspector, scout. Mechanical writing → the implementer, **in your own
 checkout**. Judgment stays in the main session. **Every agent claim about the tree carries the SHA
 it observed** — the anchor rule of §8, applied to agents, and the thing that would have caught E10
 in any isolation mode. Subagents DO receive this file (E3) but a narrow-task agent skims it,
 and rung-4 rule files never reach an edit-blind session (E1b) — presence is not enforcement.
+
+**The brief decides whether that happens, so brief for it.** Every spawn names its artefact and
+asks for nothing inline. In `/build`, for example:
+
+```
+pipeline: /build 63E · step 1 of 3 · artefact: .handoff/63e-b1/01-grounder.md
+<the spec path and the concepts to map>
+```
+
+then `02-implementer.md` and `03-walker.md` for the later steps. Relay the returned block verbatim and open the artefact only at
+the section the block names. The next agent's brief is a pointer — *"Read `.handoff/<slug>/01-grounder.md`;
+apply X"* — never a retelling. **Never** "return your result as text", "give me the table", or a
+built-in `Explore` / `general-purpose` spawn: measured across the estate, each came back inline every
+time, whatever the spine said. Canon's `agent-brief-gate` refuses all three at the tool call; pleks
+**holds** that row (it fails `check-hook-registration` — `docs/CANON-FINDINGS.md`), so until it lands
+this paragraph is discipline, not a control.
 
 **STANDING AUTHORISATION — Stéan, 2026-09-10, from this date onwards.** *Agents listed in the table
 above may be spawned without per-session approval; writes stay bounded by
