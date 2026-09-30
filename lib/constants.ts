@@ -123,7 +123,7 @@ export function getApplicationFee(isJoint: boolean): number {
  *
  * INDIVIDUAL: R250 single, R470 joint. NOT per-head — that is a recorded pricing decision, and
  * per-head pricing for 3+ residential applicants is blocked on the v2 Searchworx pipeline
- * (brief/build/OUTSTANDING.md § Per-head screening fee).
+ * (brief/build/DEBT.md § Per-head screening fee).
  */
 export function screeningFeeCents(input: {
   readonly isJuristic: boolean

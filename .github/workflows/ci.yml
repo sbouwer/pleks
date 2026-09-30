@@ -97,7 +97,7 @@ jobs:
   #   · a hosted project would have FAILED Category 7 anyway until item 14e, because get_rls_audit()
   #     lived in no migration.
   #
-  # Do not reinstate a credential-fed security job without reading OUTSTANDING.md first.
+  # Do not reinstate a credential-fed security job without reading brief/build/DEBT.md § "The CI security job has never actually run" first.
 
   # The DB-integration tier (31 *.dbtest.ts files, 164 tests) hits a REAL Postgres through PostgREST.
   # Until 2026-08-17 it ran on ONE developer laptop and in no workflow at all: `npm run check` — the

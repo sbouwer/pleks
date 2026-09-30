@@ -1803,7 +1803,7 @@ WON'T BUILD. `no-restricted-imports` already forces every call through one entry
 
 **M-066 — every reference/wording document names its decision authority**
 
-WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifying fact itself: `brief/` is a OneDrive symlink outside version control, so this can never run in CI, and it warns against shipping it as a normal check where a CI green would read as coverage. It also puts a genuine choice to CD (accept a local-only ratchet, or move the reference documents into the tracked tree first). That choice is a DECISION, and it is recorded in `brief/build/OUTSTANDING.md` rather than left here as a build item.
+WON'T BUILD. Closed as a CHECK, not as an idea. The entry states the disqualifying fact itself: `brief/` is a OneDrive symlink outside version control, so this can never run in CI, and it warns against shipping it as a normal check where a CI green would read as coverage. It also puts a genuine choice to CD (accept a local-only ratchet, or move the reference documents into the tracked tree first). That choice is a DECISION, and it is recorded in `brief/build/DEBT.md` § *DECISION FOR CD — the "Decision authority:" header line* (gated as G-11 in `brief/GATES.md`) rather than left here as a build item.
 
 ---
 
