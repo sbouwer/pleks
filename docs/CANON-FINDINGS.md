@@ -531,6 +531,46 @@ at the time (`M playbooks/4-AGENT-PIPELINES.md`); every kit byte was read with `
   walker 0 since 2026-09-30 · grounder 0 since 2026-09-30 · db-inspector 0 since 2026-09-30 · scout 0
   since 2026-09-30` — counted, and dated from the commit.
 
+**Batches 2 + 3, canon `de8af9d` — adopted 2026-09-30** (handover `docs/handovers/2026-09-30-pleks.md`).
+Canon was already on `main` at `4dd30bf`, clean, with `de8af9d` an ancestor — no pull was needed, so
+nothing was written to canon's checkout. `git diff --stat de8af9d 4dd30bf` over `kit/agents`, the four
+commands, both scripts and `propagate-spines.mjs` is empty (`4dd30bf` adds only the handovers), so the
+working tree propagate-spines read IS `de8af9d` on every path taken.
+- **Spines (batch 2):** `propagate-spines.mjs .` → `6 agent file(s) rewritten, 0 target(s) absent`;
+  a second run rewrote 0. census v12 · walker v10 · grounder v9 · implementer v7 · db-inspector v7 ·
+  scout v2, each carrying `SPINE:contract v1`; crawler-doctrine untouched (v3). Outside the spine
+  regions the only change per file is one blank line — every `Project surface — pleks` section is
+  intact (diffed with the spine blocks stripped).
+- **Carry-forward (§1.3):** nothing to change. CLAUDE.md §7 restates neither the artefact's section
+  order nor the return contract; its Access column says "one artefact", which `scratch/` under
+  `.handoff/` does not contradict. Its `/build` example brief (`pipeline: /build 63E · step 1 of 3`)
+  differs from canon's `P1 · step N of 3`; both pass agent-brief-gate, so it stays.
+- **Commands (batch 3):** `walk@1` · `wrap@1` · `build@1` · `verify-spec@1`, canon bytes outside their
+  regions. Regions filled from the old copies:
+  - **walk** `range` `origin/main..HEAD`. `surfaces` holds only what walker v10's pleks section does
+    not already say: the "false proof" framing and "uncommitted work called done, twice". Every
+    shipped fail-open shape the old step 3 listed is already in the walker's project surface.
+  - **wrap** `gate` `npm run check`. `push` states the pleks rule: approval-gated push with
+    announcement, nominations filed BEFORE the push gate, and **`.handoff/` cleared once work is
+    pushed, not merely committed** (the deliberate difference from canon's text, carried in the
+    region as the handover suggested). `registers`: INDEX mints the slot after checking its registry
+    (70H), the row goes in its band file, plus CURRENT.md (replace the head, 8 KB) and DEBT.md.
+  - **build** `specs`, `preflight` (the four exits, M-106), `nonnegotiables` (the old step 4,
+    verbatim).
+  - **verify-spec** `resolve`, `instrument` (exits incl. MISCITED 5 with M-107/M-113), `unversioned`
+    (`brief/`, ADDENDUM_02B), `ruler` (Stéan; CD drafts), `downstream` (M-106). **The pleks precedents
+    canon stripped — 14B, ADDENDUM_04A, 14S row 9, 57I, SPEC_TIER_CHANGE — live in the `instrument`
+    region** as a short list keyed to the rule each paid for.
+- **Scripts:** `check-handoff-contract@8` · `check-commands@1` (canon bytes), wired as
+  `node scripts/check-commands.mjs --selftest && node scripts/check-commands.mjs` in `npm run check`.
+  `📜 commands: 4 command(s) against 8 spine block(s) across 7 agent(s) — none restates a spine, every
+  spawn is briefed`. v8 on the existing `.handoff/`: `🤝 handoff-contract: 4 artefact(s) carry a
+  well-formed contract block`.
+- **Nothing canon's copies got wrong for pleks.** Canon: delete the 6 spinePins and the
+  check-handoff-contract kitPin; record `check-commands`, `walk`, `wrap`, `build`, `verify-spec`.
+- **Still owed:** the four brief-gate live checks, in a fresh session — they now also exercise the
+  batch-2 spines, which load at session start (E9).
+
 - **Re-adopted — row `check-hook-registration`, v2 → v3, 2026-09-10.** CF-3's fix, taken the session
   it shipped. Copied from canon and verified byte-identical (`diff -q` → no output); `--selftest`
   green, live run green. Comment-only, −21/+18. **Canon: lift the v2 pin you were holding (review

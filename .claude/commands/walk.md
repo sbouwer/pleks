@@ -1,15 +1,64 @@
 ---
-description: Adversarial walk of the current branch/PR before handoff — verify against origin, hunt fail-opens
+description: Adversarial walk of the current work before it goes out — spawn the walker, verify the claims with read agents, fold the findings in
 ---
+<!-- @kit walk v1 — tracked OUTSIDE its KIT:CONFIG regions. Edit it in dev-standards and re-adopt;
+     a change outside a region is a fork, and check-kit-drift says so. It restates no spine:
+     scripts/check-commands.mjs fails a command that copies one. -->
 
-Walk the work just completed as an adversarial reviewer. You are trying to REFUTE the done-report, not confirm it. For an independent pass, spawn the `walker` agent on the diff and fold its findings in — its fresh context catches what the author's context cannot. Its brief carries `artefact: .handoff/<slug>/<NN>-walker.md` and asks for nothing inline; read the findings from the artefact.
+Walk the work just completed. You are trying to REFUTE the done-report, not confirm it. The walker
+does the walking, with a context that never saw the author's reasoning; its method lives in
+`.claude/agents/walker.md`, and this command does not restate it.
 
-1. **Origin, not working tree.** `git fetch origin` and diff every claim against the pushed state. `git status` must be clean — uncommitted work that a report calls "done" IS a finding (this has happened twice).
-2. **Verify claims in the artefacts.** Every "done" claim gets checked in the actual files. Live-data claims ("NULL on all three rows") require an actual query. Repo-wide pattern claims ("zero raw reads remain") go to the `census` agent — with synonym spellings, and a zero only counts if the probe demonstrably fires on a known positive.
-3. **Fail-open hunt on the diff.** For every guard, check, or computation touched, ask: if this input is malformed, missing, stale, or out of range, does the code fail toward "the notice/state looks valid"? Census precedent: stamps-on-send-failure, lexical range checks passing unreal dates, walks degrading silently past a data horizon, false delivery events. Systems that produce proof fail toward false proof — hunt for that shape specifically.
-4. **Adversarial composition.** Verification tells you what each piece does; only composition tells you what they do to each other. Check gates vs the computations they guard: do they anchor on the same value, the same end of the walk, the same timezone resolution?
-5. **Tests exercise the bug, not the fix.** Every closed fail-open needs a must-throw (or must-block) fixture that fails on the OLD code. A test asserting the current behaviour of a bug is worse than no test.
-6. **Reproduce every finding before you write it down.** Each one rests on a premise about the tree — "this rule applies here", "nothing else calls this", "that branch is reachable" — and that premise is itself a claim you hold the instruments to refute. Run them: execute the check, grep for the caller, read the config that decides. Do it BEFORE phrasing the finding, because a finding you have already written is one you have started defending. Measured on a blind pass: **1 major finding in 8 could not be reproduced, with the disproof inside the reviewer's own input.** The asymmetry is why it is cheap — a false finding costs the reader a fix to correct code; an unreproduced one costs you a grep. **Mark, never drop:** a finding you could not confirm is reported *as* `UNREPRODUCED` with what you tried. Silently withholding it trades a false positive for a false negative and hides the trade.
-7. **Report findings ranked most-severe first** — file + symbol references (never line numbers; they go stale same-day), a concrete failure scenario per finding (inputs/state → wrong outcome), and `REPRODUCED` / `UNREPRODUCED` naming the instrument you ran. If nothing survives, say so plainly; do not manufacture findings.
+1. **Pick one slug for this walk** — `walk-<topic>` — and number the spawns in the order you send
+   them, one `NN` each. A re-walk takes the next free number; it never reuses one.
+
+2. **Spawn the `walker` in the background**, with this brief and nothing inline:
+
+   ```
+   pipeline: walk · step 1 of <N> · artefact: .handoff/walk-<topic>/<NN>-walker.md
+   <what was done · the range to walk (below) · the claims under test · the upstream artefacts it may read, by path>
+   ```
+
+3. **While it runs, send the claims out — all in ONE message**, so they run concurrently: one
+   `db-inspector` per live-data claim, one `census` per repo-wide pattern claim.
+
+   ```
+   pipeline: walk · step <NN> of <N> · artefact: .handoff/walk-<topic>/<NN>-db-inspector.md
+   pipeline: walk · step <NN> of <N> · artefact: .handoff/walk-<topic>/<NN>-census.md
+   ```
+
+   A census brief names the synonym spellings and one known positive: a zero counts only when the
+   search demonstrably finds that positive.
+
+4. **Read the artefacts, not the replies.** Each agent returns its contract block. Relay it
+   verbatim, and open the artefact at the section it names. Never brief "return your findings as
+   text": the artefact is where a finding lives.
+
+5. **Walking inline instead** — no agent available, or a one-line change — means applying
+   `.claude/agents/walker.md` §Method in full, every step, and the surfaces below it. A walk run
+   from Main that skips steps is weaker than the agent's and reads the same.
+
+6. **Report the surviving findings**, most severe first, each marked as the walker marked it. If
+   nothing survived, say so plainly.
+
+**The range this project walks:**
+
+<!-- /* KIT:CONFIG range — yours: the range a walk diffs against */ -->
+`origin/main..HEAD`
+<!-- /* KIT:CONFIG /range */ -->
+
+**This project's standing walk surfaces** — the checks every walk here adds, and the precedents that
+paid for them. Evidence is project property; canon ships this empty.
+
+<!-- /* KIT:CONFIG surfaces — yours: domain surfaces and precedents, each with its cost stated */ -->
+The shipped fail-open shapes and the sites that bit are in `.claude/agents/walker.md` §Project
+surface — pleks; the brief does not repeat them. What that section does not say:
+
+- **Systems that produce proof fail toward false proof.** A notice, a delivery record, a consent
+  stamp or a verification block: hunt first for the input that makes one *look* valid when it is
+  not. A voided statutory notice costs more here than downtime.
+- **Uncommitted work called "done" has reached a report twice.** `git status` clean is the first
+  line of every walk here, not a formality.
+<!-- /* KIT:CONFIG /surfaces */ -->
 
 $ARGUMENTS
