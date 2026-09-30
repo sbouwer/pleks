@@ -108,6 +108,10 @@ supabase/.temp/pgdelta/
 # Supabase cuts a version, never when this project changes, and nothing here reads it. Its siblings
 # (project-ref, the *-version files, pooler-url) stay tracked: those describe the LINKED PROJECT.
 supabase/.temp/cli-latest
+# start-secrets holds the env file `supabase start` hands the local edge-runtime container. It is
+# written on every start, is machine-local, and is secret-shaped; nothing about it describes the
+# linked project, so it is ignored whole rather than per file.
+supabase/.temp/start-secrets/
 
 # ESLint cache — local only, rebuilt by scripts/eslint-cache-guard.mjs (never committed)
 .eslintcache
