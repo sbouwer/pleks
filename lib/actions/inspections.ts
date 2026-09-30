@@ -27,7 +27,7 @@ import { InspectionRescheduledEmail } from "@/lib/comms/templates/tenant/inspect
 import { InspectionMoveInReportEmail } from "@/lib/comms/templates/tenant/inspections/inspection-move-in-report"
 import { InspectionReportReadyEmail } from "@/lib/comms/templates/tenant/inspections/inspection-report-ready"
 import { InspectionDisputeWindowEmail } from "@/lib/comms/templates/tenant/inspections/inspection-dispute-window"
-import { fmtDateLongZA } from "@/lib/dates"
+import { fmtDateLongZA, saWallClockToInstant } from "@/lib/dates"
 import { recordAudit } from "@/lib/audit/recordAudit"
 
 const PROFILE_REQUIRED_TYPES = new Set(["move_in", "move_out", "periodic"])
@@ -41,6 +41,20 @@ const INSPECTION_TYPE_LABELS: Record<string, string> = {
 
 function formatDateLocal(iso: string): string {
   return fmtDateLongZA(iso)
+}
+
+/**
+ * A typed `scheduled_date` → the ISO instant to store (ADDENDUM_63E B0). The form is datetime-local, so the
+ * value is SA wall-clock with no offset; written raw, Postgres (TimeZone=UTC) stores it two hours late.
+ * `null` for no date, `undefined` for a value that names no real moment.
+ */
+function scheduledInstant(raw: FormDataEntryValue | null): string | null | undefined {
+  if (typeof raw !== "string" || raw === "") return null
+  try {
+    return saWallClockToInstant(raw).toISOString()
+  } catch {
+    return undefined
+  }
 }
 
 /** Log-only Supabase error guard (loud-not-fatal); a call keeps cognitive complexity flat vs inline `if`. */
@@ -153,22 +167,32 @@ async function assertInspectionFksInOrg(
   return null
 }
 
+/** createInspection's FormData fields, defaulted. Split out to keep that action's complexity flat. */
+function readInspectionForm(formData: FormData) {
+  const scheduledDate = scheduledInstant(formData.get("scheduled_date"))
+  return {
+    unitId: formData.get("unit_id") as string,
+    propertyId: formData.get("property_id") as string,
+    leaseId: formData.get("lease_id") as string || null,
+    tenantId: formData.get("tenant_id") as string || null,
+    inspectionType: formData.get("inspection_type") as string,
+    leaseType: formData.get("lease_type") as string || "residential",
+    scheduledDate,
+    inputError: scheduledDate === undefined ? "Invalid scheduled date" : null,
+  }
+}
+
 export async function createInspection(formData: FormData) {
   const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId, orgId } = gw
 
-  const unitId = formData.get("unit_id") as string
-  const propertyId = formData.get("property_id") as string
-  const leaseId = formData.get("lease_id") as string || null
-  const tenantId = formData.get("tenant_id") as string || null
-  const inspectionType = formData.get("inspection_type") as string
-  const leaseType = formData.get("lease_type") as string || "residential"
-  const scheduledDate = formData.get("scheduled_date") as string || null
+  const { unitId, propertyId, leaseId, tenantId, inspectionType, leaseType, scheduledDate, inputError } =
+    readInspectionForm(formData)
 
   // F-2 (AUDIT_IMPORT): every FK here is client-supplied FormData. The insert stamps org_id: orgId (so the
   // org-scope-on-write lint is satisfied) but the REFERENCED rows must also belong to this org — otherwise an
   // agent can create an inspection against another org's unit, seed rooms from it, and email that org's tenant.
-  const fkError = await assertInspectionFksInOrg(db, { unitId, propertyId, leaseId, tenantId }, orgId)
+  const fkError = inputError ?? await assertInspectionFksInOrg(db, { unitId, propertyId, leaseId, tenantId }, orgId)
   if (fkError) return { error: fkError }
 
   // Hard gate: move_in / move_out / periodic require an existing profile
@@ -386,9 +410,10 @@ export async function updateItemCondition(
 }
 
 /**
- * @knipignore The ONLY implementation of tenant comm I3. The live reschedule path (respondToRescheduleRequest)
+ * The ONLY implementation of tenant comm I3. The live reschedule path (respondToRescheduleRequest)
  * updates scheduled_date and notifies nobody — that gap is a finding, not a reason to delete this
- * half. Refused DEAD verdict, docs/DEAD-CODE-QUEUE.md.
+ * half. Refused DEAD verdict, docs/DEAD-CODE-QUEUE.md. No production caller yet; its knip tag was dropped
+ * when inspections.scheduledAt.test.ts (ADDENDUM_63E B0) became a caller.
  */
 export async function rescheduleInspection(
   inspectionId: string,
@@ -397,6 +422,9 @@ export async function rescheduleInspection(
 ): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId, orgId } = gw
+
+  const newScheduledAt = scheduledInstant(newDate)
+  if (!newScheduledAt) return { error: "Invalid scheduled date" }
 
   const { data: inspection, error: inspectionError } = await db
     .from("inspections")
@@ -414,12 +442,12 @@ export async function rescheduleInspection(
 
   const { error: updateErr } = await db
     .from("inspections")
-    .update({ scheduled_date: newDate })
+    .update({ scheduled_date: newScheduledAt })
     .eq("id", inspectionId)
 
   if (updateErr) return { error: updateErr.message }
 
-  await recordAudit(db, { orgId: inspection.org_id, table: "inspections", recordId: inspectionId, action: "UPDATE", actorId: userId, after: { scheduled_date: newDate } })
+  await recordAudit(db, { orgId: inspection.org_id, table: "inspections", recordId: inspectionId, action: "UPDATE", actorId: userId, after: { scheduled_date: newScheduledAt } })
 
   // I3: notify tenant of reschedule
   if (inspection.tenant_id) {
@@ -457,7 +485,7 @@ export async function rescheduleInspection(
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
         const senderName = orgSettings?.name ?? branding.orgName
         const inspectionTypeLabel = INSPECTION_TYPE_LABELS[inspection.inspection_type as string] ?? "Inspection"
-        const newDateDisplay = formatDateLocal(newDate)
+        const newDateDisplay = formatDateLocal(newScheduledAt)
 
         await routeAndSend({
           orgId:       inspection.org_id as string,

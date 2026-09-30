@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest"
 import {
   SA_TIMEZONE, saDateISO, saTodayISO, isSameSaDay, isSaDateISO,
   calendarDate, addCalendarDays, addCalendarMonths, diffCalendarDays, saDayStartUtc,
-  monthStart, monthEnd, fmtDateZA, fmtDateLongZA, fmtDateTimeZA,
+  monthStart, monthEnd, fmtDateZA, fmtDateLongZA, fmtDateTimeZA, saWallClockToInstant,
 } from "./index"
 
 // ── The 22:00 UTC day-flip: the SA day turns over two hours before the UTC day ────────────────────────
@@ -196,5 +196,49 @@ describe("formatters render in SAST regardless of the server timezone", () => {
   it("throws on an unreal date rather than rendering 'Invalid Date'", () => {
     expect(() => fmtDateZA("2025-02-29")).toThrow(/not a real date/)
     expect(() => fmtDateZA(new Date("nonsense"))).toThrow(/not a real/)
+  })
+})
+
+// ── ADDENDUM_63E R3: a typed time is SA wall-clock, and must be stored as the instant it names ──────────
+
+describe("saWallClockToInstant — 10:00 typed is 08:00Z stored is 10:00 shown", () => {
+  it("round-trips: typed 10:00 → stored 08:00Z → displayed 10:00", () => {
+    const at = saWallClockToInstant("2026-10-01T10:00")
+    expect(at.toISOString()).toBe("2026-10-01T08:00:00.000Z")
+    expect(fmtDateTimeZA(at)).toContain("10:00")
+  })
+
+  it("is exactly the bug of writing the raw string: Postgres-UTC reads it as 10:00Z = 12:00 SAST", () => {
+    const raw = new Date("2026-10-01T10:00Z")                  // what TimeZone=UTC stores today
+    expect(fmtDateTimeZA(raw)).toContain("12:00")              // the wrong answer
+    expect(fmtDateTimeZA(saWallClockToInstant("2026-10-01T10:00"))).toContain("10:00")
+  })
+
+  it("an early-morning SA time lands on the PREVIOUS UTC day", () => {
+    expect(saWallClockToInstant("2026-10-01T01:30").toISOString()).toBe("2026-09-30T23:30:00.000Z")
+  })
+
+  it("accepts seconds and milliseconds", () => {
+    expect(saWallClockToInstant("2026-10-01T10:00:30").toISOString()).toBe("2026-10-01T08:00:30.000Z")
+    expect(saWallClockToInstant("2026-10-01T10:00:30.250").toISOString()).toBe("2026-10-01T08:00:30.250Z")
+  })
+
+  it("an already-offset instant passes through unchanged", () => {
+    expect(saWallClockToInstant("2026-10-01T08:00:00.000Z").toISOString()).toBe("2026-10-01T08:00:00.000Z")
+    expect(saWallClockToInstant("2026-10-01T10:00:00+02:00").toISOString()).toBe("2026-10-01T08:00:00.000Z")
+    expect(saWallClockToInstant("2026-10-01T10:00-05:00").toISOString()).toBe("2026-10-01T15:00:00.000Z")
+  })
+
+  it("fails closed: date-only, unreal days, out-of-range times and garbage all throw", () => {
+    expect(() => saWallClockToInstant("2026-10-01")).toThrow(/wall-clock/)       // a day, not a moment
+    expect(() => saWallClockToInstant("2025-02-29T10:00")).toThrow(/not a real date/)
+    // the offset pass-through branch too — V8 would silently roll these into the next month
+    expect(() => saWallClockToInstant("2026-02-30T10:00Z")).toThrow(/not a real date/)
+    expect(() => saWallClockToInstant("2026-11-31T10:00:00.000Z")).toThrow(/not a real date/)
+    expect(() => saWallClockToInstant("2025-02-29T10:00:00+02:00")).toThrow(/not a real date/)
+    expect(() => saWallClockToInstant("2026-10-01T24:00")).toThrow(/wall-clock/)
+    expect(() => saWallClockToInstant("2026-10-01T10:60")).toThrow(/wall-clock/)
+    expect(() => saWallClockToInstant("")).toThrow(/wall-clock/)
+    expect(() => saWallClockToInstant("tomorrow 10am")).toThrow(/wall-clock/)
   })
 })

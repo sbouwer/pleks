@@ -184,6 +184,42 @@ export function saDayStartUtc(iso: string): Date {
   return new Date(`${iso}T00:00:00.000${SA_UTC_OFFSET}`)
 }
 
+// ── SA wall-clock → instant, for writes of a person-typed time into a timestamptz ─────────────────────
+
+const WALL_CLOCK = /^(\d{4}-\d{2}-\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d{1,3})?)?$/
+const WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/
+
+/**
+ * A time a person typed into Pleks → the real instant, reading it as SA wall-clock.
+ *
+ * `<input type="datetime-local">` yields "2026-10-01T10:00" with NO offset. Postgres runs TimeZone=UTC,
+ * so writing that string straight into a timestamptz stores 10:00 UTC — 12:00 SAST, two hours late
+ * (ADDENDUM_63E R3). Pleks is SA-only and SAST has no DST, so an offset-less time IS SAST.
+ *
+ * A string that already carries an offset (`Z` or `±HH:MM`) is a real instant and passes through unchanged.
+ * A date-only string THROWS: it names a day, not a moment, and which moment it means is the caller's call.
+ * Never hand-append "+02:00" at a call site — this is the one place that knows the offset.
+ */
+export function saWallClockToInstant(value: string): Date {
+  if (typeof value !== "string") throw new TypeError("saWallClockToInstant: expected a string.")
+  if (WITH_OFFSET.test(value)) {
+    // The pass-through branch must enforce the same day check: V8 rolls "2026-02-30T10:00Z" to 2 March,
+    // where Postgres would have rejected the raw string loudly.
+    assertSaDateISO(value.slice(0, 10), "saWallClockToInstant")
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) throw new RangeError(`saWallClockToInstant: ${JSON.stringify(value)} is not a real instant.`)
+    return d
+  }
+  const m = WALL_CLOCK.exec(value)
+  if (!m) {
+    throw new TypeError(
+      `saWallClockToInstant: expected "YYYY-MM-DDTHH:mm" SA wall-clock or an offset ISO instant, got ${JSON.stringify(value)}.`,
+    )
+  }
+  assertSaDateISO(m[1], "saWallClockToInstant")
+  return new Date(`${value}${SA_UTC_OFFSET}`)
+}
+
 // ── 4 · display formatting (always pass a timeZone) ───────────────────────────────────────────────────
 
 const fmt = (opts: Intl.DateTimeFormatOptions) =>

@@ -4,6 +4,7 @@
  * Data:   reads `inspections` (+ joined units/properties) and resolves tenant names from `tenants`/`contacts` for the org; returns InspectionScheduleData
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { addCalendarDays, saDateISO, saDayStartUtc } from "@/lib/dates"
 import { toDateStr } from "./periods"
 import type { InspectionScheduleData, InspectionScheduleRow, ReportFilters } from "./types"
 
@@ -28,7 +29,7 @@ export async function buildInspectionSchedule(filters: ReportFilters): Promise<I
     .select("id, inspection_type, status, scheduled_date, property_id, unit_id, tenant_id, units(unit_number, properties(name))")
     .eq("org_id", orgId)
     .in("status", ["scheduled", "in_progress"])
-    .lte("scheduled_date", toDateStr(cutoff))
+    .lt("scheduled_date", saDayStartUtc(addCalendarDays(toDateStr(cutoff), 1)).toISOString())
     .order("scheduled_date", { ascending: true })
   if (propertyIds?.length) query = query.in("property_id", propertyIds)
 
@@ -64,7 +65,8 @@ export async function buildInspectionSchedule(filters: ReportFilters): Promise<I
       property_name: unitRaw?.properties?.name ?? "—",
       tenant_name: (i.tenant_id ? tenantNameMap.get(i.tenant_id as string) ?? null : null),
       type: i.inspection_type as string,
-      scheduled_date: (i.scheduled_date as string)?.slice(0, 10) ?? "",
+      // A timestamptz instant — resolve its SA day; slicing the ISO string gives the UTC day.
+      scheduled_date: i.scheduled_date ? saDateISO(new Date(i.scheduled_date as string)) : "",
       status: i.status as string,
       days_overdue: daysOverdue,
     }
