@@ -1,7 +1,7 @@
 /**
  * Probes for agent-write-scope.js — BOTH DIRECTIONS, per dev-standards LESSONS L-01.
  *
- * @kit agent-write-scope-probe v5 — tracked OUTSIDE its `KIT:CONFIG` regions.
+ * @kit agent-write-scope-probe v6 — tracked OUTSIDE its `KIT:CONFIG` regions.
  *
  * This gate has a second failure mode the other two do not, and the probe list is shaped around it.
  * `agent_type` is absent in the main session (E7), so a hook that read the field wrongly — a typo, a
@@ -235,45 +235,50 @@ if (FREE === undefined) {
 
 /* ── v5: WHAT A BASH COMMAND WRITES (yoros CF-6) ─────────────────────────────
  * Before v5, `Bash echo x > lib/site.ts` from an agent denied `Write lib/site.ts` was ALLOWED.
- * Every write read out of a command's text is held to the agent's scope, and anything it would
- * refuse — or cannot read — ASKS. It never denies: the reading is of shell text and can be wrong.
+ * Every write read out of a command's text is held to the agent's scope. Since v6 a target the
+ * reader resolved gets the verdict a Write to it would, DENY included (pleks CF-9: v5 asked, so one
+ * fence gave two verdicts by tool); a target it cannot read, and a command that does not parse, ASK.
  * Derived from the table like everything above: `B` is an agent with a bounded scope, `IN` a path
  * inside its first root. The parser's own claims (quotes, heredocs, fd duplication, arithmetic) are
  * stated through the same agent, because a write the parser misses is only visible as an allow. */
 const BASH_CASES = [];
 const bashAt = (root, agent, command) => ({ ...bash(agent, command), cwd: root });
 if (BOUNDED === undefined || WHOLE_TREE(SCOPES[BOUNDED])) {
-  skip("the bash-write arm: no agent has a bounded scope short of the whole checkout, so no bash write is outside one — 33 cases UNEXERCISED");
+  skip("the bash-write arm: no agent has a bounded scope short of the whole checkout, so no bash write is outside one — 36 cases UNEXERCISED");
 } else {
   const B = BOUNDED;
   const IN = `${SCOPES[B][0]}/probe-task`;
+  const deny = (why, command) => BASH_CASES.push({ want: "deny", why: `bash: ${why}`, payload: bash(B, command) });
   const ask = (why, command) => BASH_CASES.push({ want: "ask", why: `bash: ${why}`, payload: bash(B, command) });
   const allow = (why, command) => BASH_CASES.push({ want: "allow", why: `bash: ${why}`, payload: bash(B, command) });
   // The finding itself, and each writer the v5 note lists.
-  ask(`${B} redirecting into a file it may not Write — yoros CF-6's first command`, `echo x > ${OUTSIDE}`);
-  ask("sed -i on a file outside scope — CF-6's second", `sed -i 's/a/b/' ${OUTSIDE}`);
-  ask("…with a backup suffix and -e, whose script is NOT a file — the outside one is first", `sed -i.bak -e s/a/b/ ${OUTSIDE} ${IN}/keep.md`);
-  ask("…and `-ni`, where the i sits inside a cluster", `sed -ni 's/a/b/p' ${OUTSIDE}`);
-  ask("tee -a into a file outside scope", `printf x | tee -a ${OUTSIDE}`);
-  ask("cp's destination is the last operand", `cp ${IN}/a.md ${OUTSIDE}`);
-  ask("…or the -t directory, wherever it sits", `cp -t zz-outside-dir ${IN}/a.md`);
-  ask("mv onto a file outside scope", `mv ${IN}/a.md ${OUTSIDE}`);
-  ask("rm deletes — a write by any other name", `rm -f ${OUTSIDE}`);
-  ask("touch", `touch ${OUTSIDE}`);
-  ask("dd of=", `dd if=/dev/zero of=${OUTSIDE} bs=1 count=1`);
-  ask("an fd-numbered redirection is a redirection", `node x.mjs 2> ${OUTSIDE}`);
-  ask("&> writes both streams to a file", `node x.mjs &> ${OUTSIDE}`);
-  ask("a `..` escape out of the root", `echo x > ${IN}/../../${OUTSIDE}`);
-  ask("a cd is followed, so a relative target lands where the shell puts it", "cd zz-outside-dir && echo x > y.ts");
-  ask("a write inside $(…) is still a write", `echo $(echo x > ${OUTSIDE})`);
-  ask("…and inside bash -c's script", `bash -c 'echo x > ${OUTSIDE}'`);
-  ask("…and inside a process substitution", `npm test | tee >(cat > ${OUTSIDE})`);
+  deny(`${B} redirecting into a file it may not Write — yoros CF-6's first command`, `echo x > ${OUTSIDE}`);
+  deny("sed -i on a file outside scope — CF-6's second", `sed -i 's/a/b/' ${OUTSIDE}`);
+  deny("…with a backup suffix and -e, whose script is NOT a file — the outside one is first", `sed -i.bak -e s/a/b/ ${OUTSIDE} ${IN}/keep.md`);
+  deny("…and `-ni`, where the i sits inside a cluster", `sed -ni 's/a/b/p' ${OUTSIDE}`);
+  deny("tee -a into a file outside scope", `printf x | tee -a ${OUTSIDE}`);
+  deny("cp's destination is the last operand", `cp ${IN}/a.md ${OUTSIDE}`);
+  deny("…or the -t directory, wherever it sits", `cp -t zz-outside-dir ${IN}/a.md`);
+  deny("mv onto a file outside scope", `mv ${IN}/a.md ${OUTSIDE}`);
+  deny("rm deletes — a write by any other name", `rm -f ${OUTSIDE}`);
+  deny("touch", `touch ${OUTSIDE}`);
+  deny("dd of=", `dd if=/dev/zero of=${OUTSIDE} bs=1 count=1`);
+  deny("an fd-numbered redirection is a redirection", `node x.mjs 2> ${OUTSIDE}`);
+  deny("&> writes both streams to a file", `node x.mjs &> ${OUTSIDE}`);
+  deny("a `..` escape out of the root", `echo x > ${IN}/../../${OUTSIDE}`);
+  deny("a cd is followed, so a relative target lands where the shell puts it", "cd zz-outside-dir && echo x > y.ts");
+  deny("a write inside $(…) is still a write", `echo $(echo x > ${OUTSIDE})`);
+  deny("…and inside bash -c's script", `bash -c 'echo x > ${OUTSIDE}'`);
+  deny("…and inside a process substitution", `npm test | tee >(cat > ${OUTSIDE})`);
   // Inside the scope's own directory on purpose: `$NAME` can hold `../..`, and a reader that took
   // the word as a literal path would ALLOW this one, which is the only way to see that it did.
   ask("a target decided at run time cannot be read, even inside scope, and unknown asks (L-57)", `echo x > "${IN}/$NAME"`);
   ask("sed -i fed by xargs names no file", "find . -name '*.ts' | xargs sed -i s/a/b/");
   ask("find -delete removes files its text never names", "find . -name '*.tmp' -delete");
   ask("a command that does not parse cannot be read", "echo 'unterminated");
+  ask("a cd to a directory decided at run time makes a relative target unreadable", `cd "$DIR" && echo x > y.ts`);
+  deny("one refused write refuses the command, whatever else it cannot read — a deny outranks an ask", `echo x > "$OUT"; echo y > ${OUTSIDE}`);
+  deny("…and whatever else it writes in scope", `echo x > ${IN}/ok.md && echo y > ${OUTSIDE}`);
   allow("a write inside its own scope", `echo x > ${IN}/out.md`);
   allow("a cd INTO scope is followed too — the other half of following it", `cd ${IN} && echo x > y.md`);
   allow("the null device and fd duplication are not files", "node x.mjs > /dev/null 2>&1 && diff a b >&2");
@@ -287,7 +292,7 @@ if (BOUNDED === undefined || WHOLE_TREE(SCOPES[BOUNDED])) {
   allow("xargs feeding a reader", "find . -name '*.ts' | xargs grep -l foo");
 }
 for (const [agent] of empty) {
-  BASH_CASES.push({ want: "ask", why: `bash: ${agent} writes no files, and a redirection is a file`, payload: bash(agent, "echo x > .handoff/probe-task/x.md") });
+  BASH_CASES.push({ want: "deny", why: `bash: ${agent} writes no files, and a redirection is a file`, payload: bash(agent, "echo x > .handoff/probe-task/x.md") });
 }
 if (FREE !== undefined) {
   const SCOPED_B = fixture({ agent: FREE, paths: ["components/brand/"] });
@@ -295,7 +300,7 @@ if (FREE !== undefined) {
     { want: "ask", why: `bash: ${FREE} with no manifest, writing through a redirection`, payload: bashAt(NONE, FREE, "echo x > lib/nav.ts") },
     { want: "allow", why: `bash: ${FREE}'s own artefact, undeclared and always in scope`, payload: bashAt(NONE, FREE, "echo x > .handoff/probe-task/log.md") },
     { want: "allow", why: `bash: ${FREE} editing inside the run's manifest`, payload: bashAt(SCOPED_B, FREE, "sed -i s/a/b/ components/brand/mark.ts") },
-    { want: "ask", why: `bash: ${FREE} outside the run's manifest ASKS where a Write would deny`, payload: bashAt(SCOPED_B, FREE, "sed -i s/a/b/ lib/nav.ts") },
+    { want: "deny", why: `bash: ${FREE} outside the run's manifest is denied, as a Write is — v5 asked`, payload: bashAt(SCOPED_B, FREE, "sed -i s/a/b/ lib/nav.ts") },
   );
   // Git Bash spells `C:\x` as `/c/x`. Only a win32 host reads paths that way, so only there is the
   // case meaningful; on any other host `/c/x` is simply a path, and there is no direction to lose.
@@ -359,7 +364,18 @@ const UNIVERSAL = [
 if (UNSCOPED === undefined) skip("the unscoped-agent cases: every candidate name is in the project's table, so `ask` has no subject here");
 if (ANY === undefined) skip("the commit-denial arm: the table is EMPTY, so no subagent exists to run a command — 11 cases UNEXERCISED");
 
-const CASES = [...DERIVED, ...MANIFEST_CASES, ...BASH_CASES, ...UNIVERSAL];
+/* ── v6: ONE FENCE, ONE VERDICT, WHICHEVER TOOL WRITES (pleks CF-9) ──────────
+ * Every case above that writes through a path field is replayed as a Bash redirection to the same
+ * path, from the same agent and cwd, and must get the same verdict. Derived, not listed: a verdict
+ * a future edit gives one tool and not the other fails here, for whatever the project's table is. */
+const PARITY = [...DERIVED, ...MANIFEST_CASES, ...UNIVERSAL].flatMap((c) => {
+  const p = c.raw ? null : c.payload;
+  const file = p && ["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(p.tool_name) ? p.tool_input.file_path ?? p.tool_input.notebook_path : undefined;
+  if (typeof file !== "string") return [];
+  return [{ want: c.want, why: `parity: ${c.why}`, payload: { ...p, tool_name: "Bash", tool_input: { command: `echo x > '${file}'` } } }];
+});
+
+const CASES = [...DERIVED, ...MANIFEST_CASES, ...BASH_CASES, ...UNIVERSAL, ...PARITY];
 
 let failed = 0;
 for (const c of CASES) {
@@ -379,7 +395,7 @@ for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
 for (const s of SKIPS) console.log(`⊘ SKIPPED  ${s}`);
 
 const agents = Object.keys(SCOPES).length;
-const shape = `${DERIVED.length} derived from your ${agents} agent(s), ${MANIFEST_CASES.length} manifest, ${BASH_CASES.length} bash-write, ${UNIVERSAL.length} canon's own`;
+const shape = `${DERIVED.length} derived from your ${agents} agent(s), ${MANIFEST_CASES.length} manifest, ${BASH_CASES.length} bash-write, ${UNIVERSAL.length} canon's own, ${PARITY.length} Write-vs-Bash parity`;
 console.log(
   failed === 0
     ? `\n${SKIPS.length ? "⚠" : "✅"} ${CASES.length} agent-write-scope probes pass (${shape})` +

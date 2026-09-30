@@ -340,6 +340,35 @@ FIX        that string-tests `..` is checked against a narrower definition of a 
            mismatch moved elsewhere.
 ```
 
+### CF-12 · `agent-brief-gate` at `a4ff0b5` fails the kit's own `check-hook-registration` v7
+
+```
+OBSERVED   The kit hook declares no @event / @matcher and neither @twin nor @no-twin, so adopting
+           it byte-for-byte turns `npm run check` red. pleks HOLDS the three agent-brief-gate rows.
+
+COMMAND    git -C E:/dev/dev-standards show a4ff0b5:kit/project-kit/hooks/agent-brief-gate.js
+             > .claude/hooks/agent-brief-gate.js   (config + probe likewise), settings entry
+             "Agent|Task" added, then:
+           $ node scripts/check-hook-registration.mjs
+           ❌ 2 hook-registration finding(s):
+             .claude/hooks/agent-brief-gate.js: declares no "// @event <Event>" and "// @matcher
+             <pattern>" — without them nothing can check it is registered for the calls it gates
+             .claude/hooks/agent-brief-gate.js: declares neither a settings twin nor @no-twin with a
+             reason — add "// @twin <settings pattern>" per rule, or "// @no-twin <why settings
+             cannot express it>"
+           Canon's own copy (a4ff0b5:kit/project-kit/scripts/check-hook-registration.mjs, v7, which
+           is byte-identical in version to pleks's) prints the same two findings. The probe itself
+           passed: "✅ agent-brief-gate: 77 of 77 probes pass (6 briefed types, 2 redirects)".
+           `grep -n "@event\|@matcher\|@twin\|@no-twin"` over all three kit files: zero hits.
+
+WHY IT IS  Any adopter of both rows hits this; it is independent of stack. Canon's gate would
+CANON'S    catch it if it ran check-hook-registration over the kit's own hooks.
+
+SMALLEST   Add to the hook header: `// @event PreToolUse`, `// @matcher Agent|Task`, and a
+FIX        `// @no-twin <reason>` (a settings permission rule cannot read an Agent call's prompt).
+           Must not change the hook's decisions — the 77 probes stay as they are.
+```
+
 ---
 
 ## 2 · Lesson answers
@@ -406,6 +435,22 @@ is an open item with an owner in this repo.
 Adoptions canon has to record in `kitAdopted`, and pins: a row deliberately behind canon, with the
 row id, the version held, the reason, and a review date. A pin means *read and deliberately behind*,
 never *exempt*, so the reason has to argue it.
+
+**Artefact-first agents, canon `a4ff0b5` — adopted 2026-09-30.** Canon's working tree was not clean
+at the time (`M playbooks/4-AGENT-PIPELINES.md`); every kit byte was read with `git show a4ff0b5:<path>`.
+- **Adopted:** `check-handoff-contract@6` (canon bytes; the only diff was scout joining its three sets) ·
+  `agent-write-scope-config@2` (canon bytes outside KIT:CONFIG; inside, pleks's derivation note kept and
+  `scout: [".handoff"]` present — probe: "✅ 145 agent-write-scope probes pass (31 derived from your 7
+  agent(s) …)").
+- **Spines** (`propagate-spines.mjs`): grounder v8 · census v11 · walker v9 · implementer v6 ·
+  db-inspector v6 · **scout v1** created (canon frontmatter + `SPINE:scout v1` verbatim + pleks surface).
+  crawler-doctrine stays v3 (pleks-local).
+- **HELD — `agent-brief-gate`, `agent-brief-gate-config`, `agent-brief-gate-probe` at v1.** Reason:
+  CF-12 — the hook fails `check-hook-registration` v7 as shipped, and CF-5's ruling is to hold a row whose
+  bytes the adopter's gate rejects rather than fork it. The probe was green (77 of 77) before the hold.
+  **Review: when canon ships the tags**; not a date, because the blocker is canon's.
+- **Steps 6(a)–(c) not run** — they need the hook live. CLAUDE.md §7 and the commands carry the brief
+  discipline meanwhile (§7 says it is discipline, not a control, until the row lands).
 
 - **Re-adopted — row `check-hook-registration`, v2 → v3, 2026-09-10.** CF-3's fix, taken the session
   it shipped. Copied from canon and verified byte-identical (`diff -q` → no output); `--selftest`
@@ -516,6 +561,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | CF-4 | The baseline rule read `git log` from the PROJECT's repo, so an untracked plan produced "1 version(s) read" and a ✅ — a control reporting on a file whose history it had never seen | `delivery-report` **v2**, `planVersions` resolves the plan's own repository (`realpathSync` → `rev-parse --show-toplevel` → `ls-files --error-unmatch` → `check-ignore`) | `49ca9b9` |
 | CF-5 | `tracked` kit mode offered an adopter whose gate rejects canon's bytes no legal move — fix, disable and exempt are all forks | `kit/INSTALL.md`: hold the row. Plus the six sites repaired in `delivery-report` v2 | `49ca9b9` |
 | CF-6 | L-72's "a credential of this kind" has a narrow reading that leaves the threat open, and pleks took it | canon's own filing — relayed 2026-09-11 | `a108fd9` |
+| — | §2.4's sweep test measured enforcement, not force (entry below, verbatim as relayed 2026-09-30) | BRIEF-STANDARD §2.4 test; `check-brief` v9; `brief-kit/DECISIONS.md` | `bfed62c` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**
 
@@ -540,3 +586,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 - §2.4 v2 is **mechanised** (`check-brief.mjs`, +175 lines in `71cc38f`). pleks does **not** run
   `check-brief.mjs`, so its `DECISIONS.md` conformance is unenforced here and held by hand — the
   sweep line was written to v2's exact shape rather than approximated.
+- §2.4's sweep test measured enforcement, not force. The first literal re-sweep marked 21 of 51 live
+  rows as not binding. Corrected 2026-09-30 (dev-standards bfed62c; check-brief v9 and
+  brief-kit/DECISIONS.md now quote the corrected test). Also: the B-9 decisions/ admission was
+  retracted the same day, because §2.4 already routed the archive to _ARCHIVE/.

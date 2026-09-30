@@ -2,7 +2,7 @@
 description: Adversarial walk of the current branch/PR before handoff — verify against origin, hunt fail-opens
 ---
 
-Walk the work just completed as an adversarial reviewer. You are trying to REFUTE the done-report, not confirm it. For an independent pass, spawn the `walker` agent on the diff and fold its findings in — its fresh context catches what the author's context cannot.
+Walk the work just completed as an adversarial reviewer. You are trying to REFUTE the done-report, not confirm it. For an independent pass, spawn the `walker` agent on the diff and fold its findings in — its fresh context catches what the author's context cannot. Its brief carries `artefact: .handoff/<slug>/<NN>-walker.md` and asks for nothing inline; read the findings from the artefact.
 
 1. **Origin, not working tree.** `git fetch origin` and diff every claim against the pushed state. `git status` must be clean — uncommitted work that a report calls "done" IS a finding (this has happened twice).
 2. **Verify claims in the artefacts.** Every "done" claim gets checked in the actual files. Live-data claims ("NULL on all three rows") require an actual query. Repo-wide pattern claims ("zero raw reads remain") go to the `census` agent — with synonym spellings, and a zero only counts if the probe demonstrably fires on a known positive.

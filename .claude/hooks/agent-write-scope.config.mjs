@@ -1,7 +1,7 @@
 /**
  * THE ONE FILE YOU EDIT — the write scope and spawn permission per agent type.
  *
- * @kit agent-write-scope-config v1 — tracked OUTSIDE its `KIT:CONFIG` region.
+ * @kit agent-write-scope-config v2 — tracked OUTSIDE its `KIT:CONFIG` region.
  *
  * WHY IT IS ITS OWN FILE (M-KIT-06, 2026-09-09). The table used to live inside
  * `agent-write-scope.js`, headed "THE ONE BLOCK YOU MUST EDIT", and
@@ -33,9 +33,10 @@
  * granting too much, and rules that the authority is what a spine actually tells its agent
  * to write. Read `.claude/agents/`, and record the SHA you read it at.
  *
- * The defaults below match the six canonical spines in `kit/agents/`:
+ * The defaults below match the seven canonical spines in `kit/agents/`:
  *
- *   grounder · census · walker · db-inspector   write ONE artefact to `.handoff/<task-slug>/`
+ *   grounder · census · walker · db-inspector · scout
+ *                                               write ONE artefact to `.handoff/<task-slug>/`
  *   crawler-doctrine                            writes NOTHING — it emits JSON as its
  *                                               return, and a wrapper merges it
  *   implementer                                 editing source IS the remit
@@ -58,12 +59,13 @@
  * untouched. Those are canon's claims, they live outside every region, and a project cannot switch
  * them off by editing this table.
  *
- * If your agents differ from the six canonical spines, edit this file and run the probe. It should
+ * If your agents differ from the seven canonical spines, edit this file and run the probe. It should
  * stay green — and if it does not, the failure is about YOUR table, which is the point.
  *
- * AN AGENT TYPE ABSENT FROM THIS TABLE IS **ASKED**, NOT DENIED. Ad-hoc `general-purpose`
- * and `Explore` delegation is legitimate and this is not the place to forbid it — but a
- * write from an agent nobody scoped should be visible rather than silent.
+ * AN AGENT TYPE ABSENT FROM THIS TABLE IS **ASKED**, NOT DENIED. This is not the place to forbid
+ * ad-hoc `general-purpose` or `Explore` delegation — a write fence cannot see a spawn. Since
+ * 2026-09-30 `agent-brief-gate` is that place: it refuses both at the Agent call and names `scout`,
+ * which is scoped above. Here, a write from an agent nobody scoped stays visible rather than silent.
  *
  * ⚠ WHAT CONTAINS THE IMPLEMENTER. ~~RESIDUAL EXPOSURE, unhedged: an implementer may
  * write ANYWHERE in the checkout.~~ **CLOSED IN v2 — the write manifest is built**, and it
@@ -84,10 +86,11 @@
  */
 /* DERIVED FROM pleks's OWN SPINES, not from the defaults above — `.claude/agents/` as at
  * `63c4cf21`, read 2026-09-09. It lands on canon's table, and that is a result rather than an
- * assumption: pleks has exactly the six canonical spines and no seventh.
+ * assumption: pleks had exactly the six canonical spines then; scout joined 2026-09-30 (canon a4ff0b5), as the seventh.
  *
  *   census · db-inspector · grounder · walker   each says "You write ONE file and nothing else",
  *                                               `.handoff/<task-slug>/<NN>-<agent>.md`
+ *   scout                                       same contract, one artefact under `.handoff/`
  *   crawler-doctrine                            `tools: Read, Grep, Glob` — no `Write` at all, and
  *                                               no write instruction anywhere in the spine, so `[]`
  *                                               is what the spine says, not a borrowed default
@@ -100,6 +103,7 @@ const SCOPES = {
   census: [".handoff"],
   walker: [".handoff"],
   "db-inspector": [".handoff"],
+  scout: [".handoff"],
   "crawler-doctrine": [],
   implementer: null,
 };
