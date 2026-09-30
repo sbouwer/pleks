@@ -2,7 +2,7 @@
 /**
  * scripts/check-handoff-contract.mjs — every handoff artefact carries a well-formed contract block.
  *
- * @kit check-handoff-contract v7 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-handoff-contract v8 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * PORTED FROM `pleks/scripts/check-handoff-contract.mjs`. It arrives because of dev-standards
@@ -56,6 +56,16 @@
  * beside it — is printed as pending, and `--clearable <slug>` exits 1 while one remains, so `/wrap`
  * can ask before it deletes the only copy.
  *
+ * v8 (2026-09-30) WALKS THE CHAIN (CD review item 1). The spines' shared contract block
+ * (`SPINE:contract v1`) tells an agent consuming another's artefact to check its commit is an
+ * ancestor, read only the named sections, and list it under `## Inputs` with its anchor line
+ * verbatim. An artefact whose anchor stamps `contract=vN` must carry that section — `none` when
+ * nothing was consumed — and every `NN-<agent>.md` it names must sit in the SAME task directory,
+ * with that file's anchor line quoted on the entry. FAILS: the section is the agent's own claim
+ * about what it read, and a chain that cannot be walked on disk is one nobody can reconstruct. An
+ * artefact with no `contract=` predates the block and is not asked. The L-39 tell reads `contract=`
+ * too: the contract block is spliced into the same agent file, so the same commit answers for it.
+ *
  * Run: node scripts/check-handoff-contract.mjs             (wired into `npm run check`)
  *      node scripts/check-handoff-contract.mjs --selftest  (probes both directions, and every exit)
  *      node scripts/check-handoff-contract.mjs --root <dir> (another tree; what the exit probes use)
@@ -75,8 +85,12 @@ const HANDOFF = "/.handoff";
  */
 const LABELS = ["Agent", "Verdict", "Summary", "Artefact", "Promote"];
 
-/** Glyph → the verdict word it must accompany. There is no fourth pair. See the header note. */
-const GLYPHS = { "✅": "proceed", "⚠": "decision-needed", "⛔": "stop" };
+/**
+ * Glyph → the verdict word it must accompany. There is no fourth pair. See the header note.
+ * Exported since v8: canon's `check-agent-spines` reconciles the contract block's glyph line against
+ * this table, so the spine and the check cannot drift apart again (the 2026-08-30 note above).
+ */
+export const GLYPHS = { "✅": "proceed", "⚠": "decision-needed", "⛔": "stop" };
 const VERDICTS = new Set(Object.values(GLYPHS));
 
 /**
@@ -246,12 +260,15 @@ export function anchorOf(text) {
   if (!line) return null;
   const utc = /\butc=(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)/.exec(line)?.[1] ?? null;
   const stamp = /\bspine=([a-z-]+) v(\d+)\b/.exec(line);
+  const contract = /\bcontract=v(\d+)\b/.exec(line)?.[1] ?? null;
   // The same bounded key the anchor requirement accepts, so a cross-repo anchor yields every SHA.
   const commits = [...line.matchAll(/\bcommit(?:\([^)]{1,64}\))?=([0-9a-f]{4,40})\b/g)].map((m) => m[1]);
   return {
     utc,
     utcMs: utc ? Date.parse(utc) : null,
     spine: stamp ? { agent: stamp[1], version: stamp[2] } : null,
+    contract,
+    line: line.trim(),
     commits,
   };
 }
@@ -381,7 +398,14 @@ export function compareStamp(text, readSpineAt) {
     if (blob === null) continue;
     const held = new RegExp(`<!--\\s*SPINE:${agent}\\s+v(\\d+)\\s*-->`).exec(blob)?.[1];
     if (!held) return { kind: "unmeasured", why: `.claude/agents/${agent}.md at ${sha} carries no SPINE marker` };
-    return held === version ? { kind: "match", sha } : { kind: "mismatch", sha, agent, stamped: version, held };
+    if (held !== version) return { kind: "mismatch", sha, agent, block: agent, stamped: version, held };
+    // v8: the contract block lives in the same file, so the same commit answers for its stamp.
+    if (a.contract !== null) {
+      const heldC = /<!--\s*SPINE:contract\s+v(\d+)\s*-->/.exec(blob)?.[1];
+      if (!heldC) return { kind: "unmeasured", why: `the anchor stamps contract=v${a.contract} and .claude/agents/${agent}.md at ${sha} carries no SPINE:contract block` };
+      if (heldC !== a.contract) return { kind: "mismatch", sha, agent, block: "contract", stamped: a.contract, held: heldC };
+    }
+    return { kind: "match", sha };
   }
   return { kind: "unmeasured", why: `no anchor commit (${a.commits.join(", ")}) holds .claude/agents/${agent}.md in this repo` };
 }
@@ -435,7 +459,7 @@ export function tellLines(root, paths) {
     else n.stamped++;
     if (s.kind === "mismatch") {
       n.mismatched++;
-      lines.push(`   ⚑ SPINE ${rel} stamps ${s.agent} v${s.stamped}; .claude/agents/${s.agent}.md at ${s.sha} is v${s.held} — the agent ran a spine its starting tree did not hold (L-39): read its instructions as v${s.stamped}'s before calling it disobedient`);
+      lines.push(`   ⚑ SPINE ${rel} stamps ${s.block} v${s.stamped}; the ${s.block} block in .claude/agents/${s.agent}.md at ${s.sha} is v${s.held} —the agent ran a spine its starting tree did not hold (L-39): read its instructions as v${s.stamped}'s before calling it disobedient`);
     }
     if (s.kind === "unmeasured") lines.push(`   L-39 · ${rel}: NOT MEASURED — ${s.why}`);
   }
@@ -531,6 +555,82 @@ export function pendingNominations(paths, read = (p) => readFileSync(p, "utf8"))
     const main = mains.get(dirname(p)) ?? "";
     if (main.split("\n").some((l) => l.includes(file) && DISPOSITION.test(l))) continue;
     out.push({ path: p, nominated });
+  }
+  return out;
+}
+
+// ── v8: the ## Inputs chain (CD review item 1) ──────────────────────────────────────────────────────
+
+/** The `## Inputs` section's body, or null when the artefact has none. Stops at the next `## `. */
+export function inputsSection(text) {
+  const m = /^## Inputs[ \t]*$/m.exec(text);
+  if (!m) return null;
+  const rest = text.slice(m.index + m[0].length);
+  const next = /^## /m.exec(rest);
+  return next ? rest.slice(0, next.index) : rest;
+}
+
+/**
+ * Every artefact an Inputs line names: `{ slug, file, line }`, slug null for a bare `NN-agent.md`.
+ * Bounded segments, so a pathological line stays linear.
+ */
+export function inputsOf(section) {
+  const out = [];
+  for (const line of section.split("\n")) {
+    for (const m of line.matchAll(/(?:\.handoff\/([^/\s`]{1,120})\/)?\b(\d{2}-[a-z-]{1,40}\.md)\b/g)) {
+      out.push({ slug: m[1] ?? null, file: m[2], line });
+    }
+  }
+  return out;
+}
+
+/**
+ * Findings for every contract-stamped artefact whose Inputs cannot be walked on disk: no section; a
+ * section naming nothing that does not say `none`; an input in another task directory, or absent
+ * from this one; an entry that does not quote its input's anchor line verbatim.
+ *
+ * FAILS, unlike the tells. A tell is about the agent's context, which this file cannot see; the
+ * section is the agent's own written claim about what it read, and a claim naming a file that is not
+ * there is a finding about the artefact.
+ */
+export function inputsFindings(paths, root, read = (p) => readFileSync(p, "utf8")) {
+  const present = new Set(paths);
+  const out = [];
+  for (const p of paths) {
+    const text = read(p);
+    if (text.length > MAX_ARTEFACT_BYTES) continue;
+    const a = anchorOf(text);
+    if (!a || a.contract === null) continue;
+    const rel = p.replace(root + "/", "");
+    const section = inputsSection(text);
+    if (section === null) {
+      out.push(`${rel}: stamps contract=v${a.contract} and carries no \`## Inputs\` section — the contract requires one, \`none\` when nothing was consumed`);
+      continue;
+    }
+    const self = p.split("/").at(-1);
+    const inputs = inputsOf(section).filter((i) => i.file !== self);
+    if (!inputs.length) {
+      if (!/\bnone\b/i.test(section)) out.push(`${rel}: \`## Inputs\` names no artefact and does not say \`none\` — an empty section cannot be told from a skipped one`);
+      continue;
+    }
+    const dir = dirname(p);
+    const slug = dir.split("/").at(-1);
+    for (const i of inputs) {
+      if (i.slug !== null && i.slug !== slug) {
+        out.push(`${rel}: \`## Inputs\` names .handoff/${i.slug}/${i.file} — another task directory; a chain is walked inside one task`);
+        continue;
+      }
+      if (!present.has(`${dir}/${i.file}`)) {
+        out.push(`${rel}: \`## Inputs\` names ${i.file}, which is not in .handoff/${slug}/ — the chain points at nothing`);
+        continue;
+      }
+      const theirs = anchorOf(read(`${dir}/${i.file}`))?.line;
+      if (!theirs) {
+        out.push(`${rel}: \`## Inputs\` names ${i.file}, which carries no anchor line to quote`);
+      } else if (!i.line.includes(theirs)) {
+        out.push(`${rel}: \`## Inputs\` names ${i.file} without its anchor line verbatim — "${theirs}"`);
+      }
+    }
   }
   return out;
 }
@@ -782,6 +882,59 @@ if (isEntry && process.argv.includes("--selftest")) {
       "a cross-repo anchor is read at the commit that resolves HERE, not at the first one written");
     ok(compareStamp(anch("spine=grounder v6 · commit=deadbee"), readAt).kind === "unmeasured", "a commit that does not resolve here is NOT MEASURED");
     ok(compareStamp(anch("spine=grounder v6 · commit=1111111"), readAt).kind === "unmeasured", "a spine with no SPINE marker at that commit is NOT MEASURED");
+
+    // v8: the contract stamp, read at the same commit as the role stamp.
+    const atC = { c0ffee1: "<!-- SPINE:contract v1 -->\n<!-- SPINE:grounder v9 -->", c0ffee2: "<!-- SPINE:contract v2 -->\n<!-- SPINE:grounder v9 -->", c0ffee3: "<!-- SPINE:grounder v9 -->" };
+    const readC = (sha, agent) => (agent === "grounder" && sha in atC ? atC[sha] : null);
+    ok(anchorOf(anch("spine=grounder v9 · contract=v1 · commit=c0ffee1"))?.contract === "1", "anchorOf reads `contract=v1`");
+    ok(anchorOf(anch("spine=grounder v9 · commit=c0ffee1"))?.contract === null, "…and null when the anchor predates the field");
+    ok(compareStamp(anch("spine=grounder v9 · contract=v1 · commit=c0ffee1"), readC).kind === "match", "KNOWN-GOOD: a contract stamp its commit holds is silent");
+    const cm = compareStamp(anch("spine=grounder v9 · contract=v1 · commit=c0ffee2"), readC);
+    ok(cm.kind === "mismatch" && cm.block === "contract" && cm.stamped === "1" && cm.held === "2",
+      "a contract stamp its commit does NOT hold is a mismatch naming the contract block, not the role");
+    ok(compareStamp(anch("spine=grounder v9 · contract=v1 · commit=c0ffee3"), readC).kind === "unmeasured",
+      "a contract stamp against a file carrying no SPINE:contract is NOT MEASURED, never matched");
+    ok(compareStamp(anch("spine=grounder v9 · commit=c0ffee2"), readC).kind === "match",
+      "an anchor with no contract= is not asked about the contract block");
+  }
+
+  // ── v8: the ## Inputs chain (CD review item 1) ─────────────────────────────────────────────
+  {
+    const R = "/r";
+    const A1 = "anchor: task=t · agent=grounder · spine=grounder v9 · contract=v1 · utc=2026-09-30T08:00:00Z · commit=abc1234";
+    const A2 = "anchor: task=t · agent=walker · spine=walker v10 · contract=v1 · utc=2026-09-30T09:00:00Z · commit=abc1234";
+    const up = `${A1}\n\n## Inputs\n\nnone\n\n## Map\n…\n`;
+    const down = (inputs) => `${A2}\n\n## Inputs\n\n${inputs}\n\n## Findings\n…\n`;
+    const entry = `- .handoff/t/01-grounder.md · \`${A1}\` · read: Map`;
+    const run = (files) => inputsFindings(Object.keys(files), R, (p) => files[p]);
+    const t = (n) => `${R}/.handoff/t/${n}`;
+    ok(run({ [t("01-grounder.md")]: up, [t("03-walker.md")]: down(entry) }).length === 0,
+      "KNOWN-GOOD: `none` upstream, and a downstream entry naming its input with the anchor verbatim");
+    ok(run({ [t("03-walker.md")]: down(entry.replace(".handoff/t/", "")) , [t("01-grounder.md")]: up }).length === 0,
+      "KNOWN-GOOD: a bare `01-grounder.md` resolves in the entry's own task directory");
+    const noSec = run({ [t("01-grounder.md")]: up.replace(/## Inputs\n\nnone\n\n/, "") });
+    ok(noSec.length === 1 && noSec[0].includes("no `## Inputs` section"), "a contract-stamped artefact with no Inputs section FAILS");
+    ok(run({ [t("01-grounder.md")]: up.replace(/## Inputs\n\nnone\n\n/, "").replace(" · contract=v1", "") }).length === 0,
+      "…and one with no contract= predates the block and is not asked");
+    const empty = run({ [t("01-grounder.md")]: up.replace("none", "") });
+    ok(empty.length === 1 && empty[0].includes("does not say `none`"), "an EMPTY section fails — it cannot be told from a skipped one");
+    const gone = run({ [t("03-walker.md")]: down(entry) });
+    ok(gone.length === 1 && gone[0].includes("not in .handoff/t/"), "an entry naming a file absent from the task directory fails");
+    const cross = run({ [t("01-grounder.md")]: up, [t("03-walker.md")]: down(entry.replace(".handoff/t/", ".handoff/u/")), [`${R}/.handoff/u/01-grounder.md`]: up });
+    ok(cross.length === 1 && cross[0].includes("another task directory"), "an entry naming ANOTHER task's artefact fails, even when that file exists");
+    const para = run({ [t("01-grounder.md")]: up, [t("03-walker.md")]: down("- 01-grounder.md · the grounder's map · read: Map") });
+    ok(para.length === 1 && para[0].includes("without its anchor line verbatim"), "an entry that paraphrases instead of quoting the anchor fails");
+    const bare = run({ [t("01-grounder.md")]: up.replace(`${A1}\n`, ""), [t("03-walker.md")]: down(entry) });
+    ok(bare.some((f) => f.includes("carries no anchor line to quote")), "an entry naming an input that carries no anchor line fails — there is nothing to quote verbatim");
+    const drift = run({ [t("01-grounder.md")]: up, [t("03-walker.md")]: down(entry.replace("commit=abc1234", "commit=abc9999")) });
+    ok(drift.length === 1, "…and so does one quoting an anchor that differs by one field — verbatim means verbatim");
+    ok(run({ [t("01-grounder.md")]: up.replace("none", `none — see ${"01-grounder.md"} for this file itself`) }).length === 0,
+      "an artefact naming ITSELF under Inputs is not read as consuming itself");
+    ok(inputsSection(`${A1}\n## Inputs\nnone\n## Map\n- 02-census.md`).includes("none") && !inputsSection(`${A1}\n## Inputs\nnone\n## Map\n- 02-census.md`).includes("02-census"),
+      "the section stops at the next `## ` — a file named in a later section is not an input");
+    const t0 = process.hrtime.bigint();
+    inputsOf(`${".handoff/".repeat(50_000)}${"0".repeat(50_000)}`);
+    ok(Number(process.hrtime.bigint() - t0) / 1e6 < 1000, "a pathological Inputs line stays linear");
   }
 
   // ── v7: the re-entry cap (M-076) ────────────────────────────────────────────────────────────
@@ -877,6 +1030,14 @@ if (isEntry && process.argv.includes("--selftest")) {
     const cleared = spawn("--root", pend, "--clearable", "t");
     ok(cleared.status === 0 && cleared.stdout.includes("is clearable"),
       `EXIT 0 — …and allows it once NN-main.md disposes the nomination (status ${cleared.status})`);
+    // v8 — a broken Inputs chain fails through the real process.
+    const A = "anchor: task=t · agent=walker · spine=walker v10 · contract=v1 · utc=2026-09-30T09:00:00Z · commit=abc1234";
+    const chained = spawn("--root", plant("chain", { ".handoff/t/03-walker.md": GOOD.replace(/^anchor:.*$/m, A).replace("## 1. Machinery map", "## Inputs\n\n- 01-grounder.md · read: Map\n\n## 1. Machinery map") }));
+    ok(chained.status === 1 && chained.stderr.includes("not in .handoff/t/"),
+      `EXIT 1 — an Inputs entry pointing at nothing fails through the real process (status ${chained.status})`);
+    const noneOk = spawn("--root", plant("none", { ".handoff/t/03-walker.md": GOOD.replace(/^anchor:.*$/m, A).replace("## 1. Machinery map", "## Inputs\n\nnone\n\n## 1. Machinery map") }));
+    ok(noneOk.status === 0, `EXIT 0 — …and \`none\` passes (status ${noneOk.status})`);
+
     const noSlug = spawn("--root", pend, "--clearable", "gone");
     ok(noSlug.status === 2, `EXIT 2 — --clearable on a slug that is not there is refused, not read as clearable (status ${noSlug.status})`);
     const escape = spawn("--root", pend, "--clearable", "..");
@@ -974,6 +1135,7 @@ if (isEntry && !process.argv.includes("--selftest")) {
   const findings = [
     ...enforced.flatMap((f) => checkArtefact(f.replace(`${root}/`, ""), readFileSync(f, "utf8"), ANCHOR_AGENTS.has(agentOf(f)))),
     ...capFindings(enforced, root),
+    ...inputsFindings(enforced, root),
   ];
 
   // Named before the verdict, pass or fail. An artefact outside the rollout boundary is a thing the
