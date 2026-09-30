@@ -127,7 +127,7 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination,
       // This computed a LEASE END DATE with local-time setMonth/setDate and then sliced the result in UTC —
       // the answer depended on the browser's timezone. Now pure calendar arithmetic. Rollover behaviour is
       // preserved exactly (see addCalendarMonths); whether a term should clamp is an unmade product call,
-      // open in OUTSTANDING.md — a 31 Jan start still auto-fills 2 March, not 30 January.
+      // open in brief/build/DEBT.md — a 31 Jan start still auto-fills 2 March, not 30 January.
       patch.endDate = addCalendarDays(addCalendarMonths(next, months), -1)
     }
     onChange({ ...value, ...patch })

@@ -74,7 +74,7 @@ export const SEARCHWORX_BUNDLE_FOREIGN: readonly SearchworxCheck[] =
  * personal one (its cost is lower and its margin higher), and that difference must not get invented at
  * build time. Costs derive from SEARCHWORX_COSTS; the CIPC-director figure there currently CONTRADICTS
  * rate card §2.1, so the derived company margin is provisional until that is resolved.
- * See brief/build/OUTSTANDING.md § Commercial application flow.
+ * See brief/build/DEBT.md § Commercial application flow.
  */
 const SEARCHWORX_BUNDLE_COMPANY: readonly SearchworxCheck[] = [
   {

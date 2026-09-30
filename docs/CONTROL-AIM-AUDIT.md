@@ -1,6 +1,6 @@
 # CONTROL-AIM AUDIT — is each control pointed where its class lives?
 
-**Task:** CD, 2026-08-21 (`brief/build/OUTSTANDING.md` §control-aim audit). **Run:** 2026-08-22.
+**Task:** CD, 2026-08-21 (`brief/build/DEBT.md` §control-aim audit). **Run:** 2026-08-22.
 **Anchored at `5ddbaee1`** — every observation below was read against that commit. Re-derive before
 trusting any row that has since been touched.
 

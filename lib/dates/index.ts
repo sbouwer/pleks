@@ -128,7 +128,7 @@ export function addCalendarDays(iso: string, days: number): string {
  * changing every lease end date. It fixes only the coordinate mixing: the callers used LOCAL setMonth/
  * setDate and then sliced in UTC, so the answer depended on the server's timezone.
  *
- * Open, not permanent: OUTSTANDING.md, "addCalendarMonths rolls over rather than clamping".
+ * Open, not permanent: brief/build/DEBT.md, "addCalendarMonths rolls over rather than clamping".
  */
 export function addCalendarMonths(iso: string, months: number): string {
   if (!Number.isInteger(months)) {

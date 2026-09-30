@@ -100,7 +100,7 @@ describe("the COMPANY line is priced differently from a personal one", () => {
 
   it("is profitable at R250 under BOTH readings of the disputed CIPC-director rate", () => {
     // costs.ts says cipc_director = R21.74 "(verify with John)"; rate card §2.1 says R15.65. That is
-    // UNRESOLVED (brief/build/OUTSTANDING.md § Commercial application flow), so rather than assert a
+    // UNRESOLVED (brief/build/DEBT.md § Commercial application flow), so rather than assert a
     // disputed margin, assert the thing that holds either way: the company line is never sold at a loss.
     const withRateCardFigure = SEARCHWORX_COSTS.compuscan_company_profile + SEARCHWORX_COSTS.cipc_company + 1565
     for (const exVat of [companyBundleCostExclVatCents(), withRateCardFigure]) {
@@ -135,7 +135,7 @@ describe("the 1- and 2-applicant cases are never sold below cost", () => {
   it("keeps the 1- and 2-applicant cases profitable", () => {
     // NOT "every combination": the fee is currently `has_co_applicant ? joint : single`, a BOOLEAN, so
     // 3+ applicants pay the 2-applicant fee against N bundles of cost and ARE sold below cost. That hole
-    // is real and tracked in brief/build/OUTSTANDING.md (gitignored symlink) § Per-head screening fee; this loop only covers what the fee
+    // is real and tracked in brief/build/DEBT.md (gitignored symlink) § Per-head screening fee; this loop only covers what the fee
     // function can currently express. Widen it to N = 1…8 when per-head pricing lands.
     for (const isJoint of [false, true]) {
       for (const isForeign of [false, true]) {

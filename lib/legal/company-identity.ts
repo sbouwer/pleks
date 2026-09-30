@@ -16,7 +16,7 @@
  *
  *         Blocked as at 2026-08-14: Stéan has relocated; a temporary office is not yet arranged and
  *         a shelf company has not yet been purchased, so no registration number exists to publish.
- *         Tracked in brief/build/OUTSTANDING.md § Supplier identity disclosure.
+ *         Tracked in brief/build/DEBT.md § Supplier identity disclosure.
  *
  *         Consumers MUST render only populated fields. A visible "[TBC]" on a published legal page
  *         does not satisfy s43(1) and reads worse than silence — SupplierDisclosure omits nulls.
@@ -41,7 +41,7 @@ export interface CompanyIdentity {
 export const COMPANY_IDENTITY: CompanyIdentity = {
   legalName:          "Pleks (Pty) Ltd",
   legalStatus:        "Private company incorporated in the Republic of South Africa",
-  registrationNumber: null, // TODO(ECT-s43): shelf company not yet purchased — see OUTSTANDING.md
+  registrationNumber: null, // TODO(ECT-s43): shelf company not yet purchased — see brief/build/DEBT.md
   streetAddress:      null, // TODO(ECT-s43/PAIA-s51): temporary office not yet arranged
   postalAddress:      null, // TODO(PAIA-s51): pending the office above
   telephone:          "+27 69 039 5829", // interim — the working support/WhatsApp line, will change with the office
