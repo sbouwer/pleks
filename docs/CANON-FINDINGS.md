@@ -516,6 +516,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | CF-4 | The baseline rule read `git log` from the PROJECT's repo, so an untracked plan produced "1 version(s) read" and a ✅ — a control reporting on a file whose history it had never seen | `delivery-report` **v2**, `planVersions` resolves the plan's own repository (`realpathSync` → `rev-parse --show-toplevel` → `ls-files --error-unmatch` → `check-ignore`) | `49ca9b9` |
 | CF-5 | `tracked` kit mode offered an adopter whose gate rejects canon's bytes no legal move — fix, disable and exempt are all forks | `kit/INSTALL.md`: hold the row. Plus the six sites repaired in `delivery-report` v2 | `49ca9b9` |
 | CF-6 | L-72's "a credential of this kind" has a narrow reading that leaves the threat open, and pleks took it | canon's own filing — relayed 2026-09-11 | `a108fd9` |
+| — | §2.4's sweep test measured enforcement, not force (entry below, verbatim as relayed 2026-09-30) | BRIEF-STANDARD §2.4 test; `check-brief` v9; `brief-kit/DECISIONS.md` | `bfed62c` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**
 
@@ -540,3 +541,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 - §2.4 v2 is **mechanised** (`check-brief.mjs`, +175 lines in `71cc38f`). pleks does **not** run
   `check-brief.mjs`, so its `DECISIONS.md` conformance is unenforced here and held by hand — the
   sweep line was written to v2's exact shape rather than approximated.
+- §2.4's sweep test measured enforcement, not force. The first literal re-sweep marked 21 of 51 live
+  rows as not binding. Corrected 2026-09-30 (dev-standards bfed62c; check-brief v9 and
+  brief-kit/DECISIONS.md now quote the corrected test). Also: the B-9 decisions/ admission was
+  retracted the same day, because §2.4 already routed the archive to _ARCHIVE/.
