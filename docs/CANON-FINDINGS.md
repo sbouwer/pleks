@@ -369,6 +369,36 @@ FIX        `// @no-twin <reason>` (a settings permission rule cannot read an Age
            Must not change the hook's decisions — the 77 probes stay as they are.
 ```
 
+**CLOSED by canon `77f1c58` (agent-brief-gate v2, from yoros's CF-14 — the same three markers,
+verbatim).** Adopted into pleks 2026-09-30: `node scripts/check-hook-registration.mjs` → `🪝 hooks —
+every hook is registered in settings, every rule has its fallback, and every twin is in settings in a
+shape it can match`. Nothing further is owed here.
+
+### CF-13 · a validator's "already well-formed" pass-through branch skips the checks its main branch enforces
+
+```
+OBSERVED   pleks's saWallClockToInstant (63E B0, PR #316) validated a wall-clock string's calendar
+           date with assertSaDateISO, but its branch for input that ALREADY carried an offset only
+           checked `!isNaN(new Date(value))` — so "2026-02-30T10:00Z" came back as 2 March. Before
+           the helper existed Postgres rejected that string; the fix turned a loud rejection into
+           a silent roll. Caught by the walker (F1), fixed before merge.
+
+COMMAND    walker probe: saWallClockToInstant("2026-02-30T10:00Z")        → 2026-03-02T10:00:00.000Z
+                         saWallClockToInstant("2026-11-31T10:00:00.000Z") → 2026-12-01T10:00:00.000Z
+           after the fix (assertSaDateISO on value.slice(0,10) in the offset branch): both throw;
+           pinned in lib/dates/index.test.ts.
+
+WHY IT IS  Any normaliser with a fast path for "input already in canonical shape" has this shape,
+CANON'S    in any stack: the fast path is written to skip the TRANSFORM and ends up skipping the
+           VALIDATION too, because both lived in the slow path. The test named for the rule
+           exercised only the slow branch, so it read as covering both.
+
+SMALLEST   A lesson, not a kit change. Nominated for LESSONS.md, canon's to file: "a validator's
+FIX        pass-through branch for already-formed input must run the same checks as its main branch —
+           the fast path skips the transform, never the validation — and each branch needs its own
+           must-throw case."
+```
+
 ---
 
 ## 2 · Lesson answers
@@ -445,12 +475,61 @@ at the time (`M playbooks/4-AGENT-PIPELINES.md`); every kit byte was read with `
 - **Spines** (`propagate-spines.mjs`): grounder v8 · census v11 · walker v9 · implementer v6 ·
   db-inspector v6 · **scout v1** created (canon frontmatter + `SPINE:scout v1` verbatim + pleks surface).
   crawler-doctrine stays v3 (pleks-local).
-- **HELD — `agent-brief-gate`, `agent-brief-gate-config`, `agent-brief-gate-probe` at v1.** Reason:
-  CF-12 — the hook fails `check-hook-registration` v7 as shipped, and CF-5's ruling is to hold a row whose
-  bytes the adopter's gate rejects rather than fork it. The probe was green (77 of 77) before the hold.
-  **Review: when canon ships the tags**; not a date, because the blocker is canon's.
-- **Steps 6(a)–(c) not run** — they need the hook live. CLAUDE.md §7 and the commands carry the brief
-  discipline meanwhile (§7 says it is discipline, not a control, until the row lands).
+- ~~HELD — the three agent-brief-gate rows at v1~~ — superseded by the entry below the same day.
+
+**Canon main `8993e2c` (merge of `77f1c58`) — adopted 2026-09-30.** Canon's checkout was on
+`kit/batch-1` with a dirty tree; every byte was read with `git show 8993e2c:<path>`.
+- **Adopted:** `agent-brief-gate@2` · `agent-brief-gate-config@1` · `agent-brief-gate-probe@1`, all
+  byte-identical to canon (the config's default BRIEFED set is exactly pleks's six spined agents, and
+  crawler-doctrine is absent as the config says it must be). Registered in `.claude/settings.json`
+  (PreToolUse, `Agent|Task`); probe chained in `npm run check` → `✅ agent-brief-gate: 77 of 77 probes
+  pass (6 briefed types, 2 redirects)`. **Canon: record the three in `kitAdopted`.**
+- **Re-confirmed at `8993e2c`, no change needed:** `check-handoff-contract@6`, `agent-write-scope@6` and
+  its probe are byte-identical (`diff -q`); `agent-write-scope-config@2` differs only inside KIT:CONFIG
+  (pleks's derivation note).
+- **Spines — no lag to pin.** `git diff --stat a4ff0b5 8993e2c -- kit/agents` is empty, and every
+  pleks spine marker equals canon main's: grounder v8 · census v11 · walker v9 · implementer v6 ·
+  db-inspector v6 · scout v1. The HOLD is therefore against batch 2, which is not on main (it sits
+  uncommitted on canon's `kit/batch-1`). **No `kitPins` entry is owed today;** when batch 2 lands on
+  main, pleks either re-propagates or files the pins then (review 2026-10-14, exit = batch 2 lands and
+  pleks re-propagates).
+- **`.claude/commands/build.md` — project-owned, patched locally** until canon's command kit (item 3)
+  replaces it: step 3's grounder brief opens with the `pipeline: … · step … · artefact: …` line; step 5
+  writes `.handoff/write-manifest.json` (`{"agent":"implementer","paths":[…]}`) before the implementer
+  spawn.
+- **Live check (the four yoros step-6 cases) — owed in a FRESH session** after this lands: (a) scout,
+  no artefact → refused; (b) `Explore` → refused, redirected to scout; (c) scout with a `pipeline:` line
+  → reply is the block only, artefact well-formed; (d) `git status` clean outside `.handoff`. Results
+  go here.
+
+**Batch 1, canon `1476fb8` — adopted 2026-09-30.** Canon on `main` at `1476fb8`, `status --short` empty.
+- **Adopted:** `check-handoff-contract@7` (canon bytes at `1476fb8`) · **`agent-distribution@2`**
+  (canon bytes at `34bd4aa`, per the correction superseding v1). v2's `RECORD` default is empty; pleks
+  sets `RECORD = "docs/EXPERIMENTS.md E4"` inside `KIT:CONFIG measure` — the only line changed.
+- **BUDGETS markers v1** on all seven agent files via `propagate-spines.mjs .` → `7 agent file(s)
+  rewritten, 0 target(s) absent`, +2/−0 lines each, spine versions unchanged (census v11 ·
+  crawler-doctrine v3 · db-inspector v6 · grounder v8 · implementer v6 · scout v1 · walker v9).
+- **The old pleks agent-distribution was replaced, not merged — no finding.** Canon's header names it
+  as the source ("PORTED FROM pleks/scripts/agent-distribution.mjs"), and every behaviour it had is in
+  canon's copy. The one surface change is the old positional `<dir>` argument becoming `--root <dir>`;
+  nothing in `docs/` or `package.json` called the positional form (grep: zero hits), and `--selftest`,
+  the only form on the gate, is unchanged.
+- **Two pleks-local gate edits the adoption needed, neither a canon defect:** the old script's
+  `sonarjs/no-unenclosed-multiline-block` suppression no longer fires on canon's copy, so it was
+  pruned from `eslint-suppressions.json` (the list shrinks); and v7's selftest fixture mentions
+  `MECHANISABLE`, so pleks's `check-mention-fixtures` registry classifies the script
+  `searches: false` with that reason.
+- **Step 3 (v7's >3 walker / implementer cap):** no task directory is over it — `63e-b0-sa-wallclock`
+  holds 1 walker, the other two hold none. Nothing to decide.
+- **v7 surfaced one undisposed Promote** (`63e-b0-sa-wallclock/02-walker.md`, F1). Filed as CF-13 above;
+  the line now reads `→ filed: docs/CANON-FINDINGS.md CF-13`, and `--clearable 63e-b0-sa-wallclock`
+  exits 0.
+- **`node scripts/agent-distribution.mjs`**, first line: `🤖 agent distribution — 10 run(s) across 6
+  type(s)`. Trigger line: `⏱ re-measure trigger at 20 TOP-LEVEL runs under the current budgets: 0/20`.
+  **Before the marker commit** it continued `NOT COUNTED — no committed marker to date them by: census,
+  db-inspector, grounder, scout, walker`, as expected. **After it** (v2): `census 0 since 2026-09-30 ·
+  walker 0 since 2026-09-30 · grounder 0 since 2026-09-30 · db-inspector 0 since 2026-09-30 · scout 0
+  since 2026-09-30` — counted, and dated from the commit.
 
 - **Re-adopted — row `check-hook-registration`, v2 → v3, 2026-09-10.** CF-3's fix, taken the session
   it shipped. Copied from canon and verified byte-identical (`diff -q` → no output); `--selftest`

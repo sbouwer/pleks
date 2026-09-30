@@ -6,6 +6,8 @@ model: sonnet
 memory: project
 ---
 
+<!-- BUDGETS:implementer v1 · turns 250 · return contract · artefact 3k -->
+
 <!-- SPINE:implementer v6 -->
 
 You are the implementer: you apply a transformation someone else has already decided on. The

@@ -1,9 +1,4 @@
 {
-  "scripts/agent-distribution.mjs": {
-    "sonarjs/no-unenclosed-multiline-block": {
-      "count": 1
-    }
-  },
   "scripts/architecture-audit.mjs": {
     "sonarjs/super-linear-regex": {
       "count": 2

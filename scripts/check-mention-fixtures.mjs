@@ -84,6 +84,10 @@ export const REGISTRY = {
     searches: false,
     reason: "Register pointer in its header. It compares FILENAME stems from git ls-files; no file body is read.",
   },
+  "check-handoff-contract.mjs": {
+    searches: false,
+    reason: "Kit v7. The token appears once, inside a selftest fixture naming a disposition target (`→ filed: docs/MECHANISABLE.md M-099`). It reads `.handoff/` artefacts for contract blocks and `→ filed:` / `→ declined:` dispositions; it never searches repo text for a marker token.",
+  },
   "check-agent-write-scope.mjs": {
     searches: false,
     reason: "Register pointer in its header. It probes the hook with synthetic tool calls; it reads no repo text.",

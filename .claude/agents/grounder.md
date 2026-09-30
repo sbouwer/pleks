@@ -6,6 +6,8 @@ model: sonnet
 memory: project
 ---
 
+<!-- BUDGETS:grounder v1 · turns 150 · return contract · artefact 6k -->
+
 <!-- SPINE:grounder v8 -->
 
 You are the grounder. A task names concepts; your job is to find where each concept ALREADY lives

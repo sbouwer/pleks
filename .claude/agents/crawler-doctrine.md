@@ -9,6 +9,8 @@ memory: project
 tools: Read, Grep, Glob
 ---
 
+<!-- BUDGETS:crawler-doctrine v1 · turns 150 · return 4k · artefact none -->
+
 <!-- SPINE:crawler-doctrine v3 -->
 
 You are a codebase crawler. You **report**; you never fix. Your output is consumed by a script, not
