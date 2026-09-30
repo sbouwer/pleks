@@ -3,15 +3,20 @@
  *
  * Data:   inspections, maintenance_requests, leases, deposit_timers, properties, landlords, tenants, contacts
  *         (caller supplies the org-scoped service client)
- * Notes:  scheduled_date is timestamptz — sliced off the raw ISO string (no Date parse) to avoid tz drift;
- *         a 00:00 time is treated as date-only (all-day). CPA s14(2)(b)(ii): the "notice due" reminder uses
+ * Notes:  inspections.scheduled_date is a timestamptz instant, resolved in SAST (ADDENDUM_63E B0); a
+ *         UTC-midnight value is a date-only carrier and renders all-day. CPA s14(2)(b)(ii): the "notice due" reminder uses
  *         the 60-business-day mid-window TARGET (`cpaRenewalNoticeDueSafe`); the "notice MISSED" alert uses
  *         the 40-business-day FLOOR (`cpaRenewalNoticeFloorSafe`) — the last lawful send day, missed once
  *         today is strictly past it. Both skip when the date falls past the holiday-table horizon.
  */
 import { type SupabaseClient } from "@supabase/supabase-js"
 import { cpaRenewalNoticeDueSafe, cpaRenewalNoticeFloorSafe, isRenewalNoticeMissed } from "@/lib/leases/cpaRenewal"
-import { addCalendarDays, saTodayISO } from "@/lib/dates"
+import { addCalendarDays, fmtZA, saDateISO, saDayStartUtc, saTodayISO } from "@/lib/dates"
+
+/** A date-only write into a timestamptz lands at 00:00 UTC — the carrier for "a day, no specific time". */
+function isUtcMidnightCarrier(value: string): boolean {
+  return new Date(value).getTime() % 86_400_000 === 0
+}
 
 export type EventType =
   | "inspection"
@@ -152,18 +157,20 @@ async function buildLeaseEvents(
   return events
 }
 
-function buildInspectionEvents(
+export function buildInspectionEvents(
   inspections: { id: string; type: string | null; scheduled_date: string; units: unknown; assigned_user_id?: string | null; assigned_team_id?: string | null }[],
   today: string
 ): CalendarEvent[] {
   return inspections.map((insp) => {
     const unit = insp.units as UnitRef
-    // scheduled_date is a timestamptz (date + time in one column). Slice the wall-clock parts off the
-    // ISO string — no Date parsing, so the time shows exactly as it was entered (no tz drift). A 00:00
-    // time is treated as "no specific time" (legacy date-only entries), so it renders all-day.
-    const datePart = insp.scheduled_date.slice(0, 10)
-    const timePart = insp.scheduled_date.length > 10 ? insp.scheduled_date.slice(11, 16) : ""
-    const hasTime = timePart !== "" && timePart !== "00:00"
+    // scheduled_date is a timestamptz holding a real instant (ADDENDUM_63E B0), so resolve it in SAST —
+    // slicing the ISO string would show UTC wall-clock, two hours early. A date-only write (lease
+    // activation, a reschedule-request resolution) lands at UTC midnight: that carrier means "no specific
+    // time" and renders all-day. ⚠ A typed 02:00 SAST is the same instant and also renders all-day.
+    const at = new Date(insp.scheduled_date)
+    const datePart = saDateISO(at)
+    const hasTime = !isUtcMidnightCarrier(insp.scheduled_date)
+    const timePart = hasTime ? fmtZA(at, { hour: "2-digit", minute: "2-digit", hour12: false }) : ""
     const eventType: EventType = datePart < today ? "inspection_overdue" : "inspection"
     const label = insp.type?.replaceAll("_", " ") ?? "Inspection"
     const unitNum = unit?.unit_number ?? ""
@@ -255,8 +262,9 @@ export async function fetchCalendarEvents(
       .select("id, type:inspection_type, scheduled_date, status, assigned_user_id, assigned_team_id, units(unit_number, properties(name))")
       .eq("org_id", orgId)
       .in("status", ["scheduled"])
-      .gte("scheduled_date", rangeStart)
-      .lte("scheduled_date", rangeEnd),
+      // timestamptz instants — bound on SA day starts, not bare dates (UTC midnight)
+      .gte("scheduled_date", saDayStartUtc(rangeStart).toISOString())
+      .lt("scheduled_date", saDayStartUtc(addCalendarDays(rangeEnd, 1)).toISOString()),
 
     service
       .from("maintenance_requests")
@@ -318,7 +326,7 @@ export async function fetchOverdueAlerts(
       .select("id, type:inspection_type, scheduled_date, units(unit_number, properties(name))")
       .eq("org_id", orgId)
       .eq("status", "scheduled")
-      .lt("scheduled_date", today),
+      .lt("scheduled_date", saDayStartUtc(today).toISOString()),
 
     service
       .from("deposit_timers")
@@ -345,7 +353,7 @@ export async function fetchOverdueAlerts(
     alerts.push({
       id: `insp-overdue-${insp.id}`,
       title: unit ? `Overdue inspection — ${unitNum}` : "Overdue inspection",
-      date: insp.scheduled_date.slice(0, 10),
+      date: saDateISO(new Date(insp.scheduled_date)),
       eventType: "inspection_overdue",
       colour: EVENT_COLOURS.inspection_overdue,
       propertyName: unit?.properties.name ?? "",
