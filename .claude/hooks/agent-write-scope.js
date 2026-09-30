@@ -1,7 +1,7 @@
 /**
  * agent-write-scope.js — KIT FILE, install at `.claude/hooks/`.
  *
- * @kit agent-write-scope v5 — tracked OUTSIDE its `KIT:CONFIG` regions. The scope map is
+ * @kit agent-write-scope v6 — tracked OUTSIDE its `KIT:CONFIG` regions. The scope map is
  * yours; the gate logic is canon's, and `check-kit-drift.mjs` reconciles it.
  *
  * A PreToolUse gate with THREE remits: it bounds what a subagent may WRITE, denies a subagent the
@@ -9,9 +9,10 @@
  *
  * ⚠ THE WRITE FENCE IS SOUND ONLY FOR WRITES A TOOL CALL NAMES. Write, Edit and NotebookEdit name
  * their path in a field. A Bash command names its targets in its text, and since v5 those are read
- * and held to the same scope — but an interpreter, a script, `find -delete` and git's tree-writing
- * subcommands write files their text never names. See "v5: WHAT A BASH COMMAND WRITES" below for
- * the full list. A CLAUDE.md that tags this rule as enforced should say which half it means.
+ * and held to the same scope, with the same verdict since v6 — but an interpreter, a script,
+ * `find -delete` and git's tree-writing subcommands write files their text never names. See "v5:
+ * WHAT A BASH COMMAND WRITES" below for the full list. A CLAUDE.md that tags this rule as enforced
+ * should say which half it means.
  *
  * ── v2: THE WRITE MANIFEST, WHICH CLOSES THE ONE HOLE v1 DOCUMENTED ────────────────────────────
  *
@@ -295,9 +296,24 @@ function scopeVerdict(agentType, cwd, raw) {
  * and it reads the commands inside `$(…)`, backticks, `<(…)`/`>(…)`, `bash -c '…'` and `sh -c '…'`,
  * and follows `cd` so a relative target lands where the shell would put it.
  *
- * IT ASKS, IT NEVER DENIES. A Write names its path in a field; a Bash write is read out of shell
- * text, and a reading can be wrong. A false deny stalls an agent with no way to comply, which is the
- * direction that gets a gate switched off. An ask is the visible version of the same doubt.
+ * v6: A TARGET IT READ GETS THE VERDICT A WRITE WOULD, DENY INCLUDED (pleks CF-9, 40f32f68). v5 asked
+ * on every Bash write the scope refused, on the ground that shell text can be misread and a false
+ * deny stalls an agent with no way to comply. It split one fence into two verdicts by tool: a
+ * report-only agent denied `Write lib/x.ts` was ASKED about `echo x > lib/x.ts`, so the refusal an
+ * agent met on one tool became a prompt a person could wave through on the other. That is L-48's
+ * shape one level up: the path was covered and the verdict was not.
+ *
+ * The doubt v5 priced is narrower than a verdict per tool. A target that reached `scopeVerdict` is a
+ * literal word the reader found in a write position, resolved against the cwd a `cd` left it in; the
+ * only way to be wrong about it is a word the shell does not treat as a write, and the reader's
+ * known ones are named here: `>` inside `[[ … ]]` and `(( … ))` is a comparison, and an option that
+ * takes a value this reader does not list (`touch -A 01 f`) reads its value as an operand. Each is
+ * a false DENY, which the reason text answers: it names the word it read, and the agent can rephrase
+ * the command — `[ a -gt b ]`, a quoted `>` — which is the commit denial's accepted trade too. A
+ * reading that is wrong the other way, a write the reader misses, is an allow, as before.
+ *
+ * Every bounded spine in the estate says the same thing in prose: it writes one file, in
+ * `.handoff/`, and its Bash is for reading. A deny here is that sentence enforced, not a new rule.
  *
  * A TARGET IT CANNOT RESOLVE ASKS (L-57: unknown asks). `> "$OUT"`, `> ~/x`, a glob, a relative
  * target after a `cd` it could not follow, `sed -i` with no file in the command, one of the writers
@@ -725,25 +741,33 @@ process.stdin.on("end", () => {
           `commit on the caller's branch, and on this project pushing to \`main\` IS the launch. ` +
           `Agents end at a REPORT; the caller commits. Leave the tree dirty and say what changed.`;
       } else {
-        // v5: the files the command's text writes, each held to the same scope as a Write. Any
-        // write the scope would refuse, and any target that cannot be read, ASKS — see the v5 note.
+        // The files the command's text writes, each given the verdict a Write to it would get (v6).
+        // A target that cannot be read, and a command that does not parse, ASK. A deny outranks an
+        // ask: one refused write refuses the command, whatever else it writes.
         const cwd = input.cwd || process.cwd();
         const writes = bashWrites(command, cwd);
-        const flagged =
+        const verdicts =
           writes === null
-            ? ["the command does not parse, so what it writes cannot be read"]
-            : writes.flatMap((t) => {
-                if (t.file === null) return [`"${t.raw}" — ${t.why}`];
+            ? [{ decision: "ask", why: "the command does not parse, so what it writes cannot be read" }]
+            : writes.map((t) => {
+                if (t.file === null) return { decision: "ask", why: `"${t.raw}" — ${t.why}` };
                 const v = scopeVerdict(agentType, cwd, t.file);
-                return v.decision === "allow" ? [] : [`"${t.raw}" — ${v.reason.replace(/^agent-write-scope: /, "")}`];
+                return { decision: v.decision, why: `"${t.raw}" — ${v.reason.replace(/^agent-write-scope: /, "")}` };
               });
-        if (flagged.length > 0) {
+        const denied = verdicts.filter((v) => v.decision === "deny").map((v) => v.why);
+        const asked = verdicts.filter((v) => v.decision === "ask").map((v) => v.why);
+        if (denied.length > 0) {
+          decision = "deny";
+          reason =
+            `agent-write-scope: ${agentType} is running a bash command that writes where a Write would ` +
+            `be refused: ${denied.join("; ")}. It is one fence whichever tool writes. If a word named ` +
+            `here is not a file the command writes, rephrase the command so it does not read as one.`;
+        } else if (asked.length > 0) {
           decision = "ask";
           reason =
-            `agent-write-scope: ${agentType} is running a bash command that writes where it may not, ` +
-            `or where this hook cannot tell: ${flagged.join("; ")}. A bash write is read from the ` +
-            `command's text, so it ASKS rather than denies. Approve it deliberately, or return the ` +
-            `finding instead of writing it.`;
+            `agent-write-scope: ${agentType} is running a bash command whose writes this hook cannot ` +
+            `clear: ${asked.join("; ")}. Approve it deliberately, or return the finding instead of ` +
+            `writing it.`;
         } else {
           reason = writes !== null && writes.length > 0
             ? `agent-write-scope: ${agentType} running a bash command whose every write is in scope`
