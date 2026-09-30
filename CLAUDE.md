@@ -623,9 +623,10 @@ then `02-implementer.md` and `03-walker.md` for the later steps. Relay the retur
 the section the block names. The next agent's brief is a pointer — *"Read `.handoff/<slug>/01-grounder.md`;
 apply X"* — never a retelling. **Never** "return your result as text", "give me the table", or a
 built-in `Explore` / `general-purpose` spawn: measured across the estate, each came back inline every
-time, whatever the spine said. Canon's `agent-brief-gate` refuses all three at the tool call; pleks
-**holds** that row (it fails `check-hook-registration` — `docs/CANON-FINDINGS.md`), so until it lands
-this paragraph is discipline, not a control.
+time, whatever the spine said. `agent-brief-gate` refuses all three at the tool call — a briefed
+spawn that names no `.handoff` artefact or asks for an inline answer, and either built-in. <!-- @enforced hook:agent-brief-gate -->
+It reads the BRIEF, never the reply: an agent that returns more than its block is not caught by it,
+so relaying only the block remains discipline.
 
 **STANDING AUTHORISATION — Stéan, 2026-09-10, from this date onwards.** *Agents listed in the table
 above may be spawned without per-session approval; writes stay bounded by

@@ -369,6 +369,11 @@ FIX        `// @no-twin <reason>` (a settings permission rule cannot read an Age
            Must not change the hook's decisions — the 77 probes stay as they are.
 ```
 
+**CLOSED by canon `77f1c58` (agent-brief-gate v2, from yoros's CF-14 — the same three markers,
+verbatim).** Adopted into pleks 2026-09-30: `node scripts/check-hook-registration.mjs` → `🪝 hooks —
+every hook is registered in settings, every rule has its fallback, and every twin is in settings in a
+shape it can match`. Nothing further is owed here.
+
 ---
 
 ## 2 · Lesson answers
@@ -445,12 +450,32 @@ at the time (`M playbooks/4-AGENT-PIPELINES.md`); every kit byte was read with `
 - **Spines** (`propagate-spines.mjs`): grounder v8 · census v11 · walker v9 · implementer v6 ·
   db-inspector v6 · **scout v1** created (canon frontmatter + `SPINE:scout v1` verbatim + pleks surface).
   crawler-doctrine stays v3 (pleks-local).
-- **HELD — `agent-brief-gate`, `agent-brief-gate-config`, `agent-brief-gate-probe` at v1.** Reason:
-  CF-12 — the hook fails `check-hook-registration` v7 as shipped, and CF-5's ruling is to hold a row whose
-  bytes the adopter's gate rejects rather than fork it. The probe was green (77 of 77) before the hold.
-  **Review: when canon ships the tags**; not a date, because the blocker is canon's.
-- **Steps 6(a)–(c) not run** — they need the hook live. CLAUDE.md §7 and the commands carry the brief
-  discipline meanwhile (§7 says it is discipline, not a control, until the row lands).
+- ~~HELD — the three agent-brief-gate rows at v1~~ — superseded by the entry below the same day.
+
+**Canon main `8993e2c` (merge of `77f1c58`) — adopted 2026-09-30.** Canon's checkout was on
+`kit/batch-1` with a dirty tree; every byte was read with `git show 8993e2c:<path>`.
+- **Adopted:** `agent-brief-gate@2` · `agent-brief-gate-config@1` · `agent-brief-gate-probe@1`, all
+  byte-identical to canon (the config's default BRIEFED set is exactly pleks's six spined agents, and
+  crawler-doctrine is absent as the config says it must be). Registered in `.claude/settings.json`
+  (PreToolUse, `Agent|Task`); probe chained in `npm run check` → `✅ agent-brief-gate: 77 of 77 probes
+  pass (6 briefed types, 2 redirects)`. **Canon: record the three in `kitAdopted`.**
+- **Re-confirmed at `8993e2c`, no change needed:** `check-handoff-contract@6`, `agent-write-scope@6` and
+  its probe are byte-identical (`diff -q`); `agent-write-scope-config@2` differs only inside KIT:CONFIG
+  (pleks's derivation note).
+- **Spines — no lag to pin.** `git diff --stat a4ff0b5 8993e2c -- kit/agents` is empty, and every
+  pleks spine marker equals canon main's: grounder v8 · census v11 · walker v9 · implementer v6 ·
+  db-inspector v6 · scout v1. The HOLD is therefore against batch 2, which is not on main (it sits
+  uncommitted on canon's `kit/batch-1`). **No `kitPins` entry is owed today;** when batch 2 lands on
+  main, pleks either re-propagates or files the pins then (review 2026-10-14, exit = batch 2 lands and
+  pleks re-propagates).
+- **`.claude/commands/build.md` — project-owned, patched locally** until canon's command kit (item 3)
+  replaces it: step 3's grounder brief opens with the `pipeline: … · step … · artefact: …` line; step 5
+  writes `.handoff/write-manifest.json` (`{"agent":"implementer","paths":[…]}`) before the implementer
+  spawn.
+- **Live check (the four yoros step-6 cases) — owed in a FRESH session** after this lands: (a) scout,
+  no artefact → refused; (b) `Explore` → refused, redirected to scout; (c) scout with a `pipeline:` line
+  → reply is the block only, artefact well-formed; (d) `git status` clean outside `.handoff`. Results
+  go here.
 
 - **Re-adopted — row `check-hook-registration`, v2 → v3, 2026-09-10.** CF-3's fix, taken the session
   it shipped. Copied from canon and verified byte-identical (`diff -q` → no output); `--selftest`
