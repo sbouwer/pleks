@@ -20,6 +20,10 @@ Close out the session properly. A session that ends without this is a session so
      M-register with rung + blast, an allowlist entry with its reason, a comment at the site, the
      commit message, a spec. Filing it is part of finishing the task, done BEFORE the push gate
      while the context that makes it meaningful still exists.
+   - **Record each nomination's disposition**, appended to its `Promote` line or on a line of an
+     `NN-main.md` beside it that names the artefact file: `→ filed: <where>` or
+     `→ declined: <reason>`. Then run `node scripts/check-handoff-contract.mjs --clearable <slug>`
+     and delete only on exit 0 — 1 means a nomination is undisposed, 2 means no such slug.
    - **Then `rm -rf .handoff/<task-slug>/`** for each task whose work is pushed and whose
      promotions are filed. The observation dies, the decision survives.
    - **A task that ABORTED (`⊗ MAIN` / `⊗ HUMAN`) keeps its directory.** An abort means a decision

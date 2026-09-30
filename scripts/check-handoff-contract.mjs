@@ -2,7 +2,7 @@
 /**
  * scripts/check-handoff-contract.mjs — every handoff artefact carries a well-formed contract block.
  *
- * @kit check-handoff-contract v6 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-handoff-contract v7 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * PORTED FROM `pleks/scripts/check-handoff-contract.mjs`. It arrives because of dev-standards
@@ -48,9 +48,18 @@
  * reads is now on a probe's path: `--selftest` spawns this file against fixture roots, one per exit
  * (L-51). Before v5 a main-path `exit(0)` mutant left every probe green.
  *
+ * v7 (2026-09-30) COUNTS TWO THINGS THE PLAYBOOK ONLY SAID. (1) The re-entry cap (M-076): a task
+ * directory holding more than three walker or implementer artefacts FAILS — the loop is "max 2
+ * re-entries, then decision-needed", and walker v5's sequential numbering (03/05/07) is what made
+ * the count visible on disk. (2) Promote accounting (CD review item 9): a nomination with no
+ * disposition — `→ filed: <where>` or `→ declined: <reason>`, on its Promote line or in an NN-main.md
+ * beside it — is printed as pending, and `--clearable <slug>` exits 1 while one remains, so `/wrap`
+ * can ask before it deletes the only copy.
+ *
  * Run: node scripts/check-handoff-contract.mjs             (wired into `npm run check`)
  *      node scripts/check-handoff-contract.mjs --selftest  (probes both directions, and every exit)
  *      node scripts/check-handoff-contract.mjs --root <dir> (another tree; what the exit probes use)
+ *      node scripts/check-handoff-contract.mjs --clearable <slug> (what /wrap runs before clearing)
  */
 import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -436,6 +445,96 @@ export function tellLines(root, paths) {
   return lines;
 }
 
+// ── v7: the re-entry cap, counted (M-076), and Promote, accounted for ─────────────────────────────
+
+/**
+ * The agents a re-entry loop runs through: `WALK_FAIL → IMPLEMENT → WALK` (4-AGENT-PIPELINES §3.1).
+ * The cap is "max 2 re-entries, then decision-needed", which on disk is at most three artefacts of
+ * either type in one task directory — `03-walker.md`, `05-walker.md`, `07-walker.md`, the numbering
+ * walker v5 made a rule so the loop could not be erased by appending to one file.
+ *
+ * NOT every contract agent, and the difference is load-bearing. A census fan-out writes up to four
+ * children under its parent's slug, and a caller may send several scouts at one task: five census
+ * artefacts in one directory is a legal fan-out, not a runaway loop. Counting them would make the
+ * check fire on the one capability the pipelines grant, and a check that fires on the permitted case
+ * is the one people learn to ignore.
+ */
+export const REENTRY_AGENTS = new Set(["walker", "implementer"]);
+export const REENTRY_CAP = 3;
+
+/** Findings for every task directory holding more than REENTRY_CAP artefacts of one loop agent. */
+export function capFindings(paths, root) {
+  const counts = new Map();
+  for (const p of paths) {
+    const agent = agentOf(p);
+    if (!REENTRY_AGENTS.has(agent)) continue;
+    const key = `${dirname(p)}\0${agent}`;
+    if (!counts.has(key)) counts.set(key, []);
+    counts.get(key).push(p.split("/").at(-1));
+  }
+  const out = [];
+  for (const [key, files] of counts) {
+    if (files.length <= REENTRY_CAP) continue;
+    const [dir, agent] = key.split("\0");
+    const at = dir.replace(root + "/", "");
+    out.push(
+      `${at}: ${files.length} ${agent} artefacts (${files.sort().join(", ")}) — the re-entry cap is ` +
+      `${REENTRY_CAP}: two re-entries, then \`⚠️ decision-needed\` to Main (4-AGENT-PIPELINES §3.1, M-076). A fourth round is the ` +
+      `mode switch not taken; it is Main's to decide, not the loop's to run`,
+    );
+  }
+  return out;
+}
+
+/**
+ * A Promote value that nominates something, or null for `none`, a placeholder, or no line at all.
+ * The contract check owns the malformed cases; this reads only a well-formed nomination.
+ */
+export function nominationOf(text) {
+  const v = valueOf(text, "Promote");
+  if (v === undefined || /^none\b/i.test(v) || /<[^>]{1,200}>/.test(v)) return null;
+  return v;
+}
+
+/**
+ * A disposition: `→ filed: <where>` or `→ declined: <reason>`, with something after the colon. A
+ * bare `→ declined:` is not one — declining is a decision, and a decision with no reason is the
+ * silent drop this accounting exists to stop.
+ */
+const DISPOSITION = /→[ \t]*(filed|declined):[ \t]*\S/;
+
+/**
+ * Every nomination in `paths` with no disposition. A nomination is disposed on its own Promote line
+ * (Main appends `→ filed: …` to the value) or on any line of an `NN-main.md` in the same task
+ * directory that names the artefact's file and carries a disposition.
+ *
+ * WHY IT IS COUNTED (CD review item 9, 2026-09-30). `Promote` is a nomination, never a filing (§3),
+ * and `/wrap` clears `.handoff/`. Nothing between the two recorded whether Main acted on a
+ * nomination, so one that was never read was deleted with the scratch around it, and the directory's
+ * absence afterwards reads exactly like a nomination that was filed.
+ */
+export function pendingNominations(paths, read = (p) => readFileSync(p, "utf8")) {
+  const mains = new Map();
+  for (const p of paths) {
+    if (agentOf(p) !== "main") continue;
+    const dir = dirname(p);
+    mains.set(dir, `${mains.get(dir) ?? ""}\n${read(p)}`);
+  }
+  const out = [];
+  for (const p of paths) {
+    if (!CONTRACT_AGENTS.has(agentOf(p))) continue;
+    const text = read(p);
+    if (text.length > MAX_ARTEFACT_BYTES) continue;
+    const nominated = nominationOf(text);
+    if (nominated === null || DISPOSITION.test(nominated)) continue;
+    const file = p.split("/").at(-1);
+    const main = mains.get(dirname(p)) ?? "";
+    if (main.split("\n").some((l) => l.includes(file) && DISPOSITION.test(l))) continue;
+    out.push({ path: p, nominated });
+  }
+  return out;
+}
+
 const isEntry = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 
 if (isEntry && process.argv.includes("--selftest")) {
@@ -685,6 +784,56 @@ if (isEntry && process.argv.includes("--selftest")) {
     ok(compareStamp(anch("spine=grounder v6 · commit=1111111"), readAt).kind === "unmeasured", "a spine with no SPINE marker at that commit is NOT MEASURED");
   }
 
+  // ── v7: the re-entry cap (M-076) ────────────────────────────────────────────────────────────
+  {
+    const R = "/r";
+    const at = (slug, ...names) => names.map((n) => `${R}/.handoff/${slug}/${n}`);
+    ok(capFindings(at("t", "03-walker.md", "05-walker.md", "07-walker.md"), R).length === 0,
+      "KNOWN-GOOD: three walks in one task — the cap itself — is not over it");
+    const four = capFindings(at("t", "03-walker.md", "05-walker.md", "07-walker.md", "09-walker.md"), R);
+    ok(four.length === 1 && four[0].startsWith(".handoff/t: 4 walker artefacts") && four[0].includes("09-walker.md"),
+      "a FOURTH walker artefact in one task fires, naming the directory and every file");
+    ok(capFindings(at("t", "02-implementer.md", "04-implementer.md", "06-implementer.md", "08-implementer.md"), R).length === 1,
+      "…and so does a fourth implementer artefact: the loop has two sides");
+    ok(capFindings([...at("a", "03-walker.md", "05-walker.md"), ...at("b", "03-walker.md", "05-walker.md")], R).length === 0,
+      "the count is PER TASK DIRECTORY — four walks across two tasks are two loops, not one runaway");
+    ok(capFindings(at("t", "01-census.md", "02-census.md", "03-census.md", "04-census.md", "05-census.md"), R).length === 0,
+      "a census fan-out under one slug is NOT counted — four children and a parent is the granted case");
+    ok(capFindings(at("t", "01-grounder.md", "03-walker.md", "05-walker.md", "07-walker.md", "08-main.md"), R).length === 0,
+      "other agents in the same directory do not add to a walker count");
+  }
+
+  // ── v7: Promote accounting (CD review item 9) ──────────────────────────────────────────────
+  {
+    const NOM = GOOD.replace(/^Promote.*$/m, "Promote    §2 → ledgers/LESSONS.md");
+    const run = (files) => pendingNominations(Object.keys(files), (p) => files[p]);
+    ok(nominationOf(GOOD) === null, "`Promote    none` nominates nothing");
+    ok(nominationOf(NOM) === "§2 → ledgers/LESSONS.md", "a Promote value that names a destination is a nomination");
+    ok(nominationOf(GOOD.replace(/^Promote.*$/m, "Promote    <none | §ref → destination>")) === null,
+      "an unfilled placeholder is the contract check's finding, not a nomination to account for");
+    ok(run({ "/r/.handoff/t/01-grounder.md": GOOD }).length === 0, "KNOWN-GOOD: no nomination, nothing pending");
+    const bare = run({ "/r/.handoff/t/01-grounder.md": NOM });
+    ok(bare.length === 1 && bare[0].nominated === "§2 → ledgers/LESSONS.md", "a nomination with no disposition is PENDING, with its value");
+    ok(run({ "/r/.handoff/t/01-grounder.md": NOM.replace("LESSONS.md", "LESSONS.md → filed: L-91") }).length === 0,
+      "`→ filed: <where>` on its own Promote line disposes it");
+    ok(run({ "/r/.handoff/t/01-grounder.md": NOM.replace("LESSONS.md", "LESSONS.md → declined:") }).length === 1,
+      "a BARE `→ declined:` does not — a decline with no reason is the silent drop this counts");
+    ok(run({
+      "/r/.handoff/t/01-grounder.md": NOM,
+      "/r/.handoff/t/04-main.md": "01-grounder.md §2 → declined: project-local, not portable\n",
+    }).length === 0, "a line in NN-main.md naming the file and carrying a disposition disposes it");
+    ok(run({
+      "/r/.handoff/t/01-grounder.md": NOM,
+      "/r/.handoff/t/04-main.md": "03-walker.md → filed: docs/MECHANISABLE.md M-099\n",
+    }).length === 1, "…and a disposition naming ANOTHER artefact does not");
+    ok(run({
+      "/r/.handoff/t/01-grounder.md": NOM,
+      "/r/.handoff/u/04-main.md": "01-grounder.md → filed: L-91\n",
+    }).length === 1, "…nor does one in another task's NN-main.md, which is a different 01-grounder.md");
+    ok(run({ "/r/.handoff/t/02-crawler-doctrine.md": NOM }).length === 0,
+      "an agent that carries no contract is not read for nominations — the skip list already names it");
+  }
+
   // ── v5: every exit path, through the process the gate runs (L-51; life-therapy CF-2) ─────────
   // Each spawn points `--root` at a fixture, never at this tree: a clean fixture must stay clean in
   // every adopter. None runs the gate chain (L-34).
@@ -709,6 +858,29 @@ if (isEntry && process.argv.includes("--selftest")) {
       `EXIT 1 — a fixture with a broken block fails through the real process (status ${broken.status})`);
     const nowhere = spawn("--root", join(fx, "does-not-exist"));
     ok(nowhere.status === 2, `EXIT 2 — a --root that is not a directory is refused, not read as 0 artefacts (status ${nowhere.status})`);
+
+    // v7 — the cap and `--clearable`, through the real process. The cap is a FAILURE; a pending
+    // nomination is not, until `/wrap` asks whether the directory may go.
+    const walks = Object.fromEntries(["03", "05", "07", "09"].map((n) => [`.handoff/t/${n}-walker.md`, GOOD]));
+    const capped = spawn("--root", plant("capped", walks));
+    ok(capped.status === 1 && capped.stderr.includes("4 walker artefacts"),
+      `EXIT 1 — a fourth walk in one task fails through the real process (status ${capped.status})`);
+    const NOM = GOOD.replace(/^Promote.*$/m, "Promote    §2 → ledgers/LESSONS.md");
+    const pend = plant("pend", { ".handoff/t/01-grounder.md": NOM });
+    const live = spawn("--root", pend);
+    ok(live.status === 0 && live.stdout.includes("⏳ PROMOTE .handoff/t/01-grounder.md"),
+      `EXIT 0 — a pending nomination is PRINTED on the live run, never failed (status ${live.status})`);
+    const blocked = spawn("--root", pend, "--clearable", "t");
+    ok(blocked.status === 1 && blocked.stderr.includes("NOT clearable"),
+      `EXIT 1 — --clearable refuses a task directory holding an undisposed nomination (status ${blocked.status})`);
+    plant("pend", { ".handoff/t/02-main.md": "01-grounder.md → declined: project-local\n" });
+    const cleared = spawn("--root", pend, "--clearable", "t");
+    ok(cleared.status === 0 && cleared.stdout.includes("is clearable"),
+      `EXIT 0 — …and allows it once NN-main.md disposes the nomination (status ${cleared.status})`);
+    const noSlug = spawn("--root", pend, "--clearable", "gone");
+    ok(noSlug.status === 2, `EXIT 2 — --clearable on a slug that is not there is refused, not read as clearable (status ${noSlug.status})`);
+    const escape = spawn("--root", pend, "--clearable", "..");
+    ok(escape.status === 2, `EXIT 2 — --clearable will not read outside .handoff/ (status ${escape.status})`);
 
     // The tells, on real files with real mtimes and a real git tree — and still EXIT 0, because a
     // tell is never a failure. The tree is written with `git write-tree`: `git show <tree>:<path>`
@@ -770,9 +942,39 @@ if (isEntry && !process.argv.includes("--selftest")) {
     }
     root = resolve(arg).replace(/\\/g, "/");
   }
-  const { enforced, skipped } = partition(artefacts(root));
-  const findings = enforced.flatMap((f) =>
-    checkArtefact(f.replace(`${root}/`, ""), readFileSync(f, "utf8"), ANCHOR_AGENTS.has(agentOf(f))));
+  const all = artefacts(root);
+
+  // `--clearable <slug>`: what `/wrap` asks before it deletes a task directory. Exit 1 while any
+  // nomination there has no disposition — a delete after that point destroys the only copy of
+  // something an agent said outlives the task. Exit 2 for a slug that is not there, which must not
+  // read as "nothing pending".
+  const cl = process.argv.indexOf("--clearable");
+  if (cl > 0) {
+    const slug = process.argv[cl + 1];
+    const dir = `${root}${HANDOFF}/${slug}`;
+    let isDir = false;
+    try { isDir = Boolean(slug) && !/[\\/]|^\.\.?$/.test(slug) && statSync(dir).isDirectory(); } catch { isDir = false; }
+    if (!isDir) {
+      console.error(`❌ handoff-contract: --clearable ${slug ?? "(no value)"} names no task directory under .handoff/ — nothing was checked`);
+      process.exit(2);
+    }
+    const pending = pendingNominations(all.filter((p) => dirname(p) === dir));
+    if (pending.length) {
+      console.error(`❌ .handoff/${slug} is NOT clearable: ${pending.length} Promote nomination(s) with no disposition\n`);
+      for (const n of pending) console.error(`   ${n.path.replace(root + "/", "")}: Promote ${n.nominated}`);
+      console.error(`\n   Dispose each one first — append \`→ filed: <where>\` or \`→ declined: <reason>\` to its Promote line,`);
+      console.error(`   or write that line, naming the artefact's file, in an NN-main.md beside it.`);
+      process.exit(1);
+    }
+    console.log(`🤝 .handoff/${slug} is clearable — every Promote nomination there is disposed`);
+    process.exit(0);
+  }
+
+  const { enforced, skipped } = partition(all);
+  const findings = [
+    ...enforced.flatMap((f) => checkArtefact(f.replace(`${root}/`, ""), readFileSync(f, "utf8"), ANCHOR_AGENTS.has(agentOf(f)))),
+    ...capFindings(enforced, root),
+  ];
 
   // Named before the verdict, pass or fail. An artefact outside the rollout boundary is a thing the
   // check DID NOT LOOK AT, and a reader has to see that without reading the source.
@@ -783,6 +985,11 @@ if (isEntry && !process.argv.includes("--selftest")) {
   // The tells, before the verdict and whatever it is: they are never findings, so a red run must
   // not hide them and a green one must not swallow them.
   for (const l of tellLines(root, enforced)) console.log(l);
+  // Pending, never a finding: a nomination waits for Main, and mid-task that is the normal state.
+  // The gate that refuses is `--clearable`, run at the one moment a pending nomination is lost.
+  for (const n of pendingNominations(all)) {
+    console.log(`   ⏳ PROMOTE ${n.path.replace(root + "/", "")} nominates "${n.nominated}" — no disposition yet; /wrap may not clear its directory`);
+  }
 
   if (findings.length) {
     console.error(`\n❌ handoff-contract: ${findings.length} finding(s) across ${enforced.length} artefact(s)\n`);

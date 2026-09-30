@@ -374,6 +374,31 @@ verbatim).** Adopted into pleks 2026-09-30: `node scripts/check-hook-registratio
 every hook is registered in settings, every rule has its fallback, and every twin is in settings in a
 shape it can match`. Nothing further is owed here.
 
+### CF-13 · a validator's "already well-formed" pass-through branch skips the checks its main branch enforces
+
+```
+OBSERVED   pleks's saWallClockToInstant (63E B0, PR #316) validated a wall-clock string's calendar
+           date with assertSaDateISO, but its branch for input that ALREADY carried an offset only
+           checked `!isNaN(new Date(value))` — so "2026-02-30T10:00Z" came back as 2 March. Before
+           the helper existed Postgres rejected that string; the fix turned a loud rejection into
+           a silent roll. Caught by the walker (F1), fixed before merge.
+
+COMMAND    walker probe: saWallClockToInstant("2026-02-30T10:00Z")        → 2026-03-02T10:00:00.000Z
+                         saWallClockToInstant("2026-11-31T10:00:00.000Z") → 2026-12-01T10:00:00.000Z
+           after the fix (assertSaDateISO on value.slice(0,10) in the offset branch): both throw;
+           pinned in lib/dates/index.test.ts.
+
+WHY IT IS  Any normaliser with a fast path for "input already in canonical shape" has this shape,
+CANON'S    in any stack: the fast path is written to skip the TRANSFORM and ends up skipping the
+           VALIDATION too, because both lived in the slow path. The test named for the rule
+           exercised only the slow branch, so it read as covering both.
+
+SMALLEST   A lesson, not a kit change. Nominated for LESSONS.md, canon's to file: "a validator's
+FIX        pass-through branch for already-formed input must run the same checks as its main branch —
+           the fast path skips the transform, never the validation — and each branch needs its own
+           must-throw case."
+```
+
 ---
 
 ## 2 · Lesson answers
@@ -476,6 +501,35 @@ at the time (`M playbooks/4-AGENT-PIPELINES.md`); every kit byte was read with `
   no artefact → refused; (b) `Explore` → refused, redirected to scout; (c) scout with a `pipeline:` line
   → reply is the block only, artefact well-formed; (d) `git status` clean outside `.handoff`. Results
   go here.
+
+**Batch 1, canon `1476fb8` — adopted 2026-09-30.** Canon on `main` at `1476fb8`, `status --short` empty.
+- **Adopted:** `check-handoff-contract@7` (canon bytes at `1476fb8`) · **`agent-distribution@2`**
+  (canon bytes at `34bd4aa`, per the correction superseding v1). v2's `RECORD` default is empty; pleks
+  sets `RECORD = "docs/EXPERIMENTS.md E4"` inside `KIT:CONFIG measure` — the only line changed.
+- **BUDGETS markers v1** on all seven agent files via `propagate-spines.mjs .` → `7 agent file(s)
+  rewritten, 0 target(s) absent`, +2/−0 lines each, spine versions unchanged (census v11 ·
+  crawler-doctrine v3 · db-inspector v6 · grounder v8 · implementer v6 · scout v1 · walker v9).
+- **The old pleks agent-distribution was replaced, not merged — no finding.** Canon's header names it
+  as the source ("PORTED FROM pleks/scripts/agent-distribution.mjs"), and every behaviour it had is in
+  canon's copy. The one surface change is the old positional `<dir>` argument becoming `--root <dir>`;
+  nothing in `docs/` or `package.json` called the positional form (grep: zero hits), and `--selftest`,
+  the only form on the gate, is unchanged.
+- **Two pleks-local gate edits the adoption needed, neither a canon defect:** the old script's
+  `sonarjs/no-unenclosed-multiline-block` suppression no longer fires on canon's copy, so it was
+  pruned from `eslint-suppressions.json` (the list shrinks); and v7's selftest fixture mentions
+  `MECHANISABLE`, so pleks's `check-mention-fixtures` registry classifies the script
+  `searches: false` with that reason.
+- **Step 3 (v7's >3 walker / implementer cap):** no task directory is over it — `63e-b0-sa-wallclock`
+  holds 1 walker, the other two hold none. Nothing to decide.
+- **v7 surfaced one undisposed Promote** (`63e-b0-sa-wallclock/02-walker.md`, F1). Filed as CF-13 above;
+  the line now reads `→ filed: docs/CANON-FINDINGS.md CF-13`, and `--clearable 63e-b0-sa-wallclock`
+  exits 0.
+- **`node scripts/agent-distribution.mjs`**, first line: `🤖 agent distribution — 10 run(s) across 6
+  type(s)`. Trigger line: `⏱ re-measure trigger at 20 TOP-LEVEL runs under the current budgets: 0/20`.
+  **Before the marker commit** it continued `NOT COUNTED — no committed marker to date them by: census,
+  db-inspector, grounder, scout, walker`, as expected. **After it** (v2): `census 0 since 2026-09-30 ·
+  walker 0 since 2026-09-30 · grounder 0 since 2026-09-30 · db-inspector 0 since 2026-09-30 · scout 0
+  since 2026-09-30` — counted, and dated from the commit.
 
 - **Re-adopted — row `check-hook-registration`, v2 → v3, 2026-09-10.** CF-3's fix, taken the session
   it shipped. Copied from canon and verified byte-identical (`diff -q` → no output); `--selftest`

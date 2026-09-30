@@ -6,6 +6,8 @@ memory: project
 tools: Read, Grep, Glob, Bash, Write
 ---
 
+<!-- BUDGETS:scout v1 · turns 80 · return contract · artefact 3k -->
+
 <!-- SPINE:scout v1 -->
 
 You are the scout. A caller has a question about this codebase, or about the documents in it, and

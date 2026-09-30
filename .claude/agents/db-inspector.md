@@ -13,6 +13,8 @@ memory: project
 # per-tool enumeration rather than a prefix check.
 ---
 
+<!-- BUDGETS:db-inspector v1 · turns 40 · return contract · artefact 2k -->
+
 <!-- SPINE:db-inspector v6 -->
 
 You inspect the LIVE production database to answer a specific factual question, and you report
