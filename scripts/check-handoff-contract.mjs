@@ -2,7 +2,7 @@
 /**
  * scripts/check-handoff-contract.mjs — every handoff artefact carries a well-formed contract block.
  *
- * @kit check-handoff-contract v5 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-handoff-contract v6 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * PORTED FROM `pleks/scripts/check-handoff-contract.mjs`. It arrives because of dev-standards
@@ -84,7 +84,7 @@ const VERDICTS = new Set(Object.values(GLYPHS));
  * no return-contract block, when every other agent does", so a later reader does not close it as a
  * gap. `main` is likewise absent — the main session has no spine, and `NN-main.md` is its own notes.
  */
-export const CONTRACT_AGENTS = new Set(["grounder", "census", "walker", "db-inspector", "implementer"]);
+export const CONTRACT_AGENTS = new Set(["grounder", "census", "walker", "db-inspector", "implementer", "scout"]);
 
 /**
  * Agents whose spine specifies the machine-readable ANCHOR LINE. Kept as a separate name from the
@@ -93,7 +93,7 @@ export const CONTRACT_AGENTS = new Set(["grounder", "census", "walker", "db-insp
  * against a check that greps for a line. The two sets are read independently, so an agent can
  * carry the block without the anchor line and the finding names which of the two it failed.
  */
-export const ANCHOR_AGENTS = new Set(["grounder", "census", "walker", "db-inspector", "implementer"]);
+export const ANCHOR_AGENTS = new Set(["grounder", "census", "walker", "db-inspector", "implementer", "scout"]);
 
 /** Every `NN-<agent>.md` under a handoff root. Non-recursive past the task-slug level, by design. */
 export function artefacts(root) {
@@ -349,7 +349,7 @@ export function tell(text, { writtenMs, resolvePath }) {
  * The agents the L-41 tell applies to. NOT the implementer: it edits the files it cites, so every
  * one would be marked by its own hand and the tell would say nothing. Named on every run it skips.
  */
-export const TELL_AGENTS = new Set(["grounder", "census", "walker", "db-inspector"]);
+export const TELL_AGENTS = new Set(["grounder", "census", "walker", "db-inspector", "scout"]);
 
 /**
  * L-39's tell (life-therapy CF-3). The anchor stamps `spine=<agent> vN`, copied from the template
