@@ -3938,6 +3938,9 @@
     ],
     "get_rls_audit": [],
     "handle_new_user": [],
+    "is_juristic_party_context": [
+      "app"
+    ],
     "is_landlord_membership_active": [
       "row_data"
     ],
@@ -4006,6 +4009,10 @@
     ],
     "refresh_arrears_interest_total": [
       "p_case_id"
+    ],
+    "screening_party_kind": [
+      "caa",
+      "app"
     ],
     "seed_default_retention_policies": [
       "org_uuid"

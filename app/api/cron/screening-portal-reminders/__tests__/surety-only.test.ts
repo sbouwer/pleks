@@ -94,6 +94,14 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(updates).toEqual([{ table: "application_co_applicants", patch: { reminder_milestones_sent: { t3: true } } }])
   })
 
+  it("a residential guarantor gets co_applicant_invited, never director copy (R3a)", async () => {
+    line = { ...baseLine, party_kind: "guarantor" }
+    coApp = { ...baseCo, role: "guarantor", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(sendCoApplicantInvited).toHaveBeenCalledTimes(1)
+  })
+
   it("a residential co-applicant past expires_at is declined, with no email and no refund flag (R6)", async () => {
     line = { ...baseLine, party_kind: "co_applicant", state: "expired_no_consent", paid_at: daysAgo(10), expires_at: daysAgo(1) }
     coApp = { ...baseCo, created_at: daysAgo(15), role: "co_applicant", is_surety_director: false }

@@ -2959,6 +2959,40 @@ AS $$
   SELECT COALESCE(caa.is_surety_director, false) OR COALESCE(caa.role = 'guarantor', false)
 $$;
 
+-- is_juristic_party_context(): is this application juristic for the purpose of COPY (BUILD_72 P1-R3a).
+-- SQL twin of isJuristicForCopy() in lib/applications/juristicParties.ts — either org marker
+-- (entity_type or applicant_type in organisation|company) AND a juristic company type, i.e.
+-- isJuristicApplicant(orgMarkerFrom(…)). It is deliberately NOT the dormant pricing reading
+-- (isJuristicApplication, `entity_type ?? applicant_type`, false for every row today): that reading would
+-- class a company's surety as a residential guarantor and send them joint-rental copy, which R3 forbids.
+-- The company types mirror lib/applications/companyTypes.ts; the agreement test plants each one.
+CREATE OR REPLACE FUNCTION is_juristic_party_context(app applications)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT COALESCE(app.entity_type IN ('organisation', 'company') OR app.applicant_type IN ('organisation', 'company'), false)
+     AND COALESCE(app.company_info->>'companyType' IN ('pty_ltd', 'cc', 'npc', 'trust'), false)
+$$;
+
+-- screening_party_kind(): which copy a co-applicant line's invites and reminders carry (P1-R3a). SQL twin
+-- of partyKind() in lib/applications/juristicParties.ts. 'co_applicant' → joint-rental invite;
+-- 'guarantor' → a surety party on a NON-juristic application, which gets the joint-rental invite too
+-- (it never had director copy to lose); 'surety' → a surety party on a juristic application, the only
+-- kind that reaches the director-copy / held split (R3, R7a). is_surety_party stays the billing and
+-- uniqueness predicate; this one answers the copy question.
+CREATE OR REPLACE FUNCTION screening_party_kind(caa application_co_applicants, app applications)
+RETURNS text
+LANGUAGE sql IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT CASE
+    WHEN NOT is_surety_party(caa)        THEN 'co_applicant'
+    WHEN is_juristic_party_context(app)  THEN 'surety'
+    ELSE 'guarantor'
+  END
+$$;
+
 -- ── v_application_screening_lines: orchestration view ────────────────────────
 -- MOVED HERE 2026-10-01 (BUILD_72 P1-R1) from beside screening_artifacts: `party_kind` calls
 -- is_surety_party(), which reads `role`, added just above. Left there, it would be a forward reference.
@@ -3036,10 +3070,11 @@ SELECT
     WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
     ELSE 'pending_both'
   END AS state,
-  -- BUILD_72 P1-R1: which copy and link this line's reminders carry. 'surety' → the surety-consent
-  -- invite (director portal); 'co_applicant' → the joint-rental invite. Never chosen by table.
-  CASE WHEN is_surety_party(caa) THEN 'surety' ELSE 'co_applicant' END AS party_kind
+  -- BUILD_72 P1-R1/R3a: which copy and link this line's reminders carry — 'co_applicant' | 'guarantor'
+  -- | 'surety'. Never chosen by table. See screening_party_kind() above.
+  screening_party_kind(caa, papp) AS party_kind
 FROM application_co_applicants caa
+LEFT JOIN applications papp ON papp.id = caa.primary_application_id  -- LEFT: membership is unchanged by the copy join
 LEFT JOIN contacts c ON c.id = caa.contact_id
 LEFT JOIN application_screening_payments asp
   ON asp.application_id = caa.primary_application_id

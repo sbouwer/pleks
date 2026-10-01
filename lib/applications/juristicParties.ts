@@ -90,6 +90,33 @@ export function isJuristicApplication(row: Readonly<{
   return isJuristicApplicant(row.entity_type ?? row.applicant_type, companyType)
 }
 
+/**
+ * Is this application juristic for the purpose of COPY — which invite and reminder a party receives?
+ *
+ * Either org marker, via `orgMarkerFrom` (M-118), NOT `isJuristicApplication`'s dormant pricing reading:
+ * that one is false for every application today, so it would class a company's surety as a residential
+ * guarantor and send them joint-rental copy (BUILD_72 P1-R3 forbids it). SQL twin:
+ * `is_juristic_party_context()` in 005; test/db/surety-party-predicate.dbtest.ts asserts they agree.
+ */
+export function isJuristicForCopy(row: Readonly<{ entity_type?: unknown; applicant_type?: unknown; company_info?: unknown }>): boolean {
+  const companyType = (row.company_info as Record<string, unknown> | null | undefined)?.companyType
+  return isJuristicApplicant(orgMarkerFrom(row.entity_type, row.applicant_type), companyType)
+}
+
+/** Which copy a co-applicant line carries (BUILD_72 P1-R3a). */
+export type PartyKind = "co_applicant" | "guarantor" | "surety"
+
+/**
+ * `isSuretyParty` answers billing and uniqueness; this answers COPY, which also depends on the application.
+ * A surety party on a non-juristic application is a residential `guarantor` and gets the joint-rental
+ * invite; only a `surety` on a juristic application reaches the director-copy / held split (R3, R7a).
+ * SQL twin: `screening_party_kind()` in 005, which is what `v_application_screening_lines.party_kind` reads.
+ */
+export function partyKind(input: Readonly<{ party: Parameters<typeof isSuretyParty>[0]; isJuristic: boolean }>): PartyKind {
+  if (!isSuretyParty(input.party)) return "co_applicant"
+  return input.isJuristic ? "surety" : "guarantor"
+}
+
 /** One subject a screening payment covers — one `application_screening_payments` row. */
 export interface PaidScreeningSubject {
   readonly subject_type: "company" | "co_applicant"

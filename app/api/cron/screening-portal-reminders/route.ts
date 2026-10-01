@@ -5,11 +5,12 @@
  * Auth:   x-cron-secret header
  * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones for
  *         co-applicant lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3):
- *         · surety + is_surety_director → director copy + director-portal link (the reviewed audience, P1-R3).
+ *         · surety (juristic application) + is_surety_director → director copy + director-portal link (the reviewed audience, P1-R3).
  *           T+14: line declined, payment flagged for manual refund (14C), expiry email sent; primary
  *           contact notified at T+7 and T+10 (informational only).
  *         · surety, NOT a declared director → HELD: no send, no expiry (P1-R3/R7 — no reviewed copy exists).
- *         · co_applicant → `co_applicant_invited` resent verbatim at each milestone (P1-R5); declined once
+ *         · co_applicant, or guarantor (a surety on a NON-juristic application, P1-R3a) →
+ *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); declined once
  *           unconsented past `expires_at` (P1-R6). The refund branch and any expiry notice are gated on
  *           Stéan, so neither is written here.
  *         · anything else (null/unknown party_kind) → skipped. No email beats a wrong one.
@@ -133,7 +134,9 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   const daysElapsed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / DAY_MS)
   const sent = (row.reminder_milestones_sent ?? {}) as Record<string, boolean>
 
-  if (line.party_kind === "co_applicant") return processCoApplicantLine(service, line, row, daysElapsed, sent)
+  // A residential guarantor (P1-R3a) was invited with co_applicant_invited, so it is reminded and expired
+  // exactly as a joint co-applicant is.
+  if (line.party_kind === "co_applicant" || line.party_kind === "guarantor") return processCoApplicantLine(service, line, row, daysElapsed, sent)
   // Every branch below sends director copy, which is reviewed for a DIRECTOR audience only (P1-R3). The
   // view's state set for it is unchanged; `expired_no_consent` is the co_applicant branch's alone.
   if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
