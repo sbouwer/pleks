@@ -16,7 +16,7 @@
  * concern (it owns org/subject/IP); this writes the applicant ROW only, including the stage1_consent_* columns.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { encryptIdNumber, decryptIdNumber, encryptDob, decryptDob, encryptSpouseInfo, decryptSpouseInfo, hashIdNumber } from "@/lib/crypto/idNumber"
+import { idNumberColumnsIfPresent, decryptIdNumber, encryptDob, decryptDob, encryptSpouseInfo, decryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /** A peer's stable handle: the lead is "primary" (the application row itself); a co is "co_<row id>". */
@@ -150,7 +150,8 @@ export function mapCoRow(row: CoRow): UniformApplicant {
   }
 }
 
-/** A partial uniform update. Only keys PRESENT (!== undefined) are written; `null` clears, absent leaves intact.
+/** A partial uniform update. Only keys PRESENT (!== undefined) are written; `null` clears, absent leaves intact —
+ *  EXCEPT idNumber, where null/blank is treated as absent (the hash is an identity key; P1-R4).
  *  consentAt/consentIp accompany consentGiven=true (writeApplicant stamps consentAt when the caller omits it). */
 export interface UniformWritePatch {
   firstName?: string | null; lastName?: string | null; phone?: string | null; email?: string | null
@@ -185,7 +186,8 @@ function applyMap(p: UniformWritePatch, map: ColMap, out: Record<string, unknown
 
 /** Shared at-rest encryption — id_number (+ hash from the RAW value), dob, spouse_info — for BOTH tables. */
 function applyCrypto(p: UniformWritePatch, out: Record<string, unknown>): void {
-  if (p.idNumber !== undefined) { out.id_number = encryptIdNumber(p.idNumber); out.id_number_hash = p.idNumber ? hashIdNumber(p.idNumber) : null }
+  // The ONE exception to "null clears": a blank id never nulls the stored id + hash (BUILD_72 P1-R4).
+  if (p.idNumber !== undefined) Object.assign(out, idNumberColumnsIfPresent(p.idNumber))
   if (p.dob !== undefined) out.date_of_birth = encryptDob(p.dob)
   if (p.spouseInfo !== undefined) out.spouse_info = encryptSpouseInfo(p.spouseInfo)
 }

@@ -565,7 +565,9 @@ export async function sendCoApplicantInvited(
   coApplicant: { firstName: string; email: string },
   listing: ListingSummary,
   org: OrgContext,
-  opts: { accessToken: string; primaryApplicantName: string }
+  // `resend` (BUILD_72 P1-R5): the residential reminder IS this email, verbatim — same key, same copy. Only the
+  // send-log attribution differs, so a reminder is distinguishable from the invite without new copy.
+  opts: { accessToken: string; primaryApplicantName: string; resend?: { coApplicantId: string; triggerEventType: string; triggerEventId: string } }
 ) {
   const inviteLink = absoluteUrl(`/apply/co-applicant/${opts.accessToken}`)
 
@@ -594,7 +596,9 @@ export async function sendCoApplicantInvited(
       </EmailLayout>
     ),
     bodyPreview: `${opts.primaryApplicantName} has included you as a co-applicant for ${listing.unitLabel}, ${listing.propertyName}.`,
-    entityType: "application",
+    ...(opts.resend
+      ? { entityType: "application_co_applicant", entityId: opts.resend.coApplicantId, triggerEventType: opts.resend.triggerEventType, triggerEventId: opts.resend.triggerEventId }
+      : { entityType: "application" }),
   })
 }
 

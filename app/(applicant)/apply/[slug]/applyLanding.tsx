@@ -16,6 +16,7 @@ import { PARTY_ID_TYPES } from "@/lib/parties/partyConfig"
 import { SectLabel } from "@/components/parties/partyFields"
 import { type ApplicantType, type CoApplicant, type CoRole, type SetFn, blankCo } from "./applyDomain"
 import { type CompanyInfo, COMPANY_TYPE_OPTIONS, isJuristicCompanyType } from "./applyCompany"
+import { suretyQuestion, suretyQuestionNoun } from "@/lib/applications/juristicParties"
 
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
 function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon: LucideIcon; title: string; blurb: string }> {
@@ -204,12 +205,23 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
                   removable — the ✗ tucks INTO this cell so only this box shrinks. */}
               <span className="flex min-w-[110px] flex-1 items-center gap-1">
                 {/* Guarantor/surety → the guarantor ROLE (income backstops the rent); everyone else is a co-party. */}
-                <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant" })} className={CO_DESIGNATION_INNER} aria-label="Designation">
+                {/* P1-R7b: one designation per row. A Director row is a signatory and writes nothing to declared_director;
+                    leaving Guarantor/surety clears the answer so it can never outlive the role it was asked for. */}
+                <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant", ...(e.target.value === "guarantor" ? {} : { declaredDirector: null }) })} className={CO_DESIGNATION_INNER} aria-label="Designation">
                   <option value="director">Director</option>
                   <option value="shareholder">Shareholder</option>
                   <option value="guarantor">Guarantor / surety</option>
                   <option value="other">Other</option>
                 </select>
+                {/* P1-R7b: the Guarantor/surety row on a juristic entity asks the office yes/no → declared_director. The noun is
+                    the entity's (F7): director / trustee / member. */}
+                {c.role === "guarantor" && isJuristicCompanyType(company.companyType) && (
+                  <select value={typeof c.declaredDirector === "boolean" ? String(c.declaredDirector) : ""} onChange={(e) => updateCo(i, { declaredDirector: e.target.value === "" ? null : e.target.value === "true" })} className={CO_DESIGNATION_INNER} aria-label={suretyQuestion(company.companyType)}>
+                    <option value="">A {suretyQuestionNoun(company.companyType) ?? "director"}?</option>
+                    <option value="true">Is a {suretyQuestionNoun(company.companyType) ?? "director"}</option>
+                    <option value="false">Not a {suretyQuestionNoun(company.companyType) ?? "director"}</option>
+                  </select>
+                )}
                 {i >= mandatoryCo && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className={CO_DELETE_BTN}><X className="size-4" /></button>}
               </span>
             </div>

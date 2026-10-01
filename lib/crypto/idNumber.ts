@@ -57,6 +57,15 @@ export function idNumberColumns(raw: string | null | undefined): {
   return { id_number: encryptIdNumber(v), id_number_hash: v ? hashIdNumber(v) : null }
 }
 
+/**
+ * As idNumberColumns, for a PARTIAL write — an autosave, a patch. A blank id OMITS both columns rather than
+ * writing null over a stored ciphertext + hash: the hash is the identity key the surety dedup reads, and a draft
+ * that has not reached (or re-sent) the ID field is not a statement that the person has no ID (BUILD_72 P1-R4).
+ */
+export function idNumberColumnsIfPresent(raw: string | null | undefined): ReturnType<typeof idNumberColumns> | Record<string, never> {
+  return (raw ?? "").trim() ? idNumberColumns(raw) : {}
+}
+
 /** As idNumberColumns, for the contacts within-row snapshot pair (`contact_id_number` / `contact_id_number_hash`). */
 export function contactIdNumberColumns(raw: string | null | undefined): {
   contact_id_number: string | null

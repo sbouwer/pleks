@@ -8,7 +8,9 @@
  * Data:   inserts application_co_applicants (incl. the encrypted id_number + its lookup hash so the person can be LINKED to
  *         the application at promotion), bumps applications.co_applicants_count, emails the invitee a link.
  * Notes:  id_number goes through idNumberColumns (ciphertext + RAW-derived lookup hash) and is never logged.
- *         The invite email is best-effort.
+ *         The invite email is best-effort, and WHICH invite is `inviteRoute`'s (walker F1, 2026-10-01): a company's
+ *         director surety gets director_invited on a 14-day link, any other juristic surety gets NOTHING (held, R3 +
+ *         the F7 ruling: a trustee or CC member too), everyone else co_applicant_invited. Until then this route sent joint-rental copy to all.
  */
 /* eslint-disable pleks/require-org-scope-on-service-write -- ⚠ THE WEAKEST OF THE EIGHT APPLY-FLOW ROUTES, and recorded as such rather than waved through with its siblings. The other seven verify a token bound to THIS application id before writing; this one has no token at all — the header states the design outright, "the application id in the path is the capability", so possession of the UUID IS the credential. That is a deliberate, pre-existing decision (public apply flow, rate-limited per IP, org_id read server-side and never trusted from the client) and not something to change in a lint-alignment commit. It is also one letter away from the class that produced the 2026-08-22 consent IDOR, where a caller-supplied id with no ownership proof was the whole defect. Flagged for CD; org scoping is not the fix here, a capability token would be. */
 import { NextResponse } from "next/server"
@@ -18,6 +20,8 @@ import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
+import { inviteRoute } from "@/lib/applications/juristicParties"
+import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
 
 export async function POST(
   req: Request,
@@ -32,7 +36,7 @@ export async function POST(
 
   const { data: application, error: applicationError } = await supabase
     .from("applications")
-    .select("org_id, co_applicants_count")
+    .select("org_id, co_applicants_count, entity_type, applicant_type, company_info")
     .eq("id", applicationId)
     .single()
     logQueryError("POST applications", applicationError)
@@ -40,6 +44,15 @@ export async function POST(
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })
   }
+
+  const role = body.role === "guarantor" ? "guarantor" : "co_applicant"
+  // P1-R7a: the applicant's answer to "is this person a director / trustee / member?", asked only of a juristic
+  // surety. A boolean on a guarantor or nothing — NULL is "never asked", which every sender holds like "no".
+  const declaredDirector = role === "guarantor" && typeof body.declared_director === "boolean" ? body.declared_director : null
+  const route = inviteRoute({
+    party: { role, is_surety_director: false, declared_director: declaredDirector },
+    application,
+  })
 
   const { data: coApplicant, error } = await supabase
     .from("application_co_applicants")
@@ -55,15 +68,18 @@ export async function POST(
       // idNumberColumns bundles the ciphertext + the RAW-derived lookup hash — the canonical write
       // helper, so the hash name never appears under app/ (pleks/no-id-number-hash-in-app).
       ...idNumberColumns(body.id_number),
-      role: body.role === "guarantor" ? "guarantor" : "co_applicant",
+      role,
+      declared_director: declaredDirector,
+      // The director copy states a 14-day link; the column default is the co-applicant's 30.
+      ...(route === "director" ? { access_token_expires: directorTokenExpiry() } : {}),
     })
     .select("id, access_token")
     .single()
 
   if (error || !coApplicant) {
-    // 23505 = uq_co_applicants_live_surety_email. A second SURETY line for the same person on the
-    // same application is a second screening fee and a second invitation email, so the index refuses
-    // it (M-116). Translated here because a raw Postgres message reaching an applicant as a 500 is
+    // 23505 = uq_co_applicants_live_surety_email or uq_co_applicants_live_id_hash. A second SURETY line
+    // for the same person on the same application is a second screening fee and a second invitation
+    // email (M-116); the same ID twice in any role is one human entered twice (BUILD_72 R1-b). Translated here because a raw Postgres message reaching an applicant as a 500 is
     // both unhelpful and a schema leak.
     if (error?.code === "23505") {
       return NextResponse.json(
@@ -82,9 +98,15 @@ export async function POST(
     all_complete_notified_at: null,
   }).eq("id", applicationId)
 
-  // Send co-applicant invitation email
+  // Send the invitation inviteRoute names — or none, for a held surety (the agent page shows the hold).
   try {
-    const ctx = await buildEmailContext(applicationId)
+    if (route === "director") {
+      void sendDirectorInvite({
+        orgId: application.org_id, applicationId, coApplicantId: coApplicant.id, token: coApplicant.access_token,
+        directorEmail: body.email, directorFirstName: body.first_name || "Director",
+      })
+    }
+    const ctx = route === "co_applicant" ? await buildEmailContext(applicationId) : null
     if (ctx) {
       const primaryName = [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" ")
       void sendCoApplicantInvited(
@@ -94,7 +116,7 @@ export async function POST(
         { accessToken: coApplicant.access_token, primaryApplicantName: primaryName }
       )
     }
-  } catch (e) { console.error("sendCoApplicantInvited failed:", e) }
+  } catch (e) { console.error("co-applicant invite failed:", e) }
 
-  return NextResponse.json({ ok: true, coApplicantId: coApplicant.id })
+  return NextResponse.json({ ok: true, coApplicantId: coApplicant.id, invite: route })
 }

@@ -22,9 +22,11 @@ export interface PartyInfo {
   incomeCents?: number | null
   isPrimary?: boolean
   hasIdNumber?: boolean
+  /** BUILD_72 P1-R3: why this party's invite is held (`awaiting_template`), shown to the agent; absent when not held. */
+  held?: string
 }
 
-const ROLE_LABEL: Record<string, string> = { primary: "Primary", co_applicant: "Co-applicant", guarantor: "Guarantor" }
+const ROLE_LABEL: Record<string, string> = { primary: "Primary", co_applicant: "Co-applicant", guarantor: "Guarantor", surety: "Surety" }
 function roleLabel(role: string) { return ROLE_LABEL[role] ?? "Applicant" }
 
 function Row({ k, v }: Readonly<{ k: string; v: string }>) {
@@ -68,6 +70,7 @@ export function ApplicantsCard({ applicationId, canViewId, primary, others }: Re
               <span className="font-medium text-foreground">{p.label}</span>
               <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">{roleLabel(p.role)}</span>
               <span className="block text-xs text-muted-foreground">{p.incomeCents ? `${formatZAR(p.incomeCents)}/mo declared` : "income —"}</span>
+              {p.held && <span className="block text-xs text-amber-700">{p.held}</span>}
             </div>
             <button type="button" onClick={() => setViewing(p)} className="shrink-0 text-xs text-brand hover:underline">View</button>
           </li>

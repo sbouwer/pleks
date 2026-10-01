@@ -4,14 +4,15 @@
  * Route:  /apply/[slug]/co-parties?token=[primary_application_token]
  * Auth:   application_tokens lookup (primary contact's token, type = 'shortlist_invite')
  * Data:   v_application_screening_lines, application_co_applicants (status only — no cross-director results)
- * Notes:  Primary contact sees all lines + invitation controls.
+ * Notes:  Primary contact sees all lines + invitation controls. Linked from the applicant hub (BUILD_72 P1-R2).
+ *         Each card is titled by the party's designation, derived (not stored): see designationLabel.
  *         Each director's results are NOT shown here — POPIA per-data-subject boundary.
  *         Director lines show status only: Paid/Pending, Consent/Pending, Complete/Running.
  */
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
-import { SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
+import { SURETY_PARTY_OR_FILTER, inviteHold, isJuristicForCopy, type PartyKind } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Clock, AlertCircle, Building2, User } from "lucide-react"
@@ -30,6 +31,18 @@ interface ScreeningLine {
   consented_at: string | null
   expires_at: string | null
   state: string
+  party_kind: PartyKind | null
+}
+
+/**
+ * The card title (P1-R2): the party's designation, never "Director" for everyone. Designation is not stored, so
+ * it is derived from the view's `party_kind` and the application: on a juristic application a surety party is a
+ * Surety and anyone else is a Signatory (R1-b: an extra "Director" row means additional signatory); on a
+ * residential one, Guarantor or Co-applicant.
+ */
+function designationLabel(kind: PartyKind | null, juristic: boolean): string {
+  if (kind === "surety" || kind === "guarantor") return juristic ? "Surety" : "Guarantor"
+  return juristic ? "Signatory" : "Co-applicant"
 }
 
 interface CoApplicant {
@@ -41,6 +54,7 @@ interface CoApplicant {
   declined_at: string | null
   is_surety_director: boolean
   role: string | null
+  declared_director: boolean | null
 }
 
 function StateChip({ state }: { state: string }) {
@@ -97,7 +111,7 @@ export default async function CoPartiesPage({
   // Fetch all screening lines for this application
   const { data: lines, error: linesErr } = await service
     .from("v_application_screening_lines")
-    .select("application_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state")
+    .select("application_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state, party_kind")
     .eq("application_id", applicationId)
 
   if (linesErr) {
@@ -105,10 +119,19 @@ export default async function CoPartiesPage({
     notFound()
   }
 
+  // Juristic-for-copy decides the card titles; the same reading the view's party_kind uses (M-118).
+  const { data: app, error: appErr } = await service
+    .from("applications")
+    .select("entity_type, applicant_type, company_info")
+    .eq("id", applicationId)
+    .single()
+  if (appErr) console.error("co-parties: application query failed:", appErr.message)
+  const juristic = app ? isJuristicForCopy(app) : false
+
   // Fetch co-applicant rows for director details (status only — no results)
   const { data: coApps, error: coErr } = await service
     .from("application_co_applicants")
-    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director, role")
+    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director, role, declared_director")
     .eq("primary_application_id", applicationId)
     // Both surety markers (M-118). This is the lookup that gives each director line its email,
     // expiry and resend button; filtered on `is_surety_director` alone, a surety added through the
@@ -161,10 +184,12 @@ export default async function CoPartiesPage({
         </Card>
       )}
 
-      {/* Director lines */}
+      {/* Party lines */}
       {directorLines.map((line) => {
         const coApp = directors.find((d) => d.id === line.subject_id)
         const isDeclined = !!coApp?.declined_at
+        // Held (P1-R3): no invite was sent and none may be, so no expiry to count down and no Resend (walker F2).
+        const isHeld = !!coApp && inviteHold({ party: coApp, application: app ?? {} }) !== null
         const expiresIn = coApp?.access_token_expires
           ? Math.max(0, Math.ceil((new Date(coApp.access_token_expires).getTime() - now.getTime()) / 86_400_000))
           : null
@@ -174,7 +199,7 @@ export default async function CoPartiesPage({
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <User className="size-4 text-muted-foreground" />
-                <CardTitle className="text-base">Director — {line.subject_name}</CardTitle>
+                <CardTitle className="text-base">{designationLabel(line.party_kind, juristic)} — {line.subject_name}</CardTitle>
                 {isDeclined
                   ? <Badge variant="destructive">Declined</Badge>
                   : <StateChip state={line.state} />
@@ -192,14 +217,20 @@ export default async function CoPartiesPage({
                 </div>
               )}
 
-              {!isDeclined && line.state !== "complete" && expiresIn !== null && (
+              {!isDeclined && isHeld && (
+                <p className="text-xs text-amber-600">
+                  Invitation not sent yet: the wording for this surety is awaiting legal review.
+                </p>
+              )}
+
+              {!isDeclined && !isHeld && line.state !== "complete" && expiresIn !== null && (
                 <div className="flex items-center gap-1.5 text-xs text-yellow-600">
                   <Clock className="size-3.5" />
                   <span>Link expires in {expiresIn} day{expiresIn !== 1 ? "s" : ""}</span>
                 </div>
               )}
 
-              {!isDeclined && line.state !== "complete" && coApp && (
+              {!isDeclined && !isHeld && line.state !== "complete" && coApp && (
                 <div className="flex gap-2 pt-1">
                   <ResendInviteButton
                     coApplicantId={coApp.id}

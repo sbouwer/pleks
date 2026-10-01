@@ -2,28 +2,24 @@
  * lib/applications/commercial.ts — Server actions for commercial (juristic) application flow
  *
  * Auth:   applicant token (public portal) or service role for cron/webhook callers
- * Data:   application_directors, application_co_applicants, application_screening_payments
- * Notes:  Commercial applications have 1 company line + N surety-director lines.
- *         Each line is independent: own payment, own consent, own token, own results.
- *         Surety directors use application_co_applicants with is_surety_director = true.
- *         D-14B-01: directors must consent individually — no proxy consent.
- *         D-14B-05: replace-director refund is flagged for manual processing by agent (14C).
- *         orgId and the per-director fee are BOTH derived server-side and are not parameters —
- *         see resolveApplicationOrg below and M-115. Do not reintroduce either as an argument.
+ * Data:   application_co_applicants, application_tokens, applications (read)
+ * Notes:  What remains is the invite RESEND (`resendDirectorInvite`, reached by the co-parties roster's button).
+ *         Its copy is `inviteRoute`'s: director, joint-rental or held (walker F2). The director send itself lives
+ *         in directorInvite.ts, outside this "use server" file. D-14B-01: each surety consents individually.
+ *         RETIRED 2026-10-01 (BUILD_72 Phase 1, R1): `declareDirectors` and `replaceDirector`, with the
+ *         /apply/[slug]/directors page, its form and the director-declaration route. The roster ("A guarantor /
+ *         surety") is the one surety surface; the CIPC pull becomes the first writer of application_directors.
+ *         orgId is derived server-side and is not a parameter — see resolveApplicationOrg and M-115.
  */
 "use server"
 
 import { createServiceClient } from "@/lib/supabase/server"
-import { APPLICATION_FEE_CENTS } from "@/lib/constants"
-import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
+import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
+import { sendCoApplicantInvited } from "@/lib/applications/emails"
+import { buildEmailContext } from "@/lib/applications/buildEmailContext"
+import { inviteRoute } from "@/lib/applications/juristicParties"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
-import { idNumberColumns } from "@/lib/crypto/idNumber"
-
-import { absoluteUrl } from "@/lib/routing/absoluteUrl"
-
-const DIRECTOR_TOKEN_TTL_DAYS = 14
 
 /**
  * Verifies the applicant credential against this application AND returns the application's own org.
@@ -58,211 +54,16 @@ async function resolveApplicationOrg(
   return data?.org_id ?? null
 }
 
-export interface DirectorDeclaration {
-  firstName: string
-  lastName: string
-  idNumber?: string
-  email: string
-  phone?: string
-  isSigningSurety: boolean
-  /**
-   * Director 1 — the primary contact, who is already inside the flow (14G §3.4(5)). Their surety
-   * co-applicant row is created exactly like anyone else's; only the invitation email is skipped,
-   * because emailing "here is your private link" to the person who just submitted the form reads as
-   * a phishing test. It suppresses ONE side effect and nothing else — in particular it grants no
-   * rights and skips no gate, so a caller lying about it gains nothing but a missing email.
-   */
-  isPrimaryContact?: boolean
-}
-
-interface DeclareDirectorsResult {
-  directors: Array<{ directorId: string; coApplicantId?: string }>
-  invited: number
-}
-
 /**
- * Creates application_directors rows for all declared directors.
- * For surety directors, also creates an application_co_applicants row and sends an invite.
- * Called from Step 1.5 of the commercial application flow — WIRED on 2026-09-08 via
- * `app/api/applications/director-declaration/route.ts`, which is why the `@knipignore` that stood
- * here is gone: the tag existed only because nothing reached this function, and knip now finds a
- * caller. That route's gate is deliberately NARROWER than this one's — it accepts the lead
- * application token only, while `verifyApplicantToken` below also accepts a co-applicant's
- * access_token (the 14R peer model). Any new caller must decide which of the two it wants.
+ * Re-sends a party's invite from the primary contact's co-parties "Resend invitation" button.
  *
- * The caller-supplied-orgId hazard this docstring used to warn about was CLOSED on 2026-09-08: the
- * org is now derived from the token-verified application. This was the most dangerous of the three
- * functions here, because its org_id reached INSERTs with nothing pinning the row first — a caller
- * could stamp new director and co-applicant rows into any org on the platform.
- */
-export async function declareDirectors(
-  applicationId: string,
-  directors: DirectorDeclaration[],
-  token: string,
-): Promise<DeclareDirectorsResult> {
-  const service = await createServiceClient()
-
-  // Auth + scope in one step: blocks unauthenticated director declaration for an arbitrary application.
-  // Called by `app/api/applications/director-declaration/route.ts` (since 2026-09-08), which nothing in
-  // the apply flow links to. RETIRES in BUILD_72 Phase 1 (R1: the roster is the one surety surface).
-  const orgId = await resolveApplicationOrg(service, token, applicationId)
-  if (!orgId) {
-    return { directors: [], invited: 0 }
-  }
-
-  const results: DeclareDirectorsResult["directors"] = []
-  let invited = 0
-
-  for (const director of directors) {
-    // Create application_directors row (full declared list — including non-surety)
-    const { data: directorRow, error: dirErr } = await service
-      .from("application_directors")
-      .insert({
-        org_id:       orgId,
-        application_id: applicationId,
-        first_name:   director.firstName,
-        last_name:    director.lastName,
-        ...idNumberColumns(director.idNumber), // encrypted at rest + lookup hash (was raw, no hash)
-        email:        director.email,
-        phone:        director.phone ?? null,
-        is_signing_surety: director.isSigningSurety,
-      })
-      .select("id")
-      .single()
-
-    if (dirErr || !directorRow) {
-      console.error("declareDirectors — insert director failed:", dirErr?.message)
-      continue
-    }
-
-    if (!director.isSigningSurety) {
-      results.push({ directorId: directorRow.id })
-      continue
-    }
-
-    // Create co-applicant row for surety director
-    const tokenExpires = new Date(Date.now() + DIRECTOR_TOKEN_TTL_DAYS * 86_400_000).toISOString()
-    const { data: coApp, error: coErr } = await service
-      .from("application_co_applicants")
-      .insert({
-        org_id:                 orgId,
-        primary_application_id: applicationId,
-        first_name:             director.firstName,
-        last_name:              director.lastName,
-        applicant_email:        director.email,
-        applicant_phone:        director.phone ?? null,
-        ...idNumberColumns(director.idNumber), // encrypted at rest + lookup hash (matches the apply-flow co-applicant writes)
-        is_surety_director:     true,
-        // Derived from the SSOT, never supplied (M-115). This column is read back as `expectedCents`
-        // by the PayFast director webhook, so a caller-supplied value would be both the amount
-        // charged AND the amount its own mismatch detector validates against — reconciling clean.
-        individual_fee_cents:   APPLICATION_FEE_CENTS,
-        access_token_expires:   tokenExpires,
-      })
-      .select("id, access_token")
-      .single()
-
-    if (coErr || !coApp) {
-      console.error("declareDirectors — insert co_applicant failed:", coErr?.message)
-      results.push({ directorId: directorRow.id })
-      continue
-    }
-
-    // Back-link director row to co-applicant
-    await service
-      .from("application_directors")
-      .update({ co_applicant_id: coApp.id })
-      .eq("id", directorRow.id)
-      .eq("org_id", orgId) // org-scope guard (caller-ID census)
-
-    // Send invitation email — except to the primary contact, who is already in the flow (14G §3.4(5)).
-    // `invited` counts emails SENT, not surety rows created, so the two diverge here by design: the
-    // caller uses it to tell the applicant how many people were contacted.
-    if (!director.isPrimaryContact) {
-      await sendDirectorInvite({
-        orgId,
-        applicationId,
-        coApplicantId: coApp.id,
-        token: coApp.access_token,
-        directorEmail: director.email,
-        directorFirstName: director.firstName,
-      })
-      invited++
-    }
-
-    results.push({ directorId: directorRow.id, coApplicantId: coApp.id })
-  }
-
-  return { directors: results, invited }
-}
-
-interface InviteContext {
-  orgId: string
-  applicationId: string
-  coApplicantId: string
-  token: string
-  directorEmail: string
-  directorFirstName: string
-}
-
-async function sendDirectorInvite(ctx: InviteContext): Promise<void> {
-  const service = await createServiceClient()
-
-  // Get application + listing context for email copy
-  const { data: app, error: appErr } = await service
-    .from("applications")
-    .select("first_name, last_name, listings(public_slug, units(unit_number, properties(name, address_line1, city)))")
-    .eq("id", ctx.applicationId)
-    .single()
-
-  if (appErr || !app) {
-    console.error("sendDirectorInvite — could not fetch application:", appErr?.message)
-    return
-  }
-
-  const listing = app.listings as unknown as {
-    public_slug: string
-    units: { unit_number: string; properties: { name: string; address_line1: string | null; city: string | null } }
-  } | null
-
-  const propertyLabel = listing
-    ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
-    : "the property"
-  const propertyAddress = listing?.units?.properties
-    ? [listing.units.properties.address_line1, listing.units.properties.city].filter(Boolean).join(", ")
-    : ""
-  const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
-
-  const slug = listing?.public_slug ?? ctx.applicationId
-  const portalUrl = absoluteUrl(`/apply/${slug}/director-portal/${ctx.token}`)
-
-  const orgSettings = await fetchOrgSettings(ctx.orgId)
-  const branding = buildBranding(orgSettings)
-
-  await sendEmail({
-    orgId: ctx.orgId,
-    templateKey: "application.director_invited",
-    to: { email: ctx.directorEmail, name: ctx.directorFirstName },
-    subject: `${primaryContactName}'s application — your portion to complete`,
-    emailElement: buildDirectorInviteElement({
-      directorFirstName: ctx.directorFirstName,
-      primaryContactName,
-      propertyLabel,
-      propertyAddress,
-      portalUrl,
-      ttlDays: DIRECTOR_TOKEN_TTL_DAYS,
-      branding,
-    }),
-    entityType: "application_co_applicant",
-    entityId: ctx.coApplicantId,
-    triggerEventType: "director_invite",
-    triggerEventId: ctx.applicationId,
-  })
-}
-
-/**
- * Regenerates a director's token and re-sends the invite email.
- * Called from the primary contact's "Resend invitation" button.
+ * The COPY is `inviteRoute`'s, never this function's (walker F2, 2026-10-01). It used to send director copy to
+ * every party the roster lists, which includes residential guarantors (R3a: never director copy) and juristic
+ * non-director sureties (R3: held) — and rotating the token on the way killed a residential guarantor's working
+ * /apply/co-applicant link. Now:
+ *   - director     → rotate the token (and its 14-day expiry, which the copy states), send director_invited
+ *   - co_applicant → re-send co_applicant_invited on the EXISTING token, as the reminder cron does (P1-R5)
+ *   - held         → send nothing, rotate nothing; the page does not offer the button for a held party
  */
 export async function resendDirectorInvite(
   coApplicantId: string,
@@ -282,185 +83,58 @@ export async function resendDirectorInvite(
     return { ok: false, error: "Invalid or expired token" }
   }
 
-  const tokenExpires = new Date(Date.now() + DIRECTOR_TOKEN_TTL_DAYS * 86_400_000).toISOString()
-  const newToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")
+  const [{ data: app, error: appErr }, { data: party, error: partyErr }] = await Promise.all([
+    service.from("applications").select("entity_type, applicant_type, company_info")
+      .eq("id", applicationId).eq("org_id", orgId).maybeSingle(),
+    service.from("application_co_applicants")
+      .select("applicant_email, first_name, access_token, role, is_surety_director, declared_director")
+      .eq("id", coApplicantId).eq("primary_application_id", applicationId).eq("org_id", orgId)
+      .is("declined_at", null).maybeSingle(),
+  ])
+  logQueryError("resendDirectorInvite applications", appErr)
+  logQueryError("resendDirectorInvite application_co_applicants", partyErr)
+  if (!app || !party) {
+    return { ok: false, error: "Party not found or already declined" }
+  }
 
-  const { data: coApp, error } = await service
+  const route = inviteRoute({ party, application: app })
+  if (route === "held") {
+    return { ok: false, error: "This invitation is held until its wording is approved" }
+  }
+
+  if (route === "co_applicant") {
+    const ctx = await buildEmailContext(applicationId)
+    if (!ctx) return { ok: false, error: "Could not send the invitation" }
+    const result = await sendCoApplicantInvited(
+      { firstName: party.first_name ?? "", email: party.applicant_email },
+      ctx.listingSummary, ctx.orgContext,
+      { accessToken: party.access_token, primaryApplicantName: [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" "),
+        resend: { coApplicantId, triggerEventType: "co_parties_resend", triggerEventId: applicationId } },
+    )
+    return result.success ? { ok: true } : { ok: false, error: "Could not send the invitation" }
+  }
+
+  const newToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")
+  const { error } = await service
     .from("application_co_applicants")
-    .update({
-      access_token:         newToken,
-      access_token_expires: tokenExpires,
-    })
+    .update({ access_token: newToken, access_token_expires: directorTokenExpiry() })
     .eq("id", coApplicantId)
     .eq("primary_application_id", applicationId)
     .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .is("declined_at", null)
-    .select("applicant_email, first_name")
-    .single()
-
-  if (error || !coApp) {
+  if (error) {
     return { ok: false, error: "Director not found or already declined" }
   }
 
-  await sendDirectorInvite({
+  const result = await sendDirectorInvite({
     orgId,
     applicationId,
     coApplicantId,
     token: newToken,
-    directorEmail: coApp.applicant_email,
-    directorFirstName: coApp.first_name ?? "Director",
+    directorEmail: party.applicant_email,
+    directorFirstName: party.first_name ?? "Director",
   })
-
-  return { ok: true }
-}
-
-export interface ReplacementDirector {
-  firstName: string
-  lastName: string
-  idNumber?: string
-  email: string
-  phone?: string
-}
-
-/**
- * Replaces a declined director:
- * 1. Marks old co-applicant row as declined_at = now(), decline_reason = 'replaced'
- * 2. Flags any existing payment for manual refund (14C handles disbursement)
- * 3. Creates new application_directors + application_co_applicants rows
- * 4. Sends invite to replacement director
- * @knipignore See declareDirectors above. Additionally touches application_screening_payments and a
- * manual-refund flag; the caller-supplied-orgId hazard it shared was closed at the same time.
- */
-export async function replaceDirector(
-  oldCoApplicantId: string,
-  applicationId: string,
-  replacement: ReplacementDirector,
-  token: string,
-): Promise<{ ok: boolean; newCoApplicantId?: string; error?: string }> {
-  const service = await createServiceClient()
-
-  // Auth + scope. No caller; RETIRES with declareDirectors in BUILD_72 Phase 1 (R1).
-  const orgId = await resolveApplicationOrg(service, token, applicationId)
-  if (!orgId) {
-    return { ok: false, error: "Invalid or expired token" }
-  }
-
-  // Mark old line as declined
-  const { error: declineErr } = await service
-    .from("application_co_applicants")
-    .update({ declined_at: new Date().toISOString(), decline_reason: "replaced" })
-    .eq("id", oldCoApplicantId)
-    .eq("primary_application_id", applicationId)
-    .eq("org_id", orgId) // org-scope guard (caller-ID census)
-    .is("declined_at", null)
-
-  if (declineErr) {
-    return { ok: false, error: "Failed to decline original director line" }
-  }
-
-  // Mark the DECLARATION row too, not just the screening line. Until 2026-09-08 this half did not
-  // exist: `application_directors` had no decline marker at all, so a replacement left two live
-  // `is_signing_surety` rows for the same board seat and no natural key could tell them apart —
-  // which is why M-116's "just add a UNIQUE" remedy was inapplicable. The row is kept rather than
-  // deleted because "X was declared and then declined" is the true history, and the partial unique
-  // index (uq_app_directors_live_email) excludes it by exactly this column.
-  const { error: dirDeclineErr } = await service
-    .from("application_directors")
-    .update({ declined_at: new Date().toISOString(), decline_reason: "replaced" })
-    .eq("application_id", applicationId)
-    .eq("co_applicant_id", oldCoApplicantId)
-    .eq("org_id", orgId) // org-scope guard (caller-ID census)
-    .is("declined_at", null)
-
-  if (dirDeclineErr) {
-    // Fail closed: continuing would attempt an INSERT the unique index must reject, and a partial
-    // failure here leaves a board with two live rows for one seat — the state this exists to prevent.
-    console.error("replaceDirector — failed to decline director declaration:", dirDeclineErr.message)
-    return { ok: false, error: "Failed to supersede the original director declaration" }
-  }
-
-  // Flag any existing payment for manual refund (14C will surface this to agent)
-  const { data: existingPayment, error: existingPaymentError } = await service
-    .from("application_screening_payments")
-    .select("id, fee_cents, paid_at")
-    .eq("application_id", applicationId)
-    .eq("subject_type", "co_applicant")
-    .eq("subject_id", oldCoApplicantId)
-    .maybeSingle()
-    logQueryError("replaceDirector application_screening_payments", existingPaymentError)
-
-  if (existingPayment?.paid_at) {
-    const { error: refundFlagErr } = await service
-      .from("application_screening_payments")
-      .update({ refund_amount_cents: existingPayment.fee_cents })
-      .eq("id", existingPayment.id)
-      .eq("org_id", orgId)
-    if (refundFlagErr) {
-      console.error("replaceDirector — failed to flag refund:", refundFlagErr.message)
-    }
-  }
-
-  // Create replacement director declaration
-  const { data: newDir, error: dirErr } = await service
-    .from("application_directors")
-    .insert({
-      org_id:            orgId,
-      application_id:    applicationId,
-      first_name:        replacement.firstName,
-      last_name:         replacement.lastName,
-      ...idNumberColumns(replacement.idNumber), // encrypted at rest + lookup hash (was raw, no hash)
-      email:             replacement.email,
-      phone:             replacement.phone ?? null,
-      is_signing_surety: true,
-    })
-    .select("id")
-    .single()
-
-  if (dirErr || !newDir) {
-    return { ok: false, error: "Failed to create replacement director record" }
-  }
-
-  // Create co-applicant row for replacement
-  const tokenExpires = new Date(Date.now() + DIRECTOR_TOKEN_TTL_DAYS * 86_400_000).toISOString()
-  const { data: newCoApp, error: coErr } = await service
-    .from("application_co_applicants")
-    .insert({
-      org_id:                 orgId,
-      primary_application_id: applicationId,
-      first_name:             replacement.firstName,
-      last_name:              replacement.lastName,
-      applicant_email:        replacement.email,
-      applicant_phone:        replacement.phone ?? null,
-      ...idNumberColumns(replacement.idNumber), // encrypted at rest + lookup hash (matches apply-flow co-applicant writes)
-      is_surety_director:     true,
-      individual_fee_cents:   APPLICATION_FEE_CENTS, // SSOT, never supplied (M-115) — see declareDirectors
-      access_token_expires:   tokenExpires,
-    })
-    .select("id, access_token")
-    .single()
-
-  if (coErr || !newCoApp) {
-    return { ok: false, error: "Failed to create replacement co-applicant row" }
-  }
-
-  // Back-link director to co-applicant
-  await service
-    .from("application_directors")
-    .update({ co_applicant_id: newCoApp.id })
-    .eq("id", newDir.id)
-    .eq("org_id", orgId)
-
-  // Send invite to replacement
-  await sendDirectorInvite({
-    orgId,
-    applicationId,
-    coApplicantId: newCoApp.id,
-    token: newCoApp.access_token,
-    directorEmail: replacement.email,
-    directorFirstName: replacement.firstName,
-  })
-
-  return { ok: true, newCoApplicantId: newCoApp.id }
+  return result?.success ? { ok: true } : { ok: false, error: "Could not send the invitation" }
 }
 
 // Email element builders live in commercial-emails.tsx — plain sync functions

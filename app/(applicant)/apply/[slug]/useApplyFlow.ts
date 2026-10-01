@@ -32,6 +32,7 @@ import { summariseStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { hardNavigate } from "@/lib/navigation"
+import { suretyQuestion } from "@/lib/applications/juristicParties"
 
 const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
 
@@ -498,6 +499,11 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       if (!fillerSignatory && !coSignatory) {
         toast.error("A director is required to sign on the company's behalf — add a director, or set someone's designation to Director."); return
       }
+      // P1-R7b: a juristic surety row answers the director question (declared_director). Only a director may get the
+      // counsel-reviewed director copy, so an unanswered row would sit held with no visible reason; ask here instead.
+      if (isJuristicCompanyType(company.companyType) && coApplicants.some((c) => c.role === "guarantor" && typeof c.declaredDirector !== "boolean")) {
+        toast.error(`For each guarantor / surety, answer: ${suretyQuestion(company.companyType)}`); return
+      }
     }
     setBusy(true)
     try {
@@ -787,7 +793,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     for (const c of pending) {
       const res = await fetch(`/api/applications/${appId}/co-applicant`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone, id_number: c.idNumber, id_type: c.idType || "sa_id", role: c.role }),
+        body: JSON.stringify({ first_name: c.firstName, last_name: c.lastName, email: c.email, phone: c.phone, id_number: c.idNumber, id_type: c.idType || "sa_id", role: c.role, declared_director: c.role === "guarantor" ? (c.declaredDirector ?? null) : null }),
       })
       if (!res.ok) toast.error(`Could not invite ${c.email}`)
     }
@@ -795,14 +801,18 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   }
 
   // Invite an applicant added from the review (affordability boost). Adds + invites + re-runs the assessment.
+  // P1-R7a: a surety on a JURISTIC application is asked whether they are a director — only a director may receive
+  // the counsel-reviewed director copy; anyone else is held. A residential guarantor is never asked.
+  const asksDirector = newCo.role === "guarantor" && type === "company" && isJuristicCompanyType(company.companyType)
   async function confirmAddApplicant() {
     if (!coComplete(newCo)) { toast.error("Add the applicant's name, email and ID number."); return }
+    if (asksDirector && typeof newCo.declaredDirector !== "boolean") { toast.error(`Please answer: ${suretyQuestion(company.companyType)}`); return }
     setBusy(true)
     try {
       if (applicationId) {
         const res = await fetch(`/api/applications/${applicationId}/co-applicant`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ first_name: newCo.firstName, last_name: newCo.lastName, email: newCo.email, phone: newCo.phone, id_number: newCo.idNumber, id_type: newCo.idType || "sa_id", role: newCo.role }),
+          body: JSON.stringify({ first_name: newCo.firstName, last_name: newCo.lastName, email: newCo.email, phone: newCo.phone, id_number: newCo.idNumber, id_type: newCo.idType || "sa_id", role: newCo.role, declared_director: newCo.role === "guarantor" ? (newCo.declaredDirector ?? null) : null }),
         })
         if (!res.ok) { toast.error("Could not invite the applicant. Please try again."); return }
       }
@@ -1040,7 +1050,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, emailVerified, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
-    addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, setBegun, docFiles, docEscape, setDocEscape,
+    addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, asksDirector, begun, setBegun, docFiles, docEscape, setDocEscape,
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep, setEditReverified,
     screeningStatus, assessment,
     // handlers
