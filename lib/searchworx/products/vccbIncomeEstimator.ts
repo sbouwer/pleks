@@ -8,6 +8,7 @@
  *         Request body is PascalCase (consistent with the Combined product family).
  */
 import type { SearchworxError }              from "../client"
+import type { SearchworxEnvelopeMeta }       from "../envelopeMeta"
 import { searchworxCall }                     from "../client"
 import { downloadAndStoreSearchworxArtefact } from "../storage"
 import {
@@ -64,8 +65,8 @@ export interface VccbParsed {
 export async function runVccbIncomeEstimator(
   input: VccbRequestInput,
 ): Promise<
-  | { ok: true;  parsed: VccbParsed; pdfStoragePath: string; resultSummaryKey: keyof typeof VCCB_RESULT_SUMMARIES }
-  | { ok: false; error: SearchworxError }
+  | { ok: true;  parsed: VccbParsed; pdfStoragePath: string; resultSummaryKey: keyof typeof VCCB_RESULT_SUMMARIES; envelope: SearchworxEnvelopeMeta }
+  | { ok: false; error: SearchworxError; envelope?: SearchworxEnvelopeMeta }
 > {
   const result = await searchworxCall<Record<string, unknown>>({
     productPath: VCCB_PRODUCT_PATH,
@@ -95,7 +96,7 @@ export async function runVccbIncomeEstimator(
 
   const resultSummaryKey = parsed.person.incomeGrossEstimateCents > 0 ? "success" : "no_data"
 
-  return { ok: true, parsed, pdfStoragePath, resultSummaryKey }
+  return { ok: true, parsed, pdfStoragePath, resultSummaryKey, envelope: result.envelope }
 }
 
 // ─── Response parser ──────────────────────────────────────────────────────────

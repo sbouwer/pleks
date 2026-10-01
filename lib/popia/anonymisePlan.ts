@@ -145,7 +145,7 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
   { id: "C1.bank_statement_classifications", table: "application_bank_statement_classifications", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { bank_statement_doc_path: REDACTED, payee_signature: REDACTED, payee_description_example: REDACTED } },  // all NOT NULL → REDACTED; doc_path file purged in erasure.ts
   { id: "C1.application_screening_lines", table: "application_screening_lines", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
-    fields: { pdf_storage_path: null, result_summary: null, searchworx_search_token: null } },                       // nullable; pdf file purged in erasure.ts
+    fields: { pdf_storage_path: null, result_summary: null, searchworx_search_token: null, searchworx_envelope_meta: null } },                       // nullable; pdf file purged in erasure.ts
 
   // ── §7 D — communications & ancillary (delivery metadata retained; keys verified vs live schema) ──
   // communication_log is keyed by contact_id (NO user_id; the old stub's user_id+content were phantom).

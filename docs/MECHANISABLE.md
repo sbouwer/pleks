@@ -2743,3 +2743,38 @@ The author identified the hazard, and defended the single field in front of them
   ruling on `mint-session.ts`'s classification in PR #288 — the file was being read for a different
   reason, which is how the email round-trip was noticed at all.
 - **Covering spec:** ADDENDUM_62F §24.5 (preconditions), §3.1(a)
+
+### M-137 — the POPIA ratchet classifies columns by NAME, so a jsonb vendor blob is invisible to it
+
+- **Rule:** a column that can hold personal information must be classified, and its erasure coverage
+  held by a control, whatever it is called.
+- **Where it lives (the instance):** `scripts/security/check-pii-classification.mts` matches column
+  names against `PII_PATTERNS`. `application_screening_lines.searchworx_envelope_meta` (ADDENDUM_14V
+  §3.2a, 2026-10-01) and `property_intelligence_pulls.searchworx_response_jsonb` match none, so the
+  gate passes whether or not `lib/popia/anonymisePlan.ts` C1 nulls them. Removing the C1 entry for
+  the envelope column leaves `npm run check` green.
+- **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** every `jsonb` column on a table that `anonymisePlan` or a retention list names
+  is either covered by a plan entry or carries a classification with a reason; a planted unclassified
+  jsonb column fails and a covered one passes.
+- **Provenance:** walk F3 of the 14V envelope-metadata commit, 2026-10-01. The envelope column holds
+  metadata only by design (`lib/searchworx/envelopeMeta.ts`), so nothing leaks today. The gap is that
+  nothing would notice if it did.
+- **Covering spec:** none — surfaced by the walk of the ADDENDUM_14V §3.2a build, not by a verification row
+
+### M-138 — a billed Searchworx pull that throws after the vendor answers leaves no line
+
+- **Rule:** a pull the vendor has answered (and billed) is recorded, even when local post-processing
+  fails.
+- **Where it lives (the instance):** `runCombinedConsumerCreditReport` and `runVccbIncomeEstimator`
+  call `downloadAndStoreSearchworxArtefact` after `searchworxCall` returns `ok:true`. That function
+  throws on an artefact HTTP or storage error (`lib/searchworx/storage.ts`), and the throw leaves
+  `runStandardBundle` before `upsertScreeningLine` runs. No line, no `cost_cents`, no envelope: a
+  charge Pleks paid that its own records do not show. Predates 14V; the envelope column made it
+  visible because it is now one more thing lost.
+- **Rung:** test · **Blast:** money
+- **Satisfied when:** the artefact step's failure is caught and the line is written `completed` with
+  a null `pdf_storage_path` (or a distinct status), with a test that throws from the storage seam and
+  re-reads the line.
+- **Provenance:** walk F1, 2026-10-01.
+- **Covering spec:** none — surfaced by the walk of the ADDENDUM_14V §3.2a build, not by a verification row
