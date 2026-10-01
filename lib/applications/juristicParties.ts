@@ -150,8 +150,8 @@ export function paidScreeningSubjects(
  *
  * `application_co_applicants` denotes the role TWICE, and the two markers have different writers:
  *
- *   - `is_surety_director = true` — written by `declareDirectors` / `replaceDirector`, the 14G
- *     director-declaration surface, which BUILD_72 R1 retires.
+ *   - `is_surety_director = true` — written by the 14G director-declaration surface until BUILD_72 Phase 1
+ *     retired it (`declareDirectors` / `replaceDirector`); Phase 2's CIPC pull derives it from the registry.
  *   - `role = 'guarantor'`        — written by the apply flow's roster ("A guarantor / surety (backs
  *     the rent)"), through `POST /api/applications/[id]/co-applicant`. The one surety surface (R1).
  *
