@@ -32,6 +32,7 @@ import { summariseStatus } from "./applyStatusMenu"
 import { PERSONAL_NAV, SOLEPROP_NAV, PTY_NAV, PTY_COMPANY_NAV, PTY_DIRECTOR_NAV, PTY_COMPANY_PANES, computeStepStates, type NavModel } from "./applyNav"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { hardNavigate } from "@/lib/navigation"
+import { suretyQuestion } from "@/lib/applications/juristicParties"
 
 const TYPE_LABEL: Record<ApplicantType, string> = { individual: "Individual", couple: "Couple", company: "Company", guarantor: "With a guarantor" }
 
@@ -501,7 +502,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       // P1-R7b: a juristic surety row answers the director question (declared_director). Only a director may get the
       // counsel-reviewed director copy, so an unanswered row would sit held with no visible reason; ask here instead.
       if (isJuristicCompanyType(company.companyType) && coApplicants.some((c) => c.role === "guarantor" && typeof c.declaredDirector !== "boolean")) {
-        toast.error("For each guarantor / surety, say whether they are a director of the company."); return
+        toast.error(`For each guarantor / surety, answer: ${suretyQuestion(company.companyType)}`); return
       }
     }
     setBusy(true)
@@ -805,7 +806,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
   const asksDirector = newCo.role === "guarantor" && type === "company" && isJuristicCompanyType(company.companyType)
   async function confirmAddApplicant() {
     if (!coComplete(newCo)) { toast.error("Add the applicant's name, email and ID number."); return }
-    if (asksDirector && typeof newCo.declaredDirector !== "boolean") { toast.error("Tell us whether they are a director of the company."); return }
+    if (asksDirector && typeof newCo.declaredDirector !== "boolean") { toast.error(`Please answer: ${suretyQuestion(company.companyType)}`); return }
     setBusy(true)
     try {
       if (applicationId) {

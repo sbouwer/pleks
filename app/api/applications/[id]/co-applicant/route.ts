@@ -8,9 +8,9 @@
  * Data:   inserts application_co_applicants (incl. the encrypted id_number + its lookup hash so the person can be LINKED to
  *         the application at promotion), bumps applications.co_applicants_count, emails the invitee a link.
  * Notes:  id_number goes through idNumberColumns (ciphertext + RAW-derived lookup hash) and is never logged.
- *         The invite email is best-effort, and WHICH invite is `inviteRoute`'s (walker F1, 2026-10-01): a juristic
- *         director surety gets director_invited on a 14-day link, a juristic non-director surety gets NOTHING
- *         (held, R3), everyone else co_applicant_invited. Until then this route sent joint-rental copy to all.
+ *         The invite email is best-effort, and WHICH invite is `inviteRoute`'s (walker F1, 2026-10-01): a company's
+ *         director surety gets director_invited on a 14-day link, any other juristic surety gets NOTHING (held, R3 +
+ *         the F7 ruling: a trustee or CC member too), everyone else co_applicant_invited. Until then this route sent joint-rental copy to all.
  */
 /* eslint-disable pleks/require-org-scope-on-service-write -- ⚠ THE WEAKEST OF THE EIGHT APPLY-FLOW ROUTES, and recorded as such rather than waved through with its siblings. The other seven verify a token bound to THIS application id before writing; this one has no token at all — the header states the design outright, "the application id in the path is the capability", so possession of the UUID IS the credential. That is a deliberate, pre-existing decision (public apply flow, rate-limited per IP, org_id read server-side and never trusted from the client) and not something to change in a lint-alignment commit. It is also one letter away from the class that produced the 2026-08-22 consent IDOR, where a caller-supplied id with no ownership proof was the whole defect. Flagged for CD; org scoping is not the fix here, a capability token would be. */
 import { NextResponse } from "next/server"
@@ -20,7 +20,7 @@ import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
-import { inviteRoute, isJuristicForCopy } from "@/lib/applications/juristicParties"
+import { inviteRoute } from "@/lib/applications/juristicParties"
 import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
 
 export async function POST(
@@ -46,12 +46,12 @@ export async function POST(
   }
 
   const role = body.role === "guarantor" ? "guarantor" : "co_applicant"
-  // P1-R7a: the applicant's answer to "is this person a director?", asked only of a juristic surety. A
-  // boolean on a guarantor or nothing — NULL is "never asked", which every sender holds like "no".
+  // P1-R7a: the applicant's answer to "is this person a director / trustee / member?", asked only of a juristic
+  // surety. A boolean on a guarantor or nothing — NULL is "never asked", which every sender holds like "no".
   const declaredDirector = role === "guarantor" && typeof body.declared_director === "boolean" ? body.declared_director : null
   const route = inviteRoute({
     party: { role, is_surety_director: false, declared_director: declaredDirector },
-    isJuristic: isJuristicForCopy(application),
+    application,
   })
 
   const { data: coApplicant, error } = await supabase

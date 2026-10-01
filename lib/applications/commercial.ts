@@ -18,7 +18,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
-import { inviteRoute, isJuristicForCopy } from "@/lib/applications/juristicParties"
+import { inviteRoute } from "@/lib/applications/juristicParties"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 
 /**
@@ -97,7 +97,7 @@ export async function resendDirectorInvite(
     return { ok: false, error: "Party not found or already declined" }
   }
 
-  const route = inviteRoute({ party, isJuristic: isJuristicForCopy(app) })
+  const route = inviteRoute({ party, application: app })
   if (route === "held") {
     return { ok: false, error: "This invitation is held until its wording is approved" }
   }

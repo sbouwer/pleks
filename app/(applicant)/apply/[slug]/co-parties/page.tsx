@@ -189,7 +189,7 @@ export default async function CoPartiesPage({
         const coApp = directors.find((d) => d.id === line.subject_id)
         const isDeclined = !!coApp?.declined_at
         // Held (P1-R3): no invite was sent and none may be, so no expiry to count down and no Resend (walker F2).
-        const isHeld = !!coApp && inviteHold({ party: coApp, isJuristic: juristic }) !== null
+        const isHeld = !!coApp && inviteHold({ party: coApp, application: app ?? {} }) !== null
         const expiresIn = coApp?.access_token_expires
           ? Math.max(0, Math.ceil((new Date(coApp.access_token_expires).getTime() - now.getTime()) / 86_400_000))
           : null
@@ -219,7 +219,7 @@ export default async function CoPartiesPage({
 
               {!isDeclined && isHeld && (
                 <p className="text-xs text-amber-600">
-                  Invitation not sent yet: the wording for a surety who is not a director is awaiting legal review.
+                  Invitation not sent yet: the wording for this surety is awaiting legal review.
                 </p>
               )}
 

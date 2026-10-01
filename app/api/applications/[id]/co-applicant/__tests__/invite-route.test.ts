@@ -86,3 +86,12 @@ describe("the roster's first invite (walker F1)", () => {
     expect(sendDirectorInvite).not.toHaveBeenCalled()
   })
 })
+
+describe("a trustee's 'yes' is held, not sent director copy (F7 ruling)", () => {
+  it("trust + declared yes → held, nothing sent", async () => {
+    application = { ...JURISTIC, company_info: { companyType: "trust" } }
+    expect(await add({ role: "guarantor", declared_director: true })).toMatchObject({ ok: true, invite: "held" })
+    expect(sendDirectorInvite).not.toHaveBeenCalled()
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+  })
+})

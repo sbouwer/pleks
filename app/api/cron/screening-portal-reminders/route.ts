@@ -5,10 +5,10 @@
  * Auth:   x-cron-secret header
  * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones for
  *         co-applicant lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3):
- *         · surety (juristic application) + isDirectorSurety (registry flag or declared_director, P1-R7a) → director copy + director-portal link (the reviewed audience, P1-R3).
+ *         · surety whose inviteRoute is "director" (a COMPANY's director by registry flag or declared_director, P1-R7a + F7) → director copy + director-portal link (the reviewed audience, P1-R3).
  *           T+14: line declined, payment flagged for manual refund (14C), expiry email sent; primary
  *           contact notified at T+7 and T+10 (informational only).
- *         · surety, NOT a declared director → HELD: no send, no expiry (P1-R3/R7 — no reviewed copy exists).
+ *         · any other surety (a non-director; a trustee or CC member, even one answered "yes") → HELD: no send, no expiry (P1-R3/F7 — no reviewed copy exists).
  *         · co_applicant, or guarantor (a surety on a NON-juristic application, P1-R3a) →
  *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); declined once
  *           unconsented past `expires_at` (P1-R6). The refund branch and any expiry notice are gated on
@@ -24,7 +24,7 @@ import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-ema
 import { buildDirectorReminderElement } from "@/lib/applications/commercial-emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
-import { isDirectorSurety } from "@/lib/applications/juristicParties"
+import { inviteRoute } from "@/lib/applications/juristicParties"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
@@ -141,10 +141,18 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   // Every branch below sends director copy, which is reviewed for a DIRECTOR audience only (P1-R3). The
   // view's state set for it is unchanged; `expired_no_consent` is the co_applicant branch's alone.
   if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
-  // HELD (P1-R3): a surety who is not a declared director has no reviewed template. Not reminded, and not
-  // expired either — declining someone for not completing an invite we withheld would record their failure
-  // for ours. A director by registry OR by the applicant's answer (P1-R7a); R3 makes the hold visible to the agent.
-  if (!isDirectorSurety(row)) return "held"
+  // HELD (P1-R3): only a company's director has a reviewed template — a non-director, a trustee and a CC member
+  // (F7 ruling) do not. Not reminded, and not expired either — declining someone for not completing an invite we
+  // withheld would record their failure for ours. The decision is inviteRoute's, the same one the first invite and
+  // the co-parties Resend read; R3 makes the hold visible to the agent.
+  const { data: application, error: applicationError } = await service
+    .from("applications")
+    .select("entity_type, applicant_type, company_info")
+    .eq("id", line.application_id)
+    .eq("org_id", line.org_id)
+    .maybeSingle()
+  if (applicationError) throw new Error(`read application for invite route: ${applicationError.message}`)
+  if (!application || inviteRoute({ party: row, application }) !== "director") return "held"
 
   if (daysElapsed >= 14) return expireDirectorLine(service, line, row)
   const stage = dueStage(daysElapsed, sent)

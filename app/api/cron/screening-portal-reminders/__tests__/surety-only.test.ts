@@ -6,7 +6,8 @@
  *         · a residential co-applicant gets `co_applicant_invited` verbatim, never director copy (R5), and is
  *           declined past expires_at with the payment row untouched — refunds are struck (R6, 14W);
  *         · a declared director surety still gets director copy, so a router that sent nothing would fail;
- *         · a surety who is not a declared director is HELD — no send, no decline (R3);
+ *         · a surety who is not a declared director is HELD — no send, no decline (R3), and so is a trustee's or a
+ *           CC member's "yes" (F7 ruling: director copy is for a company's director only);
  *         · an unknown party_kind is skipped;
  *         · a send that reports failure leaves the milestone UNSTAMPED, so the next run retries it (walker F4).
  */
@@ -19,6 +20,8 @@ const sendCoApplicantInvited = vi.fn(async (): Promise<{ success: boolean; error
 const maybeFireAllGreen = vi.fn()
 let coApp: Record<string, unknown> = {}
 let line: Record<string, unknown> = {}
+// The application the surety branch reads for inviteRoute (F7): a company by default; tests switch the type.
+let companyType = "pty_ltd"
 const updates: Array<{ table: string; patch: unknown }> = []
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }))
@@ -40,7 +43,8 @@ vi.mock("@/lib/routing/absoluteUrl", () => ({ absoluteUrl: (p: string) => `https
 function rowsFor(table: string): unknown {
   if (table === "v_application_screening_lines") return [line]
   if (table === "application_co_applicants") return coApp
-  if (table === "applications") return { first_name: "Primary", last_name: "Contact", applicant_email: "p@test", listings: null }
+  if (table === "applications") return { first_name: "Primary", last_name: "Contact", applicant_email: "p@test", listings: null,
+    entity_type: "organisation", applicant_type: null, company_info: { companyType } }
   return null
 }
 
@@ -80,6 +84,7 @@ beforeEach(() => {
   sendCoApplicantInvited.mockClear()
   maybeFireAllGreen.mockClear()
   updates.length = 0
+  companyType = "pty_ltd"
 })
 
 describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)", () => {
@@ -176,6 +181,17 @@ describe("a failed send is not recorded as sent (walker F4)", () => {
     coApp = { ...baseCo, role: "guarantor", is_surety_director: true }
     sendEmail.mockResolvedValueOnce({ success: false, error: "rejected" })
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(updates).toEqual([])
+  })
+})
+
+describe("a trustee's or CC member's 'yes' is HELD, not sent director copy (F7 ruling)", () => {
+  it.each(["trust", "cc"])("%s: declared yes → held, no send, no update", async (t) => {
+    companyType = t
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, created_at: daysAgo(20), role: "guarantor", is_surety_director: false, declared_director: true }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(sendEmail).not.toHaveBeenCalled()
     expect(updates).toEqual([])
   })
 })

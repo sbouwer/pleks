@@ -14,6 +14,8 @@ import {
   isSuretyParty,
   inviteHold,
   inviteRoute,
+  suretyQuestion,
+  suretyQuestionNoun,
   isJuristicApplicant,
   isJuristicApplication,
   orgMarkerFrom,
@@ -218,35 +220,57 @@ describe("isSuretyParty is the one predicate both writers satisfy", () => {
   })
 })
 
-describe("inviteHold — a juristic surety who is not a director is held, nobody else (P1-R3/R7a)", () => {
-  const surety = (declared_director: boolean | null, is_surety_director = false) => ({ role: "guarantor", is_surety_director, declared_director })
-  it("holds a juristic surety answered 'not a director' and one never asked", () => {
-    expect(inviteHold({ party: surety(false), isJuristic: true })).toBe("awaiting_template")
-    expect(inviteHold({ party: surety(null), isJuristic: true })).toBe("awaiting_template")
+const entity = (companyType: string) => ({ entity_type: "organisation", applicant_type: null, company_info: { companyType } })
+const RESIDENTIAL = { entity_type: "individual", applicant_type: null, company_info: null }
+const party = (role: string, declared_director: boolean | null, is_surety_director = false) => ({ role, is_surety_director, declared_director })
+
+describe("inviteHold — only a company's director has reviewed copy (P1-R3/R7a, F7 ruling)", () => {
+  it("holds a company surety answered 'not a director' and one never asked", () => {
+    for (const t of ["pty_ltd", "npc"]) {
+      expect(inviteHold({ party: party("guarantor", false), application: entity(t) }), t).toBe("awaiting_template")
+      expect(inviteHold({ party: party("guarantor", null), application: entity(t) }), t).toBe("awaiting_template")
+    }
   })
-  it("does not hold a director by either fact", () => {
-    expect(inviteHold({ party: surety(true), isJuristic: true })).toBeNull()
-    expect(inviteHold({ party: surety(null, true), isJuristic: true })).toBeNull()
+  it("does not hold a company director by either fact", () => {
+    expect(inviteHold({ party: party("guarantor", true), application: entity("pty_ltd") })).toBeNull()
+    expect(inviteHold({ party: party("guarantor", null, true), application: entity("npc") })).toBeNull()
+  })
+  it("HOLDS a trustee's and a CC member's 'yes' — director_invited says 'a director' (F7)", () => {
+    expect(inviteHold({ party: party("guarantor", true), application: entity("trust") })).toBe("awaiting_template")
+    expect(inviteHold({ party: party("guarantor", true), application: entity("cc") })).toBe("awaiting_template")
+    expect(inviteHold({ party: party("guarantor", null, true), application: entity("trust") })).toBe("awaiting_template")
   })
   it("never holds a residential guarantor or a co-applicant", () => {
-    expect(inviteHold({ party: surety(null), isJuristic: false })).toBeNull()
-    expect(inviteHold({ party: { role: "co_applicant", is_surety_director: false, declared_director: null }, isJuristic: true })).toBeNull()
+    expect(inviteHold({ party: party("guarantor", null), application: RESIDENTIAL })).toBeNull()
+    expect(inviteHold({ party: party("co_applicant", null), application: entity("pty_ltd") })).toBeNull()
   })
 })
 
-describe("inviteRoute — the one copy decision every sender reads (walker F1/F2)", () => {
-  const party = (role: string, declared_director: boolean | null, is_surety_director = false) => ({ role, is_surety_director, declared_director })
-  it("sends director copy only to a juristic director surety", () => {
-    expect(inviteRoute({ party: party("guarantor", true), isJuristic: true })).toBe("director")
-    expect(inviteRoute({ party: party("guarantor", null, true), isJuristic: true })).toBe("director")
+describe("inviteRoute — the one copy decision every sender reads (walker F1/F2, F7)", () => {
+  it("sends director copy only to a company's director surety", () => {
+    expect(inviteRoute({ party: party("guarantor", true), application: entity("pty_ltd") })).toBe("director")
+    expect(inviteRoute({ party: party("guarantor", null, true), application: entity("npc") })).toBe("director")
   })
-  it("holds a juristic non-director surety", () => {
-    expect(inviteRoute({ party: party("guarantor", false), isJuristic: true })).toBe("held")
-    expect(inviteRoute({ party: party("guarantor", null), isJuristic: true })).toBe("held")
+  it("holds every other juristic surety, a trustee's or member's 'yes' included", () => {
+    expect(inviteRoute({ party: party("guarantor", false), application: entity("pty_ltd") })).toBe("held")
+    expect(inviteRoute({ party: party("guarantor", true), application: entity("trust") })).toBe("held")
+    expect(inviteRoute({ party: party("guarantor", true), application: entity("cc") })).toBe("held")
   })
-  it("sends joint-rental copy to a residential guarantor, even one answered 'director', and to a co-applicant", () => {
-    expect(inviteRoute({ party: party("guarantor", true), isJuristic: false })).toBe("co_applicant")
-    expect(inviteRoute({ party: party("co_applicant", null), isJuristic: false })).toBe("co_applicant")
-    expect(inviteRoute({ party: party("co_applicant", null), isJuristic: true })).toBe("co_applicant")
+  it("sends joint-rental copy to a residential guarantor, even one answered 'yes', and to a co-applicant", () => {
+    expect(inviteRoute({ party: party("guarantor", true), application: RESIDENTIAL })).toBe("co_applicant")
+    expect(inviteRoute({ party: party("co_applicant", null), application: RESIDENTIAL })).toBe("co_applicant")
+    expect(inviteRoute({ party: party("co_applicant", null), application: entity("trust") })).toBe("co_applicant")
+  })
+})
+
+describe("suretyQuestion — the noun follows the entity (F7)", () => {
+  it("asks a company about a director, a trust about a trustee, a CC about a member", () => {
+    expect(suretyQuestionNoun("pty_ltd")).toBe("director")
+    expect(suretyQuestionNoun("npc")).toBe("director")
+    expect(suretyQuestionNoun("trust")).toBe("trustee")
+    expect(suretyQuestionNoun("cc")).toBe("member")
+    expect(suretyQuestionNoun("partnership")).toBeNull()
+    expect(suretyQuestion("trust")).toBe("Are they a trustee of the trust?")
+    expect(suretyQuestion("cc")).toBe("Are they a member of the close corporation?")
   })
 })

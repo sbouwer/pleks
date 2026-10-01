@@ -2999,10 +2999,16 @@ $$;
 -- Kept apart from is_surety_director, which Phase 2 derives from the registry: declaration and registry are
 -- two facts, and Phase 2 compares them.
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declared_director boolean;
+-- F7 ruling (CD 2026-10-01): the question's noun follows the entity type, so "director" in the column name means
+-- "holds the office this entity type has". The name stays; the concept lives in this comment. Only a COMPANY's
+-- director (pty_ltd / npc) is sent director copy — a trustee's or CC member's "yes" is held (inviteHold in TS).
+COMMENT ON COLUMN application_co_applicants.declared_director IS
+  'BUILD_72 P1-R7a/F7: the applicant''s answer to "is this person a director / trustee / member of the entity?" - the noun follows the entity type (company: director; trust: trustee; close corporation: member). NULL = never asked, false = no, true = yes. Only a company director''s yes routes application.director_invited; a trustee or CC member yes is held until counsel-reviewed copy exists. Kept apart from is_surety_director (registry-derived).';
 
 -- is_director_surety(): may this party receive the director-audience surety copy (P1-R3/R7a)? SQL twin of
 -- isDirectorSurety() in lib/applications/juristicParties.ts; test/db/surety-party-predicate.dbtest.ts
 -- asserts they agree. A surety party AND a director by either fact — the registry's or the declaration.
+-- It does NOT read the entity type: whether director copy may go out (a company only, F7) is inviteHold's call.
 CREATE OR REPLACE FUNCTION is_director_surety(caa application_co_applicants)
 RETURNS boolean
 LANGUAGE sql IMMUTABLE

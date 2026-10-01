@@ -34,6 +34,7 @@ import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { useApplyFlow, type ResumeState, type ApplyActor } from "./useApplyFlow"
 import { hardNavigate } from "@/lib/navigation"
+import { suretyQuestion, suretyQuestionNoun } from "@/lib/applications/juristicParties"
 
 export type { ResumeState }
 
@@ -326,7 +327,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
               </FieldGrid>
               <SelectField label="They are" value={newCo.role} onChange={(v) => setNewCo({ ...newCo, role: v as CoRole })} options={[{ value: "co_applicant", label: "A co-applicant (lives here / on the lease)" }, { value: "guarantor", label: "A guarantor / surety (backs the rent)" }]} />
               {asksDirector && (
-                <SelectField label="Are they a director of the company?" required value={typeof newCo.declaredDirector === "boolean" ? String(newCo.declaredDirector) : ""} onChange={(v) => setNewCo({ ...newCo, declaredDirector: v === "" ? null : v === "true" })} options={[{ value: "", label: "Choose…" }, { value: "true", label: "Yes, a director" }, { value: "false", label: "No" }]} />
+                <SelectField label={suretyQuestion(company.companyType)} required value={typeof newCo.declaredDirector === "boolean" ? String(newCo.declaredDirector) : ""} onChange={(v) => setNewCo({ ...newCo, declaredDirector: v === "" ? null : v === "true" })} options={[{ value: "", label: "Choose…" }, { value: "true", label: `Yes, a ${suretyQuestionNoun(company.companyType) ?? "director"}` }, { value: "false", label: "No" }]} />
               )}
             </div>
             <div className="mt-4 flex justify-end gap-2">

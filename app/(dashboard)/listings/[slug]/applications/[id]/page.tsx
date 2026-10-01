@@ -20,7 +20,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ApplicationActions } from "./ApplicationActions"
 import { ApplicationDetailShell } from "./ApplicationDetailShell"
 import { ApplicantsCard, type PartyInfo } from "./ApplicantsCard"
-import { inviteHold, isJuristicForCopy, partyKind } from "@/lib/applications/juristicParties"
+import { inviteHold, isJuristicForCopy, partyKind, suretyQuestionNoun } from "@/lib/applications/juristicParties"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import type { DetailFact, DetailStatus, DetailTab } from "@/lib/detail/types"
@@ -111,9 +111,12 @@ function buildFitscorePanel(opts: Readonly<{
 }
 
 /** The agent-facing reason for an `awaiting_template` hold (P1-R3), by what the applicant answered (P1-R7a/b). */
-function heldReason(declaredDirector: boolean | null): string {
-  if (declaredDirector === false) return "Invite held: not a director. The surety invite for a non-director is awaiting legal review."
-  return "Invite held: the applicant has not said whether this surety is a director."
+function heldReason(declaredDirector: boolean | null, companyInfo: unknown): string {
+  // The noun the applicant was asked (F7): director / trustee / member. A trustee's or member's "yes" is held too.
+  const noun = suretyQuestionNoun((companyInfo as Record<string, unknown> | null)?.companyType) ?? "director"
+  if (declaredDirector === null) return `Invite held: the applicant has not said whether this surety is a ${noun}.`
+  if (declaredDirector && noun !== "director") return `Invite held: the surety invite for a ${noun} is awaiting legal review.`
+  return `Invite held: not a ${noun}. The surety invite for a non-${noun} is awaiting legal review.`
 }
 
 export default async function ApplicationDetailPage({
@@ -289,7 +292,7 @@ export default async function ApplicationDetailPage({
   const otherParties: PartyInfo[] = (coApplicants ?? []).map((c) => ({
     label: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Applicant",
     role: partyKind({ party: c, isJuristic: juristic }),
-    held: !c.declined_at && !c.stage2_consent_given_at && inviteHold({ party: c, isJuristic: juristic }) ? heldReason(c.declared_director) : undefined,
+    held: !c.declined_at && !c.stage2_consent_given_at && inviteHold({ party: c, application: app }) ? heldReason(c.declared_director, app.company_info) : undefined,
     idType: c.id_type as string | null, employment: c.employment_type as string | null, employer: c.employer_name as string | null,
     incomeCents: c.gross_monthly_income_cents as number | null,
   }))

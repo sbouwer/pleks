@@ -16,6 +16,7 @@ import { PARTY_ID_TYPES } from "@/lib/parties/partyConfig"
 import { SectLabel } from "@/components/parties/partyFields"
 import { type ApplicantType, type CoApplicant, type CoRole, type SetFn, blankCo } from "./applyDomain"
 import { type CompanyInfo, COMPANY_TYPE_OPTIONS, isJuristicCompanyType } from "./applyCompany"
+import { suretyQuestion, suretyQuestionNoun } from "@/lib/applications/juristicParties"
 
 /** Card copy adapts to the lease type — "I'll live here" makes no sense on a commercial lease. */
 function typesFor(commercial: boolean): ReadonlyArray<{ id: ApplicantType; icon: LucideIcon; title: string; blurb: string }> {
@@ -212,12 +213,13 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
                   <option value="guarantor">Guarantor / surety</option>
                   <option value="other">Other</option>
                 </select>
-                {/* P1-R7b: the Guarantor/surety row on a juristic company asks the director yes/no → declared_director. */}
+                {/* P1-R7b: the Guarantor/surety row on a juristic entity asks the office yes/no → declared_director. The noun is
+                    the entity's (F7): director / trustee / member. */}
                 {c.role === "guarantor" && isJuristicCompanyType(company.companyType) && (
-                  <select value={typeof c.declaredDirector === "boolean" ? String(c.declaredDirector) : ""} onChange={(e) => updateCo(i, { declaredDirector: e.target.value === "" ? null : e.target.value === "true" })} className={CO_DESIGNATION_INNER} aria-label="Is this person a director of the company?">
-                    <option value="">A director?</option>
-                    <option value="true">Is a director</option>
-                    <option value="false">Not a director</option>
+                  <select value={typeof c.declaredDirector === "boolean" ? String(c.declaredDirector) : ""} onChange={(e) => updateCo(i, { declaredDirector: e.target.value === "" ? null : e.target.value === "true" })} className={CO_DESIGNATION_INNER} aria-label={suretyQuestion(company.companyType)}>
+                    <option value="">A {suretyQuestionNoun(company.companyType) ?? "director"}?</option>
+                    <option value="true">Is a {suretyQuestionNoun(company.companyType) ?? "director"}</option>
+                    <option value="false">Not a {suretyQuestionNoun(company.companyType) ?? "director"}</option>
                   </select>
                 )}
                 {i >= mandatoryCo && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className={CO_DELETE_BTN}><X className="size-4" /></button>}

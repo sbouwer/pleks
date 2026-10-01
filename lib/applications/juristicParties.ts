@@ -185,13 +185,44 @@ export function isDirectorSurety(row: Readonly<{ role?: string | null; is_surety
 }
 
 /**
- * Why a party's invite is HELD, or null (BUILD_72 P1-R3). A juristic surety who is not a director has no
- * counsel-reviewed copy — the non-director variant is with counsel — so nothing is sent, and the agent is shown
- * this state rather than silence. The reminder cron's "held" branch is the same test on the view's party_kind.
+ * The noun the applicant is asked about a surety, by entity type (BUILD_72 P1-R7, CD 2026-10-01): "Is this person a
+ * director / trustee / member of the …?". The answer is stored in `declared_director` whatever the noun — the column
+ * name stays, the concept ("holds the office that entity type has") is in its column comment in 005.
+ * Null = not a juristic type, so the question is not asked.
+ */
+export type SuretyQuestionNoun = "director" | "trustee" | "member"
+export function suretyQuestionNoun(companyType: unknown): SuretyQuestionNoun | null {
+  if (companyType === "pty_ltd" || companyType === "npc") return "director"
+  if (companyType === "trust") return "trustee"
+  if (companyType === "cc") return "member"
+  return null
+}
+
+/** The question, phrased for the entity, for the roster's add dialog and the company-parties rows. */
+export function suretyQuestion(companyType: unknown): string {
+  const noun = suretyQuestionNoun(companyType)
+  if (noun === "trustee") return "Are they a trustee of the trust?"
+  if (noun === "member") return "Are they a member of the close corporation?"
+  return "Are they a director of the company?"
+}
+
+/** The application facts every invite decision reads: juristic-ness AND which juristic type. */
+type InviteApplication = Parameters<typeof isJuristicForCopy>[0]
+type InviteInput = Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; application: InviteApplication }>
+
+/**
+ * Why a party's invite is HELD, or null (BUILD_72 P1-R3, F7 ruling). Only a COMPANY's director (pty_ltd / npc, by
+ * registry or by the applicant's "yes") has counsel-reviewed copy. Every other juristic surety is held — a
+ * non-director, and also a trustee or a CC member who answered "yes", because `director_invited` says "a director"
+ * and is untrue for them. Their variants are with counsel in one pack. Nothing is sent; the agent sees the state.
  */
 export type InviteHold = "awaiting_template"
-export function inviteHold(input: Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; isJuristic: boolean }>): InviteHold | null {
-  return partyKind(input) === "surety" && !isDirectorSurety(input.party) ? "awaiting_template" : null
+export function inviteHold(input: InviteInput): InviteHold | null {
+  const isJuristic = isJuristicForCopy(input.application)
+  if (partyKind({ party: input.party, isJuristic }) !== "surety") return null
+  const companyType = (input.application.company_info as Record<string, unknown> | null | undefined)?.companyType
+  const isCompanyDirector = suretyQuestionNoun(companyType) === "director" && isDirectorSurety(input.party)
+  return isCompanyDirector ? null : "awaiting_template"
 }
 
 /**
@@ -202,7 +233,7 @@ export function inviteHold(input: Readonly<{ party: Parameters<typeof isDirector
  * `held` = nothing is sent (R3).
  */
 export type InviteRoute = "director" | "co_applicant" | "held"
-export function inviteRoute(input: Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; isJuristic: boolean }>): InviteRoute {
+export function inviteRoute(input: InviteInput): InviteRoute {
   if (inviteHold(input)) return "held"
-  return partyKind(input) === "surety" ? "director" : "co_applicant"
+  return partyKind({ party: input.party, isJuristic: isJuristicForCopy(input.application) }) === "surety" ? "director" : "co_applicant"
 }
