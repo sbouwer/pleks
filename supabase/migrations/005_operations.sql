@@ -3586,3 +3586,17 @@ DROP TRIGGER IF EXISTS trg_screening_payment_fee_immutable ON application_screen
 CREATE TRIGGER trg_screening_payment_fee_immutable
   BEFORE UPDATE ON application_screening_payments
   FOR EACH ROW EXECUTE FUNCTION screening_payment_fee_immutable();
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.2: searchworx_rate_observations.mapping_confidence  (ruled 2026-10-01)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- The vendor's BILLING SearchType is the authoritative name for a product; a price-list name is a key
+-- into it. A list name already seen on a billing row maps `exact`; one mapped by inference from the list
+-- alone (Lightstone short erf, deeds base tier) is `inferred`. It seeds the table so a quote exists, and
+-- the first billing row for that product replaces the key and flips it to `exact`. The map itself is
+-- lib/searchworx/rates/productNames.ts.
+ALTER TABLE searchworx_rate_observations ADD COLUMN IF NOT EXISTS mapping_confidence text NOT NULL DEFAULT 'exact';
+ALTER TABLE searchworx_rate_observations DROP CONSTRAINT IF EXISTS searchworx_rate_observations_mapping_confidence_check;
+ALTER TABLE searchworx_rate_observations ADD CONSTRAINT searchworx_rate_observations_mapping_confidence_check
+  CHECK (mapping_confidence IN ('exact', 'inferred'));

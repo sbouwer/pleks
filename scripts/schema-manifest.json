@@ -3203,7 +3203,8 @@
       "source",
       "source_ref",
       "raw",
-      "created_by"
+      "created_by",
+      "mapping_confidence"
     ],
     "searchworx_rates": [
       "id",
@@ -5357,6 +5358,10 @@
     "searchworx_rate_observations_cost_excl_vat_cents_check": {
       "table": "searchworx_rate_observations",
       "def": "CHECK ((cost_excl_vat_cents >= 0))"
+    },
+    "searchworx_rate_observations_mapping_confidence_check": {
+      "table": "searchworx_rate_observations",
+      "def": "CHECK ((mapping_confidence = ANY (ARRAY['exact'::text, 'inferred'::text])))"
     },
     "searchworx_rate_observations_source_check": {
       "table": "searchworx_rate_observations",

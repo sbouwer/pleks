@@ -19,7 +19,13 @@ export type ImportResult =
 
 export async function importPriceList(
   db: SupabaseClient,
-  { csv, filename, vendorEffectiveDate, createdBy = null }: { csv: string; filename: string; vendorEffectiveDate: string; createdBy?: string | null },
+  {
+    csv,
+    filename,
+    vendorEffectiveDate,
+    importId = null,
+    createdBy = null,
+  }: { csv: string; filename: string; vendorEffectiveDate: string; importId?: string | null; createdBy?: string | null },
 ): Promise<ImportResult> {
   const report = parsePriceList(csv)
   if (report.rejected.length > 0) return { ok: false, reason: "rejected_lines", report }
@@ -32,8 +38,9 @@ export async function importPriceList(
       costExclVatCents: m.cents,
       source: "pricelist_import" as const,
       sourceRef: `${filename}:${m.line}`,
+      mappingConfidence: m.confidence,
       vendorEffectiveDate,
-      raw: { vendor_name: m.name, line: m.line },
+      raw: { vendor_name: m.name, line: m.line, import_id: importId },
       createdBy,
     })),
   )

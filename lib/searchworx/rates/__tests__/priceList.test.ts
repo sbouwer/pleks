@@ -62,7 +62,23 @@ describe("importPriceList", () => {
       source: "pricelist_import",
       cost_excl_vat_cents: 715,
       source_ref: "pricelist_default_2026-10-01.csv:160",
-      raw: { vendor_name: "VCCB INCOME ESTIMATOR", line: 160, vendor_effective_date: "2026-10-01" },
+      mapping_confidence: "exact",
+      raw: { vendor_name: "VCCB INCOME ESTIMATOR", line: 160, import_id: null, vendor_effective_date: "2026-10-01" },
+    })
+  })
+
+  it("Lightstone and deeds are INFERRED (never billed); the billed products are EXACT (§3.2, ruled 2026-10-01)", async () => {
+    const { db, inserted } = fakeDb()
+    await importPriceList(db, { csv: CSV, filename: "f", vendorEffectiveDate: "2026-10-01" })
+    const conf = Object.fromEntries(inserted.map((o) => [o.product_key, o.mapping_confidence]))
+    expect(conf).toEqual({
+      cipc_company: "exact",
+      cipc_director: "exact",
+      combined_consumer_credit_report: "exact",
+      compuscan_company_profile: "exact",
+      deeds_search: "inferred",
+      lightstone_erf_short: "inferred",
+      vccb_income_estimator: "exact",
     })
   })
 

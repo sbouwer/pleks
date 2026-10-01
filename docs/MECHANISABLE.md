@@ -2783,3 +2783,20 @@ The author identified the hazard, and defended the single field in front of them
   re-reads the line.
 - **Provenance:** walk F1, 2026-10-01.
 - **Covering spec:** none — surfaced by the walk of the ADDENDUM_14V §3.2a build, not by a verification row
+
+### M-139 — the prime-rate admin override changes a platform rate and writes no audit row
+
+- **Rule:** every platform-level state change made through `/admin/` writes an `audit_log` row, attributed
+  to `PLATFORM_ORG_ID` (`lib/comms/platform-org.ts`) when no customer org owns it.
+- **Where it lives (the instance):** `app/api/admin/prime-rate/route.ts` POST inserts into `prime_rates`
+  behind `isAdminAuthenticated()` and records nothing else. The prime rate drives deposit-interest and
+  arrears-interest arithmetic for every org, so who moved it and when is unrecoverable from the tree.
+  `app/api/admin/searchworx-rates/import/route.ts` (ADDENDUM_14V) is the pattern: one row under
+  `PLATFORM_ORG_ID`, `record_id` the act's id.
+- **Rung:** test · **Blast:** money
+- **Satisfied when:** the prime-rate POST writes the audit row, with a route test asserting `org_id =
+  PLATFORM_ORG_ID` and that a refused (non-admin) call writes neither row. Wider form: a census over
+  `app/api/admin/**` POST/PATCH/DELETE handlers that insert or update a platform table without a
+  `recordAudit` call in the same module.
+- **Provenance:** CD side-finding on the ADDENDUM_14V §3.2a audit ruling, 2026-10-01.
+- **Covering spec:** none — found while ruling the 14V import's audit attribution, not by a verification row

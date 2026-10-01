@@ -5,9 +5,10 @@
  *         policy (lib/screening/pricingPolicy.v1.ts).
  * Notes:  cost_excl = Σ entity-line rates + persons × Σ person-line rates; cost_incl adds VAT while Pleks is
  *         not VAT-registered; fee = band_nearest(cost_incl × (1 + margin) [× (1 − jointDiscount) if persons > 1]).
- *         Fail-closed (§4): a missing rate is no quote, never a zero or fallback fee. And because NEAREST
- *         banding can round down, fee > cost_incl is CHECKED on every quote, not assumed from the margin —
- *         a bundle that bands to cost or below is refused (`below_cost`), never sold.
+ *         Fail-closed (§4): a missing rate is no quote, never a zero or fallback fee — the ONLY refusal.
+ *         FLOOR (ruled 2026-10-01): NEAREST banding can round down, so when it would land at or below cost_incl
+ *         (cheap single-product pulls) the fee rounds UP to the first band multiple strictly above cost instead.
+ *         fee > cost_incl therefore holds by construction, and the §5 test proves it over the rate table.
  */
 import type { PricingPolicy } from "@/lib/screening/pricingPolicy.v1"
 
@@ -39,11 +40,15 @@ export type Quote =
     }
   | { ok: false; reason: "no_rate"; missing: string[] }
   | { ok: false; reason: "empty_bundle" }
-  | { ok: false; reason: "below_cost"; fee_cents: number; cost_incl_cents: number }
 
 /** Round to the nearest multiple of `bandCents` (§9.1b — nearest, not up). */
 export function band(cents: number, bandCents: number): number {
   return Math.round(cents / bandCents) * bandCents
+}
+
+/** The first multiple of `bandCents` strictly above `costIncl` — the floor when nearest lands at or below cost. */
+function floorAboveCost(costIncl: number, bandCents: number): number {
+  return (Math.floor(costIncl / bandCents) + 1) * bandCents
 }
 
 export function applicantFeeCents({
@@ -67,8 +72,8 @@ export function applicantFeeCents({
   const costIncl = policy.pleksVatRegistered ? costExcl : Math.round(costExcl * (1 + policy.vatRate))
 
   const discount = persons > 1 ? 1 - policy.jointDiscount : 1
-  const fee = band(costIncl * (1 + policy.margin) * discount, policy.bandCents)
-  if (fee <= costIncl) return { ok: false, reason: "below_cost", fee_cents: fee, cost_incl_cents: costIncl }
+  const nearest = band(costIncl * (1 + policy.margin) * discount, policy.bandCents)
+  const fee = nearest > costIncl ? nearest : floorAboveCost(costIncl, policy.bandCents)
 
   // ISO dates compare correctly as strings, so the max is a plain reduce.
   const rateDate = used

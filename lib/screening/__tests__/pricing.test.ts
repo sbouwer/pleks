@@ -3,7 +3,8 @@
  *
  * Notes:  Probe-first, both directions. The invariant (fee > cost incl VAT) is asserted over every rate row
  *         in the fixture table, never assumed from the margin: nearest-banding can round down, so a cheap
- *         enough bundle CAN fall below cost, and the formula must refuse to quote it rather than sell it.
+ *         enough bundle CAN land at or below cost, and the FLOOR (ruled 2026-10-01) rounds it up to the first
+ *         band strictly above cost rather than sell it at a loss or refuse it.
  *         The fixture is the billed cost basis (`.handoff/14v-rate-engine/07-cost-basis.md`, ruled
  *         2026-10-01) plus the 2026-10-01 Default list ceiling for the same products.
  */
@@ -75,16 +76,27 @@ describe("§5 invariant: fee > cost incl VAT over every rate row", () => {
     }
   })
 
-  it("PLANTED: a bundle cheap enough that nearest-banding lands at or below cost is REFUSED, not quoted", () => {
-    const cheap = rates({ deeds_search: 800 }) // R9.20 incl → ×1.23 = R11.32 → nearest R25 band = R0
+  // FLOOR (ruled 2026-10-01): where nearest would land at or below cost, the band rounds UP to the first
+  // multiple strictly above cost — the formula never refuses a priced line.
+  it("FLOOR: nearest landing BELOW cost rounds up to the first band above cost", () => {
+    const cheap = rates({ deeds_search: 800 }) // R9.20 incl → ×1.23 = R11.32 → nearest R0 → floor R25
     const q = applicantFeeCents({ bundle: singleProductBundle("deeds_search"), rates: cheap, policy: PRICING_POLICY })
-    expect(q).toMatchObject({ ok: false, reason: "below_cost" })
+    expect(q).toMatchObject({ ok: true, fee_cents: 2500, cost_incl_cents: 920 })
   })
 
-  it("PLANTED: a fee that bands to exactly cost is refused too — the invariant is strict", () => {
-    const atCost = rates({ deeds_search: 4348 }) // R50.00 incl → ×1.23 = R61.50 → nearest R25 band = R50.00
+  it("FLOOR: nearest landing EXACTLY on cost rounds up too — the invariant is strict", () => {
+    const atCost = rates({ deeds_search: 4348 }) // R50.00 incl → ×1.23 = R61.50 → nearest R50.00 → floor R75
     const q = applicantFeeCents({ bundle: singleProductBundle("deeds_search"), rates: atCost, policy: PRICING_POLICY })
-    expect(q).toMatchObject({ ok: false, reason: "below_cost" })
+    expect(q).toMatchObject({ ok: true, fee_cents: 7500, cost_incl_cents: 5000 })
+  })
+
+  it("fee > cost incl VAT for EVERY single-product cost from R0.01 to R300 — the floor leaves no gap", () => {
+    for (let c = 1; c <= 30_000; c += 7) {
+      const q = applicantFeeCents({ bundle: singleProductBundle("p"), rates: rates({ p: c }), policy: PRICING_POLICY })
+      if (!q.ok) throw new Error(`no quote at ${c}`)
+      expect(q.fee_cents, `cost_excl=${c}`).toBeGreaterThan(q.cost_incl_cents)
+      expect(q.fee_cents % 2500).toBe(0)
+    }
   })
 
   it("KNOWN-GOOD: the cheapest single product that clears banding quotes", () => {

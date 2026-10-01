@@ -8,7 +8,7 @@
  *         `name,price` pair after the header is REJECTED and reported, not skipped silently — a truncated or
  *         reshuffled export must be visible (§9.2).
  */
-import { VENDOR_NAME_TO_PRODUCT_KEY } from "@/lib/searchworx/rates/productNames"
+import { VENDOR_NAME_TO_PRODUCT, type MappingConfidence } from "@/lib/searchworx/rates/productNames"
 
 export interface PriceListRow {
   line: number
@@ -18,6 +18,7 @@ export interface PriceListRow {
 
 export interface MappedPrice extends PriceListRow {
   productKey: string
+  confidence: MappingConfidence
 }
 
 export interface PriceListReport {
@@ -65,11 +66,12 @@ export function parsePriceList(text: string): PriceListReport {
       continue
     }
     const row: PriceListRow = { line, name: cells[0], cents }
-    const productKey = VENDOR_NAME_TO_PRODUCT_KEY[row.name]
-    if (!productKey) {
+    const mapping = VENDOR_NAME_TO_PRODUCT[row.name]
+    if (!mapping) {
       report.unmapped.push(row)
       continue
     }
+    const { productKey, confidence } = mapping
     const prior = seen.get(productKey)
     if (prior !== undefined) {
       report.rejected.push({ line, text: raw, reason: `second price for ${productKey} (first at line ${prior}) — ambiguous, neither guessed` })
@@ -77,7 +79,7 @@ export function parsePriceList(text: string): PriceListReport {
       continue
     }
     seen.set(productKey, line)
-    report.mapped.push({ ...row, productKey })
+    report.mapped.push({ ...row, productKey, confidence })
   }
   return report
 }

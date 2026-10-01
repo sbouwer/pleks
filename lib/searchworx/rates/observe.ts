@@ -9,6 +9,7 @@
  *         date only; a billing row's Description is never passed in.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { MappingConfidence } from "@/lib/searchworx/rates/productNames"
 
 export type ObservationSource = "pricelist_import" | "pull_observed" | "billing_report"
 
@@ -17,6 +18,8 @@ export interface Observation {
   costExclVatCents: number
   source: ObservationSource
   sourceRef: string
+  /** How the vendor name became this product_key (§3.2, ruled 2026-10-01). Defaults to exact. */
+  mappingConfidence?: MappingConfidence
   /** The vendor's own date for this price, when the source carries one (YYYY-MM-DD). */
   vendorEffectiveDate?: string | null
   raw?: Record<string, string | number | null>
@@ -32,6 +35,7 @@ export async function recordObservations(db: SupabaseClient, observations: reado
       cost_excl_vat_cents: o.costExclVatCents,
       source: o.source,
       source_ref: o.sourceRef,
+      mapping_confidence: o.mappingConfidence ?? "exact",
       raw: { ...o.raw, vendor_effective_date: o.vendorEffectiveDate ?? null },
       created_by: o.createdBy ?? null,
     })),
