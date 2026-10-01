@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest"
 import {
   isSuretyParty,
   inviteHold,
+  inviteRoute,
   isJuristicApplicant,
   isJuristicApplication,
   orgMarkerFrom,
@@ -230,5 +231,22 @@ describe("inviteHold — a juristic surety who is not a director is held, nobody
   it("never holds a residential guarantor or a co-applicant", () => {
     expect(inviteHold({ party: surety(null), isJuristic: false })).toBeNull()
     expect(inviteHold({ party: { role: "co_applicant", is_surety_director: false, declared_director: null }, isJuristic: true })).toBeNull()
+  })
+})
+
+describe("inviteRoute — the one copy decision every sender reads (walker F1/F2)", () => {
+  const party = (role: string, declared_director: boolean | null, is_surety_director = false) => ({ role, is_surety_director, declared_director })
+  it("sends director copy only to a juristic director surety", () => {
+    expect(inviteRoute({ party: party("guarantor", true), isJuristic: true })).toBe("director")
+    expect(inviteRoute({ party: party("guarantor", null, true), isJuristic: true })).toBe("director")
+  })
+  it("holds a juristic non-director surety", () => {
+    expect(inviteRoute({ party: party("guarantor", false), isJuristic: true })).toBe("held")
+    expect(inviteRoute({ party: party("guarantor", null), isJuristic: true })).toBe("held")
+  })
+  it("sends joint-rental copy to a residential guarantor, even one answered 'director', and to a co-applicant", () => {
+    expect(inviteRoute({ party: party("guarantor", true), isJuristic: false })).toBe("co_applicant")
+    expect(inviteRoute({ party: party("co_applicant", null), isJuristic: false })).toBe("co_applicant")
+    expect(inviteRoute({ party: party("co_applicant", null), isJuristic: true })).toBe("co_applicant")
   })
 })

@@ -1,5 +1,5 @@
 /**
- * app/(applicant)/apply/[slug]/co-parties/ResendInviteButton.tsx — Client button for resending director invite
+ * app/(applicant)/apply/[slug]/co-parties/ResendInviteButton.tsx — Client button for re-sending a party's invite (copy chosen server-side)
  *
  * Auth:   No auth gate — called from the primary contact's co-parties view (token-gated parent page)
  * Data:   resendDirectorInvite server action

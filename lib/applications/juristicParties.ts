@@ -193,3 +193,16 @@ export type InviteHold = "awaiting_template"
 export function inviteHold(input: Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; isJuristic: boolean }>): InviteHold | null {
   return partyKind(input) === "surety" && !isDirectorSurety(input.party) ? "awaiting_template" : null
 }
+
+/**
+ * Which invite a party is SENT, by every sender: the roster's first invite, the co-parties Resend and the reminder
+ * cron. One answer, because the walker found the first two each choosing their own copy (one always joint-rental,
+ * one always director) while the cron alone routed by kind. `director` = `application.director_invited`;
+ * `co_applicant` = `application.co_applicant_invited` (a joint co-applicant or a residential guarantor, R3a);
+ * `held` = nothing is sent (R3).
+ */
+export type InviteRoute = "director" | "co_applicant" | "held"
+export function inviteRoute(input: Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; isJuristic: boolean }>): InviteRoute {
+  if (inviteHold(input)) return "held"
+  return partyKind(input) === "surety" ? "director" : "co_applicant"
+}

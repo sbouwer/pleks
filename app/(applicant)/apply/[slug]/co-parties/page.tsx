@@ -12,7 +12,7 @@
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
-import { SURETY_PARTY_OR_FILTER, isJuristicForCopy, type PartyKind } from "@/lib/applications/juristicParties"
+import { SURETY_PARTY_OR_FILTER, inviteHold, isJuristicForCopy, type PartyKind } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Clock, AlertCircle, Building2, User } from "lucide-react"
@@ -54,6 +54,7 @@ interface CoApplicant {
   declined_at: string | null
   is_surety_director: boolean
   role: string | null
+  declared_director: boolean | null
 }
 
 function StateChip({ state }: { state: string }) {
@@ -130,7 +131,7 @@ export default async function CoPartiesPage({
   // Fetch co-applicant rows for director details (status only — no results)
   const { data: coApps, error: coErr } = await service
     .from("application_co_applicants")
-    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director, role")
+    .select("id, first_name, last_name, applicant_email, access_token_expires, declined_at, is_surety_director, role, declared_director")
     .eq("primary_application_id", applicationId)
     // Both surety markers (M-118). This is the lookup that gives each director line its email,
     // expiry and resend button; filtered on `is_surety_director` alone, a surety added through the
@@ -187,6 +188,8 @@ export default async function CoPartiesPage({
       {directorLines.map((line) => {
         const coApp = directors.find((d) => d.id === line.subject_id)
         const isDeclined = !!coApp?.declined_at
+        // Held (P1-R3): no invite was sent and none may be, so no expiry to count down and no Resend (walker F2).
+        const isHeld = !!coApp && inviteHold({ party: coApp, isJuristic: juristic }) !== null
         const expiresIn = coApp?.access_token_expires
           ? Math.max(0, Math.ceil((new Date(coApp.access_token_expires).getTime() - now.getTime()) / 86_400_000))
           : null
@@ -214,14 +217,20 @@ export default async function CoPartiesPage({
                 </div>
               )}
 
-              {!isDeclined && line.state !== "complete" && expiresIn !== null && (
+              {!isDeclined && isHeld && (
+                <p className="text-xs text-amber-600">
+                  Invitation not sent yet: the wording for a surety who is not a director is awaiting legal review.
+                </p>
+              )}
+
+              {!isDeclined && !isHeld && line.state !== "complete" && expiresIn !== null && (
                 <div className="flex items-center gap-1.5 text-xs text-yellow-600">
                   <Clock className="size-3.5" />
                   <span>Link expires in {expiresIn} day{expiresIn !== 1 ? "s" : ""}</span>
                 </div>
               )}
 
-              {!isDeclined && line.state !== "complete" && coApp && (
+              {!isDeclined && !isHeld && line.state !== "complete" && coApp && (
                 <div className="flex gap-2 pt-1">
                   <ResendInviteButton
                     coApplicantId={coApp.id}

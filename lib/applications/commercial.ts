@@ -3,8 +3,9 @@
  *
  * Auth:   applicant token (public portal) or service role for cron/webhook callers
  * Data:   application_co_applicants, application_tokens, applications (read)
- * Notes:  What remains is the surety-invite RESEND (`resendDirectorInvite`, reached by the co-parties
- *         roster's button) and the invite send it shares. D-14B-01: each surety consents individually.
+ * Notes:  What remains is the invite RESEND (`resendDirectorInvite`, reached by the co-parties roster's button).
+ *         Its copy is `inviteRoute`'s: director, joint-rental or held (walker F2). The director send itself lives
+ *         in directorInvite.ts, outside this "use server" file. D-14B-01: each surety consents individually.
  *         RETIRED 2026-10-01 (BUILD_72 Phase 1, R1): `declareDirectors` and `replaceDirector`, with the
  *         /apply/[slug]/directors page, its form and the director-declaration route. The roster ("A guarantor /
  *         surety") is the one surety surface; the CIPC pull becomes the first writer of application_directors.
@@ -13,14 +14,12 @@
 "use server"
 
 import { createServiceClient } from "@/lib/supabase/server"
-import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
+import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
+import { sendCoApplicantInvited } from "@/lib/applications/emails"
+import { buildEmailContext } from "@/lib/applications/buildEmailContext"
+import { inviteRoute, isJuristicForCopy } from "@/lib/applications/juristicParties"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
-
-import { absoluteUrl } from "@/lib/routing/absoluteUrl"
-
-const DIRECTOR_TOKEN_TTL_DAYS = 14
 
 /**
  * Verifies the applicant credential against this application AND returns the application's own org.
@@ -55,73 +54,16 @@ async function resolveApplicationOrg(
   return data?.org_id ?? null
 }
 
-interface InviteContext {
-  orgId: string
-  applicationId: string
-  coApplicantId: string
-  token: string
-  directorEmail: string
-  directorFirstName: string
-}
-
-async function sendDirectorInvite(ctx: InviteContext): Promise<void> {
-  const service = await createServiceClient()
-
-  // Get application + listing context for email copy
-  const { data: app, error: appErr } = await service
-    .from("applications")
-    .select("first_name, last_name, listings(public_slug, units(unit_number, properties(name, address_line1, city)))")
-    .eq("id", ctx.applicationId)
-    .single()
-
-  if (appErr || !app) {
-    console.error("sendDirectorInvite — could not fetch application:", appErr?.message)
-    return
-  }
-
-  const listing = app.listings as unknown as {
-    public_slug: string
-    units: { unit_number: string; properties: { name: string; address_line1: string | null; city: string | null } }
-  } | null
-
-  const propertyLabel = listing
-    ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
-    : "the property"
-  const propertyAddress = listing?.units?.properties
-    ? [listing.units.properties.address_line1, listing.units.properties.city].filter(Boolean).join(", ")
-    : ""
-  const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
-
-  const slug = listing?.public_slug ?? ctx.applicationId
-  const portalUrl = absoluteUrl(`/apply/${slug}/director-portal/${ctx.token}`)
-
-  const orgSettings = await fetchOrgSettings(ctx.orgId)
-  const branding = buildBranding(orgSettings)
-
-  await sendEmail({
-    orgId: ctx.orgId,
-    templateKey: "application.director_invited",
-    to: { email: ctx.directorEmail, name: ctx.directorFirstName },
-    subject: `${primaryContactName}'s application — your portion to complete`,
-    emailElement: buildDirectorInviteElement({
-      directorFirstName: ctx.directorFirstName,
-      primaryContactName,
-      propertyLabel,
-      propertyAddress,
-      portalUrl,
-      ttlDays: DIRECTOR_TOKEN_TTL_DAYS,
-      branding,
-    }),
-    entityType: "application_co_applicant",
-    entityId: ctx.coApplicantId,
-    triggerEventType: "director_invite",
-    triggerEventId: ctx.applicationId,
-  })
-}
-
 /**
- * Regenerates a director's token and re-sends the invite email.
- * Called from the primary contact's "Resend invitation" button.
+ * Re-sends a party's invite from the primary contact's co-parties "Resend invitation" button.
+ *
+ * The COPY is `inviteRoute`'s, never this function's (walker F2, 2026-10-01). It used to send director copy to
+ * every party the roster lists, which includes residential guarantors (R3a: never director copy) and juristic
+ * non-director sureties (R3: held) — and rotating the token on the way killed a residential guarantor's working
+ * /apply/co-applicant link. Now:
+ *   - director     → rotate the token (and its 14-day expiry, which the copy states), send director_invited
+ *   - co_applicant → re-send co_applicant_invited on the EXISTING token, as the reminder cron does (P1-R5)
+ *   - held         → send nothing, rotate nothing; the page does not offer the button for a held party
  */
 export async function resendDirectorInvite(
   coApplicantId: string,
@@ -141,36 +83,58 @@ export async function resendDirectorInvite(
     return { ok: false, error: "Invalid or expired token" }
   }
 
-  const tokenExpires = new Date(Date.now() + DIRECTOR_TOKEN_TTL_DAYS * 86_400_000).toISOString()
-  const newToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")
+  const [{ data: app, error: appErr }, { data: party, error: partyErr }] = await Promise.all([
+    service.from("applications").select("entity_type, applicant_type, company_info")
+      .eq("id", applicationId).eq("org_id", orgId).maybeSingle(),
+    service.from("application_co_applicants")
+      .select("applicant_email, first_name, access_token, role, is_surety_director, declared_director")
+      .eq("id", coApplicantId).eq("primary_application_id", applicationId).eq("org_id", orgId)
+      .is("declined_at", null).maybeSingle(),
+  ])
+  logQueryError("resendDirectorInvite applications", appErr)
+  logQueryError("resendDirectorInvite application_co_applicants", partyErr)
+  if (!app || !party) {
+    return { ok: false, error: "Party not found or already declined" }
+  }
 
-  const { data: coApp, error } = await service
+  const route = inviteRoute({ party, isJuristic: isJuristicForCopy(app) })
+  if (route === "held") {
+    return { ok: false, error: "This invitation is held until its wording is approved" }
+  }
+
+  if (route === "co_applicant") {
+    const ctx = await buildEmailContext(applicationId)
+    if (!ctx) return { ok: false, error: "Could not send the invitation" }
+    const result = await sendCoApplicantInvited(
+      { firstName: party.first_name ?? "", email: party.applicant_email },
+      ctx.listingSummary, ctx.orgContext,
+      { accessToken: party.access_token, primaryApplicantName: [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" "),
+        resend: { coApplicantId, triggerEventType: "co_parties_resend", triggerEventId: applicationId } },
+    )
+    return result.success ? { ok: true } : { ok: false, error: "Could not send the invitation" }
+  }
+
+  const newToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")
+  const { error } = await service
     .from("application_co_applicants")
-    .update({
-      access_token:         newToken,
-      access_token_expires: tokenExpires,
-    })
+    .update({ access_token: newToken, access_token_expires: directorTokenExpiry() })
     .eq("id", coApplicantId)
     .eq("primary_application_id", applicationId)
     .eq("org_id", orgId) // org-scope guard (caller-ID census)
     .is("declined_at", null)
-    .select("applicant_email, first_name")
-    .single()
-
-  if (error || !coApp) {
+  if (error) {
     return { ok: false, error: "Director not found or already declined" }
   }
 
-  await sendDirectorInvite({
+  const result = await sendDirectorInvite({
     orgId,
     applicationId,
     coApplicantId,
     token: newToken,
-    directorEmail: coApp.applicant_email,
-    directorFirstName: coApp.first_name ?? "Director",
+    directorEmail: party.applicant_email,
+    directorFirstName: party.first_name ?? "Director",
   })
-
-  return { ok: true }
+  return result?.success ? { ok: true } : { ok: false, error: "Could not send the invitation" }
 }
 
 // Email element builders live in commercial-emails.tsx — plain sync functions
