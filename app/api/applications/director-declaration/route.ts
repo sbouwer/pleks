@@ -16,7 +16,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { declareDirectors, type DirectorDeclaration } from "@/lib/applications/commercial"
-import { orgMarkerFrom, requiresSuretyParty, validateJuristicParties } from "@/lib/applications/juristicParties"
+import { orgMarkerFrom, isJuristicApplicant } from "@/lib/applications/juristicParties"
 
 interface DirectorInput {
   firstName?: string
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
   const orgMarker = orgMarkerFrom(application.entity_type, application.applicant_type)
 
   // Individual applications 404 here (14G §3.1) — the route does not exist for them.
-  if (!requiresSuretyParty(orgMarker, companyType)) {
+  if (!isJuristicApplicant(orgMarker, companyType)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
@@ -143,22 +143,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Each director needs their own email address." }, { status: 400 })
   }
 
-  // The MIN_SURETY_PARTIES gate, applied at declaration rather than at payment. Refusing here means
-  // the applicant is told what is wrong while they are looking at the form, not at a card reader.
-  const gate = validateJuristicParties({
-    entityType: orgMarker,
-    companyType,
-    suretyCount: directors.filter((d) => d.isSigningSurety).length,
-  })
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error, code: "surety_party_required" }, { status: 409 })
-  }
+  // No minimum-surety check: a surety is optional (Stéan 2026-10-01, BUILD_72 R0). The "at least one"
+  // gate that stood here was retired with its unsourced 2026-08-15 attribution. This surface itself
+  // retires in BUILD_72 Phase 1 (R1 — the roster is the one surety surface).
 
   const result = await declareDirectors(applicationId, directors, token)
 
   // PARTIAL is a failure, not a success. `declareDirectors` logs and continues past a director whose
-  // INSERT fails, so a board can come back short — and a short board is exactly what the surety gate
-  // and the fee are computed from. Reporting ok on a partial write would tell the applicant their
+  // INSERT fails, so a board can come back short — and a short board is exactly what the
+  // fee is computed from. Reporting ok on a partial write would tell the applicant their
   // declaration is complete while a director they named does not exist.
   if (result.directors.length !== directors.length) {
     console.error(

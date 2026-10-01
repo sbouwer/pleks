@@ -115,11 +115,11 @@ export function getApplicationFee(isJoint: boolean): number {
  * The WHOLE fee for an application, by the lines it screens. One transaction covers every line.
  *
  * JURISTIC (pty_ltd / cc / npc / trust): the entity's own line PLUS one line per surety party
- * (director, or trustee for a trust) — rate card D-RATE-06, "R250 company + N × per-director". The
- * entity and its sureties are paid for TOGETHER (Stéan ruling 2026-08-15): a juristic applicant has no
- * consumer credit profile of its own, so screening the company without a surety human screens nothing.
- * At least one surety party is required — enforced by validateJuristicParties, not here, so this stays
- * a pure arithmetic function.
+ * (director, or trustee for a trust) — rate card D-RATE-06, "R250 company + N × per-director", N >= 0.
+ * The entity and any sureties are paid for TOGETHER, in one transaction. A surety is OPTIONAL — the
+ * company is screened on its own profile, and a surety is added only when it is not strong enough
+ * (Stéan 2026-10-01, BUILD_72 R0; the "at least one required" rule attributed to 2026-08-15 was never
+ * his and is retired).
  *
  * INDIVIDUAL: R250 single, R470 joint. NOT per-head — that is a recorded pricing decision, and
  * per-head pricing for 3+ residential applicants is blocked on the v2 Searchworx pipeline

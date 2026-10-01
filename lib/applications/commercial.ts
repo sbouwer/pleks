@@ -102,8 +102,9 @@ export async function declareDirectors(
 ): Promise<DeclareDirectorsResult> {
   const service = await createServiceClient()
 
-  // Auth + scope in one step. Gate-before-wiring — unwired today; when wired to the commercial flow
-  // (Step 1.5), this blocks unauthenticated director declaration for an arbitrary application.
+  // Auth + scope in one step: blocks unauthenticated director declaration for an arbitrary application.
+  // Called by `app/api/applications/director-declaration/route.ts` (since 2026-09-08), which nothing in
+  // the apply flow links to. RETIRES in BUILD_72 Phase 1 (R1: the roster is the one surety surface).
   const orgId = await resolveApplicationOrg(service, token, applicationId)
   if (!orgId) {
     return { directors: [], invited: 0 }
@@ -338,7 +339,7 @@ export async function replaceDirector(
 ): Promise<{ ok: boolean; newCoApplicantId?: string; error?: string }> {
   const service = await createServiceClient()
 
-  // Auth + scope (gate-before-wiring — unwired today).
+  // Auth + scope. No caller; RETIRES with declareDirectors in BUILD_72 Phase 1 (R1).
   const orgId = await resolveApplicationOrg(service, token, applicationId)
   if (!orgId) {
     return { ok: false, error: "Invalid or expired token" }
