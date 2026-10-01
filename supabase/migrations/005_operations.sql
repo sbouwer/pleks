@@ -3600,3 +3600,31 @@ ALTER TABLE searchworx_rate_observations ADD COLUMN IF NOT EXISTS mapping_confid
 ALTER TABLE searchworx_rate_observations DROP CONSTRAINT IF EXISTS searchworx_rate_observations_mapping_confidence_check;
 ALTER TABLE searchworx_rate_observations ADD CONSTRAINT searchworx_rate_observations_mapping_confidence_check
   CHECK (mapping_confidence IN ('exact', 'inferred'));
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.3 step 4: searchworx_rate_holds — a held price, once per (product, value)  (2026-10-01)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- A price beyond plausibilityThresholdPct is not applied by the cron; it is HELD for an admin to apply or
+-- reject (/api/admin/searchworx-rate). This table is that decision's state, and the reason the alert fires
+-- ONCE per (product, value) rather than every morning: the cron alerts only when it inserts the row.
+-- A rejected value is never re-held or applied by the cron; an applied one is applied by it thereafter.
+-- Platform table, no org_id (same exception as the two above); RLS on, NO policy — service client only.
+CREATE TABLE IF NOT EXISTS searchworx_rate_holds (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_key     text NOT NULL,
+  held_cents      integer NOT NULL CHECK (held_cents >= 0),
+  current_cents   integer,
+  observation_id  uuid NOT NULL REFERENCES searchworx_rate_observations(id),
+  status          text NOT NULL DEFAULT 'held' CHECK (status IN ('held', 'applied', 'rejected')),
+  first_held_at   timestamptz NOT NULL DEFAULT now(),
+  decided_at      timestamptz,
+  decision_note   text,
+  rate_id         uuid REFERENCES searchworx_rates(id),
+  UNIQUE (product_key, held_cents)
+);
+
+COMMENT ON TABLE searchworx_rate_holds IS
+  'ADDENDUM_14V §3.3 step 4. One row per (product, held value). Inserted by searchworx-rate-sync (the insert IS the alert); decided by /api/admin/searchworx-rate, audited under PLATFORM_ORG_ID.';
+
+ALTER TABLE searchworx_rate_holds ENABLE ROW LEVEL SECURITY;

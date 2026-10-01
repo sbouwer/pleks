@@ -29,9 +29,16 @@ describe("selectCurrentRates", () => {
     expect(selectCurrentRates(all.slice(0, 2), ["p"], d).rates.get("p")?.costExclVatCents).toBe(2)
   })
 
-  it("a newer list row beats an older billing row — the date decides first", () => {
+  it("HIERARCHY: once billed, a newer list row never beats the billing row", () => {
     const r = selectCurrentRates([row("p", 3, "2026-09-01", "billing_report"), row("p", 1, "2026-10-01", "pricelist_import")], ["p"], "2026-10-01")
-    expect(r.rates.get("p")?.costExclVatCents).toBe(1)
+    expect(r.rates.get("p")?.costExclVatCents).toBe(3)
+  })
+
+  it("KNOWN-GOOD: the date still decides among non-list sources, and before the first billing row", () => {
+    const later = [row("p", 3, "2026-09-01", "billing_report"), row("p", 5, "2026-10-01", "admin_override")]
+    expect(selectCurrentRates(later, ["p"], "2026-10-01").rates.get("p")?.costExclVatCents).toBe(5)
+    const unbilledYet = [row("p", 1, "2026-09-01", "pricelist_import"), row("p", 3, "2026-11-01", "billing_report")]
+    expect(selectCurrentRates(unbilledYet, ["p"], "2026-10-01").rates.get("p")?.costExclVatCents).toBe(1)
   })
 
   it("a product with no row is MISSING, never zero", () => {

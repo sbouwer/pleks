@@ -2,23 +2,29 @@
  * lib/searchworx/rates/sync.ts — the daily rate sync: observe, compare, apply or hold (ADDENDUM_14V §3.3)
  *
  * Auth:   none of its own — server-only; the caller is app/api/cron/searchworx-rate-sync (requireCronAuth).
- * Data:   reads + inserts searchworx_rate_observations and searchworx_rates (platform tables, service client)
+ * Data:   reads + inserts searchworx_rate_observations, searchworx_rates and searchworx_rate_holds (platform
+ *         tables, service client)
  * Notes:  decideRateMoves is PURE and holds every rule of §3.3; runRateSync is the I/O around it and returns
  *         alerts rather than raising them, so the route owns Sentry and the tests own nothing but data.
- *         Per product, against the rate CURRENT today and the newest observation (by observed_at):
+ *         SOURCE HIERARCHY (ruled 2026-10-01): a product that has EVER been billed (a billing_report or
+ *         pull_observed observation exists) is compared against its newest vendor-statement observation only —
+ *         a list import never moves it. A list price BELOW the billed rate is a warning (on the run after the
+ *         import), because a list under the contract price means one of the two is wrong. read.ts applies the
+ *         same rule to rate rows, so a list row written before the first billing row cannot outrank it later.
+ *         Per product, against the rate CURRENT today and that candidate observation:
  *           · no observation at all → reported (§3.3 step 6 — a rate with no observation path)
  *           · the observation is already linked from a rate row → nothing (re-runs write nothing)
- *           · no current rate → apply (nothing to measure a mismatch against; this is how the first import
- *             becomes the first rates)
- *           · equal → nothing; a mismatch within plausibilityThresholdPct → apply; beyond it → HOLD: no rate row,
- *             one alert naming product, old, new and source. The hold re-alerts on every run until an admin
- *             acts, because the alert is the control (§4) and a held rate is not a state to forget.
+ *           · no current rate → apply (how the first import becomes the first rates)
+ *           · equal → nothing; a move within plausibilityThresholdPct → apply; beyond it → HOLD
+ *         A HOLD is a searchworx_rate_holds row per (product, value). The cron alerts only when it INSERTS that
+ *         row, so a held value alerts once, not every morning (ruled 2026-10-01); it stays counted in `held`
+ *         on every run until an admin decides it. A rejected value is never applied or re-alerted; an
+ *         admin-applied value is applied by the cron when it is observed again.
  *         An applied row is dated to the observation's vendor date, else today (§3.3 step 3), and links
- *         observation_id. A UNIQUE (product_key, effective_date, source) collision is reported, never thrown —
- *         it means two different prices for one product on one vendor date, which a human must read.
- *         Billing is fetched for YESTERDAY (SA). A failed or unreadable fetch records nothing from billing but
- *         the comparison still runs over what is recorded — an outage at the vendor must not also stall the
- *         price-list import's promotion — and the route turns the failure into Sentry + 502.
+ *         observation_id. A UNIQUE (product_key, effective_date, source) collision is reported, never thrown.
+ *         Billing is fetched for one day — yesterday (SA) unless the caller backfills a date. A failed or
+ *         unreadable fetch records nothing from billing but the comparison still runs over what is recorded,
+ *         and the route turns the failure into Sentry + 502.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { addCalendarDays, diffCalendarDays } from "@/lib/dates"
@@ -41,11 +47,22 @@ export interface LatestObservation {
   raw: Record<string, unknown> | null
 }
 
+export type HoldStatus = "held" | "applied" | "rejected"
+
+/** Newest observation per product, split by kind — the hierarchy needs both. */
+export interface ProductObservations {
+  /** Newest billing_report / pull_observed observation: the vendor's own statement. */
+  billed: LatestObservation | null
+  /** Newest pricelist_import observation. */
+  list: LatestObservation | null
+}
+
 export type RateDecision =
   | { kind: "no_observation"; productKey: string; hasRate: boolean }
   | { kind: "unchanged"; productKey: string; reason: "equal" | "already_applied" }
   | { kind: "apply"; productKey: string; observation: LatestObservation; effectiveDate: string; fromCents: number | null }
-  | { kind: "hold"; productKey: string; observation: LatestObservation; fromCents: number; pct: number }
+  | { kind: "hold"; productKey: string; observation: LatestObservation; fromCents: number; pct: number; existing: HoldStatus | null }
+  | { kind: "rejected"; productKey: string; observation: LatestObservation }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -53,6 +70,8 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 const SYNCED_PRODUCT_KEYS: readonly string[] = [
   ...new Set(Object.values(VENDOR_NAME_TO_PRODUCT).map((v) => v.productKey)),
 ].sort((a, b) => a.localeCompare(b))
+
+export const holdKey = (productKey: string, cents: number) => `${productKey}|${cents}`
 
 function vendorDay(o: LatestObservation): string | null {
   const d = o.raw?.vendor_effective_date
@@ -62,7 +81,8 @@ function vendorDay(o: LatestObservation): string | null {
 export function decideRateMoves(args: {
   productKeys: readonly string[]
   rateRows: readonly LinkedRateRow[]
-  latest: ReadonlyMap<string, LatestObservation>
+  observations: ReadonlyMap<string, ProductObservations>
+  holds: ReadonlyMap<string, HoldStatus>
   thresholdPct: number
   today: string
 }): RateDecision[] {
@@ -71,7 +91,8 @@ export function decideRateMoves(args: {
 
   return args.productKeys.map((productKey): RateDecision => {
     const current = rates.get(productKey)
-    const obs = args.latest.get(productKey)
+    const seen = args.observations.get(productKey)
+    const obs = seen?.billed ?? seen?.list ?? null // HIERARCHY: once billed, the list never moves the rate
     if (!obs) return { kind: "no_observation", productKey, hasRate: current !== undefined }
     if (applied.has(obs.id)) return { kind: "unchanged", productKey, reason: "already_applied" }
 
@@ -83,20 +104,52 @@ export function decideRateMoves(args: {
     if (from === to) return { kind: "unchanged", productKey, reason: "equal" }
 
     const pct = from === 0 ? Number.POSITIVE_INFINITY : (Math.abs(to - from) / from) * 100
-    if (pct > args.thresholdPct) return { kind: "hold", productKey, observation: obs, fromCents: from, pct }
-    return { kind: "apply", productKey, observation: obs, effectiveDate, fromCents: from }
+    if (pct <= args.thresholdPct) return { kind: "apply", productKey, observation: obs, effectiveDate, fromCents: from }
+
+    const existing = args.holds.get(holdKey(productKey, to)) ?? null
+    if (existing === "rejected") return { kind: "rejected", productKey, observation: obs }
+    if (existing === "applied") return { kind: "apply", productKey, observation: obs, effectiveDate, fromCents: from }
+    return { kind: "hold", productKey, observation: obs, fromCents: from, pct, existing }
   })
 }
 
-/** Products whose newest observation is older than the stale window (§3.3 step 5). Never blocks quoting. */
+/**
+ * Billed products whose newest list price is BELOW the billed current rate, reported on the run after the
+ * list was imported (observed today or yesterday) so one import warns once, not daily.
+ */
+function listBelowBilled(args: {
+  productKeys: readonly string[]
+  rateRows: readonly LinkedRateRow[]
+  observations: ReadonlyMap<string, ProductObservations>
+  today: string
+}): { productKey: string; listCents: number; billedCents: number }[] {
+  const { rates } = selectCurrentRates(args.rateRows, args.productKeys, args.today)
+  const out: { productKey: string; listCents: number; billedCents: number }[] = []
+  for (const productKey of args.productKeys) {
+    const seen = args.observations.get(productKey)
+    const current = rates.get(productKey)
+    if (!seen?.billed || !seen.list || !current) continue
+    if (diffCalendarDays(new Date(seen.list.observed_at), args.today) > 1) continue
+    if (seen.list.cost_excl_vat_cents < current.costExclVatCents) {
+      out.push({ productKey, listCents: seen.list.cost_excl_vat_cents, billedCents: current.costExclVatCents })
+    }
+  }
+  return out
+}
+
+/** Products whose newest observation of any kind is older than the stale window (§3.3 step 5). */
 export function staleProducts(args: {
-  latest: ReadonlyMap<string, LatestObservation>
+  observations: ReadonlyMap<string, ProductObservations>
   staleAfterDays: number
   today: string
 }): { productKey: string; days: number }[] {
   const out: { productKey: string; days: number }[] = []
-  for (const [productKey, o] of args.latest) {
-    const days = diffCalendarDays(new Date(o.observed_at), args.today)
+  for (const [productKey, seen] of args.observations) {
+    const newest = [seen.billed, seen.list]
+      .filter((o): o is LatestObservation => o !== null)
+      .reduce<string>((m, o) => (o.observed_at > m ? o.observed_at : m), "")
+    if (!newest) continue
+    const days = diffCalendarDays(new Date(newest), args.today)
     if (days > args.staleAfterDays) out.push({ productKey, days })
   }
   return out
@@ -116,13 +169,18 @@ export interface SyncResult {
     billing_rows: number
     recorded: number
     applied: number
+    /** Products whose candidate price is held right now — new or still awaiting an admin. */
     held: number
+    /** Holds first raised by THIS run — the ones that alerted. */
+    held_new: number
+    rejected: number
     unchanged: number
     stale: number
     no_observation: number
+    list_below_billed: number
     conflicts: number
     unmapped: number
-    rejected: number
+    rejected_rows: number
   }
   alerts: SyncAlert[]
 }
@@ -140,7 +198,7 @@ async function recordBilling(
   result.summary.billing_rows = fetched.rows.length
   const parsed = billingObservations(fetched.rows, billingDay)
   result.summary.unmapped = parsed.unmapped.length
-  result.summary.rejected = parsed.rejected.length
+  result.summary.rejected_rows = parsed.rejected.length
   if (parsed.rejected.length > 0) {
     result.sourceFailure = `billing report for ${billingDay} has ${parsed.rejected.length} unreadable row(s) — nothing recorded: ${parsed.rejected
       .slice(0, 3)
@@ -167,20 +225,42 @@ async function recordBilling(
   result.summary.recorded = await recordObservations(db, fresh)
 }
 
-async function readLatest(db: SupabaseClient, productKeys: readonly string[]): Promise<Map<string, LatestObservation>> {
-  const rows = await Promise.all(
-    productKeys.map(async (k) => {
-      const { data, error } = await db
-        .from("searchworx_rate_observations")
-        .select("id, product_key, cost_excl_vat_cents, source, observed_at, raw")
-        .eq("product_key", k)
-        .order("observed_at", { ascending: false })
-        .limit(1)
-      if (error) throw new Error(`runRateSync: observation read failed for ${k} — ${error.message}`)
-      return (data?.[0] ?? null) as LatestObservation | null
+const OBS_COLUMNS = "id, product_key, cost_excl_vat_cents, source, observed_at, raw"
+
+async function newestOf(db: SupabaseClient, productKey: string, sources: readonly ObservationSource[]): Promise<LatestObservation | null> {
+  const { data, error } = await db
+    .from("searchworx_rate_observations")
+    .select(OBS_COLUMNS)
+    .eq("product_key", productKey)
+    .in("source", [...sources])
+    .order("observed_at", { ascending: false })
+    .limit(1)
+  if (error) throw new Error(`runRateSync: observation read failed for ${productKey} — ${error.message}`)
+  return (data?.[0] ?? null) as LatestObservation | null
+}
+
+async function readObservations(db: SupabaseClient, productKeys: readonly string[]): Promise<Map<string, ProductObservations>> {
+  const pairs = await Promise.all(
+    productKeys.map(async (k): Promise<[string, ProductObservations]> => {
+      const [billed, list] = await Promise.all([
+        newestOf(db, k, ["billing_report", "pull_observed"]),
+        newestOf(db, k, ["pricelist_import"]),
+      ])
+      return [k, { billed, list }]
     }),
   )
-  return new Map(rows.filter((r): r is LatestObservation => r !== null).map((r) => [r.product_key, r]))
+  return new Map(pairs.filter(([, o]) => o.billed !== null || o.list !== null))
+}
+
+async function readHolds(db: SupabaseClient, productKeys: readonly string[]): Promise<Map<string, HoldStatus>> {
+  const { data, error } = await db
+    .from("searchworx_rate_holds")
+    .select("product_key, held_cents, status")
+    .in("product_key", [...productKeys])
+  if (error) throw new Error(`runRateSync: searchworx_rate_holds read failed — ${error.message}`)
+  return new Map(
+    ((data ?? []) as { product_key: string; held_cents: number; status: HoldStatus }[]).map((h) => [holdKey(h.product_key, h.held_cents), h.status]),
+  )
 }
 
 async function applyRate(db: SupabaseClient, d: Extract<RateDecision, { kind: "apply" }>, result: SyncResult): Promise<void> {
@@ -211,6 +291,32 @@ async function applyRate(db: SupabaseClient, d: Extract<RateDecision, { kind: "a
   })
 }
 
+/** Inserts the hold row; the insert is the alert. A concurrent insert of the same hold (23505) is not a new hold. */
+async function raiseHold(db: SupabaseClient, d: Extract<RateDecision, { kind: "hold" }>, thresholdPct: number, result: SyncResult): Promise<void> {
+  result.summary.held++
+  if (d.existing !== null) return
+  const { error } = await db.from("searchworx_rate_holds").insert({
+    product_key: d.productKey,
+    held_cents: d.observation.cost_excl_vat_cents,
+    current_cents: d.fromCents,
+    observation_id: d.observation.id,
+  })
+  if (error?.code === "23505") return
+  if (error) throw new Error(`runRateSync: hold insert failed for ${d.productKey} — ${error.message}`)
+  result.summary.held_new++
+  result.alerts.push({
+    level: "error",
+    message: `searchworx-rate-sync: ${d.productKey} HELD — observed price moved ${d.pct.toFixed(1)}%, beyond the ${thresholdPct}% guard`,
+    extra: {
+      product_key: d.productKey,
+      old_cents: d.fromCents,
+      new_cents: d.observation.cost_excl_vat_cents,
+      source: d.observation.source,
+      observation_id: d.observation.id,
+    },
+  })
+}
+
 export async function runRateSync(
   db: SupabaseClient,
   deps: {
@@ -218,15 +324,20 @@ export async function runRateSync(
     fetchBilling: (dayISO: string) => Promise<BillingFetch>
     thresholdPct: number
     staleAfterDays: number
+    /** Backfill one past day instead of yesterday (validated by the route). */
+    billingDay?: string
     productKeys?: readonly string[]
   },
 ): Promise<SyncResult> {
   const productKeys = deps.productKeys ?? SYNCED_PRODUCT_KEYS
-  const billingDay = addCalendarDays(deps.today, -1)
+  const billingDay = deps.billingDay ?? addCalendarDays(deps.today, -1)
   const result: SyncResult = {
     billingDay,
     sourceFailure: null,
-    summary: { billing_rows: 0, recorded: 0, applied: 0, held: 0, unchanged: 0, stale: 0, no_observation: 0, conflicts: 0, unmapped: 0, rejected: 0 },
+    summary: {
+      billing_rows: 0, recorded: 0, applied: 0, held: 0, held_new: 0, rejected: 0, unchanged: 0, stale: 0,
+      no_observation: 0, list_below_billed: 0, conflicts: 0, unmapped: 0, rejected_rows: 0,
+    },
     alerts: [],
   }
 
@@ -237,40 +348,34 @@ export async function runRateSync(
     .select("product_key, cost_excl_vat_cents, effective_date, source, observation_id")
     .in("product_key", [...productKeys])
   if (error) throw new Error(`runRateSync: searchworx_rates read failed — ${error.message}`)
-  const latest = await readLatest(db, productKeys)
+  const rows = (rateRows ?? []) as LinkedRateRow[]
+  const [observations, holds] = await Promise.all([readObservations(db, productKeys), readHolds(db, productKeys)])
 
-  const decisions = decideRateMoves({
-    productKeys,
-    rateRows: (rateRows ?? []) as LinkedRateRow[],
-    latest,
-    thresholdPct: deps.thresholdPct,
-    today: deps.today,
-  })
+  const decisions = decideRateMoves({ productKeys, rateRows: rows, observations, holds, thresholdPct: deps.thresholdPct, today: deps.today })
 
-  // One insert per product, independent of each other — concurrent, never a partial-batch rollback to reason about.
-  await Promise.all(decisions.filter((d) => d.kind === "apply").map((d) => applyRate(db, d, result)))
+  // One write per product, independent of each other — concurrent, never a partial batch to reason about.
+  await Promise.all(
+    decisions.map((d) => {
+      if (d.kind === "apply") return applyRate(db, d, result)
+      if (d.kind === "hold") return raiseHold(db, d, deps.thresholdPct, result)
+      if (d.kind === "unchanged") result.summary.unchanged++
+      else if (d.kind === "rejected") result.summary.rejected++
+      else result.summary.no_observation++
+      return Promise.resolve()
+    }),
+  )
 
-  for (const d of decisions) {
-    if (d.kind === "apply") continue
-    if (d.kind === "unchanged") result.summary.unchanged++
-    else if (d.kind === "no_observation") result.summary.no_observation++
-    else {
-      result.summary.held++
-      result.alerts.push({
-        level: "error",
-        message: `searchworx-rate-sync: ${d.productKey} HELD — observed price moved ${d.pct.toFixed(1)}%, beyond the ${deps.thresholdPct}% guard`,
-        extra: {
-          product_key: d.productKey,
-          old_cents: d.fromCents,
-          new_cents: d.observation.cost_excl_vat_cents,
-          source: d.observation.source,
-          observation_id: d.observation.id,
-        },
-      })
-    }
+  const below = listBelowBilled({ productKeys, rateRows: rows, observations, today: deps.today })
+  result.summary.list_below_billed = below.length
+  for (const b of below) {
+    result.alerts.push({
+      level: "warning",
+      message: `searchworx-rate-sync: ${b.productKey} list price is BELOW the billed rate — one of the two is wrong`,
+      extra: { product_key: b.productKey, list_cents: b.listCents, billed_cents: b.billedCents },
+    })
   }
 
-  const stale = staleProducts({ latest, staleAfterDays: deps.staleAfterDays, today: deps.today })
+  const stale = staleProducts({ observations, staleAfterDays: deps.staleAfterDays, today: deps.today })
   result.summary.stale = stale.length
   for (const s of stale) {
     result.alerts.push({

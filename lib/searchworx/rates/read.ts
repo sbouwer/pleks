@@ -7,6 +7,10 @@
  * Notes:  Current rate = the greatest effective_date on or before as-at; a tie goes admin_override >
  *         billing_report > pull_observed > pricelist_import (the vendor's own statement of what it charged
  *         outranks any list). A product with no qualifying row is MISSING — never zero (§4, §5).
+ *         SOURCE HIERARCHY (ruled 2026-10-01): once a product has a billing_report row on or before as-at,
+ *         its pricelist_import rows are ignored whatever their date. The list is the vendor's Default
+ *         ceiling, the billed price is the account's contract price, so a newer list must not reprice a
+ *         product the account has actually been charged for.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { CurrentRate } from "@/lib/screening/pricing"
@@ -34,9 +38,11 @@ export interface CurrentRates {
 
 /** Pure selection over already-read rows. */
 export function selectCurrentRates(rows: readonly RateRow[], productKeys: readonly string[], asAt: string): CurrentRates {
+  const billed = new Set(rows.filter((r) => r.source === "billing_report" && r.effective_date <= asAt).map((r) => r.product_key))
   const best = new Map<string, RateRow>()
   for (const r of rows) {
     if (r.effective_date > asAt || !productKeys.includes(r.product_key)) continue
+    if (r.source === "pricelist_import" && billed.has(r.product_key)) continue
     const cur = best.get(r.product_key)
     if (
       !cur ||

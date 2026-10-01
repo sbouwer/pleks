@@ -63,6 +63,7 @@
     "whatsapp_cs_windows": "keyed by phone number, spans orgs by nature of the channel",
     "document_template_versions": "child of document_templates; scoped through its parent",
     "insurance_checklist_items": "platform-provided checklist catalogue",
-    "property_insurance_checklist_events": "child of a property-scoped row; scoped through its parent"
+    "property_insurance_checklist_events": "child of a property-scoped row; scoped through its parent",
+    "searchworx_rate_holds": "ADDENDUM_14V §3.3 step 4: admin decisions on held vendor prices; platform-level, service-client only, holds no subject"
   }
 }

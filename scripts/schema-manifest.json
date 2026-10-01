@@ -3195,6 +3195,18 @@
       "created_by",
       "created_at"
     ],
+    "searchworx_rate_holds": [
+      "id",
+      "product_key",
+      "held_cents",
+      "current_cents",
+      "observation_id",
+      "status",
+      "first_held_at",
+      "decided_at",
+      "decision_note",
+      "rate_id"
+    ],
     "searchworx_rate_observations": [
       "id",
       "product_key",
@@ -5354,6 +5366,14 @@
     "screening_jobs_status_check": {
       "table": "screening_jobs",
       "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'failed'::text])))"
+    },
+    "searchworx_rate_holds_held_cents_check": {
+      "table": "searchworx_rate_holds",
+      "def": "CHECK ((held_cents >= 0))"
+    },
+    "searchworx_rate_holds_status_check": {
+      "table": "searchworx_rate_holds",
+      "def": "CHECK ((status = ANY (ARRAY['held'::text, 'applied'::text, 'rejected'::text])))"
     },
     "searchworx_rate_observations_cost_excl_vat_cents_check": {
       "table": "searchworx_rate_observations",

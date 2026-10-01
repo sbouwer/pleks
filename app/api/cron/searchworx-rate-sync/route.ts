@@ -1,7 +1,7 @@
 /**
  * app/api/cron/searchworx-rate-sync/route.ts — daily Searchworx rate sync (ADDENDUM_14V §3.3)
  *
- * Route:  GET /api/cron/searchworx-rate-sync
+ * Route:  GET /api/cron/searchworx-rate-sync[?date=YYYY-MM-DD]  (date = backfill one billing day, today or earlier)
  * Auth:   x-cron-secret header (requireCronAuth) — runs inside the daily orchestrator; GET kept for direct testability
  * Data:   Searchworx /billingreports/company/ (yesterday) → searchworx_rate_observations; compares against
  *         searchworx_rates and inserts a rate row only on a plausible change; its own cron_runs row
@@ -27,10 +27,20 @@ import { PRICING_POLICY } from "@/lib/screening/pricingPolicy.v1"
 export const runtime = "nodejs"
 
 const JOB = "searchworx-rate-sync"
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 
 export async function GET(request: NextRequest) {
   const denied = requireCronAuth(request)
   if (denied) return denied
+
+  // Backfill (ruled 2026-10-01): ?date=YYYY-MM-DD fetches that one day instead of yesterday. Re-running a day
+  // records nothing twice (billing_key), so a backfill is safe to repeat — which is also why TODAY is allowed:
+  // a partial day records what is billed so far, and tomorrow's scheduled run adds the rest. The future is refused.
+  const today = saTodayISO()
+  const date = request.nextUrl.searchParams.get("date")
+  if (date !== null && (!ISO_DAY.test(date) || date > today)) {
+    return NextResponse.json({ error: "date must be today or a past day, YYYY-MM-DD" }, { status: 400 })
+  }
 
   const db = await createServiceClient()
   const runId = crypto.randomUUID()
@@ -44,7 +54,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await runRateSync(db, {
-      today: saTodayISO(),
+      today,
+      billingDay: date ?? undefined,
       fetchBilling: fetchBillingReport,
       thresholdPct: PRICING_POLICY.plausibilityThresholdPct,
       staleAfterDays: PRICING_POLICY.staleAfterDays,
