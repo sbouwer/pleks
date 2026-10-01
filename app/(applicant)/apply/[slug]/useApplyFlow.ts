@@ -498,6 +498,11 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
       if (!fillerSignatory && !coSignatory) {
         toast.error("A director is required to sign on the company's behalf — add a director, or set someone's designation to Director."); return
       }
+      // P1-R7b: a juristic surety row answers the director question (declared_director). Only a director may get the
+      // counsel-reviewed director copy, so an unanswered row would sit held with no visible reason; ask here instead.
+      if (isJuristicCompanyType(company.companyType) && coApplicants.some((c) => c.role === "guarantor" && typeof c.declaredDirector !== "boolean")) {
+        toast.error("For each guarantor / surety, say whether they are a director of the company."); return
+      }
     }
     setBusy(true)
     try {

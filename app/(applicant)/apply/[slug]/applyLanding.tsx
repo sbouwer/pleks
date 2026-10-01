@@ -204,12 +204,22 @@ function CompanyParties({ company, setCompany, form, set, coApplicants, setCoApp
                   removable — the ✗ tucks INTO this cell so only this box shrinks. */}
               <span className="flex min-w-[110px] flex-1 items-center gap-1">
                 {/* Guarantor/surety → the guarantor ROLE (income backstops the rent); everyone else is a co-party. */}
-                <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant" })} className={CO_DESIGNATION_INNER} aria-label="Designation">
+                {/* P1-R7b: one designation per row. A Director row is a signatory and writes nothing to declared_director;
+                    leaving Guarantor/surety clears the answer so it can never outlive the role it was asked for. */}
+                <select value={c.designation ?? "director"} onChange={(e) => updateCo(i, { designation: e.target.value, role: e.target.value === "guarantor" ? "guarantor" : "co_applicant", ...(e.target.value === "guarantor" ? {} : { declaredDirector: null }) })} className={CO_DESIGNATION_INNER} aria-label="Designation">
                   <option value="director">Director</option>
                   <option value="shareholder">Shareholder</option>
                   <option value="guarantor">Guarantor / surety</option>
                   <option value="other">Other</option>
                 </select>
+                {/* P1-R7b: the Guarantor/surety row on a juristic company asks the director yes/no → declared_director. */}
+                {c.role === "guarantor" && isJuristicCompanyType(company.companyType) && (
+                  <select value={typeof c.declaredDirector === "boolean" ? String(c.declaredDirector) : ""} onChange={(e) => updateCo(i, { declaredDirector: e.target.value === "" ? null : e.target.value === "true" })} className={CO_DESIGNATION_INNER} aria-label="Is this person a director of the company?">
+                    <option value="">A director?</option>
+                    <option value="true">Is a director</option>
+                    <option value="false">Not a director</option>
+                  </select>
+                )}
                 {i >= mandatoryCo && <button type="button" onClick={() => removeCo(i)} aria-label="Remove this person" className={CO_DELETE_BTN}><X className="size-4" /></button>}
               </span>
             </div>
