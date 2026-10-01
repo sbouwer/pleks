@@ -5,8 +5,9 @@
  *         in the fixture table, never assumed from the margin: nearest-banding can round down, so a cheap
  *         enough bundle CAN land at or below cost, and the FLOOR (ruled 2026-10-01) rounds it up to the first
  *         band strictly above cost rather than sell it at a loss or refuse it.
- *         The fixture is the billed cost basis (`.handoff/14v-rate-engine/07-cost-basis.md`, ruled
- *         2026-10-01) plus the 2026-10-01 Default list ceiling for the same products.
+ *         The fixture is the billed cost basis (the 2026-10-01 billing report, recorded in prod
+ *         searchworx_rates as source=billing_report by the first rate sync) plus the 2026-10-01 Default list
+ *         ceiling for the same products.
  */
 import { describe, expect, it } from "vitest"
 import { applicantFeeCents, band, type RateMap } from "@/lib/screening/pricing"
@@ -17,7 +18,7 @@ function rates(cents: Record<string, number>, effectiveDate = "2026-10-01"): Rat
   return new Map(Object.entries(cents).map(([k, v]) => [k, { productKey: k, costExclVatCents: v, effectiveDate }]))
 }
 
-// As billed on /billingreports/company/ (07-cost-basis.md) and the Default list ceiling (§9.6).
+// As billed on /billingreports/company/ for 2026-10-01 (prod searchworx_rates, billing_report) and the Default list ceiling (§9.6).
 const BILLED = rates({ combined_consumer_credit_report: 17000, vccb_income_estimator: 635, compuscan_company_profile: 11000, cipc_company: 1565 })
 const LIST = rates({ combined_consumer_credit_report: 19410, vccb_income_estimator: 715, compuscan_company_profile: 12980, cipc_company: 1770 })
 

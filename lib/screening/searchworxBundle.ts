@@ -103,7 +103,8 @@ const SEARCHWORX_BUNDLE_COMPANY: readonly SearchworxCheck[] = [
  *   · every natural person is priced on the SA bundle, foreign or not (§9.5b — the foreign bundle's lower
  *     cost is margin, never a second price);
  *   · the entity line is the two BILLED company products. CIPC Director is not in it: unbilled, and the
- *     board arrives with the company result (07-cost-basis, 2026-10-01).
+ *     board arrives with the company result (the 2026-10-01 billing report, recorded as
+ *     searchworx_rates source=billing_report by the first rate sync).
  */
 const ENTITY_LINE_PRODUCT_KEYS: readonly string[] = ["compuscan_company_profile", "cipc_company"]
 
