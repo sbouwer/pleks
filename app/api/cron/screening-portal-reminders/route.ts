@@ -4,7 +4,8 @@
  * Route:  GET /api/cron/screening-portal-reminders
  * Auth:   x-cron-secret header
  * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones
- *         for surety directors who have not yet completed their portal portions.
+ *         for surety parties (`isSuretyParty`) who have not yet completed their portal portions.
+ *         A non-surety co-applicant line is skipped, never sent director copy (BUILD_72 P1-R1).
  *         T+14: director line cancelled, payment flagged for manual refund (14C), expiry email sent.
  *         Primary contact notified at T+7 and T+10 (informational only).
  *         Milestone tracking: reminder_milestones_sent jsonb on application_co_applicants prevents
@@ -22,6 +23,7 @@ import { requireCronAuth } from "@/lib/cron/auth"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
+import { isSuretyParty } from "@/lib/applications/juristicParties"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -100,12 +102,17 @@ function resolveListingLabel(listings: unknown): { slug: string; propertyLabel: 
 async function processDirectorLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("applicant_email, first_name, created_at, primary_application_id, access_token, reminder_milestones_sent")
+    .select("applicant_email, first_name, created_at, primary_application_id, access_token, reminder_milestones_sent, role, is_surety_director")
     .eq("id", line.subject_id)
     .is("declined_at", null)
     .single()
 
   if (coErr || !coApp) return "skipped"
+  // FAIL-CLOSED (BUILD_72 P1-R1, commit 1 of 3): the view lists EVERY live co-applicant as a line, and
+  // everything below sends director copy and the director-portal link. A residential joint co-applicant
+  // must never receive that, so a non-surety row is skipped until the view carries `party_kind` and the
+  // cron routes copy by it (commits 2 and 3). Skipping is the safe failure — no email beats a wrong one.
+  if (!isSuretyParty(coApp)) return "skipped"
 
   const daysElapsed = Math.floor((Date.now() - new Date(coApp.created_at as string).getTime()) / 86_400_000)
 
