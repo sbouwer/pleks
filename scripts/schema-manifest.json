@@ -310,7 +310,8 @@
       "started_at",
       "completed_at",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "searchworx_envelope_meta"
     ],
     "application_screening_payments": [
       "id",
@@ -3755,7 +3756,8 @@
       "paid_at",
       "consented_at",
       "expires_at",
-      "state"
+      "state",
+      "party_kind"
     ],
     "vendor_usage": [
       "id",
@@ -3942,6 +3944,9 @@
     "is_mfa_fresh": [
       "window_minutes"
     ],
+    "is_surety_party": [
+      "caa"
+    ],
     "is_tenant_membership_active": [
       "row_data"
     ],
@@ -4035,6 +4040,9 @@
       "p_lease_id",
       "p_statement_month",
       "p_allocations"
+    ],
+    "stale_recovery_emails": [
+      "p_org_id"
     ],
     "sync_decision_columns_on_stage_write": [],
     "sync_profile_from_self_landlord": [],
@@ -5315,7 +5323,7 @@
     },
     "step_up_challenges_action_check": {
       "table": "step_up_challenges",
-      "def": "CHECK ((action = ANY (ARRAY['trust_account_write'::text, 'deposit_refund_approval'::text, 'bank_detail_change'::text, 'team_role_change'::text, 'subscription_change'::text, 'tenant_data_deletion'::text, 'ownership_transfer'::text, 'security_settings_change'::text, 'passkey_unenroll'::text, 'totp_unenroll'::text, 'bulk_export'::text])))"
+      "def": "CHECK ((action = ANY (ARRAY['trust_account_write'::text, 'deposit_refund_approval'::text, 'bank_detail_change'::text, 'team_role_change'::text, 'subscription_change'::text, 'tenant_data_deletion'::text, 'ownership_transfer'::text, 'security_settings_change'::text, 'passkey_enroll'::text, 'passkey_unenroll'::text, 'totp_unenroll'::text, 'bulk_export'::text])))"
     },
     "step_up_challenges_required_aal_check": {
       "table": "step_up_challenges",

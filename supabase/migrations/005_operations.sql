@@ -2055,92 +2055,6 @@ DROP POLICY IF EXISTS "screening_artifacts_no_delete" ON screening_artifacts;
 CREATE POLICY "screening_artifacts_no_delete" ON screening_artifacts
   AS RESTRICTIVE FOR DELETE USING (false);
 
--- ── v_application_screening_lines: orchestration view ────────────────────────
--- ADDENDUM_00M Phase 1: security_invoker so the caller's RLS applies (the view no longer runs as
--- its postgres owner and bypasses org-RLS). All readers are service-role → functional no-op, but it
--- closes the direct-REST cross-org read path for any authenticated/anon JWT. Closes 1 of 3 ERRORs.
-CREATE OR REPLACE VIEW v_application_screening_lines
-  WITH (security_invoker = true) AS
-SELECT
-  app.id AS application_id,
-  app.org_id,
-  'company'::text AS subject_type,
-  app.id AS subject_id,
-  COALESCE(ctc.company_name, ctc.trading_as, app.first_name || ' ' || app.last_name) AS subject_name,
-  asp.fee_cents,
-  asp.paid_at,
-  app.stage2_consent_given_at AS consented_at,
-  asp.expires_at,
-  CASE
-    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
-         AND app.searchworx_check_status = 'complete'                            THEN 'complete'
-    -- 'running' and 'failed' are matched EXPLICITLY, ahead of everything below, because the ELSE arm
-    -- is 'pending_both' — so without these a claimed line and a failed line both read as "this person
-    -- has not paid or consented". Both HAVE. The reminder cron owns pending_both, so a line stranded
-    -- mid-run was being chased with "your portion is still outstanding" emails and then declined at
-    -- T+14 with decline_reason 'expired_no_completion' and a refund flagged, recording the applicant's
-    -- failure to complete something they had completed. See M-111.
-    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
-         AND app.searchworx_check_status = 'running'                             THEN 'running'
-    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
-         AND app.searchworx_check_status = 'failed'                              THEN 'failed'
-    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
-         AND app.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
-    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
-    WHEN asp.paid_at IS NULL    AND app.stage2_consent_given_at IS NOT NULL      THEN 'consented_pending_payment'
-    WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
-    ELSE 'pending_both'
-  END AS state
-FROM applications app
-LEFT JOIN contacts ctc ON ctc.id = app.contact_id
-LEFT JOIN application_screening_payments asp
-  ON asp.application_id = app.id
-  AND asp.subject_type = 'company'
-  AND asp.subject_id   = app.id
-WHERE app.entity_type = 'organisation'
-
-UNION ALL
-
-SELECT
-  caa.primary_application_id AS application_id,
-  caa.org_id,
-  'co_applicant'::text AS subject_type,
-  caa.id AS subject_id,
-  COALESCE(c.first_name || ' ' || c.last_name, caa.first_name || ' ' || caa.last_name) AS subject_name,
-  asp.fee_cents,
-  asp.paid_at,
-  caa.stage2_consent_given_at AS consented_at,
-  asp.expires_at,
-  CASE
-    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
-         AND caa.searchworx_check_status = 'complete'                            THEN 'complete'
-    -- Same two arms as the company branch above, for the same reason (M-111). This is the branch the
-    -- reminder cron actually reads — it filters subject_type = 'co_applicant' — so the wrong-email
-    -- and wrong-refund cascade described there was reachable here and only here.
-    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
-         AND caa.searchworx_check_status = 'running'                             THEN 'running'
-    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
-         AND caa.searchworx_check_status = 'failed'                              THEN 'failed'
-    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
-         AND caa.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
-    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
-    WHEN asp.paid_at IS NULL    AND caa.stage2_consent_given_at IS NOT NULL      THEN 'consented_pending_payment'
-    WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
-    ELSE 'pending_both'
-  END AS state
-FROM application_co_applicants caa
-LEFT JOIN contacts c ON c.id = caa.contact_id
-LEFT JOIN application_screening_payments asp
-  ON asp.application_id = caa.primary_application_id
-  AND asp.subject_type  = 'co_applicant'
-  AND asp.subject_id    = caa.id
-WHERE caa.declined_at IS NULL;
-
-COMMENT ON VIEW v_application_screening_lines IS
-  'Multi-party screening portal view. Joins applications + co-applicants +
-   screening payments to derive per-line state. Drives the portal page UI
-   and the screening-line-runner cron.';
-
 -- ── BUILD_14_v2 corrections (CD audit findings) ─────────────────────────────
 -- Finding 1: bsc upsert requires a matching UNIQUE constraint. Omitting
 -- co_applicant_id from the key would silently collide two co-applicants who
@@ -3020,6 +2934,112 @@ ALTER TABLE application_co_applicants
 CREATE UNIQUE INDEX IF NOT EXISTS uq_co_applicants_live_surety_email
   ON application_co_applicants(primary_application_id, lower(applicant_email))
   WHERE declined_at IS NULL AND (is_surety_director = true OR role = 'guarantor');
+
+-- is_surety_party(): THE surety predicate, SQL half (BUILD_72 P1-R1, 2026-10-01). The TS half is
+-- isSuretyParty() in lib/applications/juristicParties.ts; one predicate, two languages, and
+-- test/db/surety-party-predicate.dbtest.ts asserts they agree on every planted marker shape.
+-- COALESCE so the answer is never NULL: role is nullable, and a NULL here would read as "not a surety"
+-- in a CASE but as unknown in a WHERE.
+CREATE OR REPLACE FUNCTION is_surety_party(caa application_co_applicants)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT COALESCE(caa.is_surety_director, false) OR COALESCE(caa.role = 'guarantor', false)
+$$;
+
+-- ── v_application_screening_lines: orchestration view ────────────────────────
+-- MOVED HERE 2026-10-01 (BUILD_72 P1-R1) from beside screening_artifacts: `party_kind` calls
+-- is_surety_party(), which reads `role`, added just above. Left there, it would be a forward reference.
+-- ADDENDUM_00M Phase 1: security_invoker so the caller's RLS applies (the view no longer runs as
+-- its postgres owner and bypasses org-RLS). All readers are service-role → functional no-op, but it
+-- closes the direct-REST cross-org read path for any authenticated/anon JWT. Closes 1 of 3 ERRORs.
+CREATE OR REPLACE VIEW v_application_screening_lines
+  WITH (security_invoker = true) AS
+SELECT
+  app.id AS application_id,
+  app.org_id,
+  'company'::text AS subject_type,
+  app.id AS subject_id,
+  COALESCE(ctc.company_name, ctc.trading_as, app.first_name || ' ' || app.last_name) AS subject_name,
+  asp.fee_cents,
+  asp.paid_at,
+  app.stage2_consent_given_at AS consented_at,
+  asp.expires_at,
+  CASE
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'complete'                            THEN 'complete'
+    -- 'running' and 'failed' are matched EXPLICITLY, ahead of everything below, because the ELSE arm
+    -- is 'pending_both' — so without these a claimed line and a failed line both read as "this person
+    -- has not paid or consented". Both HAVE. The reminder cron owns pending_both, so a line stranded
+    -- mid-run was being chased with "your portion is still outstanding" emails and then declined at
+    -- T+14 with decline_reason 'expired_no_completion' and a refund flagged, recording the applicant's
+    -- failure to complete something they had completed. See M-111.
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'running'                             THEN 'running'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'failed'                              THEN 'failed'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
+    WHEN asp.paid_at IS NULL    AND app.stage2_consent_given_at IS NOT NULL      THEN 'consented_pending_payment'
+    WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
+    ELSE 'pending_both'
+  END AS state,
+  -- A company line is not a party; party_kind describes co-applicant rows only.
+  NULL::text AS party_kind
+FROM applications app
+LEFT JOIN contacts ctc ON ctc.id = app.contact_id
+LEFT JOIN application_screening_payments asp
+  ON asp.application_id = app.id
+  AND asp.subject_type = 'company'
+  AND asp.subject_id   = app.id
+WHERE app.entity_type = 'organisation'
+
+UNION ALL
+
+SELECT
+  caa.primary_application_id AS application_id,
+  caa.org_id,
+  'co_applicant'::text AS subject_type,
+  caa.id AS subject_id,
+  COALESCE(c.first_name || ' ' || c.last_name, caa.first_name || ' ' || caa.last_name) AS subject_name,
+  asp.fee_cents,
+  asp.paid_at,
+  caa.stage2_consent_given_at AS consented_at,
+  asp.expires_at,
+  CASE
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'complete'                            THEN 'complete'
+    -- Same two arms as the company branch above, for the same reason (M-111). This is the branch the
+    -- reminder cron actually reads — it filters subject_type = 'co_applicant' — so the wrong-email
+    -- and wrong-refund cascade described there was reachable here and only here.
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'running'                             THEN 'running'
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'failed'                              THEN 'failed'
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
+    WHEN asp.paid_at IS NULL    AND caa.stage2_consent_given_at IS NOT NULL      THEN 'consented_pending_payment'
+    WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
+    ELSE 'pending_both'
+  END AS state,
+  -- BUILD_72 P1-R1: which copy and link this line's reminders carry. 'surety' → the surety-consent
+  -- invite (director portal); 'co_applicant' → the joint-rental invite. Never chosen by table.
+  CASE WHEN is_surety_party(caa) THEN 'surety' ELSE 'co_applicant' END AS party_kind
+FROM application_co_applicants caa
+LEFT JOIN contacts c ON c.id = caa.contact_id
+LEFT JOIN application_screening_payments asp
+  ON asp.application_id = caa.primary_application_id
+  AND asp.subject_type  = 'co_applicant'
+  AND asp.subject_id    = caa.id
+WHERE caa.declined_at IS NULL;
+
+COMMENT ON VIEW v_application_screening_lines IS
+  'Multi-party screening portal view. Joins applications + co-applicants +
+   screening payments to derive per-line state. Drives the portal page UI
+   and the screening-line-runner cron.';
 
 ALTER TABLE listings
   ADD COLUMN IF NOT EXISTS closes_at       timestamptz;
