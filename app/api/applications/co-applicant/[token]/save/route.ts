@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
-import { encryptDob, idNumberColumns, encryptSpouseInfo } from "@/lib/crypto/idNumber"
+import { encryptDob, idNumberColumnsIfPresent, encryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -79,7 +79,9 @@ export async function POST(req: NextRequest, { params }: Props) {
   // sign-off — a draft autosave leaves stage1_consent_given untouched.
   const fields: Record<string, unknown> = {
     first_name: body.firstName ?? null, last_name: body.lastName ?? null,
-    id_type: body.idType || "sa_id", ...idNumberColumns(body.idNumber), date_of_birth: encryptDob(body.dob),
+    // A blank id OMITS the pair: a draft autosave without the ID field must not null a stored hash (P1-R4).
+    // Sign-off cannot reach here blank — the guard above requires idNumber.
+    id_type: body.idType || "sa_id", ...idNumberColumnsIfPresent(body.idNumber), date_of_birth: encryptDob(body.dob),
     marital_status: body.maritalStatus || null, matrimonial_regime: body.matrimonialRegime || null,
     current_address: body.currentAddress ?? null, spouse_info: encryptSpouseInfo(body.spouseInfo as Record<string, unknown> | null),
     employment_type: body.employmentType || null, employer_name: body.employerName || null,

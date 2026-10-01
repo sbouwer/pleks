@@ -2935,6 +2935,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_co_applicants_live_surety_email
   ON application_co_applicants(primary_application_id, lower(applicant_email))
   WHERE declined_at IS NULL AND (is_surety_director = true OR role = 'guarantor');
 
+-- One live PARTY row per human per application, keyed on id_number_hash (BUILD_72 R1-b + P1-R4, 2026-10-01).
+-- The identity key of the applicant-identity ruling (2026-06-19) — never the email, which the index above
+-- keys only for the billing hazard. Covers EVERY role: the same person cannot be both a joint co-applicant
+-- and a guarantor on one application. Rows with no hash are not constrained (NULLs are distinct), which is
+-- why P1-R4 made every partial write omit the id pair rather than null it: the save route's draft autosave
+-- used to null the hash and slip a row out from under this key. Created after the backfill CD required —
+-- on 2026-10-01 prod held 0 application_co_applicants rows, so there was nothing to backfill.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_co_applicants_live_id_hash
+  ON application_co_applicants(primary_application_id, id_number_hash)
+  WHERE declined_at IS NULL AND id_number_hash IS NOT NULL;
+
 -- is_surety_party(): THE surety predicate, SQL half (BUILD_72 P1-R1, 2026-10-01). The TS half is
 -- isSuretyParty() in lib/applications/juristicParties.ts; one predicate, two languages, and
 -- test/db/surety-party-predicate.dbtest.ts asserts they agree on every planted marker shape.

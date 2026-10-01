@@ -61,9 +61,9 @@ export async function POST(
     .single()
 
   if (error || !coApplicant) {
-    // 23505 = uq_co_applicants_live_surety_email. A second SURETY line for the same person on the
-    // same application is a second screening fee and a second invitation email, so the index refuses
-    // it (M-116). Translated here because a raw Postgres message reaching an applicant as a 500 is
+    // 23505 = uq_co_applicants_live_surety_email or uq_co_applicants_live_id_hash. A second SURETY line
+    // for the same person on the same application is a second screening fee and a second invitation
+    // email (M-116); the same ID twice in any role is one human entered twice (BUILD_72 R1-b). Translated here because a raw Postgres message reaching an applicant as a 500 is
     // both unhelpful and a schema leak.
     if (error?.code === "23505") {
       return NextResponse.json(
