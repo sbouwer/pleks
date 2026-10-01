@@ -7,13 +7,15 @@
  *           declined past expires_at with the payment row untouched — the refund branch is gated (R6);
  *         · a declared director surety still gets director copy, so a router that sent nothing would fail;
  *         · a surety who is not a declared director is HELD — no send, no decline (R3);
- *         · an unknown party_kind is skipped.
+ *         · an unknown party_kind is skipped;
+ *         · a send that reports failure leaves the milestone UNSTAMPED, so the next run retries it (walker F4).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { NextRequest } from "next/server"
 
-const sendEmail = vi.fn(async () => ({ ok: true }))
-const sendCoApplicantInvited = vi.fn(async () => ({ ok: true }))
+// The real SendEmailResult shape: failure is a RETURN value, never a throw (walker F4).
+const sendEmail = vi.fn(async (): Promise<{ success: boolean; error?: string }> => ({ success: true }))
+const sendCoApplicantInvited = vi.fn(async (): Promise<{ success: boolean; error?: string }> => ({ success: true }))
 const maybeFireAllGreen = vi.fn()
 let coApp: Record<string, unknown> = {}
 let line: Record<string, unknown> = {}
@@ -158,5 +160,22 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
     expect(sendEmail).not.toHaveBeenCalled()
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+  })
+})
+
+describe("a failed send is not recorded as sent (walker F4)", () => {
+  it("residential: the milestone stays unstamped when co_applicant_invited reports failure", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, role: "co_applicant", is_surety_director: false }
+    sendCoApplicantInvited.mockResolvedValueOnce({ success: false, error: "rejected" })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(updates).toEqual([])
+  })
+  it("director: the milestone stays unstamped when the reminder reports failure", async () => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, role: "guarantor", is_surety_director: true }
+    sendEmail.mockResolvedValueOnce({ success: false, error: "rejected" })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(updates).toEqual([])
   })
 })

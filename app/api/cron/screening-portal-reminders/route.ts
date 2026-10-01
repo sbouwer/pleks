@@ -165,18 +165,27 @@ async function processCoApplicantLine(
   const ctx = await buildEmailContext(line.application_id)
   if (!ctx) return "skipped"
   const primaryName = [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" ")
-  await sendCoApplicantInvited(
+  // sendEmail reports failure by RETURN, not by throwing (walker F4). Throw instead: the per-line catch reports it
+  // to Sentry, and the milestone stays unstamped so the next run retries it rather than skipping it for good.
+  const sendResult = await sendCoApplicantInvited(
     { firstName: coApp.first_name ?? "", email: coApp.applicant_email },
     ctx.listingSummary, ctx.orgContext,
     { accessToken: coApp.access_token, primaryApplicantName: primaryName,
       resend: { coApplicantId: line.subject_id, triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id } },
   )
-  await service
+  if (!sendResult.success) throw new Error(`co-applicant reminder ${stage} not sent: ${sendResult.error ?? "unknown"}`)
+  await stampMilestone(service, line, sent, stage)
+  return "reminded"
+}
+
+/** Records a milestone as sent. Called only after a send that reported success (walker F4). */
+async function stampMilestone(service: Svc, line: PendingLine, sent: Record<string, boolean>, stage: "t3" | "t7" | "t10"): Promise<void> {
+  const { error } = await service
     .from("application_co_applicants")
     .update({ reminder_milestones_sent: { ...sent, [stage]: true } })
     .eq("id", line.subject_id)
     .eq("org_id", line.org_id)
-  return "reminded"
+  if (error) throw new Error(`stamp reminder milestone ${stage}: ${error.message}`)
 }
 
 /** R6 decline. The refund branch (joint-fee minus single-fee, or withdraw) is Stéan's and is NOT built:
@@ -295,7 +304,7 @@ async function sendMilestoneReminder(
 
   const branding = buildBranding(await fetchOrgSettings(line.org_id))
 
-  await sendEmail({
+  const sendResult = await sendEmail({
     orgId: line.org_id,
     templateKey: `application.director_reminder_${stage}`,
     to: { email: coApp.applicant_email, name: coApp.first_name ?? "Director" },
@@ -311,10 +320,8 @@ async function sendMilestoneReminder(
     triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
   })
 
-  await service
-    .from("application_co_applicants")
-    .update({ reminder_milestones_sent: { ...sent, [stage]: true } })
-    .eq("id", line.subject_id)
+  if (!sendResult.success) throw new Error(`director reminder ${stage} not sent: ${sendResult.error ?? "unknown"}`)
+  await stampMilestone(service, line, sent, stage)
 
   if (stage === "t7" || stage === "t10") {
     await notifyPrimaryContact(service, line, { primaryContactName, propertyLabel, directorName: line.subject_name, stage })
