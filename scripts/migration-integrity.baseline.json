@@ -41,6 +41,8 @@
     "honeytoken_emails": "security canaries, platform-global by design",
     "lease_clause_library": "platform-provided clause catalogue, shared across orgs",
     "prime_rates": "public SA reference data, read-only, deliberately global",
+    "searchworx_rates": "ADDENDUM_14V §3.1 stated exception: the vendor's price is a platform fact, not a tenant fact — prime_rates shape, append-only",
+    "searchworx_rate_observations": "ADDENDUM_14V §3.2: raw vendor price sightings feeding searchworx_rates; platform-level, service-client only, holds no subject",
     "application_tokens": "token row keyed by its own secret; scoped via the application it points at",
     "property_info_request_events": "public-form telemetry, no authenticated org context",
     "consent_verification_rate_limits": "rate-limit bucket keyed by identifier, pre-auth",

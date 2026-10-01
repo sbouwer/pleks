@@ -186,7 +186,8 @@
       "spouse_info",
       "started_at",
       "tenant_id",
-      "searchworx_run_started_at"
+      "searchworx_run_started_at",
+      "declared_director"
     ],
     "application_directors": [
       "id",
@@ -311,7 +312,8 @@
       "completed_at",
       "created_at",
       "updated_at",
-      "searchworx_envelope_meta"
+      "searchworx_envelope_meta",
+      "rate_effective_date"
     ],
     "application_screening_payments": [
       "id",
@@ -330,7 +332,10 @@
       "expires_at",
       "expired_state",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "rate_effective_date",
+      "pricing_policy_version",
+      "cost_excl_vat_cents"
     ],
     "application_tokens": [
       "id",
@@ -3190,6 +3195,27 @@
       "created_by",
       "created_at"
     ],
+    "searchworx_rate_observations": [
+      "id",
+      "product_key",
+      "cost_excl_vat_cents",
+      "observed_at",
+      "source",
+      "source_ref",
+      "raw",
+      "created_by"
+    ],
+    "searchworx_rates": [
+      "id",
+      "product_key",
+      "cost_excl_vat_cents",
+      "effective_date",
+      "source",
+      "observation_id",
+      "notes",
+      "created_by",
+      "created_at"
+    ],
     "settings_ui_state": [
       "user_id",
       "org_id",
@@ -3756,7 +3782,8 @@
       "paid_at",
       "consented_at",
       "expires_at",
-      "state"
+      "state",
+      "party_kind"
     ],
     "vendor_usage": [
       "id",
@@ -3937,11 +3964,20 @@
     ],
     "get_rls_audit": [],
     "handle_new_user": [],
+    "is_director_surety": [
+      "caa"
+    ],
+    "is_juristic_party_context": [
+      "app"
+    ],
     "is_landlord_membership_active": [
       "row_data"
     ],
     "is_mfa_fresh": [
       "window_minutes"
+    ],
+    "is_surety_party": [
+      "caa"
     ],
     "is_tenant_membership_active": [
       "row_data"
@@ -4003,6 +4039,11 @@
     "refresh_arrears_interest_total": [
       "p_case_id"
     ],
+    "screening_party_kind": [
+      "caa",
+      "app"
+    ],
+    "screening_payment_fee_immutable": [],
     "seed_default_retention_policies": [
       "org_uuid"
     ],
@@ -5312,6 +5353,22 @@
     "screening_jobs_status_check": {
       "table": "screening_jobs",
       "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'failed'::text])))"
+    },
+    "searchworx_rate_observations_cost_excl_vat_cents_check": {
+      "table": "searchworx_rate_observations",
+      "def": "CHECK ((cost_excl_vat_cents >= 0))"
+    },
+    "searchworx_rate_observations_source_check": {
+      "table": "searchworx_rate_observations",
+      "def": "CHECK ((source = ANY (ARRAY['pricelist_import'::text, 'pull_observed'::text, 'billing_report'::text])))"
+    },
+    "searchworx_rates_cost_excl_vat_cents_check": {
+      "table": "searchworx_rates",
+      "def": "CHECK ((cost_excl_vat_cents >= 0))"
+    },
+    "searchworx_rates_source_check": {
+      "table": "searchworx_rates",
+      "def": "CHECK ((source = ANY (ARRAY['pricelist_import'::text, 'pull_observed'::text, 'billing_report'::text, 'admin_override'::text])))"
     },
     "signature_sign_tokens_kind_check": {
       "table": "signature_sign_tokens",
