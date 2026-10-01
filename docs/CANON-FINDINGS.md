@@ -401,6 +401,52 @@ FIX        pass-through branch for already-formed input must run the same checks
 
 ---
 
+### CF-14 · `agent-distribution` v2's selftest writes into the REAL repository when run from a hook in a linked worktree
+
+```
+OBSERVED   2026-10-01, pleks, committing a merge in a linked worktree (git worktree add). The
+           pre-commit chain runs `agent-distribution.mjs --selftest`. Its scratch-repo probe
+           (:501-531) spawns git with `-C <tmpdir>` and `env: { ...process.env, … }`. Inside a
+           hook in a linked worktree, git exports an ABSOLUTE GIT_DIR, which overrides -C. The
+           probe's init / config / commits therefore ran against the real repository:
+           · core.bare = true written to the SHARED .git/config, so every checkout of the clone
+             then refused `git status` ("this operation must be run in a work tree");
+           · user.email = probe@example.invalid / user.name = probe written there too, so every
+             later commit in every checkout would have been authored "probe";
+           · four scratch commits ("agent file, no marker" … "marker v2") on the worktree's branch,
+             consuming the in-progress merge (MERGE_HEAD gone) and scrambling its index.
+           The probe then reported "✗ a type's generation is the commit that INTRODUCED its
+           marker", so the gate failed. But the damage was done before the failure. Repaired by
+           hand (bare=false, local [user] unset, scratch branch and worktree deleted); nothing
+           was pushed. The same commit made in the MAIN checkout passed, because there git
+           hands the hook relative paths, and those resolve inside the temp dir.
+
+COMMAND    git worktree add ../pleks-wt321 origin/feat/14v-envelope-capture; git merge origin/main;
+           git commit   → "❌ 1 probe(s) wrong"; git log → 044af7ff "marker v2" (author
+           probe-dated scratch commits); git -C <main checkout> status → "fatal: this operation
+           must be run in a work tree"; .git/config → bare = true, [user] email =
+           probe@example.invalid. `node scripts/agent-distribution.mjs --selftest` run by hand in
+           the same worktree, outside a hook: ✅ probes green.
+
+WHY IT IS  Any kit script that builds a scratch git repo and passes process.env through has this
+CANON'S    shape on any stack, because git's hook environment (GIT_DIR, GIT_INDEX_FILE,
+           GIT_WORK_TREE, GIT_PREFIX …) is inherited, and an absolute GIT_DIR beats -C. The kit
+           runs its selftests inside commit hooks by design, so the probe is executed in exactly
+           the environment that redirects it. Linked worktrees are canon's own recommended
+           isolation for parallel implementers (E10 carve-out), so this is not an exotic setup.
+
+SMALLEST   In every kit probe that spawns git against a scratch repo: build the child env with
+FIX        every GIT_* variable deleted (or set GIT_DIR=<tmp>/.git and GIT_WORK_TREE=<tmp>
+           explicitly), and set GIT_CONFIG_NOSYSTEM=1 + GIT_CONFIG_GLOBAL=<devnull>. Add a
+           probe that runs the selftest with GIT_DIR pointed at a sentinel repo and asserts the
+           sentinel's config and refs are byte-identical afterwards. It must not break the
+           selftest's own date-pinned commits (GIT_AUTHOR_DATE / GIT_COMMITTER_DATE stay). Worth
+           a sweep of every kit script that spawns git (check-git-hooks, delivery-report …)
+           for the same pass-through.
+```
+
+---
+
 ## 2 · Lesson answers
 
 From `node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks`. Read the entry from its
