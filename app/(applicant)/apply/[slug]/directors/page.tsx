@@ -4,8 +4,9 @@
  * Route:  /apply/[slug]/directors?token=[application_token]
  * Auth:   application_tokens (token_type='application') bound to this application — LEAD token only
  * Data:   applications (org marker, company_info, primary-contact identity, listing label)
- * Notes:  ADDENDUM_14G §3. The board a commercial applicant declares here is what the surety gate
- *         and the fee both count, so this page is the missing writer of `is_surety_director`.
+ * Notes:  ADDENDUM_14G §3. A writer of `is_surety_director`, reachable by direct URL only — nothing in
+ *         the apply flow links here. RETIRES in BUILD_72 Phase 1: the roster's "A guarantor / surety"
+ *         is the one surety surface (R1), and a surety is optional (R0).
  *
  *         ⚠ TWO DEVIATIONS FROM 14G §3, both deliberate and both flagged in the build report:
  *         (1) §3.1 gates on `applications.entity_type='organisation'`. Nothing writes that column —
@@ -19,7 +20,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { decryptIdNumber, maskIdNumber } from "@/lib/crypto/idNumber"
-import { orgMarkerFrom, requiresSuretyParty, suretyPartyLabel } from "@/lib/applications/juristicParties"
+import { orgMarkerFrom, isJuristicApplicant, suretyPartyLabel } from "@/lib/applications/juristicParties"
 import { DirectorDeclarationForm } from "./DirectorDeclarationForm"
 
 export default async function DirectorsPage({
@@ -69,7 +70,7 @@ export default async function DirectorsPage({
   const orgMarker = orgMarkerFrom(application.entity_type, application.applicant_type)
 
   // §3.1 — individual applications have no board to declare and 404 here.
-  if (!requiresSuretyParty(orgMarker, companyType)) notFound()
+  if (!isJuristicApplicant(orgMarker, companyType)) notFound()
 
   // Already declared → the form would 409. Send them on rather than showing a dead form.
   const { count: declared, error: declaredErr } = await service

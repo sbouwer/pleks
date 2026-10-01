@@ -1,10 +1,10 @@
 /**
- * lib/applications/__tests__/juristicParties.test.ts — the accompanying-party rule and the juristic fee
+ * lib/applications/__tests__/juristicParties.test.ts — what a juristic application is, its sureties, its fee
  *
- * Notes:  Covers the 2026-08-15 ruling: a juristic applicant (pty_ltd / cc / npc / trust) must be
- *         accompanied by at least one surety party, and the entity + its sureties are paid for in ONE
- *         transaction. Before this, a Pty application could be created and paid with zero directors,
- *         producing a company screening line with no human credit profile behind it to assess.
+ * Notes:  A juristic applicant (pty_ltd / cc / npc / trust) is screened on its own and a surety is
+ *         OPTIONAL (Stéan 2026-10-01, BUILD_72 R0); the entity + any sureties are paid for in ONE
+ *         transaction. The "at least one surety is required" tests that lived here asserted a rule
+ *         attributed to a 2026-08-15 ruling nobody can source — retired with it.
  *
  *         The vocabulary assertions are not cosmetic: a trust has TRUSTEES, and calling a trustee a
  *         "director" in an applicant-facing gate message is wrong in a document a Tribunal may read.
@@ -12,44 +12,61 @@
 import { describe, it, expect } from "vitest"
 import {
   isSuretyParty,
-  MIN_SURETY_PARTIES,
+  isJuristicApplicant,
+  isJuristicApplication,
   orgMarkerFrom,
-  requiresSuretyParty,
+  paidScreeningSubjects,
   suretyPartyLabel,
   suretyPartyLabelPlural,
   SURETY_PARTY_OR_FILTER,
-  validateJuristicParties,
 } from "@/lib/applications/juristicParties"
 import { screeningFeeCents, screeningFeeLineCount, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 
 const JURISTIC = ["pty_ltd", "cc", "npc", "trust"] as const
 const UNINCORPORATED = ["sole_proprietor", "partnership", "other"] as const
 
-describe("which applications need an accompanying surety party", () => {
-  it("requires one for every juristic type", () => {
+describe("which applicants are juristic", () => {
+  it("is true for every juristic type", () => {
     for (const t of JURISTIC) {
-      expect(requiresSuretyParty("organisation", t), t).toBe(true)
+      expect(isJuristicApplicant("organisation", t), t).toBe(true)
     }
   })
 
-  it("requires none for unincorporated organisations — the humans ARE the applicant", () => {
+  it("is false for unincorporated organisations — the humans ARE the applicant", () => {
     for (const t of UNINCORPORATED) {
-      expect(requiresSuretyParty("organisation", t), t).toBe(false)
+      expect(isJuristicApplicant("organisation", t), t).toBe(false)
     }
   })
 
-  it("requires none for an individual applicant", () => {
-    expect(requiresSuretyParty("individual", null)).toBe(false)
-    expect(requiresSuretyParty("individual", "pty_ltd")).toBe(false) // entity_type wins
+  it("is false for an individual applicant", () => {
+    expect(isJuristicApplicant("individual", null)).toBe(false)
+    expect(isJuristicApplicant("individual", "pty_ltd")).toBe(false) // entity_type wins
   })
 
   it("accepts EITHER org marker — entity_type 'organisation' or applicant_type 'company'", () => {
-    // Callers hold different signals; a gate that only understood one could be bypassed by the other.
     for (const t of JURISTIC) {
-      expect(requiresSuretyParty("organisation", t), `entity_type/${t}`).toBe(true)
-      expect(requiresSuretyParty("company", t), `applicant_type/${t}`).toBe(true)
+      expect(isJuristicApplicant("organisation", t), `entity_type/${t}`).toBe(true)
+      expect(isJuristicApplicant("company", t), `applicant_type/${t}`).toBe(true)
     }
-    expect(validateJuristicParties({ entityType: "company", companyType: "trust", suretyCount: 0 }).ok).toBe(false)
+  })
+})
+
+describe("isJuristicApplication — the one answer billing and the application ITN share", () => {
+  // DORMANT BY DESIGN until BUILD_72 R3: it reads `entity_type ?? applicant_type`, and `entity_type`
+  // defaults to 'individual' with no writer. If this test starts failing because someone "fixed" the
+  // reading, juristic PRICING has switched on — that is R3's change, and it must ship with R3's
+  // entity_type writer and fee re-derivation, not on its own.
+  it("is FALSE for a company application today — the column default masks applicant_type", () => {
+    expect(isJuristicApplication({ entity_type: "individual", applicant_type: "company", company_info: { companyType: "pty_ltd" } })).toBe(false)
+  })
+
+  it("is true once entity_type is written as an organisation", () => {
+    expect(isJuristicApplication({ entity_type: "organisation", applicant_type: "company", company_info: { companyType: "pty_ltd" } })).toBe(true)
+  })
+
+  it("is false for an unincorporated organisation and for a missing company_info", () => {
+    expect(isJuristicApplication({ entity_type: "organisation", company_info: { companyType: "partnership" } })).toBe(false)
+    expect(isJuristicApplication({ entity_type: "organisation", company_info: null })).toBe(false)
   })
 })
 
@@ -69,36 +86,6 @@ describe("the surety party is named correctly for the entity", () => {
   })
 })
 
-describe("validateJuristicParties gates payment", () => {
-  it("refuses a juristic application with no surety party", () => {
-    for (const t of JURISTIC) {
-      const r = validateJuristicParties({ entityType: "organisation", companyType: t, suretyCount: 0 })
-      expect(r.ok, t).toBe(false)
-      expect(r.error, t).toBeTruthy()
-    }
-  })
-
-  it("uses the right word in the refusal message", () => {
-    const trust = validateJuristicParties({ entityType: "organisation", companyType: "trust", suretyCount: 0 })
-    expect(trust.error).toContain("trustee")
-    expect(trust.error).not.toContain("director")
-
-    const pty = validateJuristicParties({ entityType: "organisation", companyType: "pty_ltd", suretyCount: 0 })
-    expect(pty.error).toContain("director")
-  })
-
-  it("accepts a juristic application at the minimum", () => {
-    for (const t of JURISTIC) {
-      expect(validateJuristicParties({ entityType: "organisation", companyType: t, suretyCount: MIN_SURETY_PARTIES }).ok, t).toBe(true)
-    }
-  })
-
-  it("never blocks an individual or unincorporated applicant", () => {
-    expect(validateJuristicParties({ entityType: "individual", companyType: null, suretyCount: 0 }).ok).toBe(true)
-    expect(validateJuristicParties({ entityType: "organisation", companyType: "partnership", suretyCount: 0 }).ok).toBe(true)
-  })
-})
-
 describe("the juristic fee covers the entity AND its sureties in one transaction", () => {
   it("charges the company line plus one line per surety", () => {
     const one = screeningFeeCents({ isJuristic: true, suretyCount: 1, hasCoApplicant: false })
@@ -108,6 +95,11 @@ describe("the juristic fee covers the entity AND its sureties in one transaction
     // Rate card D-RATE-06 worked example: company + 1 director = R500, + 2 = R750.
     expect(one).toBe(50000)
     expect(two).toBe(75000)
+  })
+
+  it("charges a company applying ALONE one line — a surety is optional (BUILD_72 R0)", () => {
+    expect(screeningFeeCents({ isJuristic: true, suretyCount: 0, hasCoApplicant: false })).toBe(APPLICATION_FEE_CENTS)
+    expect(screeningFeeLineCount({ isJuristic: true, suretyCount: 0, hasCoApplicant: false })).toBe(1)
   })
 
   it("counts one payable line per screened subject", () => {
@@ -133,24 +125,24 @@ describe("orgMarkerFrom collapses the two org markers without losing the juristi
   // is read as an individual — priced as one, and never gated on having a surety.
   it("does NOT let the entity_type default mask applicant_type='company'", () => {
     expect(orgMarkerFrom("individual", "company")).toBe("company")
-    expect(requiresSuretyParty(orgMarkerFrom("individual", "company"), "pty_ltd")).toBe(true)
+    expect(isJuristicApplicant(orgMarkerFrom("individual", "company"), "pty_ltd")).toBe(true)
     // The shape it replaces, asserted so the difference is visible rather than assumed. Written
     // through variables because `"individual" ?? "company"` is a compile-time-constant coalesce.
     const entityType: string | null = "individual"
     const applicantType: string | null = "company"
-    expect(requiresSuretyParty(entityType ?? applicantType, "pty_ltd")).toBe(false)
+    expect(isJuristicApplicant(entityType ?? applicantType, "pty_ltd")).toBe(false)
   })
 
   it("takes entity_type when it is the juristic one", () => {
     expect(orgMarkerFrom("organisation", "individual")).toBe("organisation")
     expect(orgMarkerFrom("organisation", null)).toBe("organisation")
-    expect(requiresSuretyParty(orgMarkerFrom("organisation", null), "trust")).toBe(true)
+    expect(isJuristicApplicant(orgMarkerFrom("organisation", null), "trust")).toBe(true)
   })
 
   it("leaves a genuinely individual application individual", () => {
-    expect(requiresSuretyParty(orgMarkerFrom("individual", "individual"), "pty_ltd")).toBe(false)
-    expect(requiresSuretyParty(orgMarkerFrom("individual", "couple"), "pty_ltd")).toBe(false)
-    expect(requiresSuretyParty(orgMarkerFrom(null, null), "pty_ltd")).toBe(false)
+    expect(isJuristicApplicant(orgMarkerFrom("individual", "individual"), "pty_ltd")).toBe(false)
+    expect(isJuristicApplicant(orgMarkerFrom("individual", "couple"), "pty_ltd")).toBe(false)
+    expect(isJuristicApplicant(orgMarkerFrom(null, null), "pty_ltd")).toBe(false)
   })
 
   it("falls back to whichever marker is present when neither is juristic", () => {
@@ -160,8 +152,33 @@ describe("orgMarkerFrom collapses the two org markers without losing the juristi
 
   it("does not make an unincorporated applicant juristic", () => {
     // sole_prop / partnership ARE the human — companyType still decides, marker or no marker.
-    expect(requiresSuretyParty(orgMarkerFrom("individual", "company"), "sole_proprietor")).toBe(false)
-    expect(requiresSuretyParty(orgMarkerFrom("organisation", null), "partnership")).toBe(false)
+    expect(isJuristicApplicant(orgMarkerFrom("individual", "company"), "sole_proprietor")).toBe(false)
+    expect(isJuristicApplicant(orgMarkerFrom("organisation", null), "partnership")).toBe(false)
+  })
+})
+
+describe("paidScreeningSubjects — the lines one application payment marks paid (the ITN)", () => {
+  const company = { entity_type: "organisation", applicant_type: "company", company_info: { companyType: "pty_ltd" } }
+  const residential = { entity_type: "individual", applicant_type: "individual", company_info: null }
+
+  it("writes NOTHING for a residential application, even with a guarantor — no company line, no fee split", () => {
+    expect(paidScreeningSubjects(residential, "app-1", ["guarantor-co-row"])).toEqual([])
+  })
+
+  it("writes nothing for a company application while it is still dormant (entity_type unwritten)", () => {
+    expect(paidScreeningSubjects({ ...company, entity_type: "individual" }, "app-1", ["d1"])).toEqual([])
+  })
+
+  it("writes the entity line alone for a company with no surety — a surety is optional (R0)", () => {
+    expect(paidScreeningSubjects(company, "app-1", [])).toEqual([{ subject_type: "company", subject_id: "app-1" }])
+  })
+
+  it("writes exactly the lines billing priced: 1 + N", () => {
+    for (const ids of [[], ["d1"], ["d1", "d2", "d3"]]) {
+      const lines = paidScreeningSubjects(company, "app-1", ids)
+      expect(lines).toHaveLength(screeningFeeLineCount({ isJuristic: true, suretyCount: ids.length, hasCoApplicant: false }))
+      expect(lines.filter((l) => l.subject_type === "co_applicant").map((l) => l.subject_id)).toEqual(ids)
+    }
   })
 })
 

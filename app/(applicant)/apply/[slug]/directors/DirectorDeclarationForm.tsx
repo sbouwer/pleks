@@ -86,11 +86,6 @@ export function DirectorDeclarationForm({
   async function handleSubmit() {
     setError(null)
 
-    if (suretyCount < 1) {
-      setError(`At least one ${partyLabel} must sign personal surety before the application can continue.`)
-      return
-    }
-
     setSubmitting(true)
     const res = await fetch("/api/applications/director-declaration", {
       method: "POST",
