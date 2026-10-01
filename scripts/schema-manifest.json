@@ -186,7 +186,8 @@
       "spouse_info",
       "started_at",
       "tenant_id",
-      "searchworx_run_started_at"
+      "searchworx_run_started_at",
+      "declared_director"
     ],
     "application_directors": [
       "id",
@@ -3756,7 +3757,8 @@
       "paid_at",
       "consented_at",
       "expires_at",
-      "state"
+      "state",
+      "party_kind"
     ],
     "vendor_usage": [
       "id",
@@ -3937,11 +3939,20 @@
     ],
     "get_rls_audit": [],
     "handle_new_user": [],
+    "is_director_surety": [
+      "caa"
+    ],
+    "is_juristic_party_context": [
+      "app"
+    ],
     "is_landlord_membership_active": [
       "row_data"
     ],
     "is_mfa_fresh": [
       "window_minutes"
+    ],
+    "is_surety_party": [
+      "caa"
     ],
     "is_tenant_membership_active": [
       "row_data"
@@ -4002,6 +4013,10 @@
     ],
     "refresh_arrears_interest_total": [
       "p_case_id"
+    ],
+    "screening_party_kind": [
+      "caa",
+      "app"
     ],
     "seed_default_retention_policies": [
       "org_uuid"

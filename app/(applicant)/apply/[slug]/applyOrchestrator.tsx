@@ -34,6 +34,7 @@ import { StepBar, SubTabs, ApplyNavRail } from "./applyNav"
 import type { PartyFormState } from "@/lib/parties/partyValidation"
 import { useApplyFlow, type ResumeState, type ApplyActor } from "./useApplyFlow"
 import { hardNavigate } from "@/lib/navigation"
+import { suretyQuestion, suretyQuestionNoun } from "@/lib/applications/juristicParties"
 
 export type { ResumeState }
 
@@ -60,7 +61,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
-    addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, docFiles, docEscape, setDocEscape,
+    addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, asksDirector, begun, docFiles, docEscape, setDocEscape,
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
@@ -241,6 +242,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                   busy={busy}
                   canSubmit={canSubmit}
                 />
+                {/* BUILD_72 P1-R2: the parties roster with resend, linked for the LEAD once a surety is on the
+                    application. The page takes the lead's application token; a co never sees other parties. */}
+                {!isCo && token && coApplicants.some((c) => c.invited && c.role === "guarantor") && (
+                  <p className="mt-3 text-sm text-[var(--ink-soft)]">
+                    <a className="underline underline-offset-2 hover:text-[var(--ink)]" href={`/apply/${slug}/co-parties?token=${encodeURIComponent(token)}`}>See each guarantor&apos;s progress and resend their invite</a>
+                  </p>
+                )}
                 {/* A co peer submits the whole application straight from the hub once EVERYONE's part is done (no
                     affordability review — POPIA §5). Until then the action is held with a "waiting on N" note rather
                     than offered-then-bounced; the server re-checks all-green regardless. */}
@@ -318,6 +326,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                 <TextField label="ID number" value={newCo.idNumber} onChange={(v) => setNewCo({ ...newCo, idNumber: v })} required />
               </FieldGrid>
               <SelectField label="They are" value={newCo.role} onChange={(v) => setNewCo({ ...newCo, role: v as CoRole })} options={[{ value: "co_applicant", label: "A co-applicant (lives here / on the lease)" }, { value: "guarantor", label: "A guarantor / surety (backs the rent)" }]} />
+              {asksDirector && (
+                <SelectField label={suretyQuestion(company.companyType)} required value={typeof newCo.declaredDirector === "boolean" ? String(newCo.declaredDirector) : ""} onChange={(v) => setNewCo({ ...newCo, declaredDirector: v === "" ? null : v === "true" })} options={[{ value: "", label: "Choose…" }, { value: "true", label: `Yes, a ${suretyQuestionNoun(company.companyType) ?? "director"}` }, { value: "false", label: "No" }]} />
+              )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <ActionButton tone="secondary" onClick={() => setAddApplicantOpen(false)} disabled={busy}>Cancel</ActionButton>

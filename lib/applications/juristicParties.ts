@@ -90,6 +90,33 @@ export function isJuristicApplication(row: Readonly<{
   return isJuristicApplicant(row.entity_type ?? row.applicant_type, companyType)
 }
 
+/**
+ * Is this application juristic for the purpose of COPY — which invite and reminder a party receives?
+ *
+ * Either org marker, via `orgMarkerFrom` (M-118), NOT `isJuristicApplication`'s dormant pricing reading:
+ * that one is false for every application today, so it would class a company's surety as a residential
+ * guarantor and send them joint-rental copy (BUILD_72 P1-R3 forbids it). SQL twin:
+ * `is_juristic_party_context()` in 005; test/db/surety-party-predicate.dbtest.ts asserts they agree.
+ */
+export function isJuristicForCopy(row: Readonly<{ entity_type?: unknown; applicant_type?: unknown; company_info?: unknown }>): boolean {
+  const companyType = (row.company_info as Record<string, unknown> | null | undefined)?.companyType
+  return isJuristicApplicant(orgMarkerFrom(row.entity_type, row.applicant_type), companyType)
+}
+
+/** Which copy a co-applicant line carries (BUILD_72 P1-R3a). */
+export type PartyKind = "co_applicant" | "guarantor" | "surety"
+
+/**
+ * `isSuretyParty` answers billing and uniqueness; this answers COPY, which also depends on the application.
+ * A surety party on a non-juristic application is a residential `guarantor` and gets the joint-rental
+ * invite; only a `surety` on a juristic application reaches the director-copy / held split (R3, R7a).
+ * SQL twin: `screening_party_kind()` in 005, which is what `v_application_screening_lines.party_kind` reads.
+ */
+export function partyKind(input: Readonly<{ party: Parameters<typeof isSuretyParty>[0]; isJuristic: boolean }>): PartyKind {
+  if (!isSuretyParty(input.party)) return "co_applicant"
+  return input.isJuristic ? "surety" : "guarantor"
+}
+
 /** One subject a screening payment covers — one `application_screening_payments` row. */
 export interface PaidScreeningSubject {
   readonly subject_type: "company" | "co_applicant"
@@ -123,8 +150,8 @@ export function paidScreeningSubjects(
  *
  * `application_co_applicants` denotes the role TWICE, and the two markers have different writers:
  *
- *   - `is_surety_director = true` — written by `declareDirectors` / `replaceDirector`, the 14G
- *     director-declaration surface, which BUILD_72 R1 retires.
+ *   - `is_surety_director = true` — written by the 14G director-declaration surface until BUILD_72 Phase 1
+ *     retired it (`declareDirectors` / `replaceDirector`); Phase 2's CIPC pull derives it from the registry.
  *   - `role = 'guarantor'`        — written by the apply flow's roster ("A guarantor / surety (backs
  *     the rent)"), through `POST /api/applications/[id]/co-applicant`. The one surety surface (R1).
  *
@@ -144,3 +171,69 @@ export function isSuretyParty(row: Readonly<{ role?: string | null; is_surety_di
  * (`.eq("primary_application_id", …)`), which AND with it as usual.
  */
 export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guarantor"
+
+/**
+ * May this party receive the DIRECTOR-audience surety copy (`application.director_invited` and its reminders)?
+ * That copy is counsel-reviewed for directors only (BUILD_72 P1-R3); anyone else on the surety path is held.
+ *
+ * A director by EITHER fact: `is_surety_director` (registry-derived, Phase 2) or `declared_director` (the
+ * applicant's answer, P1-R7a; NULL = never asked). Read the two together here and nowhere else —
+ * `pleks/no-hand-written-surety-filter` holds query filters on either. SQL twin: `is_director_surety()` in 005.
+ */
+export function isDirectorSurety(row: Readonly<{ role?: string | null; is_surety_director?: boolean | null; declared_director?: boolean | null }>): boolean {
+  return isSuretyParty(row) && (row.is_surety_director === true || row.declared_director === true)
+}
+
+/**
+ * The noun the applicant is asked about a surety, by entity type (BUILD_72 P1-R7, CD 2026-10-01): "Is this person a
+ * director / trustee / member of the …?". The answer is stored in `declared_director` whatever the noun — the column
+ * name stays, the concept ("holds the office that entity type has") is in its column comment in 005.
+ * Null = not a juristic type, so the question is not asked.
+ */
+export type SuretyQuestionNoun = "director" | "trustee" | "member"
+export function suretyQuestionNoun(companyType: unknown): SuretyQuestionNoun | null {
+  if (companyType === "pty_ltd" || companyType === "npc") return "director"
+  if (companyType === "trust") return "trustee"
+  if (companyType === "cc") return "member"
+  return null
+}
+
+/** The question, phrased for the entity, for the roster's add dialog and the company-parties rows. */
+export function suretyQuestion(companyType: unknown): string {
+  const noun = suretyQuestionNoun(companyType)
+  if (noun === "trustee") return "Are they a trustee of the trust?"
+  if (noun === "member") return "Are they a member of the close corporation?"
+  return "Are they a director of the company?"
+}
+
+/** The application facts every invite decision reads: juristic-ness AND which juristic type. */
+type InviteApplication = Parameters<typeof isJuristicForCopy>[0]
+type InviteInput = Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; application: InviteApplication }>
+
+/**
+ * Why a party's invite is HELD, or null (BUILD_72 P1-R3, F7 ruling). Only a COMPANY's director (pty_ltd / npc, by
+ * registry or by the applicant's "yes") has counsel-reviewed copy. Every other juristic surety is held — a
+ * non-director, and also a trustee or a CC member who answered "yes", because `director_invited` says "a director"
+ * and is untrue for them. Their variants are with counsel in one pack. Nothing is sent; the agent sees the state.
+ */
+export type InviteHold = "awaiting_template"
+export function inviteHold(input: InviteInput): InviteHold | null {
+  const isJuristic = isJuristicForCopy(input.application)
+  if (partyKind({ party: input.party, isJuristic }) !== "surety") return null
+  const companyType = (input.application.company_info as Record<string, unknown> | null | undefined)?.companyType
+  const isCompanyDirector = suretyQuestionNoun(companyType) === "director" && isDirectorSurety(input.party)
+  return isCompanyDirector ? null : "awaiting_template"
+}
+
+/**
+ * Which invite a party is SENT, by every sender: the roster's first invite, the co-parties Resend and the reminder
+ * cron. One answer, because the walker found the first two each choosing their own copy (one always joint-rental,
+ * one always director) while the cron alone routed by kind. `director` = `application.director_invited`;
+ * `co_applicant` = `application.co_applicant_invited` (a joint co-applicant or a residential guarantor, R3a);
+ * `held` = nothing is sent (R3).
+ */
+export type InviteRoute = "director" | "co_applicant" | "held"
+export function inviteRoute(input: InviteInput): InviteRoute {
+  if (inviteHold(input)) return "held"
+  return partyKind({ party: input.party, isJuristic: isJuristicForCopy(input.application) }) === "surety" ? "director" : "co_applicant"
+}

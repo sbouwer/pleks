@@ -68,6 +68,9 @@ const T1_TABLES = new Set([
   // write but cannot make the write leave a trace.
   "bank_accounts",
   "leases",                // the tenancy object itself (M-004) — see the note below on what was NOT added
+  // BUILD_72 R8 (2026-10-01): who stands behind a juristic applicant. Added while the table has NO writer (the
+  // declaration path retired in Phase 1), so Phase 2's CIPC pull — its first writer — is audited from line one.
+  "application_directors",
 ])
 const MUTATORS = new Set(["insert", "update", "delete", "upsert"])
 
