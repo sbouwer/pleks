@@ -497,10 +497,10 @@ at the time (`M playbooks/4-AGENT-PIPELINES.md`); every kit byte was read with `
   replaces it: step 3's grounder brief opens with the `pipeline: … · step … · artefact: …` line; step 5
   writes `.handoff/write-manifest.json` (`{"agent":"implementer","paths":[…]}`) before the implementer
   spawn.
-- **Live check (the four yoros step-6 cases) — owed in a FRESH session** after this lands: (a) scout,
+- **Live check (the four yoros step-6 cases) — RUN 2026-10-01, all four pass**, see the batches 2 + 3 entry below: (a) scout,
   no artefact → refused; (b) `Explore` → refused, redirected to scout; (c) scout with a `pipeline:` line
   → reply is the block only, artefact well-formed; (d) `git status` clean outside `.handoff`. Results
-  go here.
+  recorded there.
 
 **Batch 1, canon `1476fb8` — adopted 2026-09-30.** Canon on `main` at `1476fb8`, `status --short` empty.
 - **Adopted:** `check-handoff-contract@7` (canon bytes at `1476fb8`) · **`agent-distribution@2`**
@@ -568,8 +568,32 @@ working tree propagate-spines read IS `de8af9d` on every path taken.
   well-formed contract block`.
 - **Nothing canon's copies got wrong for pleks.** Canon: delete the 6 spinePins and the
   check-handoff-contract kitPin; record `check-commands`, `walk`, `wrap`, `build`, `verify-spec`.
-- **Still owed:** the four brief-gate live checks, in a fresh session — they now also exercise the
-  batch-2 spines, which load at session start (E9).
+- ~~Still owed: the four brief-gate live checks~~ — run 2026-10-01, below.
+
+**Live check, the four yoros step-6 cases — RUN LIVE 2026-10-01, all four as canon expected.** Fresh
+session started after #318 merged, so agent-brief-gate v2 and the batch-2 spines were both loaded
+(L-64, E9); HEAD `03a689f7` on `main`, clean tree.
+- **(a)** `scout`, brief `Where is SA_UTC_OFFSET declared?`, no path. Refused:
+  `PreToolUse:Agent hook error: agent-brief-gate: the scout brief names no artefact
+  (.handoff/<task-slug>/<NN>-scout.md). Re-brief it as: …`.
+- **(b)** `Explore`, the same brief. Refused: `PreToolUse:Agent hook error: agent-brief-gate:
+  "Explore" is not spawned in this project — it has no spine, so nothing sends its work to an
+  artefact, and every run comes back inline. Spawn "scout" instead. …`.
+- **(c)** `scout`, brief `pipeline: — · step — · artefact: .handoff/adopt-check/01-scout.md` plus
+  "and what is its value?". It ran (3 tool uses) and **the reply was the fenced block only**:
+  `Agent scout · — · step —` / `Verdict ✅ proceed — answered` / `Summary SA_UTC_OFFSET = "+02:00",
+  declared at lib/dates/index.ts:34 (module-private const). Used only at lines 184 and 220 of the
+  same file.` / `Artefact .handoff/adopt-check/01-scout.md` / `Promote none`. On disk, 1322 bytes:
+  anchor `task=adopt-check · agent=scout · spine=scout v2 · contract=v1 · … · commit=03a689f7`, then
+  `## Inputs`, `## Question`, `## Answer`, `## Read vs inferred`, `## Not found`, and **`## Contract`
+  last**. `node scripts/check-handoff-contract.mjs` → `🤝 handoff-contract: 5 artefact(s) carry a
+  well-formed contract block`, exit 0. The answer is right: `lib/dates/index.ts:34` is
+  `const SA_UTC_OFFSET = "+02:00"`.
+- **(d)** `git status --short --untracked-files=all`, filtered of `.handoff/`: empty.
+- **One note, not a finding:** v8's L-41 line reports `.handoff/restart-verify/01-scout.md: 1 cited
+  path(s) NOT MEASURED … docs/_scout-probe-DELETE-ME.md (no such file here)`. That artefact records
+  the 2026-09-30 write-scope probe, whose whole point was that the file was never created; the
+  check marks it unmeasured rather than failing, which is the right direction.
 
 - **Re-adopted — row `check-hook-registration`, v2 → v3, 2026-09-10.** CF-3's fix, taken the session
   it shipped. Copied from canon and verified byte-identical (`diff -q` → no output); `--selftest`
