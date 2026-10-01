@@ -20,6 +20,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ApplicationActions } from "./ApplicationActions"
 import { ApplicationDetailShell } from "./ApplicationDetailShell"
 import { ApplicantsCard, type PartyInfo } from "./ApplicantsCard"
+import { inviteHold, isJuristicForCopy, partyKind } from "@/lib/applications/juristicParties"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import type { DetailFact, DetailStatus, DetailTab } from "@/lib/detail/types"
@@ -109,6 +110,12 @@ function buildFitscorePanel(opts: Readonly<{
   return <DetailFullWidth>{content}</DetailFullWidth>
 }
 
+/** The agent-facing reason for an `awaiting_template` hold (P1-R3), by what the applicant answered (P1-R7a/b). */
+function heldReason(declaredDirector: boolean | null): string {
+  if (declaredDirector === false) return "Invite held: not a director. The surety invite for a non-director is awaiting legal review."
+  return "Invite held: the applicant has not said whether this surety is a director."
+}
+
 export default async function ApplicationDetailPage({
   params,
   searchParams,
@@ -145,7 +152,7 @@ export default async function ApplicationDetailPage({
       fitscore_synthesis_template_version, fitscore_inputs_hash,
       fitscore_summary, has_co_applicant,
       applicant_motivation, motivation_doc_path, agent_notes,
-      listing_id, unit_id,
+      listing_id, unit_id, entity_type, applicant_type, company_info,
       listings(asking_rent_cents, units(unit_number, properties(name, address_line1)))
     `)
     .eq("id", id)
@@ -158,7 +165,7 @@ export default async function ApplicationDetailPage({
     .from("application_co_applicants")
     .select(`
       id, first_name, last_name, id_type, id_number, co_applicant_index, marital_status, matrimonial_regime, current_address,
-      role, is_surety_director, gross_monthly_income_cents, employment_type, employer_name,
+      role, is_surety_director, declared_director, declined_at, stage2_consent_given_at, gross_monthly_income_cents, employment_type, employer_name,
       identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
       bank_account_ownership_status,
@@ -276,9 +283,13 @@ export default async function ApplicationDetailPage({
     idType: app.id_type as string | null, employment: app.employment_type as string | null, employer: app.employer_name as string | null,
     incomeCents, isPrimary: true, hasIdNumber: !!app.id_number,
   }
+  // Role by the copy predicate (P1-R3a), not a hand-read of one marker (M-118): a juristic application's surety reads
+  // "Surety", a residential one's "Guarantor". A held invite (P1-R3) is shown with its reason while it can still matter.
+  const juristic = isJuristicForCopy(app)
   const otherParties: PartyInfo[] = (coApplicants ?? []).map((c) => ({
     label: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Applicant",
-    role: c.is_surety_director ? "guarantor" : ((c.role as string | null) ?? "co_applicant"),
+    role: partyKind({ party: c, isJuristic: juristic }),
+    held: !c.declined_at && !c.stage2_consent_given_at && inviteHold({ party: c, isJuristic: juristic }) ? heldReason(c.declared_director) : undefined,
     idType: c.id_type as string | null, employment: c.employment_type as string | null, employer: c.employer_name as string | null,
     incomeCents: c.gross_monthly_income_cents as number | null,
   }))

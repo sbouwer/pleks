@@ -12,6 +12,7 @@
 import { describe, it, expect } from "vitest"
 import {
   isSuretyParty,
+  inviteHold,
   isJuristicApplicant,
   isJuristicApplication,
   orgMarkerFrom,
@@ -213,5 +214,21 @@ describe("isSuretyParty is the one predicate both writers satisfy", () => {
     expect(SURETY_PARTY_OR_FILTER.split(",")).toHaveLength(2)
     expect(isSuretyParty({ is_surety_director: true })).toBe(true)
     expect(isSuretyParty({ role: "guarantor" })).toBe(true)
+  })
+})
+
+describe("inviteHold — a juristic surety who is not a director is held, nobody else (P1-R3/R7a)", () => {
+  const surety = (declared_director: boolean | null, is_surety_director = false) => ({ role: "guarantor", is_surety_director, declared_director })
+  it("holds a juristic surety answered 'not a director' and one never asked", () => {
+    expect(inviteHold({ party: surety(false), isJuristic: true })).toBe("awaiting_template")
+    expect(inviteHold({ party: surety(null), isJuristic: true })).toBe("awaiting_template")
+  })
+  it("does not hold a director by either fact", () => {
+    expect(inviteHold({ party: surety(true), isJuristic: true })).toBeNull()
+    expect(inviteHold({ party: surety(null, true), isJuristic: true })).toBeNull()
+  })
+  it("never holds a residential guarantor or a co-applicant", () => {
+    expect(inviteHold({ party: surety(null), isJuristic: false })).toBeNull()
+    expect(inviteHold({ party: { role: "co_applicant", is_surety_director: false, declared_director: null }, isJuristic: true })).toBeNull()
   })
 })

@@ -183,3 +183,13 @@ export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guaran
 export function isDirectorSurety(row: Readonly<{ role?: string | null; is_surety_director?: boolean | null; declared_director?: boolean | null }>): boolean {
   return isSuretyParty(row) && (row.is_surety_director === true || row.declared_director === true)
 }
+
+/**
+ * Why a party's invite is HELD, or null (BUILD_72 P1-R3). A juristic surety who is not a director has no
+ * counsel-reviewed copy — the non-director variant is with counsel — so nothing is sent, and the agent is shown
+ * this state rather than silence. The reminder cron's "held" branch is the same test on the view's party_kind.
+ */
+export type InviteHold = "awaiting_template"
+export function inviteHold(input: Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; isJuristic: boolean }>): InviteHold | null {
+  return partyKind(input) === "surety" && !isDirectorSurety(input.party) ? "awaiting_template" : null
+}
