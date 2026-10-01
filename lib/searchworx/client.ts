@@ -7,10 +7,12 @@
  *         ResponseMessage on success = canonical product identifier string (e.g. "CombinedConsumerCreditReport").
  *         Product modules call searchworxCall() with buildBody() owning all field casing.
  *         Each product has different casing conventions (CIPC Company uses camelCase; others PascalCase).
- *         Exports _mintToken, _validateToken, _resetCache for unit-test access only.
+ *         _mintToken, _validateToken and _resetCache are module-private; tests reset the token cache with
+ *         vi.resetModules() and a fresh import (see __tests__/client-envelope.test.ts).
  */
 import * as Sentry from "@sentry/nextjs"
 import { isProductionNode, optionalEnv } from "@/lib/env"
+import { envelopeMeta, type SearchworxEnvelopeMeta } from "./envelopeMeta"
 
 // ─── Result envelope ──────────────────────────────────────────────────────────
 
@@ -32,9 +34,12 @@ export class SearchworxError extends Error {
   }
 }
 
+// `envelope` is the PII-free metadata of the vendor's response (envelopeMeta.ts, ADDENDUM_14V §3.2a). A
+// failure carries it too: a "not found" is still billed at the standard rate. Optional on failure because
+// a transport error (timeout, 5xx) throws before any envelope exists.
 export type SearchworxResult<TResult> =
-  | { ok: true; data: TResult; pdfCopyUrl?: string }
-  | { ok: false; error: SearchworxError }
+  | { ok: true; data: TResult; pdfCopyUrl?: string; envelope: SearchworxEnvelopeMeta }
+  | { ok: false; error: SearchworxError; envelope?: SearchworxEnvelopeMeta }
 
 // ─── Call options ─────────────────────────────────────────────────────────────
 
@@ -214,6 +219,7 @@ export async function searchworxCall<TResult>(
         ok:         true,
         data:       data.ResponseObject as TResult,
         pdfCopyUrl: data.PDFCopyURL,
+        envelope:   envelopeMeta(data),
       }
     }
 
@@ -227,8 +233,9 @@ export async function searchworxCall<TResult>(
     }
 
     return {
-      ok:    false,
-      error: new SearchworxError(`Searchworx: ${rawMessage}`, category, rawMessage),
+      ok:       false,
+      error:    new SearchworxError(`Searchworx: ${rawMessage}`, category, rawMessage),
+      envelope: envelopeMeta(data),
     }
   }
 
