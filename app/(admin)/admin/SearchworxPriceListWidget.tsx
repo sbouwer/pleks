@@ -5,8 +5,12 @@
  *
  * Auth:   Rendered inside admin layout (requireAdminAuth cookie gate); the route re-checks isAdminAuthenticated
  * Data:   POST /api/admin/searchworx-rates/import — records observations; the daily cron moves rates
- * Notes:  Reads the file in the browser and posts its text. The result lists what mapped and how many names
- *         were reported unmapped, because an import that silently dropped a product is the failure to see.
+ * Notes:  Reads the file in the browser and posts its text. Searchworx delivers an .xls: a workbook is turned into
+ *         the same text by lib/searchworx/rates/priceListFile.ts (SheetJS loaded only when a workbook is picked),
+ *         and its metadata tab's EffectiveDate is SHOWN beside the date field — never filled in for the admin,
+ *         because the download date and the vendor's date differ and which one a list takes effect on is a decision.
+ *         The result lists what mapped and how many names were reported unmapped, because an import that silently
+ *         dropped a product is the failure to see.
  */
 import { useState } from "react"
 import { ActionButton } from "@/components/ui/actions"
@@ -15,6 +19,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from "sonner"
+import type { VendorListMeta } from "@/lib/searchworx/rates/priceListFile"
 
 interface ImportSummary {
   ok: boolean
@@ -25,15 +30,39 @@ interface ImportSummary {
   rejected: { line: number; reason: string }[]
 }
 
+/** The file's price-list text: a CSV as-is, a workbook through priceListFile. Throws with the refusal reason. */
+async function readPriceList(file: File): Promise<{ text: string; meta: VendorListMeta | null }> {
+  if (file.name.toLowerCase().endsWith(".csv")) return { text: await file.text(), meta: null }
+  const XLSX = await import("xlsx")
+  const { priceListSheetText } = await import("@/lib/searchworx/rates/priceListFile")
+  const r = priceListSheetText(await file.arrayBuffer(), XLSX)
+  if (!r.ok) throw new Error(r.error)
+  return { text: r.text, meta: r.meta }
+}
+
 export function SearchworxPriceListWidget() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [effectiveDate, setEffectiveDate] = useState("")
   const [summary, setSummary] = useState<ImportSummary | null>(null)
+  const [list, setList] = useState<{ text: string; meta: VendorListMeta | null } | null>(null)
+
+  async function handleFile(picked: File | null) {
+    setFile(picked)
+    setList(null)
+    setSummary(null)
+    if (!picked) return
+    try {
+      setList(await readPriceList(picked))
+    } catch (e) {
+      setFile(null)
+      toast.error(`Not a price list this import can read — ${e instanceof Error ? e.message : "unreadable file"}`)
+    }
+  }
 
   async function handleImport() {
-    if (!file || !effectiveDate) {
+    if (!file || !list || !effectiveDate) {
       toast.error("A price-list file and its effective date are required")
       return
     }
@@ -43,7 +72,7 @@ export function SearchworxPriceListWidget() {
       const res = await fetch("/api/admin/searchworx-rates/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, csv: await file.text(), vendor_effective_date: effectiveDate }),
+        body: JSON.stringify({ filename: file.name, csv: list.text, vendor_effective_date: effectiveDate }),
       })
       const body = (await res.json()) as ImportSummary & { error?: string }
       if (res.status === 200 || res.status === 422) {
@@ -76,12 +105,17 @@ export function SearchworxPriceListWidget() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label htmlFor="sw-pricelist">Price-list CSV (Search Type, Price)</Label>
-              <Input id="sw-pricelist" type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <Label htmlFor="sw-pricelist">Price list — the Searchworx .xls (or a CSV of it)</Label>
+              <Input id="sw-pricelist" type="file" accept=".xls,.xlsx,.csv" onChange={(e) => void handleFile(e.target.files?.[0] ?? null)} />
             </div>
             <div>
               <Label>Effective date (the list&apos;s date)</Label>
               <DatePickerInput value={effectiveDate} onChange={setEffectiveDate} />
+              {list?.meta && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The file says: {list.meta.category ?? "—"}, effective {list.meta.effectiveDate ?? list.meta.effectiveDateText ?? "—"}
+                </p>
+              )}
             </div>
             <ActionButton onClick={handleImport} disabled={loading} className="w-full">
               {loading ? "Importing…" : "Import"}
