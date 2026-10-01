@@ -3,11 +3,16 @@
  *
  * Route:  GET /api/cron/screening-portal-reminders
  * Auth:   x-cron-secret header
- * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones
- *         for surety parties (`isSuretyParty`) who have not yet completed their portal portions.
- *         A non-surety co-applicant line is skipped, never sent director copy (BUILD_72 P1-R1).
- *         T+14: director line cancelled, payment flagged for manual refund (14C), expiry email sent.
- *         Primary contact notified at T+7 and T+10 (informational only).
+ * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones for
+ *         co-applicant lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3):
+ *         · surety + is_surety_director → director copy + director-portal link (the reviewed audience, P1-R3).
+ *           T+14: line declined, payment flagged for manual refund (14C), expiry email sent; primary
+ *           contact notified at T+7 and T+10 (informational only).
+ *         · surety, NOT a declared director → HELD: no send, no expiry (P1-R3/R7 — no reviewed copy exists).
+ *         · co_applicant → `co_applicant_invited` resent verbatim at each milestone (P1-R5); declined once
+ *           unconsented past `expires_at` (P1-R6). The refund branch and any expiry notice are gated on
+ *           Stéan, so neither is written here.
+ *         · anything else (null/unknown party_kind) → skipped. No email beats a wrong one.
  *         Milestone tracking: reminder_milestones_sent jsonb on application_co_applicants prevents
  *         re-sending if the daily cron misses a run — each key (t3/t7/t10) is marked once sent.
  */
@@ -16,6 +21,8 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { buildDirectorReminderElement } from "@/lib/applications/commercial-emails"
+import { buildEmailContext } from "@/lib/applications/buildEmailContext"
+import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
@@ -23,7 +30,7 @@ import { requireCronAuth } from "@/lib/cron/auth"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
-import { isSuretyParty } from "@/lib/applications/juristicParties"
+const DAY_MS = 86_400_000
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -32,13 +39,16 @@ export async function GET(req: NextRequest) {
   const service = await createServiceClient()
   let reminders = 0
   let expirations = 0
+  let held = 0
 
   try {
+    // `expired_no_consent` is selected for the co_applicant branch only (P1-R6, and M-112's owner for it);
+    // the director branch keeps the three states it always had.
     const { data: lines, error } = await service
       .from("v_application_screening_lines")
-      .select("application_id, subject_id, subject_name, org_id, paid_at")
+      .select("application_id, subject_id, subject_name, org_id, paid_at, expires_at, state, party_kind")
       .eq("subject_type", "co_applicant")
-      .in("state", ["pending_both", "paid_pending_consent", "consented_pending_payment"])
+      .in("state", ["pending_both", "paid_pending_consent", "consented_pending_payment", "expired_no_consent"])
       .limit(500)
 
     if (error) {
@@ -48,9 +58,10 @@ export async function GET(req: NextRequest) {
 
     for (const line of lines ?? []) {
       try {
-        const result = await processDirectorLine(service, line)
+        const result = await processLine(service, line)
         if (result === "reminded") reminders++
         if (result === "expired") expirations++
+        if (result === "held") held++
       } catch (err) {
         Sentry.captureException(err, {
           tags: { cron_job: "screening_portal_reminders" },
@@ -63,7 +74,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, reminders, expirations })
+  return NextResponse.json({ ok: true, reminders, expirations, held })
 }
 
 type PendingLine = {
@@ -72,9 +83,12 @@ type PendingLine = {
   subject_name: string
   org_id: string
   paid_at: string | null
+  expires_at: string | null
+  state: string
+  party_kind: string | null
 }
 
-type LineOutcome = "reminded" | "expired" | "skipped"
+type LineOutcome = "reminded" | "expired" | "held" | "skipped"
 
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -99,7 +113,14 @@ function resolveListingLabel(listings: unknown): { slug: string; propertyLabel: 
   }
 }
 
-async function processDirectorLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
+function dueStage(daysElapsed: number, sent: Record<string, boolean>): "t3" | "t7" | "t10" | null {
+  if (daysElapsed >= 10 && !sent.t10) return "t10"
+  if (daysElapsed >= 7  && !sent.t7)  return "t7"
+  if (daysElapsed >= 3  && !sent.t3)  return "t3"
+  return null
+}
+
+async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
     .select("applicant_email, first_name, created_at, primary_application_id, access_token, reminder_milestones_sent, role, is_surety_director")
@@ -108,24 +129,66 @@ async function processDirectorLine(service: Svc, line: PendingLine): Promise<Lin
     .single()
 
   if (coErr || !coApp) return "skipped"
-  // FAIL-CLOSED (BUILD_72 P1-R1, commit 1 of 3): the view lists EVERY live co-applicant as a line, and
-  // everything below sends director copy and the director-portal link. A residential joint co-applicant
-  // must never receive that, so a non-surety row is skipped until the view carries `party_kind` and the
-  // cron routes copy by it (commits 2 and 3). Skipping is the safe failure — no email beats a wrong one.
-  if (!isSuretyParty(coApp)) return "skipped"
+  const row = coApp as CoAppRow & { is_surety_director: boolean | null }
+  const daysElapsed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / DAY_MS)
+  const sent = (row.reminder_milestones_sent ?? {}) as Record<string, boolean>
 
-  const daysElapsed = Math.floor((Date.now() - new Date(coApp.created_at as string).getTime()) / 86_400_000)
+  if (line.party_kind === "co_applicant") return processCoApplicantLine(service, line, row, daysElapsed, sent)
+  // Every branch below sends director copy, which is reviewed for a DIRECTOR audience only (P1-R3). The
+  // view's state set for it is unchanged; `expired_no_consent` is the co_applicant branch's alone.
+  if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
+  // HELD (P1-R3): a surety who is not a declared director has no reviewed template. Not reminded, and not
+  // expired either — declining someone for not completing an invite we withheld would record their failure
+  // for ours. R7 adds the declaration; R3 makes the hold visible to the agent.
+  if (row.is_surety_director !== true) return "held"
 
-  if (daysElapsed >= 14) return expireDirectorLine(service, line, coApp as CoAppRow)
-
-  const sent = (coApp.reminder_milestones_sent ?? {}) as Record<string, boolean>
-  let stage: "t3" | "t7" | "t10" | null = null
-  if (daysElapsed >= 10 && !sent.t10) stage = "t10"
-  else if (daysElapsed >= 7  && !sent.t7)  stage = "t7"
-  else if (daysElapsed >= 3  && !sent.t3)  stage = "t3"
-
+  if (daysElapsed >= 14) return expireDirectorLine(service, line, row)
+  const stage = dueStage(daysElapsed, sent)
   if (!stage) return "skipped"
-  return sendMilestoneReminder(service, line, coApp as CoAppRow, stage, daysElapsed, sent)
+  return sendMilestoneReminder(service, line, row, stage, daysElapsed, sent)
+}
+
+/** Residential joint co-applicant (P1-R5/R6). The reminder is the invite, verbatim; no new copy. */
+async function processCoApplicantLine(
+  service: Svc, line: PendingLine, coApp: CoAppRow, daysElapsed: number, sent: Record<string, boolean>,
+): Promise<LineOutcome> {
+  // R6: the payment row's expires_at when there is one, else the same T+14 the director branch uses.
+  const expiresAt = line.expires_at ? new Date(line.expires_at).getTime() : new Date(coApp.created_at).getTime() + 14 * DAY_MS
+  if (Date.now() >= expiresAt) return declineCoApplicantLine(service, line)
+
+  const stage = dueStage(daysElapsed, sent)
+  if (!stage) return "skipped"
+  const ctx = await buildEmailContext(line.application_id)
+  if (!ctx) return "skipped"
+  const primaryName = [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" ")
+  await sendCoApplicantInvited(
+    { firstName: coApp.first_name ?? "", email: coApp.applicant_email },
+    ctx.listingSummary, ctx.orgContext,
+    { accessToken: coApp.access_token, primaryApplicantName: primaryName,
+      resend: { coApplicantId: line.subject_id, triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id } },
+  )
+  await service
+    .from("application_co_applicants")
+    .update({ reminder_milestones_sent: { ...sent, [stage]: true } })
+    .eq("id", line.subject_id)
+    .eq("org_id", line.org_id)
+  return "reminded"
+}
+
+/** R6 decline. The refund branch (joint-fee minus single-fee, or withdraw) is Stéan's and is NOT built:
+ *  a paid line's payment row is left untouched, and no expiry notice is sent — that copy rides with the
+ *  refund decision. The roster shrinks, so the remaining parties may now be all-green. */
+async function declineCoApplicantLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
+  const now = new Date().toISOString()
+  const { error } = await service
+    .from("application_co_applicants")
+    .update({ declined_at: now, decline_reason: "expired_no_completion" })
+    .eq("id", line.subject_id)
+    .eq("org_id", line.org_id)
+  if (error) throw new Error(`decline co-applicant line: ${error.message}`)
+  await recordAudit(service, { orgId: line.org_id, table: "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { declined_at: now, decline_reason: "expired_no_completion" } })
+  await maybeFireAllGreen(service, line.application_id)
+  return "expired"
 }
 
 async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<LineOutcome> {
