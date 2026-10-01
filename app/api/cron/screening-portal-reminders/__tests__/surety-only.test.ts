@@ -4,7 +4,7 @@
  * Notes:  BUILD_72 P1-R1 (census build-72-p1 row 29) + P1-R3/R5/R6. The view lists every live co-applicant as a
  *         line; this cron used to send every one of them director copy. Probed both ways per branch:
  *         · a residential co-applicant gets `co_applicant_invited` verbatim, never director copy (R5), and is
- *           declined past expires_at with the payment row untouched — the refund branch is gated (R6);
+ *           declined past expires_at with the payment row untouched — refunds are struck (R6, 14W);
  *         · a declared director surety still gets director copy, so a router that sent nothing would fail;
  *         · a surety who is not a declared director is HELD — no send, no decline (R3);
  *         · an unknown party_kind is skipped;

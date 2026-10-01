@@ -188,9 +188,11 @@ async function stampMilestone(service: Svc, line: PendingLine, sent: Record<stri
   if (error) throw new Error(`stamp reminder milestone ${stage}: ${error.message}`)
 }
 
-/** R6 decline. The refund branch (joint-fee minus single-fee, or withdraw) is Stéan's and is NOT built:
- *  a paid line's payment row is left untouched, and no expiry notice is sent — that copy rides with the
- *  refund decision. The roster shrinks, so the remaining parties may now be all-green. */
+/** R6 decline. The refund branch is STRUCK, not deferred (ADDENDUM_14W, Stéan 2026-10-01): a paid line's payment
+ *  row is left untouched, and none is ever refunded. 14W also makes expires_at the consent window and tells the
+ *  lead; both are 14W's build, held while its verification is UNRULED, so no notice is sent yet. The roster
+ *  shrinks, so the remaining parties may now be all-green. Which column says a residential party has FINISHED
+ *  (walker F3) is with CD: this branch declines on the view's state alone. */
 async function declineCoApplicantLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   const now = new Date().toISOString()
   const { error } = await service
