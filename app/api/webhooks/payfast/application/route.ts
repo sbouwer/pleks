@@ -16,6 +16,7 @@ import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendPaymentReceived } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { isJuristicApplication, paidScreeningSubjects, SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     const paidCents = Number.isFinite(parsedGross) ? Math.round(parsedGross * 100) : null
 
     const { data: expectedRow, error: expectedError } = await supabase
-      .from("applications").select("org_id, fee_amount_cents, fee_status").eq("id", applicationId).maybeSingle()
+      .from("applications").select("org_id, fee_amount_cents, fee_status, entity_type, applicant_type, company_info").eq("id", applicationId).maybeSingle()
     logQueryError("POST applications fee cross-check", expectedError)
     const expectedCents = expectedRow?.fee_amount_cents ?? null
 
@@ -136,25 +137,35 @@ export async function POST(req: Request) {
       searchworx_check_status: "pending",
     }).eq("id", applicationId)
 
-    // JURISTIC: one payment covers the entity AND every surety party (Stéan ruling 2026-08-15), so write
-    // ONE application_screening_payments row per screened subject here rather than leaving each director
-    // or trustee to pay their own. Their line is now paid on arrival — they still have to CONSENT
-    // individually (D-14B-01, no proxy consent), which is what their portal is for. This is also what
-    // makes the director-reminder copy ("X has already paid for your portion") true.
-    const { data: sureties, error: suretyError } = await supabase
-      .from("application_co_applicants")
-      .select("id")
-      .eq("primary_application_id", applicationId)
-      .eq("is_surety_director", true)
-      .is("declined_at", null)
+    // JURISTIC: one payment covers the entity AND every surety party (N >= 0 — a surety is optional,
+    // Stéan 2026-10-01, BUILD_72 R0), so write ONE application_screening_payments row per screened subject
+    // here rather than leaving each director or trustee to pay their own. Their line is paid on arrival —
+    // they still have to CONSENT individually (D-14B-01, no proxy consent), which is what their portal is
+    // for. This is also what makes the director-reminder copy ("X has already paid for your portion") true.
+    //
+    // WHICH lines is `paidScreeningSubjects` — gated on `isJuristicApplication`, the same answer billing
+    // priced with, so a residential guarantor never yields a company line (its docstring has the history).
+    // BUILD_72 Phase 0 changed one reachable case: a board declared via the unlinked /directors page on an
+    // `applicant_type='company'` application used to have its director lines marked paid out of a single
+    // R250 (N+1 screens for one fee); now each director pays their own through the portal. Accepted —
+    // the old split sold screening below cost, and the surface retires in Phase 1.
+    const juristic = expectedRow ? isJuristicApplication(expectedRow) : false
+    const { data: sureties, error: suretyError } = juristic
+      ? await supabase
+          .from("application_co_applicants")
+          .select("id")
+          .eq("primary_application_id", applicationId)
+          .or(SURETY_PARTY_OR_FILTER)
+          .is("declined_at", null)
+      : { data: [] as { id: string }[], error: null }
     logQueryError("POST application_co_applicants surety lines", suretyError)
 
-    if (!suretyError && sureties && sureties.length > 0) {
-      const perLineCents = Math.round(paidCents / (sureties.length + 1)) // entity line + one per surety
-      const lines = [
-        { subject_type: "company" as const, subject_id: applicationId },
-        ...sureties.map((s) => ({ subject_type: "co_applicant" as const, subject_id: s.id as string })),
-      ].map((l) => ({
+    const subjects = expectedRow && !suretyError && sureties
+      ? paidScreeningSubjects(expectedRow, applicationId, sureties.map((s) => s.id as string))
+      : []
+    if (subjects.length > 0) {
+      const perLineCents = Math.round(paidCents / subjects.length) // the 1 + N lines billing priced
+      const lines = subjects.map((l) => ({
         org_id: expectedRow.org_id,
         application_id: applicationId,
         subject_type: l.subject_type,

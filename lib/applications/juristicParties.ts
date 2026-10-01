@@ -1,26 +1,27 @@
 /**
- * lib/applications/juristicParties.ts — the accompanying-party rule for juristic applications (SSOT)
+ * lib/applications/juristicParties.ts — what a juristic application is, and who stands surety for it (SSOT)
  *
- * Notes:  A juristic applicant (pty_ltd / cc / npc / trust) is a separate legal person and cannot be
- *         screened on its own: the entity has no consumer credit profile, so the surety human(s) behind
- *         it are what the FitScore is actually assessing. This module owns TWO things that were
- *         previously implicit and inconsistent:
+ * Notes:  A juristic applicant (pty_ltd / cc / npc / trust) is a separate legal person. It is screened
+ *         ON ITS OWN — CIPC and the Compuscan Company Profile — and a surety is OPTIONAL: a director or
+ *         trustee stands surety only when the entity alone is not strong enough, exactly as a partner is
+ *         added to a single-income application (Stéan ruling 2026-10-01, BUILD_72 R0). This module owns:
  *
- *         1. AT LEAST ONE accompanying surety party is REQUIRED (Stéan ruling 2026-08-15). A Pty
- *            application with zero directors could previously be created and paid for, producing a
- *            company line with nothing to screen against.
- *         2. The party is called a DIRECTOR for a company and a TRUSTEE for a trust. The rule is the
- *            same; the word is not, and it reaches applicant-facing copy — so it is derived here rather
- *            than hardcoded per-surface.
+ *         1. Whether an application is juristic (`isJuristicApplicant`, `isJuristicApplication`).
+ *         2. THE surety predicate (`isSuretyParty` / `SURETY_PARTY_OR_FILTER`) — the only legal reader
+ *            of the two markers (BUILD_72 R2; `pleks/no-hand-written-surety-filter` holds it).
+ *         3. The party's NAME: a DIRECTOR for a company, a TRUSTEE for a trust. The word reaches
+ *            applicant-facing copy, so it is derived here rather than hardcoded per surface.
+ *
+ *         RETIRED 2026-10-01: "at least one surety party is REQUIRED", attributed to a Stéan ruling of
+ *         2026-08-15. It entered in `396c01d8` (#228) with no quote of him, while he was unreachable, and
+ *         he does not hold it. `MIN_SURETY_PARTIES`, `validateJuristicParties` and the 409
+ *         `surety_party_required` at payment went with it. A citation that resolves to nothing is not a
+ *         ruling, however confidently it is dated.
  *
  *         Payment for the entity + its surety parties is ONE transaction (see screeningFeeCents).
- *         CONSENT stays strictly per-person — D-14B-01, no proxy consent — and that separation is the
- *         point: paying is a commercial act anyone can perform, consenting is not.
+ *         CONSENT stays strictly per-person — D-14B-01, no proxy consent.
  */
 import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
-
-/** Minimum surety humans that must accompany a juristic application. */
-export const MIN_SURETY_PARTIES = 1
 
 export type SuretyPartyLabel = "director" | "trustee" | "representative"
 
@@ -41,34 +42,25 @@ export function suretyPartyLabelPlural(companyType: unknown): string {
 }
 
 /**
- * Does this application need at least one accompanying surety party before it can be paid for?
+ * Is this a juristic applicant — an organisation of a juristic company type?
  *
  * `orgMarker` accepts EITHER of the two signals the codebase uses for "not an individual", because
  * callers hold different ones: `applications.entity_type` = 'organisation' (the DB column) or
- * `applicant_type` = 'company' (what assembleAssessment branches on). Accepting both means this gate
- * cannot be silently bypassed by a caller that happens to hold the other one.
+ * `applicant_type` = 'company' (what assembleAssessment branches on).
  */
-export function requiresSuretyParty(orgMarker: unknown, companyType: unknown): boolean {
+export function isJuristicApplicant(orgMarker: unknown, companyType: unknown): boolean {
   const isOrg = orgMarker === "organisation" || orgMarker === "company"
   return isOrg && isJuristicCompanyType(companyType)
 }
 
 /**
- * Collapse an application row's TWO org markers into the one `requiresSuretyParty` reads.
+ * Collapse an application row's TWO org markers into the one `isJuristicApplicant` reads.
  *
- * `requiresSuretyParty` accepts either marker precisely so a caller holding the "wrong" one cannot
- * bypass the gate — but a caller holding BOTH has to choose, and `entity_type ?? applicant_type` is
- * the wrong choice: `applications.entity_type` carries a column DEFAULT of 'individual', so it is
- * never NULL and `??` never falls through. A company application read that way is an individual.
- *
- * This resolver treats the default as absent: a marker that already means "not an individual" wins,
- * and only then does the other one get consulted. Passing the row through here is what makes the
- * two-marker design (M-118) behave as one predicate.
- *
- * ⚠ ORDERING — do NOT retrofit this into `app/api/billing/screening/route.ts` on its own. That call
- * site's `??` is what currently holds the surety gate OPEN; closing it while nothing writes
- * `is_surety_director` 409s every juristic application at payment (CLAUDE.md §6, M-108/M-109). The
- * declaration pane that writes `is_surety_director` must be live and reachable FIRST.
+ * A caller holding BOTH markers has to choose, and `entity_type ?? applicant_type` is the wrong choice:
+ * `applications.entity_type` carries a column DEFAULT of 'individual', so it is never NULL and `??`
+ * never falls through. A company application read that way is an individual. This resolver treats the
+ * default as absent: a marker that already means "not an individual" wins, and only then does the
+ * other one get consulted. (M-118.)
  */
 export function orgMarkerFrom(entityType: unknown, applicantType: unknown): unknown {
   if (entityType === "organisation" || entityType === "company") return entityType
@@ -77,61 +69,78 @@ export function orgMarkerFrom(entityType: unknown, applicantType: unknown): unkn
 }
 
 /**
+ * Is this application PAID FOR as juristic — the entity's line plus one per surety party?
+ *
+ * ONE answer for the two places that must agree: the price (`billing/screening`, via
+ * `screeningFeeCents`) and the paid lines the PayFast application ITN writes. If they disagree, the
+ * applicant is charged for one set of lines and the ITN records another.
+ *
+ * ⚠ DELIBERATELY reads `entity_type ?? applicant_type`, NOT `orgMarkerFrom` — so it is FALSE for every
+ * application today (`entity_type` defaults to 'individual' and has no writer). That holds juristic
+ * PRICING dormant; it no longer holds any gate shut, because the surety gate is gone (BUILD_72 R0).
+ * BUILD_72 Phase 1 (R3) switches this to `orgMarkerFrom` here, in this one place, together with
+ * writing `entity_type` and re-deriving the juristic fee — so price and lines flip in the same change.
+ */
+export function isJuristicApplication(row: Readonly<{
+  entity_type?: unknown
+  applicant_type?: unknown
+  company_info?: unknown
+}>): boolean {
+  const companyType = (row.company_info as Record<string, unknown> | null | undefined)?.companyType
+  return isJuristicApplicant(row.entity_type ?? row.applicant_type, companyType)
+}
+
+/** One subject a screening payment covers — one `application_screening_payments` row. */
+export interface PaidScreeningSubject {
+  readonly subject_type: "company" | "co_applicant"
+  readonly subject_id: string
+}
+
+/**
+ * The subjects ONE application-fee payment marks paid, for the PayFast application ITN.
+ *
+ * Juristic → the entity line plus one per surety, N >= 0: exactly the 1 + N lines `screeningFeeCents`
+ * priced (a surety is optional, BUILD_72 R0, so N = 0 still pays the entity line). Not juristic → NONE:
+ * an individual application's payment is recorded on the application row, and a RESIDENTIAL guarantor
+ * must never produce a "company" line or a split of a residential fee. That second case is the reason
+ * this is a function with a test rather than an `if` in the route: before BUILD_72 the ITN wrote these
+ * lines whenever it found surety rows, which was safe only while the roster never wrote that marker.
+ */
+export function paidScreeningSubjects(
+  application: Parameters<typeof isJuristicApplication>[0],
+  applicationId: string,
+  suretyIds: readonly string[],
+): PaidScreeningSubject[] {
+  if (!isJuristicApplication(application)) return []
+  return [
+    { subject_type: "company", subject_id: applicationId },
+    ...suretyIds.map((id) => ({ subject_type: "co_applicant" as const, subject_id: id })),
+  ]
+}
+
+/**
  * THE surety-party predicate. Every consumer of "is this person standing surety" resolves it here.
  *
  * `application_co_applicants` denotes the role TWICE, and the two markers have different writers:
  *
- *   - `is_surety_director = true` — written by `declareDirectors` / `replaceDirector`, i.e. the
- *     14G director-declaration page.
+ *   - `is_surety_director = true` — written by `declareDirectors` / `replaceDirector`, the 14G
+ *     director-declaration surface, which BUILD_72 R1 retires.
  *   - `role = 'guarantor'`        — written by the apply flow's roster ("A guarantor / surety (backs
- *     the rent)"), through `POST /api/applications/[id]/co-applicant`.
+ *     the rent)"), through `POST /api/applications/[id]/co-applicant`. The one surety surface (R1).
  *
- * Both are real, both are wired, and both mean the same thing. Reading only the narrower one is not
- * stricter, it is BLIND: before this, the payment gate counted `is_surety_director` alone while
- * `assembleAssessment` accepted either, so a director added through the roster was a guarantor to
- * the assessment engine and invisible to the fee gate — `suretyCount` 0, and the applicant refused
- * at payment for a person they had already declared and invited, with no way to satisfy the gate.
- * (M-118.)
- *
- * Which of the two SURFACES should survive is an open product question; that this predicate is one
- * predicate is not, and it is what makes the answer safe to change later.
+ * Reading only one marker is not stricter, it is BLIND to the other writer — billing, then the
+ * application ITN and the screen route, each counted `is_surety_director` alone. (M-118.) The two
+ * markers stay (different legal postures, M4); the predicate is one.
  */
 export function isSuretyParty(row: Readonly<{ role?: string | null; is_surety_director?: boolean | null }>): boolean {
   return row.is_surety_director === true || row.role === "guarantor"
 }
 
 /**
- * The same set as a PostgREST `.or(...)` filter, for counting sureties without loading their rows.
+ * The same set as a PostgREST `.or(...)` filter, for querying sureties without loading every row.
  *
- * It exists so a COUNT and an in-memory test cannot drift apart — the divergence M-118 records was
+ * It exists so a query and an in-memory test cannot drift apart — the divergence M-118 records was
  * precisely a query filter and a predicate disagreeing. Combine it with the caller's other filters
- * (`.eq("primary_application_id", …).is("declined_at", null)`), which AND with it as usual.
+ * (`.eq("primary_application_id", …)`), which AND with it as usual.
  */
 export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guarantor"
-
-export interface JuristicPartyValidation {
-  readonly ok: boolean
-  /** Applicant-facing, already using the right word for the entity type. */
-  readonly error?: string
-}
-
-/**
- * Gate a juristic application on having its surety party/parties declared. Returns ok for every
- * non-juristic application — an individual or an unincorporated applicant (sole proprietor,
- * partnership) IS the human, so there is nobody to accompany them.
- */
-export function validateJuristicParties(input: {
-  /** applications.entity_type ('organisation') OR applicant_type ('company') — either is accepted. */
-  readonly entityType: unknown
-  readonly companyType: unknown
-  readonly suretyCount: number
-}): JuristicPartyValidation {
-  if (!requiresSuretyParty(input.entityType, input.companyType)) return { ok: true }
-  if (input.suretyCount >= MIN_SURETY_PARTIES) return { ok: true }
-
-  const label = suretyPartyLabel(input.companyType)
-  return {
-    ok: false,
-    error: `A ${input.companyType === "trust" ? "trust" : "company"} application must include at least one ${label} who signs surety. Add a ${label} before continuing to payment.`,
-  }
-}
