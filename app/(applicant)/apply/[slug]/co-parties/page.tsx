@@ -4,14 +4,15 @@
  * Route:  /apply/[slug]/co-parties?token=[primary_application_token]
  * Auth:   application_tokens lookup (primary contact's token, type = 'shortlist_invite')
  * Data:   v_application_screening_lines, application_co_applicants (status only — no cross-director results)
- * Notes:  Primary contact sees all lines + invitation controls.
+ * Notes:  Primary contact sees all lines + invitation controls. Linked from the applicant hub (BUILD_72 P1-R2).
+ *         Each card is titled by the party's designation, derived (not stored): see designationLabel.
  *         Each director's results are NOT shown here — POPIA per-data-subject boundary.
  *         Director lines show status only: Paid/Pending, Consent/Pending, Complete/Running.
  */
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
-import { SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
+import { SURETY_PARTY_OR_FILTER, isJuristicForCopy, type PartyKind } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Clock, AlertCircle, Building2, User } from "lucide-react"
@@ -30,6 +31,18 @@ interface ScreeningLine {
   consented_at: string | null
   expires_at: string | null
   state: string
+  party_kind: PartyKind | null
+}
+
+/**
+ * The card title (P1-R2): the party's designation, never "Director" for everyone. Designation is not stored, so
+ * it is derived from the view's `party_kind` and the application: on a juristic application a surety party is a
+ * Surety and anyone else is a Signatory (R1-b: an extra "Director" row means additional signatory); on a
+ * residential one, Guarantor or Co-applicant.
+ */
+function designationLabel(kind: PartyKind | null, juristic: boolean): string {
+  if (kind === "surety" || kind === "guarantor") return juristic ? "Surety" : "Guarantor"
+  return juristic ? "Signatory" : "Co-applicant"
 }
 
 interface CoApplicant {
@@ -97,13 +110,22 @@ export default async function CoPartiesPage({
   // Fetch all screening lines for this application
   const { data: lines, error: linesErr } = await service
     .from("v_application_screening_lines")
-    .select("application_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state")
+    .select("application_id, subject_type, subject_id, subject_name, fee_cents, paid_at, consented_at, expires_at, state, party_kind")
     .eq("application_id", applicationId)
 
   if (linesErr) {
     console.error("co-parties: lines query failed:", linesErr.message)
     notFound()
   }
+
+  // Juristic-for-copy decides the card titles; the same reading the view's party_kind uses (M-118).
+  const { data: app, error: appErr } = await service
+    .from("applications")
+    .select("entity_type, applicant_type, company_info")
+    .eq("id", applicationId)
+    .single()
+  if (appErr) console.error("co-parties: application query failed:", appErr.message)
+  const juristic = app ? isJuristicForCopy(app) : false
 
   // Fetch co-applicant rows for director details (status only — no results)
   const { data: coApps, error: coErr } = await service
@@ -161,7 +183,7 @@ export default async function CoPartiesPage({
         </Card>
       )}
 
-      {/* Director lines */}
+      {/* Party lines */}
       {directorLines.map((line) => {
         const coApp = directors.find((d) => d.id === line.subject_id)
         const isDeclined = !!coApp?.declined_at
@@ -174,7 +196,7 @@ export default async function CoPartiesPage({
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <User className="size-4 text-muted-foreground" />
-                <CardTitle className="text-base">Director — {line.subject_name}</CardTitle>
+                <CardTitle className="text-base">{designationLabel(line.party_kind, juristic)} — {line.subject_name}</CardTitle>
                 {isDeclined
                   ? <Badge variant="destructive">Declined</Badge>
                   : <StateChip state={line.state} />

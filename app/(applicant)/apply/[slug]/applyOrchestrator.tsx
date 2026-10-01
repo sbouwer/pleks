@@ -241,6 +241,13 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                   busy={busy}
                   canSubmit={canSubmit}
                 />
+                {/* BUILD_72 P1-R2: the parties roster with resend, linked for the LEAD once a surety is on the
+                    application. The page takes the lead's application token; a co never sees other parties. */}
+                {!isCo && token && coApplicants.some((c) => c.invited && c.role === "guarantor") && (
+                  <p className="mt-3 text-sm text-[var(--ink-soft)]">
+                    <a className="underline underline-offset-2 hover:text-[var(--ink)]" href={`/apply/${slug}/co-parties?token=${encodeURIComponent(token)}`}>See each guarantor&apos;s progress and resend their invite</a>
+                  </p>
+                )}
                 {/* A co peer submits the whole application straight from the hub once EVERYONE's part is done (no
                     affordability review — POPIA §5). Until then the action is held with a "waiting on N" note rather
                     than offered-then-bounced; the server re-checks all-green regardless. */}
