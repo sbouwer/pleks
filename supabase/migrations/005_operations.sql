@@ -2993,6 +2993,24 @@ AS $$
   END
 $$;
 
+-- declared_director (BUILD_72 P1-R7a): the applicant's answer to "Is this person a director of the company?",
+-- asked when a guarantor/surety is added on a juristic application. Nullable, NO default, three meanings:
+-- NULL = never asked (held), false = asked and not a director (held), true = director (director copy).
+-- Kept apart from is_surety_director, which Phase 2 derives from the registry: declaration and registry are
+-- two facts, and Phase 2 compares them.
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declared_director boolean;
+
+-- is_director_surety(): may this party receive the director-audience surety copy (P1-R3/R7a)? SQL twin of
+-- isDirectorSurety() in lib/applications/juristicParties.ts; test/db/surety-party-predicate.dbtest.ts
+-- asserts they agree. A surety party AND a director by either fact — the registry's or the declaration.
+CREATE OR REPLACE FUNCTION is_director_surety(caa application_co_applicants)
+RETURNS boolean
+LANGUAGE sql IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT is_surety_party(caa) AND (COALESCE(caa.is_surety_director, false) OR COALESCE(caa.declared_director, false))
+$$;
+
 -- ── v_application_screening_lines: orchestration view ────────────────────────
 -- MOVED HERE 2026-10-01 (BUILD_72 P1-R1) from beside screening_artifacts: `party_kind` calls
 -- is_surety_party(), which reads `role`, added just above. Left there, it would be a forward reference.

@@ -60,7 +60,7 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
     dependentAdults, setDependentAdults, dependentMinors, setDependentMinors, commitments, setCommitments,
     applicationId, token, busy, saved, justSaved, resumeLink, emailed, saveModalOpen, setSaveModalOpen, setEmailVerified,
     coApplicants, setCoApplicants, company, setCompany, companyImDirector, setCompanyImDirector, companyRole,
-    addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, begun, docFiles, docEscape, setDocEscape,
+    addApplicantOpen, setAddApplicantOpen, newCo, setNewCo, asksDirector, begun, docFiles, docEscape, setDocEscape,
     consent, setConsent, companyConsent, setCompanyConsent, atRoster, amendGateStep, setAmendGateStep,
     screeningStatus, assessment,
     selectType, beginApplication, goBack, onOpenCard, backToMenu, resendResumeLink, loginToPrefill, saveAndExit,
@@ -318,6 +318,9 @@ export function StepPanel({ slug, orgId, listingTitle, leaseType, askingRentCent
                 <TextField label="ID number" value={newCo.idNumber} onChange={(v) => setNewCo({ ...newCo, idNumber: v })} required />
               </FieldGrid>
               <SelectField label="They are" value={newCo.role} onChange={(v) => setNewCo({ ...newCo, role: v as CoRole })} options={[{ value: "co_applicant", label: "A co-applicant (lives here / on the lease)" }, { value: "guarantor", label: "A guarantor / surety (backs the rent)" }]} />
+              {asksDirector && (
+                <SelectField label="Are they a director of the company?" required value={typeof newCo.declaredDirector === "boolean" ? String(newCo.declaredDirector) : ""} onChange={(v) => setNewCo({ ...newCo, declaredDirector: v === "" ? null : v === "true" })} options={[{ value: "", label: "Choose…" }, { value: "true", label: "Yes, a director" }, { value: "false", label: "No" }]} />
+              )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <ActionButton tone="secondary" onClick={() => setAddApplicantOpen(false)} disabled={busy}>Cancel</ActionButton>

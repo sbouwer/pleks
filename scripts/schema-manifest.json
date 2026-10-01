@@ -186,7 +186,8 @@
       "spouse_info",
       "started_at",
       "tenant_id",
-      "searchworx_run_started_at"
+      "searchworx_run_started_at",
+      "declared_director"
     ],
     "application_directors": [
       "id",
@@ -3938,6 +3939,9 @@
     ],
     "get_rls_audit": [],
     "handle_new_user": [],
+    "is_director_surety": [
+      "caa"
+    ],
     "is_juristic_party_context": [
       "app"
     ],

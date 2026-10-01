@@ -56,6 +56,9 @@ export async function POST(
       // helper, so the hash name never appears under app/ (pleks/no-id-number-hash-in-app).
       ...idNumberColumns(body.id_number),
       role: body.role === "guarantor" ? "guarantor" : "co_applicant",
+      // P1-R7a: the applicant's answer to "is this person a director?", asked only of a juristic surety. A
+      // boolean on a guarantor or nothing — NULL is "never asked", which the reminder cron holds like "no".
+      declared_director: body.role === "guarantor" && typeof body.declared_director === "boolean" ? body.declared_director : null,
     })
     .select("id, access_token")
     .single()

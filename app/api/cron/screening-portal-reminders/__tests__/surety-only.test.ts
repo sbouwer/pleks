@@ -130,6 +130,21 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(updates).toEqual([])
   })
 
+  it("a surety the applicant DECLARED a director gets director copy without the registry flag (R7a)", async () => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, role: "guarantor", is_surety_director: null, declared_director: true }
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: "application.director_reminder_t3" }))
+  })
+
+  it.each([false, null])("a surety whose declared_director is %s is HELD (R7a: no and never-asked alike)", async (declared) => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, created_at: daysAgo(20), role: "guarantor", is_surety_director: null, declared_director: declared }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+  })
+
   it("a director line in expired_no_consent keeps its old treatment — not selected before, skipped now", async () => {
     line = { ...baseLine, party_kind: "surety", state: "expired_no_consent" }
     coApp = { ...baseCo, created_at: daysAgo(20), role: "guarantor", is_surety_director: true }

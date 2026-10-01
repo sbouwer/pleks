@@ -30,6 +30,7 @@ tester.run("no-hand-written-surety-filter", rule, {
     good(`.or("role.in.(co_applicant)")`),
     { code: `export const q = (db, o) => db.from("user_orgs").select("user_id").eq("org_id", o).eq("role", "agent")\n`, filename: file },
     { code: `export const w = (db, id) => db.from("application_co_applicants").update({ is_surety_director: true }).eq("id", id)\n`, filename: file },
+    { code: `export const w = (db, id) => db.from("application_co_applicants").insert({ declared_director: false, primary_application_id: id })\n`, filename: file },
     // The SSOT file and tests are exempt — the predicate has to be spelled somewhere.
     { code: `export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guarantor"\n`, filename: "lib/applications/juristicParties.ts" },
   ],
@@ -45,5 +46,9 @@ tester.run("no-hand-written-surety-filter", rule, {
     bad(`.not("is_surety_director", "is", null)`),
     bad(`.or("role.in.(guarantor,co_applicant)")`),
     bad(`.or("is_surety_director.eq.true")`),
+    // P1-R7a: the declared answer is a director marker too.
+    bad(`.eq("declared_director", true)`),
+    bad(`.match({ declared_director: true })`),
+    bad(`.or("declared_director.eq.true")`),
   ],
 })

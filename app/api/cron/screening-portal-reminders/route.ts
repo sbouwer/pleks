@@ -5,7 +5,7 @@
  * Auth:   x-cron-secret header
  * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones for
  *         co-applicant lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3):
- *         · surety (juristic application) + is_surety_director → director copy + director-portal link (the reviewed audience, P1-R3).
+ *         · surety (juristic application) + isDirectorSurety (registry flag or declared_director, P1-R7a) → director copy + director-portal link (the reviewed audience, P1-R3).
  *           T+14: line declined, payment flagged for manual refund (14C), expiry email sent; primary
  *           contact notified at T+7 and T+10 (informational only).
  *         · surety, NOT a declared director → HELD: no send, no expiry (P1-R3/R7 — no reviewed copy exists).
@@ -24,6 +24,7 @@ import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-ema
 import { buildDirectorReminderElement } from "@/lib/applications/commercial-emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
+import { isDirectorSurety } from "@/lib/applications/juristicParties"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
@@ -124,13 +125,13 @@ function dueStage(daysElapsed: number, sent: Record<string, boolean>): "t3" | "t
 async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("applicant_email, first_name, created_at, primary_application_id, access_token, reminder_milestones_sent, role, is_surety_director")
+    .select("applicant_email, first_name, created_at, primary_application_id, access_token, reminder_milestones_sent, role, is_surety_director, declared_director")
     .eq("id", line.subject_id)
     .is("declined_at", null)
     .single()
 
   if (coErr || !coApp) return "skipped"
-  const row = coApp as CoAppRow & { is_surety_director: boolean | null }
+  const row = coApp as CoAppRow & { is_surety_director: boolean | null; declared_director: boolean | null }
   const daysElapsed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / DAY_MS)
   const sent = (row.reminder_milestones_sent ?? {}) as Record<string, boolean>
 
@@ -142,8 +143,8 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
   // HELD (P1-R3): a surety who is not a declared director has no reviewed template. Not reminded, and not
   // expired either — declining someone for not completing an invite we withheld would record their failure
-  // for ours. R7 adds the declaration; R3 makes the hold visible to the agent.
-  if (row.is_surety_director !== true) return "held"
+  // for ours. A director by registry OR by the applicant's answer (P1-R7a); R3 makes the hold visible to the agent.
+  if (!isDirectorSurety(row)) return "held"
 
   if (daysElapsed >= 14) return expireDirectorLine(service, line, row)
   const stage = dueStage(daysElapsed, sent)

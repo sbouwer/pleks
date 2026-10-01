@@ -171,3 +171,15 @@ export function isSuretyParty(row: Readonly<{ role?: string | null; is_surety_di
  * (`.eq("primary_application_id", …)`), which AND with it as usual.
  */
 export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guarantor"
+
+/**
+ * May this party receive the DIRECTOR-audience surety copy (`application.director_invited` and its reminders)?
+ * That copy is counsel-reviewed for directors only (BUILD_72 P1-R3); anyone else on the surety path is held.
+ *
+ * A director by EITHER fact: `is_surety_director` (registry-derived, Phase 2) or `declared_director` (the
+ * applicant's answer, P1-R7a; NULL = never asked). Read the two together here and nowhere else —
+ * `pleks/no-hand-written-surety-filter` holds query filters on either. SQL twin: `is_director_surety()` in 005.
+ */
+export function isDirectorSurety(row: Readonly<{ role?: string | null; is_surety_director?: boolean | null; declared_director?: boolean | null }>): boolean {
+  return isSuretyParty(row) && (row.is_surety_director === true || row.declared_director === true)
+}

@@ -15,7 +15,7 @@
  * `__tests__/no-hand-written-surety-filter.test.mjs`, because a list of methods in a header is a claim
  * (the first version listed `.match`/`.filter`/`.not` and caught none of them — walk F2, 2026-10-01):
  *   - a column-first filter (`.eq` / `.neq` / `.is` / `.in` / `.not` / `.filter`) whose column is
- *     `is_surety_director`, as a string OR an interpolation-free template literal;
+ *     `is_surety_director` or `declared_director` (P1-R7a), as a string OR an interpolation-free template literal;
  *   - the same on `role` when ANY later argument is, or contains, `"guarantor"` — `.eq(c, v)` puts the
  *     value second, `.filter(c, op, v)` / `.not(c, op, v)` put it third;
  *   - `.match({ … })` whose object names `is_surety_director`, or `role: "guarantor"`;
@@ -30,7 +30,10 @@
 
 const FILTER_METHODS = new Set(["eq", "neq", "is", "not", "in", "filter"])
 const SSOT = "lib/applications/juristicParties.ts"
-const MARKER_CLAUSE = /\bis_surety_director\.|\brole\.[a-z]+\.[^,]*\bguarantor\b/
+// `declared_director` (BUILD_72 P1-R7a) is the applicant's director answer; read alone it is blind to the
+// registry flag exactly as `is_surety_director` alone is blind to the roster — `isDirectorSurety` owns both.
+const FLAG_COLUMNS = new Set(["is_surety_director", "declared_director"])
+const MARKER_CLAUSE = /\b(?:is_surety_director|declared_director)\.|\brole\.[a-z]+\.[^,]*\bguarantor\b/
 
 function isExempt(file) {
   return file.endsWith(SSOT) || /\/__tests__\/|\.test\.[cm]?[jt]sx?$|\.dbtest\.ts$/.test(file)
@@ -56,7 +59,7 @@ const rule = {
     docs: { description: "Filter surety parties through SURETY_PARTY_OR_FILTER / isSuretyParty, never one marker by hand." },
     messages: {
       handWritten:
-        "Hand-written surety filter. Use `SURETY_PARTY_OR_FILTER` (query) or `isSuretyParty` (in memory) from @/lib/applications/juristicParties — one marker alone is blind to the other writer (M-118, BUILD_72 R2).",
+        "Hand-written surety filter. Use `SURETY_PARTY_OR_FILTER` (query) or `isSuretyParty` / `isDirectorSurety` (in memory) from @/lib/applications/juristicParties — one marker alone is blind to the other writer (M-118, BUILD_72 R2, P1-R7a).",
     },
     schema: [],
   },
@@ -74,7 +77,7 @@ const rule = {
           if (obj?.type !== "ObjectExpression") return
           const hit = obj.properties.some((p) => {
             const key = p.key?.type === "Identifier" ? p.key.name : staticString(p.key)
-            return key === "is_surety_director" || (key === "role" && namesGuarantor(p.value))
+            return FLAG_COLUMNS.has(key) || (key === "role" && namesGuarantor(p.value))
           })
           if (hit) context.report({ node, messageId: "handWritten" })
           return
@@ -82,7 +85,7 @@ const rule = {
         if (!FILTER_METHODS.has(method)) return
         const [column, ...rest] = node.arguments
         const col = staticString(column)
-        if (col === "is_surety_director" || (col === "role" && rest.some(namesGuarantor))) {
+        if (FLAG_COLUMNS.has(col) || (col === "role" && rest.some(namesGuarantor))) {
           context.report({ node, messageId: "handWritten" })
         }
       },
