@@ -18,6 +18,7 @@ import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_RESULT_SUMMARIES } from 
 import { extractBureauScores } from "@/lib/screening/searchworxBureauAdapter"
 import { assertScreeningConsent, screeningSubjectFor } from "@/lib/screening/consentGuard"
 import { getSearchworxBundle } from "@/lib/screening/searchworxBundle"
+import type { SearchworxEnvelopeMeta } from "@/lib/searchworx/envelopeMeta"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,6 +118,7 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     pdfStoragePath: combinedResult.ok ? combinedResult.pdfStoragePath : null,
     resultSummary:  combinedSummary,
     searchToken:    combinedResult.ok ? combinedResult.parsed.searchToken : null,
+    envelope:       combinedResult.envelope ?? null,
   })
 
   if (combinedResult.ok) {
@@ -175,6 +177,7 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
       pdfStoragePath: null,
       resultSummary:  VCCB_RESULT_SUMMARIES.foreign_national_skip,
       searchToken:    null,
+      envelope:       null,
     })
     return { vccbOk: "skipped", vccbSummary: VCCB_RESULT_SUMMARIES.foreign_national_skip }
   }
@@ -200,6 +203,7 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
     pdfStoragePath: vccbResult.ok ? vccbResult.pdfStoragePath : null,
     resultSummary:  vccbSummary,
     searchToken:    vccbResult.ok ? vccbResult.parsed.searchToken : null,
+    envelope:       vccbResult.envelope ?? null,
   })
 
   if (vccbResult.ok) {
@@ -274,6 +278,8 @@ interface ScreeningLinePayload {
   pdfStoragePath: string | null
   resultSummary:  string
   searchToken:    string | null
+  /** PII-free envelope metadata (ADDENDUM_14V §3.2a); null when no call was made or it threw before a response. */
+  envelope:       SearchworxEnvelopeMeta | null
 }
 
 async function upsertScreeningLine(
@@ -295,6 +301,7 @@ async function upsertScreeningLine(
       pdf_storage_path:        p.pdfStoragePath || null,
       result_summary:          p.resultSummary,
       searchworx_search_token: p.searchToken || null,
+      searchworx_envelope_meta: p.envelope,
       started_at:              now,
       completed_at:            now,
     })

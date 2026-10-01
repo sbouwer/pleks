@@ -10,6 +10,7 @@
  *         Request body is PascalCase (consistent with the Combined product family).
  */
 import type { SearchworxError }                   from "../client"
+import type { SearchworxEnvelopeMeta }            from "../envelopeMeta"
 import { searchworxCall }                          from "../client"
 import { downloadAndStoreSearchworxArtefact }      from "../storage"
 import { parseSearchInformation }                  from "../utils"
@@ -82,8 +83,8 @@ export interface CombinedParsed {
 export async function runCombinedConsumerCreditReport(
   input: CombinedRequestInput,
 ): Promise<
-  | { ok: true;  parsed: CombinedParsed; pdfStoragePath: string; resultSummaryKey: keyof typeof COMBINED_RESULT_SUMMARIES }
-  | { ok: false; error: SearchworxError }
+  | { ok: true;  parsed: CombinedParsed; pdfStoragePath: string; resultSummaryKey: keyof typeof COMBINED_RESULT_SUMMARIES; envelope: SearchworxEnvelopeMeta }
+  | { ok: false; error: SearchworxError; envelope?: SearchworxEnvelopeMeta }
 > {
   const result = await searchworxCall<Record<string, unknown>>({
     productPath: COMBINED_PRODUCT_PATH,
@@ -114,7 +115,7 @@ export async function runCombinedConsumerCreditReport(
 
   const resultSummaryKey = computeCombinedResultSummary(parsed)
 
-  return { ok: true, parsed, pdfStoragePath, resultSummaryKey }
+  return { ok: true, parsed, pdfStoragePath, resultSummaryKey, envelope: result.envelope }
 }
 
 // ─── Response parser ──────────────────────────────────────────────────────────
