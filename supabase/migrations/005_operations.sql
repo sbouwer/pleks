@@ -3462,3 +3462,25 @@ CREATE INDEX IF NOT EXISTS idx_applications_screening_running
 CREATE INDEX IF NOT EXISTS idx_co_applicants_screening_running
   ON application_co_applicants(searchworx_run_started_at)
   WHERE searchworx_check_status = 'running';
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.2a: application_screening_lines.searchworx_envelope_meta  (2026-10-01)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- Every pull keeps the vendor envelope's METADATA, so that a per-call cost field — if Searchworx ever
+-- returns one — can be observed and fed to the rate engine as a `pull_observed` source. Nothing kept it
+-- before: the client dropped the envelope after parsing, so the question "does the vendor tell us what
+-- it charged?" could not be answered from stored data (14V verification rows 17-18).
+--
+-- METADATA, NOT THE RESPONSE (Stéan, 2026-10-01). The full envelope is the bureau report — ID number,
+-- accounts, judgments — and id_number is encrypted at rest everywhere, so the report payload is never
+-- stored here; the PDF in the screening-reports bucket remains the record of it. What is kept, and what
+-- is dropped, is decided in ONE place: lib/searchworx/envelopeMeta.ts. Named for what it holds rather
+-- than after property_intelligence_pulls.searchworx_response_jsonb, which does store a payload.
+--
+-- Erasure: lib/popia/anonymisePlan.ts C1 nulls it alongside the line's other vendor columns. The
+-- declined-applicant purge deletes the whole line, so it needs no change.
+ALTER TABLE application_screening_lines ADD COLUMN IF NOT EXISTS searchworx_envelope_meta jsonb;
+
+COMMENT ON COLUMN application_screening_lines.searchworx_envelope_meta IS
+  'PII-free Searchworx envelope metadata (top-level keys + SearchInformation minus SearchDescription + payload key names); never the report. Built by lib/searchworx/envelopeMeta.ts. ADDENDUM_14V §3.2a.';
