@@ -8,8 +8,9 @@
  * Notes:  ⚠ DRAFT — `HELP_CONTENT_DRAFT` is true until Stéan's §7 content-compliance pass signs
  *         off every answer against the no-payment-rails / not-the-trustee invariants. Statutory
  *         values (RHA deposit windows, CPA notice windows) are stated AS THE LAW, not config, and
- *         must track any amendment. Config values (fees, affordability %, app URL) are interpolated
- *         from the SSOT (lib/constants.ts) — never hardcoded. Source draft: brief/build/_OTHER/faq.md.
+ *         must track any amendment. Config values (affordability %, app URL) are interpolated from the
+ *         SSOT (lib/constants.ts) — never hardcoded. Screening fees are quoted per application from
+ *         recorded rates (ADDENDUM_14V), so no answer here states one. Source draft: brief/build/_OTHER/faq.md.
  */
 import { APP_URL, INCOME_AFFORDABILITY_THRESHOLD } from "@/lib/constants"
 

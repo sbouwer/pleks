@@ -957,7 +957,7 @@ rather than quietly weakening the hook.
 
 
 ### M-008 — scan for `25000`/`47000`/`0.30`-shaped literals outside `lib/constants.ts`
-- **Rule:** "`APPLICATION_FEE_CENTS` · `JOINT_APPLICATION_FEE_CENTS` · `INCOME_AFFORDABILITY_THRESHOLD` → `lib/constants.ts`" (`CLAUDE.md`, KEY CONSTANTS)
+- **Rule:** "`INCOME_AFFORDABILITY_THRESHOLD` → `lib/constants.ts`" (`CLAUDE.md` §9). The two screening-fee constants this line named were retired by ADDENDUM_14V step 7 (2026-10-02); the fee half of the scan is M-009's.
 - **Where it lives:** `CLAUDE.md:558-559`
 - **Rung:** check · **Blast:** money
 - **Satisfied when:** check:check-money-literals
@@ -965,7 +965,7 @@ rather than quietly weakening the hook.
 - **Covering spec:** NEW
 
 ### M-009 — ➡ POINTER TO M-008 (one scan, two literal sets — do not build separately)
-- **Rule:** "Never hardcode a fee literal" (`CLAUDE.md`, KEY CONSTANTS — screening fee SSOT)
+- **Rule:** "Never hardcode a screening or property-intelligence fee at a CALL SITE — quote it (`lib/screening/quote.ts`) or read the payable row's stamp" (`CLAUDE.md` §5)
 - **Where it lives:** `CLAUDE.md:563-564`
 - **Rung:** check · **Blast:** money
 - **Satisfied when:** extends:check:check-money-literals
