@@ -2792,3 +2792,7 @@ of the design.
 merge-base diff carries `.githooks/pre-commit`). `docs/handovers/some-note.md` → 17 of 72 steps, passed in
 **10.1s**; `lib/dates/saPublicHolidays.ts` → 35 of 72 steps, `vitest related` 5.7s, passed in **65.5s**.
 Both are inside the prediction. One week of real commits is still the result.
+
+**Review after 30 commits (CD, 2026-10-02).** The count of "passed scoped, failed full at pre-push" IS
+the scope map's error rate, so pre-push keeps the full chain: CD's stamp-skip at pre-push was ruled out
+(canon brief stands), because it would have hidden exactly the commits this row counts. CF-16.

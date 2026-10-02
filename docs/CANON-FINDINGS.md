@@ -468,6 +468,30 @@ FIX        inherit — ask what the row IS before copying its policy."
            security:db.
 ```
 
+### CF-16 · NEW LESSON (CD, 2026-10-02): a stamp's meaning is whatever the LAST writer certified
+```
+OBSERVED   CD asked pre-push to skip the chain when HEAD's tree matched the pleks-gate-ok stamp.
+           Read against the writers, the stamp could not carry that: since M-007 rung 1 the
+           pre-commit writer certifies a SCOPED pass, not the full chain, and prepare-commit-msg
+           deletes the stamp on every commit, so pre-push would never find one. The stamp's name
+           and the ruling's reading of it had both outlived what its writers actually certified.
+COMMAND    git grep -n "gate-ok" .githooks   (at b09164be)
+             .githooks/pre-commit:58:git write-tree > "$(git rev-parse --git-path pleks-gate-ok)"
+             .githooks/pre-merge-commit:19:git write-tree > "$(git rev-parse --git-path pleks-gate-ok)"
+             .githooks/prepare-commit-msg:26:MARKER="$(git rev-parse --git-path pleks-gate-ok)"
+           pre-commit runs `npm run check:scoped`; prepare-commit-msg:29-33 rm -f the marker on
+           both branches.
+WHY IT IS  Portable: any marker, cache key or "already verified" flag is written by several
+CANON'S    producers, and its meaning is the weakest thing any of them certifies. Changing one
+           writer, as scoping the commit gate did here, silently changes what every consumer reads,
+           and nothing in the stamp's text records the change.
+SMALLEST   Ledger entry, CD's wording: "a stamp's meaning is whatever the LAST writer certified —
+FIX        read the writers before consuming it."
+           Applied (pleks): M-007 rung 1, 2026-10-02. Ruled: no pre-push stamp-skip (canon brief
+           2026-10-02 stands); the stamp stays consumed only by prepare-commit-msg, which asks
+           nothing more of it than the scoped writer certifies.
+```
+
 ---
 
 ## 2 · Lesson answers
