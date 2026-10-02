@@ -2767,3 +2767,32 @@ within arm C, and returns a null with a documented account of why the wider comp
 intrinsically unblindable. **That the quality question resisted measurement is the finding** — reported
 as a result, not as a gap, and it required building the blind, the repeat, the tautology guard and the
 confirmation pass to establish rather than assume.
+
+## E18 · Does scoping the commit gate cut commit wall-clock without letting a red commit through? — **OPEN: before measured, after accumulating 2026-10-02 → 2026-10-09**
+
+**Change:** `.githooks/pre-commit` runs `npm run check:scoped` (`scripts/check-scope.mjs`, M-007 rung 1)
+instead of the whole `check`. Push and CI unchanged.
+
+**Before (measured 2026-10-02, origin/main `7560c861`, warm caches):** the full chain is **116.1s** over 71
+steps; tsc 12.0, schema-contract-scan 10.6, knip 9.7, audit-columns 9.6, lint 8.7, vitest 7.9 — the top
+six are 50%. Table: `.handoff/gate-split/01-timings.md`. CI: 0 of the last 30 ci.yml runs failed on a
+`check` step.
+
+**Prediction, registered before the week:** a docs-only commit ~10s (the universal set); an ordinary
+source commit ~70s (the whole-program steps stay, the hook/agent/migration probes drop); anything under
+`scripts/`, hooks or config unchanged at ~116s.
+
+**After:** per commit, the plan's `check:scoped → N of 72 steps … passed in Xs` line, over a week. **The
+failure condition is not slowness:** it is a commit that passed `check:scoped` and then failed the full
+`check` at pre-push on a step the scope skipped. Count those; each one is a map defect to fix, not a cost
+of the design.
+
+**First point (2026-10-02, the gate's own commit, warm caches):** each plan was run through `plan()` +
+`execute()` with an explicit file list, because on this branch every staged diff resolves to FULL (the
+merge-base diff carries `.githooks/pre-commit`). `docs/handovers/some-note.md` → 17 of 72 steps, passed in
+**10.1s**; `lib/dates/saPublicHolidays.ts` → 35 of 72 steps, `vitest related` 5.7s, passed in **65.5s**.
+Both are inside the prediction. One week of real commits is still the result.
+
+**Review after 30 commits (CD, 2026-10-02).** The count of "passed scoped, failed full at pre-push" IS
+the scope map's error rate, so pre-push keeps the full chain: CD's stamp-skip at pre-push was ruled out
+(canon brief stands), because it would have hidden exactly the commits this row counts. CF-16.
