@@ -2816,3 +2816,47 @@ The author identified the hazard, and defended the single field in front of them
   `recordAudit` call in the same module.
 - **Provenance:** CD side-finding on the ADDENDUM_14V §3.2a audit ruling, 2026-10-01.
 - **Covering spec:** none — found while ruling the 14V import's audit attribution, not by a verification row
+
+### M-140 — ✅ BUILT 2026-10-02 — the local push gate's typecheck trusted an incremental build cache
+
+- **Rule:** the gate that decides what reaches origin typechecks the tree as CI does: from source, never from a
+  cache written by a different tree.
+- **Where it lives (the instance):** `package.json` `check` ran `tsc --noEmit` and `tsconfig.json` sets
+  `"incremental": true`, so the gate read the untracked `tsconfig.tsbuildinfo` left by earlier runs on other
+  branches. On #327 (`d4ebc707`) that cache passed a TS2339 in `ApplicationActions.tsx` that CI's fresh checkout
+  failed; `tsc --noEmit --incremental false` reproduced it locally on the same tree. A green local gate and a red
+  CI on one commit — the cost is a CI round trip, and the push gate's claim to be the local twin of CI is false
+  for as long as the cache lies.
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** the push rung runs `tsc --noEmit --incremental false`, with a probe that fails if the
+  chain's typecheck step loses the flag. A planted stale cache cannot be built deterministically, so the probe
+  holds the flag, not the cache.
+- **⚠ BUILT, 2026-10-02 (`build/gate-typecheck-and-floor`).** `check` (the push rung, and the full fallback of the
+  commit rung) is non-incremental: ~44s against ~7s warm, measured the same day. A SCOPED commit plan keeps the
+  incremental form through `SCOPED_AS` in `scripts/check-scope.mjs`, because a stale pass there is caught at push
+  and never reaches origin. `check-scope --selftest` holds both halves: the chain step is fresh, a scoped plan is
+  incremental, a full plan keeps the fresh step. Remaining open: nothing asserts `.next/types/**` (generated,
+  untracked, and in `tsconfig.json`'s `include`) matches what CI would generate — the same local-only-input shape.
+- **Provenance:** #327 CI failure on `d4ebc707`, 2026-10-02.
+- **Covering spec:** none — gate defect found by CI, not by a verification row
+
+### M-141 — ✅ BUILT 2026-10-02 — the test floor counted untracked test files, so a local ratchet set a floor CI could not meet
+
+- **Rule:** the test floor measures the suite CI runs — git-tracked files only — in both check and ratchet mode.
+- **Where it lives (the instance):** `vitest.config.ts` excluded only `**/*.dbtest.ts`, so the default run
+  collected the walker's untracked `.handoff/<slug>/scratch/*.test.ts` probes (`.handoff/` is gitignored), and
+  `scripts/check-test-floor.mjs` counted `numTotalTests` as reported. A `--ratchet` on #327 wrote 1757 tests /
+  158 files; CI collected 1752 / 155 and failed the floor on `cb510ccb`. The same overcount let a local check
+  pass a floor CI would fail. `tsconfig.json` included `.handoff/**` too, so local `tsc` typechecked files CI
+  never sees.
+- **Rung:** check · **Blast:** other
+- **Satisfied when:** untracked files are discounted from both counts, failing closed when git cannot list the
+  tracked set, with planted and known-good probes.
+- **⚠ BUILT, 2026-10-02 (`build/gate-typecheck-and-floor`).** `tracked()` in `check-test-floor.mjs` removes every
+  untracked file's tests from both counts and names each one; git unable to answer FAILS rather than counting
+  everything. Six new `--selftest` cases, both directions, one against the real `git ls-files`. Belt to that
+  brace: `vitest.config.ts` excludes `.handoff/**` unless the run names a `.handoff` path (walker probes still
+  run by path, per `.claude/agents/walker.md`), and `tsconfig.json` excludes `.handoff`. Measured: the default
+  run collected 3 `.handoff` files before, 0 after; a named scratch probe runs 2/2.
+- **Provenance:** #327 CI failure on `cb510ccb`, 2026-10-02.
+- **Covering spec:** none — gate defect found by CI, not by a verification row

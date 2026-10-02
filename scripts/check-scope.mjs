@@ -57,7 +57,7 @@ export const MAP = {
   "node scripts/check-deps-installed.mjs --selftest": "universal",
   "node scripts/check-install-platform.mjs": "universal",
   "node scripts/check-install-platform.mjs --selftest": "universal",
-  "tsc --noEmit": [TS], // incremental: tsconfig.json sets "incremental", tsconfig.tsbuildinfo persists
+  "tsc --noEmit --incremental false": [TS], // the push rung is fresh (M-140); a scoped plan runs SCOPED_AS
   "node scripts/lint.mjs": [SRC, "eslint-rules/**"],
   "node scripts/check-legal-localhost.mjs": ["app/(public)/**", "components/legal/**"],
   "node scripts/check-marketing-consistency.mjs": ["app/(public)/**", "components/marketing/**", "lib/marketing/**"],
@@ -151,6 +151,14 @@ export function chainCommands(pkgJson) {
 }
 
 /**
+ * A chain step that a SCOPED plan runs in a cheaper form. The push rung's typecheck is non-incremental because a
+ * stale tsconfig.tsbuildinfo passed a TS2339 CI caught (M-140); the commit rung keeps the incremental one (~7s
+ * warm against ~44s cold, measured 2026-10-02) because a stale pass there is caught at push, never at origin.
+ * A full plan runs the chain unchanged, so it stays fresh.
+ */
+export const SCOPED_AS = { "tsc --noEmit --incremental false": "tsc --noEmit" }
+
+/**
  * Pure: the plan for a set of changed paths. `files === null` means the diff could not be bounded.
  * Returns { full, reason, commands }; a full plan's commands are the chain unchanged.
  */
@@ -182,7 +190,7 @@ export function plan(chain, files) {
       }
       continue
     }
-    out.push(cmd)
+    out.push(SCOPED_AS[cmd] ?? cmd)
   }
   return { full: false, reason: `${files.length} staged path(s)`, commands: out }
 }
@@ -258,7 +266,7 @@ if (invoked && process.argv.includes("--selftest")) {
   }
   // The trap the CONFIG list exists for: the source globs DO match these files, so without the list they
   // would be scoped. Assert the globs still match, so this probe keeps meaning something.
-  ok(matches("vitest.config.ts", MAP["tsc --noEmit"]) && matches("eslint.config.mjs", MAP["node scripts/lint.mjs"]),
+  ok(matches("vitest.config.ts", MAP["tsc --noEmit --incremental false"]) && matches("eslint.config.mjs", MAP["node scripts/lint.mjs"]),
     "KNOWN-HAZARD: tsc/lint globs match vitest.config.ts and eslint.config.mjs — CONFIG must outrank the map")
   ok(!matches("lib/screening/package.json.ts", CONFIG), "KNOWN-GOOD: CONFIG matches root files exactly, not a source file that merely contains the name")
   ok(plan(chain, ["lib/searchworx/rates/__fixtures__/pricelist.csv"]).full === false &&
@@ -277,6 +285,12 @@ if (invoked && process.argv.includes("--selftest")) {
   const feat = plan(chain, ["lib/dates/index.ts"])
   ok(has(feat, "tsc --noEmit") && has(feat, "lint.mjs") && has(feat, "vitest related --run"), "an ordinary source diff runs tsc, lint and the related tests", JSON.stringify(feat.commands))
   ok(!has(feat, "check-git-hooks") && !has(feat, "check-bash-gate"), "KNOWN-GOOD: a source diff does not run the hook probes")
+
+  // M-140: the push rung's typecheck is fresh; only a scoped commit plan runs it incrementally.
+  ok(chain.includes("tsc --noEmit --incremental false"), "the `check` chain (the push rung) typechecks non-incrementally — a stale tsbuildinfo cannot pass it")
+  ok(feat.commands.includes("tsc --noEmit") && !has(feat, "--incremental false"), "a scoped commit plan runs the incremental typecheck")
+  ok(plan(chain, ["package.json"]).commands.includes("tsc --noEmit --incremental false"), "KNOWN-GOOD: a full plan keeps the fresh typecheck")
+  ok(Object.keys(SCOPED_AS).every((k) => k in MAP), "every SCOPED_AS key is a mapped chain step")
 
   // Renames: both sides select.
   ok(has(plan(chain, ["app/(public)/old/page.tsx", "docs/moved.md"]), "check-legal-localhost"), "the OLD side of a rename still selects its checkers")
