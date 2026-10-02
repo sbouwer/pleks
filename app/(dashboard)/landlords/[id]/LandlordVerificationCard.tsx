@@ -7,6 +7,9 @@
  *         - "organisation" (juristic): cipc_company pull with verify/re-verify button; mismatch flag
  *         - natural person: read-only linked deeds pulls from property verifications; mismatch flag
  *         Hidden entirely when canAccessIntelligence=false.
+ *         ADDENDUM_14V step 7: the price is a prop quoted server-side from the recorded rates (null = no rate →
+ *         the button is disabled). It is sent back as quotedCents; a 409 from /initiate carries the new price,
+ *         which the card shows for confirmation before anything is charged.
  */
 "use client"
 
@@ -15,7 +18,7 @@ import { CheckCircle2, AlertTriangle, Clock, RefreshCw } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
 import { cn } from "@/lib/utils"
-import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
+import { piPriceLabel, type LatestPull } from "../../properties/[id]/PropertyVerificationCard"
 import { fmtDateZA } from "@/lib/dates"
 
 export interface LinkedDeedsPull {
@@ -35,13 +38,16 @@ interface Props {
   canAccessIntelligence: boolean
   latestCipcCompany:     LatestPull | null
   linkedDeedsPulls:      LinkedDeedsPull[]
+  /** cipc_company retail in cents, quoted server-side; null when no rate is recorded. */
+  priceCents:            number | null
 }
 
 type ModalState =
   | { open: false }
   | {
       open:           true
-      step:           "confirm" | "checkout" | "adhoc_wait"
+      step:           "confirm" | "checkout" | "adhoc_wait" | "repriced"
+      forceRun?:      boolean
       pullId?:        string
       formData?:      { url: string; data: Record<string, string> }
       suppressed?:    boolean
@@ -49,7 +55,6 @@ type ModalState =
     }
 
 const PRODUCT_LABEL = "CIPC Company Verification"
-const PRODUCT_PRICE = "R25"
 
 function formatDate(d: string | null): string {
   if (!d) return ""
@@ -173,8 +178,11 @@ export function LandlordVerificationCard({
   canAccessIntelligence,
   latestCipcCompany: initialCipcCompany,
   linkedDeedsPulls,
+  priceCents: initialPriceCents,
 }: Readonly<Props>) {
   const [modal,           setModal]          = useState<ModalState>({ open: false })
+  const [priceCents,      setPriceCents]     = useState(initialPriceCents)
+  const PRODUCT_PRICE = piPriceLabel(priceCents)
   const [loading,         setLoading]        = useState(false)
   const [latestCipcCompany, setLatestCipcCompany] = useState(initialCipcCompany)
 
@@ -199,7 +207,7 @@ export function LandlordVerificationCard({
   }, [])
 
   const handleVerify = useCallback(async (forceRun = false) => {
-    if (!registrationNumber) return
+    if (!registrationNumber || priceCents == null) return
     setLoading(true)
     try {
       const res = await fetch("/api/property-intelligence/initiate", {
@@ -211,9 +219,11 @@ export function LandlordVerificationCard({
           subjectLabel:      companyName ?? registrationNumber,
           landlordId:        landlordContactId,
           forceRun,
+          quotedCents:       priceCents,
         }),
       })
       const json = await res.json() as {
+        retailCents?:   number
         mode?:          "checkout" | "adhoc"
         pullId?:        string
         url?:           string
@@ -222,6 +232,11 @@ export function LandlordVerificationCard({
         recentPullDate?: string
       }
 
+      if (res.status === 409 && typeof json.retailCents === "number") {
+        setPriceCents(json.retailCents)
+        setModal({ open: true, step: "repriced", forceRun })
+        return
+      }
       if (json.suppressed) {
         setModal({ open: true, step: "confirm", suppressed: true, recentPullDate: json.recentPullDate })
         return
@@ -236,7 +251,7 @@ export function LandlordVerificationCard({
     } finally {
       setLoading(false)
     }
-  }, [registrationNumber, companyName, landlordContactId, pollForResult])
+  }, [registrationNumber, companyName, landlordContactId, priceCents, pollForResult])
 
   if (!canAccessIntelligence) return null
 
@@ -263,7 +278,7 @@ export function LandlordVerificationCard({
             tone="secondary"
             size="sm"
             className="h-7 text-xs"
-            disabled={loading}
+            disabled={loading || priceCents == null}
             onClick={() => handleVerify(forceReVerify)}
           >
             {forceReVerify
@@ -341,6 +356,20 @@ export function LandlordVerificationCard({
                   <ActionButton tone="secondary" onClick={() => setModal({ open: false })}>Cancel</ActionButton>
                   <ActionButton tone="primary" disabled={loading} onClick={() => handleVerify(true)}>
                     Re-verify — {PRODUCT_PRICE}
+                  </ActionButton>
+                </div>
+              </>
+            )}
+
+            {modal.step === "repriced" && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  The price of this verification has changed since the page loaded. It is now {PRODUCT_PRICE} incl. VAT.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <ActionButton tone="secondary" onClick={() => setModal({ open: false })}>Cancel</ActionButton>
+                  <ActionButton tone="primary" disabled={loading} onClick={() => handleVerify(modal.forceRun ?? false)}>
+                    Continue — {PRODUCT_PRICE}
                   </ActionButton>
                 </div>
               </>

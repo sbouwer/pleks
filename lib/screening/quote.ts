@@ -45,14 +45,26 @@ export function quoteApplicationFee(args: { juristic: boolean; persons: number }
   return quoteBundle(applicationBundle(args), context)
 }
 
-/**
- * A property-intelligence pull: one product (§3.4 last bullet). The PI product_type IS the rate product_key.
- *
- * @knipignore ADDENDUM_14V step 7 second slice: the PI initiate route quotes through this on the same branch.
- * Remove this tag with that caller.
- */
+/** A property-intelligence pull: one product (§3.4 last bullet). The PI product_type IS the rate product_key. */
 export function quotePropertyIntelligence(productKey: string, context: string): Promise<ServerQuote> {
   return quoteBundle(singleProductBundle(productKey), context)
+}
+
+/**
+ * Display-only PI prices for a verification card, keyed by product: the fee in cents, or null where the quote
+ * refused (the card then disables that pull). Not a stamp — the initiate route re-quotes and stamps at the click.
+ */
+export async function quotePropertyIntelligencePrices(
+  productKeys: readonly string[],
+  context: string,
+): Promise<Record<string, number | null>> {
+  const entries = await Promise.all(
+    productKeys.map(async (k) => {
+      const q = await quotePropertyIntelligence(k, context)
+      return [k, q.ok ? q.fee_cents : null] as const
+    }),
+  )
+  return Object.fromEntries(entries)
 }
 
 /** The three stamp columns a quote leaves beside the fee it priced (§3.5). Same names on every stamped table. */

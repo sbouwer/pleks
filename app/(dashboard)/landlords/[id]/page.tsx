@@ -30,6 +30,7 @@ import { getIdentityForkState } from "@/lib/auth/server"
 import { LandlordVerificationCard, type LinkedDeedsPull } from "./LandlordVerificationCard"
 import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
 import { hasFeature } from "@/lib/tier/gates"
+import { quotePropertyIntelligencePrices } from "@/lib/screening/quote"
 import type { Tier } from "@/lib/constants"
 import { formatZAR } from "@/lib/constants"
 import { SA_TIMEZONE } from "@/lib/dates"
@@ -279,6 +280,10 @@ export default async function LandlordDetailPage({ params }: Props) {
         propertiesMap,
       )
     : { latestCipcCompany: null as LatestPull | null, linkedDeedsPulls: [] as LinkedDeedsPull[] }
+  // ADDENDUM_14V: display-only quote for the CIPC button; /initiate re-quotes and stamps at the click
+  const cipcPriceCents = canAccessIntelligence
+    ? ((await quotePropertyIntelligencePrices(["cipc_company"], "landlord-verification-card")).cipc_company ?? null)
+    : null
 
   const propertyCount = (properties || []).length
 
@@ -409,6 +414,7 @@ export default async function LandlordDetailPage({ params }: Props) {
           canAccessIntelligence={canAccessIntelligence}
           latestCipcCompany={latestCipcCompany}
           linkedDeedsPulls={linkedDeedsPulls}
+          priceCents={cipcPriceCents}
         />
       </DetailFullWidth>
 
