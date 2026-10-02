@@ -39,10 +39,15 @@ elif [ -n "$BRANCH" ]; then
   fi
 fi
 
+# SCOPED (2026-10-02, M-007 rung 1): the commit rung runs what the STAGED diff selects —
+# scripts/check-scope.mjs, which falls through to the full chain on scripts/**, hooks, config, an
+# unknown path or no merge-base. Push and CI are unchanged: pre-push still runs the full chain.
+# pre-merge-commit and prepare-commit-msg stay on `npm run check`; the marker below now means "the
+# scoped gate passed for this tree", which is all prepare-commit-msg ever asks of it.
 if [ -n "$PLEKS_PRECOMMIT_CMD" ] && [ "$PLEKS_HOOK_PROBE" = "1" ]; then
   CMD="$PLEKS_PRECOMMIT_CMD"
 else
-  CMD="npm run check"
+  CMD="npm run check:scoped"
 fi
 echo "pre-commit → $CMD"
 $CMD

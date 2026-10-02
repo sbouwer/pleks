@@ -757,6 +757,19 @@ session started after #318 merged, so agent-brief-gate v2 and the batch-2 spines
   CF-5 class recurring on other rows, and CF-5's structural fix closes it: run the estate's own rule
   set over the kit before shipping a `tracked` row.
 
+**KIT CANDIDATE (not a finding) — scoped commit gate, built 2026-10-02 from canon's handover
+`docs/handovers/2026-10-02-pleks.md` (`88de00a`).** `scripts/check-scope.mjs` plus `pre-commit` →
+`npm run check:scoped`. Push and CI are unchanged. It is not proposed for a kit row yet: canon's kit has
+no git hooks, life-therapy's `.githooks` share only 8–17 lines per hook with pleks's, and yoros has
+none. A git-hooks row needs those read side by side first. Report back once E18 (`docs/EXPERIMENTS.md`)
+has a week of timings. Three things in it that would be portable:
+- the map keyed by the chain's exact command strings, with a selftest that fails in both directions on
+  drift;
+- CONFIG checked BEFORE the map, because source globs match `*.config.ts` / `eslint.config.mjs`. The
+  brief's "leave config unassigned" does not hold in any repo whose checkers glob `**/*.ts`;
+- "inert" as an explicit list (`**/*.md`, `docs/**`), not "unmatched". Otherwise "unmatched → full"
+  and "docs-only → universal" contradict each other, as the brief's §2 and §5 do read literally.
+
 ---
 
 ## Filed
