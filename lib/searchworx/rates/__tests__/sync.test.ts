@@ -31,7 +31,8 @@ const obsRow = (over: Row = {}): Row => ({
   cost_excl_vat_cents: 19410,
   source: "pricelist_import",
   observed_at: "2026-10-01T09:00:00.000Z",
-  raw: { vendor_effective_date: "2026-10-01" },
+  vendor_effective_date: "2026-10-01",
+  raw: {},
   ...over,
 })
 
@@ -290,9 +291,26 @@ describe("decideRateMoves — pure", () => {
     expect(decide(r, o, new Map([[holdKey(CCR, 19999), "rejected" as const]]))[0]).toMatchObject({ kind: "hold", existing: null })
   })
 
-  it("an observation with no vendor date is dated today", () => {
-    const [d] = decide([], seen({ raw: null }))
+  it("a billing observation with no vendor date is dated today", () => {
+    const [d] = decide([], seen({ source: "billing_report", vendor_effective_date: null }, "billed"))
     expect(d).toMatchObject({ kind: "apply", effectiveDate: TODAY })
+  })
+
+  it("a billing observation is dated to its billed day", () => {
+    const [d] = decide([], seen({ source: "billing_report", vendor_effective_date: "2026-09-30" }, "billed"))
+    expect(d).toMatchObject({ kind: "apply", effectiveDate: "2026-09-30" })
+  })
+
+  // §8 (ruled 2026-10-01): a list applies from the day it was IMPORTED; its printed date is metadata.
+  it("a list is dated to its IMPORT day, never backdated to the vendor's printed date", () => {
+    const [d] = decide([], seen({ vendor_effective_date: "2026-04-20", observed_at: "2026-10-01T09:00:00.000Z" }))
+    expect(d).toMatchObject({ kind: "apply", effectiveDate: "2026-10-01" })
+  })
+
+  it("a list's import day is the SA day, not the UTC day", () => {
+    // 23:30 UTC on 30 Sep is 01:30 SAST on 1 Oct.
+    const [d] = decide([], seen({ vendor_effective_date: "2026-04-20", observed_at: "2026-09-30T23:30:00.000Z" }))
+    expect(d).toMatchObject({ kind: "apply", effectiveDate: "2026-10-01" })
   })
 
   it("a future-dated rate is not current, but its observation is not applied again", () => {

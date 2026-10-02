@@ -3718,3 +3718,65 @@ COMMENT ON TABLE searchworx_rate_holds IS
   'ADDENDUM_14V §3.3 step 4. One row per (product, held value). Inserted by searchworx-rate-sync (the insert IS the alert); decided by /api/admin/searchworx-rate, audited under PLATFORM_ORG_ID.';
 
 ALTER TABLE searchworx_rate_holds ENABLE ROW LEVEL SECURITY;
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.5–§3.6 step 7: the consumer sweep — stamps where the fee is shown, no literal fee  (2026-10-02)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- STAMP HOME (ruled 2026-10-02): an application's fee is stamped on `applications` beside fee_amount_cents —
+-- the column the application ITN cross-checks — by the first successful POST /api/billing/screening, and
+-- reused after. A property-intelligence pull carries the same three columns, written at initiate.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS rate_effective_date    date;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS pricing_policy_version text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS cost_excl_vat_cents    integer;
+ALTER TABLE property_intelligence_pulls ADD COLUMN IF NOT EXISTS rate_effective_date    date;
+ALTER TABLE property_intelligence_pulls ADD COLUMN IF NOT EXISTS pricing_policy_version text;
+ALTER TABLE property_intelligence_pulls ADD COLUMN IF NOT EXISTS cost_excl_vat_cents    integer;
+
+COMMENT ON COLUMN applications.pricing_policy_version IS
+  'ADDENDUM_14V §3.5: the PRICING_POLICY_VERSION fee_amount_cents was quoted under. Set at first show (POST /api/billing/screening); with it set, fee_amount_cents and the stamp are immutable (trg_application_fee_immutable).';
+COMMENT ON COLUMN property_intelligence_pulls.pricing_policy_version IS
+  'ADDENDUM_14V §3.4/§3.5: the PRICING_POLICY_VERSION retail_cents was quoted under, written at initiate.';
+
+-- No literal fee in the flow (§3.6). The default made every new application carry a fee nobody had quoted,
+-- and the ITN cross-check read it as one. A NULL fee now means "not yet quoted", and the ITN refuses it.
+ALTER TABLE applications ALTER COLUMN fee_amount_cents DROP DEFAULT;
+
+-- "A quoted fee never moves", for the applications stamp — same shape as screening_payment_fee_immutable.
+CREATE OR REPLACE FUNCTION application_fee_immutable()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF OLD.pricing_policy_version IS NOT NULL AND (
+       NEW.fee_amount_cents       IS DISTINCT FROM OLD.fee_amount_cents
+    OR NEW.rate_effective_date    IS DISTINCT FROM OLD.rate_effective_date
+    OR NEW.pricing_policy_version IS DISTINCT FROM OLD.pricing_policy_version
+    OR NEW.cost_excl_vat_cents    IS DISTINCT FROM OLD.cost_excl_vat_cents
+  ) THEN
+    RAISE EXCEPTION 'applications %: a quoted fee never moves (ADDENDUM_14V §3.5)', OLD.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_application_fee_immutable ON applications;
+CREATE TRIGGER trg_application_fee_immutable
+  BEFORE UPDATE ON applications
+  FOR EACH ROW EXECUTE FUNCTION application_fee_immutable();
+
+-- The vendor's printed date is METADATA (§8, ruled 2026-10-01) and now a real column. It was carried in
+-- raw->>'vendor_effective_date' until this section; the backfill copies every valid ISO day across.
+ALTER TABLE searchworx_rate_observations ADD COLUMN IF NOT EXISTS vendor_effective_date date;
+UPDATE searchworx_rate_observations
+   SET vendor_effective_date = (raw->>'vendor_effective_date')::date
+ WHERE vendor_effective_date IS NULL
+   AND raw->>'vendor_effective_date' ~ '^\d{4}-\d{2}-\d{2}$';
+
+-- A billing row's source_ref is the call's Reference = the screening line / PI pull id; the reconcile in
+-- the rate sync joins on it.
+CREATE INDEX IF NOT EXISTS idx_searchworx_rate_observations_billing_ref
+  ON searchworx_rate_observations (source_ref) WHERE source = 'billing_report';
+
+-- The listing comment carried rand fees and the cancelled Estate bundle (ADDENDUM_14E). Restated without either.
+COMMENT ON COLUMN listings.screening_bundle IS
+  '"standard" — the one screening bundle Pleks sells. "estate" was cancelled (ADDENDUM_14E) and is kept in the CHECK only for historical rows. The fee is not a listing property: it is quoted per application from searchworx_rates (ADDENDUM_14V).';

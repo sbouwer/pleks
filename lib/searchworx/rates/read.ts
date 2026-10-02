@@ -59,10 +59,8 @@ export function selectCurrentRates(rows: readonly RateRow[], productKeys: readon
 
 /**
  * Reads every row on or before as-at for the products and selects. A read failure THROWS — it is not "no rate".
- *
- * @knipignore ADDENDUM_14V §7 step 7 (the consumer sweep, after BUILD_72 Phase 1 merges) lands its callers.
- * The step-6 cron does not call it: it needs each row's observation_id, so it reads the rows itself and uses
- * selectCurrentRates. Built in step 4 with the formula, per the spec. Remove this tag with the first caller.
+ * Called through lib/screening/quote.ts. The step-6 cron does not call it: it needs each row's observation_id,
+ * so it reads the rows itself and uses selectCurrentRates.
  */
 export async function currentRates(productKeys: readonly string[], asAt: string): Promise<CurrentRates> {
   const db = await createServiceClient()

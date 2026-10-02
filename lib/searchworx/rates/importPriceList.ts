@@ -8,14 +8,31 @@
  *         import is evidence and can never reprice anything on its own. Unmapped names are reported and the
  *         mapped rows still commit (§5). A list with rejected lines or no mapped row commits NOTHING: a
  *         truncated or reshuffled export is the failure §9.2 guards, and half of one is worse than none.
+ *         The vendor's printed date is stored as metadata (vendor_effective_date) and a list already older than
+ *         staleAfterDays on arrival is reported back as a warning; it never blocks the import (§4: staleness is an
+ *         observation problem, not a quoting one).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { parsePriceList, type PriceListReport } from "@/lib/searchworx/rates/priceList"
 import { recordObservations } from "@/lib/searchworx/rates/observe"
+import { diffCalendarDays, saTodayISO } from "@/lib/dates"
+import { PRICING_POLICY } from "@/lib/screening/pricingPolicy.v1"
 
 export type ImportResult =
-  | { ok: true; recorded: number; report: PriceListReport }
+  | { ok: true; recorded: number; report: PriceListReport; staleOnArrival: StaleOnArrival | null }
   | { ok: false; reason: "rejected_lines" | "nothing_mapped"; report: PriceListReport }
+
+/** §8 (ruled 2026-10-01): a list whose printed date is older than staleAfterDays on arrival WARNS — it still imports. */
+export interface StaleOnArrival {
+  vendorEffectiveDate: string
+  ageDays: number
+  staleAfterDays: number
+}
+
+export function staleOnArrival(vendorEffectiveDate: string, today: string, staleAfterDays: number): StaleOnArrival | null {
+  const ageDays = diffCalendarDays(vendorEffectiveDate, today)
+  return ageDays > staleAfterDays ? { vendorEffectiveDate, ageDays, staleAfterDays } : null
+}
 
 export async function importPriceList(
   db: SupabaseClient,
@@ -25,7 +42,15 @@ export async function importPriceList(
     vendorEffectiveDate,
     importId = null,
     createdBy = null,
-  }: { csv: string; filename: string; vendorEffectiveDate: string; importId?: string | null; createdBy?: string | null },
+    today = saTodayISO(),
+  }: {
+    csv: string
+    filename: string
+    vendorEffectiveDate: string
+    importId?: string | null
+    createdBy?: string | null
+    today?: string
+  },
 ): Promise<ImportResult> {
   const report = parsePriceList(csv)
   if (report.rejected.length > 0) return { ok: false, reason: "rejected_lines", report }
@@ -44,5 +69,5 @@ export async function importPriceList(
       createdBy,
     })),
   )
-  return { ok: true, recorded, report }
+  return { ok: true, recorded, report, staleOnArrival: staleOnArrival(vendorEffectiveDate, today, PRICING_POLICY.staleAfterDays) }
 }

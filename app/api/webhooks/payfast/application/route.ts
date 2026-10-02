@@ -111,7 +111,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, duplicate: true })
     }
 
-    if (expectedCents !== null && paidCents !== expectedCents) {
+    if (expectedCents === null) {
+      // FAIL CLOSED on NO QUOTED FEE. Until ADDENDUM_14V the column carried a literal DEFAULT, so null meant
+      // "never priced" and was rare; the default is gone and the fee exists only once /api/billing/screening has
+      // stamped it, which precedes every form it signs. A payment against an unpriced application cannot be
+      // checked, so it is not accepted — the audit row + Sentry above make the money visible to reconciliation.
+      await flagMismatch("no_quoted_fee")
+      return NextResponse.json({ ok: false, reason: "no_quoted_fee" })
+    }
+
+    if (paidCents !== expectedCents) {
       if (paidCents < expectedCents) {
         // UNDERPAID — do not mark paid and do not start screening; screening costs real money per head.
         // 200 (not 4xx) so PayFast stops retrying: a retry cannot fix an underpayment. The audit row +

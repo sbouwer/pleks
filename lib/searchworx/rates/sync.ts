@@ -20,14 +20,14 @@
  *         row, so a held value alerts once, not every morning (ruled 2026-10-01); it stays counted in `held`
  *         on every run until an admin decides it. A rejected value is never applied or re-alerted; an
  *         admin-applied value is applied by the cron when it is observed again.
- *         An applied row is dated to the observation's vendor date, else today (§3.3 step 3), and links
- *         observation_id. A UNIQUE (product_key, effective_date, source) collision is reported, never thrown.
+ *         An applied row is dated to the day it applies to quoting (§8, ruled 2026-10-01): a billing row's billed
+ *         day, a list's IMPORT day — never the list's printed date, which is metadata — and links observation_id. A UNIQUE (product_key, effective_date, source) collision is reported, never thrown.
  *         Billing is fetched for one day — yesterday (SA) unless the caller backfills a date. A failed or
  *         unreadable fetch records nothing from billing but the comparison still runs over what is recorded,
  *         and the route turns the failure into Sentry + 502.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { addCalendarDays, diffCalendarDays } from "@/lib/dates"
+import { addCalendarDays, diffCalendarDays, saDateISO } from "@/lib/dates"
 import type { BillingFetch } from "@/lib/searchworx/billingReport"
 import { billingObservations } from "@/lib/searchworx/rates/billing"
 import { recordObservations, type ObservationSource } from "@/lib/searchworx/rates/observe"
@@ -44,6 +44,8 @@ export interface LatestObservation {
   cost_excl_vat_cents: number
   source: ObservationSource
   observed_at: string
+  /** The vendor's own date for the price (a column since ADDENDUM_14V step 7; was raw.vendor_effective_date). */
+  vendor_effective_date: string | null
   raw: Record<string, unknown> | null
 }
 
@@ -73,9 +75,15 @@ const SYNCED_PRODUCT_KEYS: readonly string[] = [
 
 export const holdKey = (productKey: string, cents: number) => `${productKey}|${cents}`
 
-function vendorDay(o: LatestObservation): string | null {
-  const d = o.raw?.vendor_effective_date
-  return typeof d === "string" && ISO_DAY.test(d) ? d : null
+/**
+ * The day a rate applies to quoting (ADDENDUM_14V §8, ruled 2026-10-01). A billing row: the billed day. A price
+ * list: the day it was IMPORTED — the vendor's printed date is metadata on the observation and never backdates a
+ * rate (a list dated April, imported in October, prices nothing before October).
+ */
+function quotingDay(o: LatestObservation, today: string): string {
+  if (o.source === "pricelist_import") return saDateISO(new Date(o.observed_at))
+  const d = o.vendor_effective_date
+  return typeof d === "string" && ISO_DAY.test(d) ? d : today
 }
 
 export function decideRateMoves(args: {
@@ -96,7 +104,7 @@ export function decideRateMoves(args: {
     if (!obs) return { kind: "no_observation", productKey, hasRate: current !== undefined }
     if (applied.has(obs.id)) return { kind: "unchanged", productKey, reason: "already_applied" }
 
-    const effectiveDate = vendorDay(obs) ?? args.today
+    const effectiveDate = quotingDay(obs, args.today)
     if (!current) return { kind: "apply", productKey, observation: obs, effectiveDate, fromCents: null }
 
     const from = current.costExclVatCents
@@ -225,7 +233,7 @@ async function recordBilling(
   result.summary.recorded = await recordObservations(db, fresh)
 }
 
-const OBS_COLUMNS = "id, product_key, cost_excl_vat_cents, source, observed_at, raw"
+const OBS_COLUMNS = "id, product_key, cost_excl_vat_cents, source, observed_at, vendor_effective_date, raw"
 
 async function newestOf(db: SupabaseClient, productKey: string, sources: readonly ObservationSource[]): Promise<LatestObservation | null> {
   const { data, error } = await db

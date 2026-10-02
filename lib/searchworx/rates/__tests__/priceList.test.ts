@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import { parsePriceList, priceToCents } from "@/lib/searchworx/rates/priceList"
-import { importPriceList } from "@/lib/searchworx/rates/importPriceList"
+import { importPriceList, staleOnArrival } from "@/lib/searchworx/rates/importPriceList"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 const CSV = readFileSync(join(__dirname, "../__fixtures__/pricelist_default_2026-10-01.csv"), "utf8")
@@ -63,7 +63,8 @@ describe("importPriceList", () => {
       cost_excl_vat_cents: 715,
       source_ref: "pricelist_default_2026-10-01.csv:160",
       mapping_confidence: "exact",
-      raw: { vendor_name: "VCCB INCOME ESTIMATOR", line: 160, import_id: null, vendor_effective_date: "2026-10-01" },
+      vendor_effective_date: "2026-10-01",
+      raw: { vendor_name: "VCCB INCOME ESTIMATOR", line: 160, import_id: null },
     })
   })
 
@@ -107,5 +108,26 @@ describe("importPriceList", () => {
     expect(await importPriceList(db, { csv: "Search Type,Price\nSOMETHING ELSE,1.00\n", filename: "x", vendorEffectiveDate: "2026-10-01" }))
       .toMatchObject({ ok: false, reason: "nothing_mapped" })
     expect(insert).not.toHaveBeenCalled()
+  })
+})
+
+// §8 (ruled 2026-10-01): a list older than staleAfterDays on ARRIVAL warns at import — and still imports.
+describe("stale on arrival", () => {
+  it("one day past the limit warns; on the limit does not", () => {
+    expect(staleOnArrival("2025-09-01", "2026-10-06", 400)).toBeNull() // exactly 400 days
+    expect(staleOnArrival("2025-09-01", "2026-10-07", 400)).toEqual({ vendorEffectiveDate: "2025-09-01", ageDays: 401, staleAfterDays: 400 })
+  })
+
+  it("PLANTED: a stale list is still recorded, with the warning", async () => {
+    const { db, inserted } = fakeDb()
+    const r = await importPriceList(db, { csv: CSV, filename: "old.csv", vendorEffectiveDate: "2024-01-01", today: "2026-10-02" })
+    expect(r).toMatchObject({ ok: true, recorded: 7, staleOnArrival: { vendorEffectiveDate: "2024-01-01" } })
+    expect(inserted).toHaveLength(7)
+  })
+
+  it("the 2026-10-01 vendor list (printed 2026-04-20) is not stale", async () => {
+    const { db } = fakeDb()
+    const r = await importPriceList(db, { csv: CSV, filename: "f", vendorEffectiveDate: "2026-04-20", today: "2026-10-01" })
+    expect(r).toMatchObject({ ok: true, staleOnArrival: null })
   })
 })

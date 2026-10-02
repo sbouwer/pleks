@@ -6,12 +6,13 @@
  * Route:  /apply/invite/[token]/payment
  * Auth:   Public — invite token; the server validates it inside /api/billing/screening
  * Data:   POST /api/billing/screening returns the PayFast URL + signed field set
- * Notes:  Client page. Submits a hidden auto-built form to PayFast; fee depends on is_joint.
+ * Notes:  Client page. Submits a hidden auto-built form to PayFast; shows the route's stamped fee_cents. When
+ *         no rate can price the screening the route refuses (503) and this page shows that message.
  */
 
 import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
-import { formatZAR, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { formatZAR } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { CreditCard, Landmark, ShieldCheck, Loader2 } from "lucide-react"
@@ -24,11 +25,12 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [isJoint, setIsJoint] = useState(false)
+  // The STAMPED fee the route returns — the same number it signed into the PayFast form. Never recomputed here:
+  // a client-side twin is how this page once showed one fee while the route charged another.
+  const [fee, setFee] = useState(0)
   const [payfastUrl, setPayfastUrl] = useState("")
   const [payfastData, setPayfastData] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
-
-  const fee = isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
 
   useEffect(() => {
     let cancelled = false
@@ -48,6 +50,7 @@ export default function PaymentPage() {
         const data = await res.json()
         if (!cancelled) {
           setIsJoint(data.is_joint)
+          setFee(data.fee_cents)
           setPayfastUrl(data.payfast_url)
           setPayfastData(data.payfast_data)
           setLoading(false)

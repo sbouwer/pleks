@@ -11,11 +11,11 @@
  *         must track any amendment. Config values (fees, affordability %, app URL) are interpolated
  *         from the SSOT (lib/constants.ts) — never hardcoded. Source draft: brief/build/_OTHER/faq.md.
  */
-import { APP_URL, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS, INCOME_AFFORDABILITY_THRESHOLD, formatZAR } from "@/lib/constants"
+import { APP_URL, INCOME_AFFORDABILITY_THRESHOLD } from "@/lib/constants"
 
 // ── SSOT-derived values (no hardcoded literals — feedback_no_hardcoded_values) ────────────────
-const APP_FEE = formatZAR(APPLICATION_FEE_CENTS)
-const JOINT_FEE = formatZAR(JOINT_APPLICATION_FEE_CENTS)
+// The screening fee carries NO amount here (ADDENDUM_14V §3.6): it is a formula over recorded vendor rates,
+// stamped when first shown, and this corpus is bundled into a client widget that cannot read the rate table.
 const AFFORD = `${Math.round(INCOME_AFFORDABILITY_THRESHOLD * 100)}%`
 const APP_HOST = APP_URL.replace(/^https?:\/\//, "")
 /** Help contact (in-app fallback when an answer doesn't resolve a question). */
@@ -238,7 +238,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     a: `Affordability compares the rent against the applicant's verified income, using an income threshold of ${AFFORD} as a guide. It's one signal among several in the report — you see the figures rather than just a verdict.` },
   { id: "q-applications-fee", roles: ["agent"], category: "applications",
     q: "What does an application cost?",
-    a: `Application fees are fixed: ${APP_FEE} for a single applicant and ${JOINT_FEE} for a joint application. These are screening fees tied to the application, separate from any rent or deposit.`,
+    a: `The applicant pays a screening fee, set from the current cost of the credit checks it covers, and sees the exact amount before paying; once shown, that amount does not change. A joint application screens both applicants. The fee is tied to the application, separate from any rent or deposit.`,
     keywords: ["application fee", "screening fee", "cost"] },
   { id: "q-applications-to-lease", roles: ["agent"], category: "applications",
     q: "How do I turn an approved application into a lease?",
@@ -376,7 +376,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     a: `Complete the application your agent sends you, including the personal and income details requested. A screening check is run as part of the application; once approved and your lease is activated, you move from applicant to tenant with access to your tenant portal.` },
   { id: "q-applications-cost-t", roles: ["tenant"], category: "applications",
     q: "What does it cost to apply, and what is the screening?",
-    a: `A single application is ${APP_FEE} and a joint application is ${JOINT_FEE} — a screening fee tied to the application, separate from rent and deposit. Screening looks at affordability (your rent against your income) and the checks relevant to the application, and is only run with your consent.`,
+    a: `You pay a screening fee tied to the application, separate from rent and deposit. It is set from the current cost of the checks it covers (a joint application screens both applicants), and you see the exact amount before you pay. Screening looks at affordability (your rent against your income) and the checks relevant to the application, and is only run with your consent.`,
     keywords: ["application fee", "screening", "credit check"], legalCheck: true },
   { id: "q-applications-consent-t", roles: ["tenant"], category: "applications",
     q: "Why do you need my consent to run a check, and what happens to my data?",
