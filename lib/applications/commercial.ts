@@ -20,6 +20,7 @@ import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { inviteRoute } from "@/lib/applications/juristicParties"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
+import { isLateParty } from "@/lib/screening/partySet"
 
 /**
  * Verifies the applicant credential against this application AND returns the application's own org.
@@ -64,6 +65,8 @@ async function resolveApplicationOrg(
  *   - director     → rotate the token (and its 14-day expiry, which the copy states), send director_invited
  *   - co_applicant → re-send co_applicant_invited on the EXISTING token, as the reminder cron does (P1-R5)
  *   - held         → send nothing, rotate nothing; the page does not offer the button for a held party
+ * A LATE party (P1-R3b / 14V §3.5b: on a paid application, a party the payment did not price — a hold lifted after
+ * payment) is sent nothing either, on any route.
  */
 export async function resendDirectorInvite(
   coApplicantId: string,
@@ -101,6 +104,8 @@ export async function resendDirectorInvite(
   if (route === "held") {
     return { ok: false, error: "This invitation is held until its wording is approved" }
   }
+  const late = await isLateParty(service, { orgId, applicationId, coApplicantId })
+  if (!late.ok || late.late) return { ok: false, error: "Could not send the invitation" }
 
   if (route === "co_applicant") {
     const ctx = await buildEmailContext(applicationId)

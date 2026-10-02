@@ -23,6 +23,9 @@ import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { inviteRoute } from "@/lib/applications/juristicParties"
 import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
 
+/** Stage 2 has been offered and not yet paid — a party added now joins the open consent round. */
+const STAGE2_OPEN = new Set(["invited", "pending_consent", "pending_payment"])
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -36,7 +39,7 @@ export async function POST(
 
   const { data: application, error: applicationError } = await supabase
     .from("applications")
-    .select("org_id, co_applicants_count, entity_type, applicant_type, company_info")
+    .select("org_id, co_applicants_count, entity_type, applicant_type, company_info, stage2_status")
     .eq("id", applicationId)
     .single()
     logQueryError("POST applications", applicationError)
@@ -72,6 +75,10 @@ export async function POST(
       declared_director: declaredDirector,
       // The director copy states a 14-day link; the column default is the co-applicant's 30.
       ...(route === "director" ? { access_token_expires: directorTokenExpiry() } : {}),
+      // BUILD_72 P1-R8b-2: a residential party added AFTER the stage-2 invite went out (sendShortlistInvitation, which
+      // sets stage2_status 'invited' — NOT the stage-1 triage mark, which invites nobody) is invited to stage 2 by this
+      // very invite: the shortlist already ran, so this is the only moment its consent window can start.
+      ...(route === "co_applicant" && STAGE2_OPEN.has(application.stage2_status as string) ? { stage2_invited_at: new Date().toISOString() } : {}),
     })
     .select("id, access_token")
     .single()

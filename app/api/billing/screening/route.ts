@@ -10,12 +10,17 @@
  *         reused after. A JURISTIC application (pty_ltd/cc/npc/trust) is priced as the entity line + one SA bundle
  *         per surety party (N >= 0) and paid in ONE transaction. A surety is optional (Stéan 2026-10-01, BUILD_72
  *         R0) — nothing here refuses a company with none. No rate → 503, never a fallback fee.
+ *         14W PAYABILITY GATE (BUILD_72 P1-R8b-4): refused 409 until EVERY priced party has stage-2 consent
+ *         (`awaitingConsent`, the one predicate), naming who is outstanding — checked BEFORE the stamp, so the first
+ *         show of the fee is the moment it becomes payable, and the ITN never writes a paid-but-unconsented line.
+ *         P1-R3b: a HELD party is outside the set (lib/screening/partySet.ts) — not priced, not counted, not awaited —
+ *         and is returned in `held` (name + reason) on both the 200 and the 409, so the lead sees who is not included.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildApplicationFeeForm } from "@/lib/payfast/forms"
 import { quoteApplicationFee, stampColumns } from "@/lib/screening/quote"
-import { livePartySet, stampMatches, type PartySet } from "@/lib/screening/partySet"
+import { awaitingConsent, livePartySet, stampMatches, type AwaitingConsent, type PartySet } from "@/lib/screening/partySet"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
@@ -33,6 +38,15 @@ const VOID = {
 }
 
 const UNRECORDED = { error: "Could not record the screening fee" }
+
+/** The refusal names who is outstanding — the lead as "you", every other party by name. */
+function awaitingConsentMessage(waiting: AwaitingConsent[]): string {
+  const lead = waiting.some((w) => w.subject_type === "applicant")
+  const others = waiting.filter((w) => w.subject_type === "co_applicant").map((w) => w.name ?? "a co-applicant")
+  const names = [...(lead ? ["you"] : []), ...others]
+  const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]
+  return `Screening can be paid once everyone on this application has given screening consent. Still waiting on: ${list}.`
+}
 
 /**
  * STAMP AT FIRST SHOW (ADDENDUM_14V §3.5; ruled 2026-10-01: the stamp lives on applications beside
@@ -115,7 +129,7 @@ export async function POST(req: NextRequest) {
   const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select(`
-      id, org_id, listing_id, has_co_applicant, entity_type, applicant_type, company_info,
+      id, org_id, listing_id, has_co_applicant, entity_type, applicant_type, company_info, stage2_consent_given_at,
       fee_amount_cents, pricing_policy_version, priced_party_count, priced_entity, fee_paid_at,
       listings(asking_rent_cents, units(unit_number), properties(name))
     `)
@@ -151,6 +165,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not verify the parties to this application" }, { status: 503 })
   }
   const isJoint = !party.set.entity && party.set.persons > 1
+  const held = party.set.held.map((h) => ({ name: h.name, reason: h.reason }))
+
+  // 14W: not payable until every priced party has consented to their own screening (P1-R8b-4).
+  const waiting = awaitingConsent(application, party.set)
+  if (waiting.length > 0) {
+    return NextResponse.json({
+      error: awaitingConsentMessage(waiting),
+      reason: "awaiting_consent",
+      awaiting: waiting.map((w) => ({ subject_type: w.subject_type, name: w.name })),
+      held,
+    }, { status: 409 })
+  }
 
   const fee = await stampedFee(supabase, {
     applicationId: application.id,
@@ -175,5 +201,6 @@ export async function POST(req: NextRequest) {
     payfast_data: form.data,
     fee_cents: feeCents,
     is_joint: isJoint,
+    held,
   })
 }

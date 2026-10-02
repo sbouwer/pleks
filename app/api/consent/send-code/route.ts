@@ -2,12 +2,14 @@
  * app/api/consent/send-code/route.ts — Send SMS verification code for consent
  *
  * Route:  POST /api/consent/send-code
- * Auth:   token-based (applicant_token or director_token) — validated server-side
+ * Auth:   token-based (applicant_token, or a party's access_token for director_* / co_applicant_*) — validated server-side
  * Data:   consent_verifications (insert), consent_verification_rate_limits, applications,
  *         application_co_applicants, application_tokens, audit_log, auth_events
  * Notes:  ADDENDUM_14F. Resolves phone from token server-side (client never sends phone).
  *         Returns verification_id (not the code). Respects rate limits.
- *         consent_type determines which token field is used (director_* vs standard_*).
+ *         consent_type determines which token field is used (director_* / co_applicant_* vs standard_*).
+ *         BUILD_72 P1-R8: co_applicant_standard is a residential co-applicant / guarantor verifying its own stage-2
+ *         consent on its access_token — resolved exactly as a director token is, recorded under its own type.
  *         F2: writes auth_events (consent_code_sent) — user_id nullable since BUILD_63 §9.2.
  *         F6: application_tokens.expires_at checked in applicant path.
  */
@@ -143,14 +145,15 @@ export async function POST(req: Request) {
     }
 
     const validTypes: ConsentType[] = [
-      "standard_bundle", "estate_criminal", "director_standard", "director_estate_criminal",
+      "standard_bundle", "estate_criminal", "director_standard", "director_estate_criminal", "co_applicant_standard",
     ]
     if (!validTypes.includes(consent_type as ConsentType)) {
       return NextResponse.json({ error: "Invalid consent_type" }, { status: 400 })
     }
 
     const consentType = consent_type as ConsentType
-    const isDirector  = consentType.startsWith("director_")
+    // A party token (director or residential co row) resolves through application_co_applicants.access_token.
+    const isDirector  = consentType.startsWith("director_") || consentType === "co_applicant_standard"
     const service     = await createServiceClient()
     const headersList = await headers()
     const clientIp    = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null

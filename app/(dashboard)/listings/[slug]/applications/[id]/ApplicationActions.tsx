@@ -6,11 +6,14 @@
  * Route:  /listings/[slug]/applications/[id]
  * Auth:   gateway (dashboard layout)
  * Data:   applicationActions server actions; createTenantFromApplication; sendShortlistInvitation; Supabase client for immigration confirmation
- * Notes:  Foreign national applications require immigration compliance confirmed before shortlisting
+ * Notes:  Foreign national applications require immigration compliance confirmed before shortlisting.
+ *         The invite shows while canInviteToStage2 holds — stage 1 complete OR already ticked in triage, no stage 2
+ *         yet (CD 2026-10-02); the action checks the same predicate server-side.
  */
 import { useState } from "react"
 import { ActionButton } from "@/components/ui/actions"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
+import { canInviteToStage2 } from "@/lib/applications/stage2Invite"
 import { declineStage1Action, approveAction, declineStage2Action, deleteApplicationAction } from "@/lib/applications/applicationActions"
 import { createTenantFromApplication } from "@/lib/applications/createTenantFromApplication"
 import { DeclineDecisionModal, type DeclineSubmission } from "./DeclineDecisionModal"
@@ -124,7 +127,7 @@ export function ApplicationActions({
           Confirm Immigration Docs
         </ActionButton>
       )}
-      {stage1Status === "pre_screen_complete" && !stage2Status && (
+      {canInviteToStage2(stage1Status, stage2Status) && (
         <>
           <ActionButton tone="primary" onClick={handleShortlist}>Invite to Credit Check</ActionButton>
           <ActionButton tone="secondary" onClick={handleDecline}>Decline</ActionButton>

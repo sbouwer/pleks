@@ -150,28 +150,44 @@ describe("orgMarkerFrom collapses the two org markers without losing the juristi
   })
 })
 
-describe("paidScreeningSubjects — the lines one application payment marks paid (the ITN)", () => {
+describe("paidScreeningSubjects — the lines one application payment marks paid (the ITN, BUILD_72 P1-R8a)", () => {
   const company = { entity_type: "organisation", applicant_type: "company", company_info: { companyType: "pty_ltd" } }
   const residential = { entity_type: "individual", applicant_type: "individual", company_info: null }
 
-  it("writes NOTHING for a residential application, even with a guarantor — no company line, no fee split", () => {
-    expect(paidScreeningSubjects(residential, "app-1", ["guarantor-co-row"])).toEqual([])
+  it("writes the lead's own line for a residential application — an 'applicant', never a 'company' (R8b-1)", () => {
+    expect(paidScreeningSubjects(residential, "app-1", [])).toEqual([{ subject_type: "applicant", subject_id: "app-1" }])
   })
 
-  it("writes nothing for a company application while it is still dormant (entity_type unwritten)", () => {
-    expect(paidScreeningSubjects({ ...company, entity_type: "individual" }, "app-1", ["d1"])).toEqual([])
+  it("writes one co_applicant line per live residential co row, a guarantor included — no longer juristic-only", () => {
+    expect(paidScreeningSubjects(residential, "app-1", ["co-1", "guarantor-co-row"])).toEqual([
+      { subject_type: "applicant", subject_id: "app-1" },
+      { subject_type: "co_applicant", subject_id: "co-1" },
+      { subject_type: "co_applicant", subject_id: "guarantor-co-row" },
+    ])
+  })
+
+  it("a dormant company application (entity_type unwritten) is a natural-person lead, so it is an 'applicant' line", () => {
+    expect(paidScreeningSubjects({ ...company, entity_type: "individual" }, "app-1", ["d1"])).toEqual([
+      { subject_type: "applicant", subject_id: "app-1" },
+      { subject_type: "co_applicant", subject_id: "d1" },
+    ])
   })
 
   it("writes the entity line alone for a company with no surety — a surety is optional (R0)", () => {
     expect(paidScreeningSubjects(company, "app-1", [])).toEqual([{ subject_type: "company", subject_id: "app-1" }])
   })
 
-  it("writes exactly the lines billing priced: 1 + N", () => {
+  it("writes exactly the lines billing priced: 1 + N, juristic and residential alike", () => {
     for (const ids of [[], ["d1"], ["d1", "d2", "d3"]]) {
-      const lines = paidScreeningSubjects(company, "app-1", ids)
-      const priced = applicationBundle({ juristic: true, persons: ids.length })
-      expect(lines).toHaveLength((priced.entityProducts.length > 0 ? 1 : 0) + priced.persons)
-      expect(lines.filter((l) => l.subject_type === "co_applicant").map((l) => l.subject_id)).toEqual(ids)
+      const juristic = paidScreeningSubjects(company, "app-1", ids)
+      const pricedJuristic = applicationBundle({ juristic: true, persons: ids.length })
+      expect(juristic).toHaveLength((pricedJuristic.entityProducts.length > 0 ? 1 : 0) + pricedJuristic.persons)
+
+      const resi = paidScreeningSubjects(residential, "app-1", ids)
+      expect(resi).toHaveLength(applicationBundle({ juristic: false, persons: 1 + ids.length }).persons)
+      for (const lines of [juristic, resi]) {
+        expect(lines.filter((l) => l.subject_type === "co_applicant").map((l) => l.subject_id)).toEqual(ids)
+      }
     }
   })
 })

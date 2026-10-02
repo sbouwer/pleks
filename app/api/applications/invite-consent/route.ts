@@ -3,14 +3,17 @@
  *
  * Route:  POST /api/applications/invite-consent
  * Auth:   application_tokens.token lookup (service client)
- * Data:   applications (stage2_consent_given_at), consent_log, consent_verifications
+ * Data:   applications (stage2_consent_given_at / _ip / _log_id), consent_log, consent_verifications
  * Notes:  ADDENDUM_14F. Replaces direct anon Supabase writes in the client consent page.
+ *         BUILD_72 P1-R8b-3: version + consent_log shape come from lib/screening/screeningConsent.ts, shared with
+ *         the co-applicant route; the application row now carries the consent's IP and log id, as a party row does.
  *         verificationId is optional (null if applicant has no phone on file).
  *         When present, verification status is re-checked server-side before consent is recorded.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { insertScreeningConsentLog } from "@/lib/screening/screeningConsent"
 
 export async function POST(req: NextRequest) {
   const { token, verificationId } = await req.json() as {
@@ -58,7 +61,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Re-verify SMS verification server-side if provided (ADDENDUM_14F)
-  let verificationMethod = "none"
   if (verificationId) {
     // ⚠ `.eq("application_id", …)` IS THE SECURITY BOUNDARY — see director-consent for the full
     //   narrative. `verificationId` is caller-supplied; the token above proves ownership of THIS
@@ -71,43 +73,31 @@ export async function POST(req: NextRequest) {
       .select("status")
       .eq("id", verificationId)
       .eq("application_id", tokenRow.application_id)
+      // The LEAD's own round: a co-applicant's round on the same application carries its access_token in
+      // director_token (send-code), and is that person's verification, not this one's (BUILD_72 P1-R8).
+      .is("director_token", null)
       .single()
     logQueryError("POST consent_verifications", verifError)
 
     if (verif?.status !== "verified") {
       return NextResponse.json({ error: "SMS verification not confirmed" }, { status: 403 })
     }
-    verificationMethod = "sms_code"
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
   const now = new Date().toISOString()
 
-  const { data: logEntry, error: logErr } = await service
-    .from("consent_log")
-    .insert({
-      org_id:              app.org_id,
-      subject_email:       tokenRow.applicant_email,
-      consent_type:        "credit_check",
-      consent_given:       true,
-      consent_version:     "1.0-searchworx-stage2",
-      ip_address:          ip,
-      user_agent:          req.headers.get("user-agent"),
-      verification_method: verificationMethod,
-      verification_id:     verificationId ?? null,
-      verification_status: verificationId ? "verified" : "not_required",
-      metadata:            {
-        application_id: tokenRow.application_id,
-        bureau:         "searchworx",
-        check_types:    ["transunion", "xds", "csi_id", "csi_id_photo", "tpn_adverse"],
-        stage:          2,
-      },
-    })
-    .select("id")
-    .single()
+  const logEntry = await insertScreeningConsentLog(service, {
+    orgId:          app.org_id as string,
+    subjectEmail:   tokenRow.applicant_email as string | null,
+    applicationId:  tokenRow.application_id as string,
+    ip,
+    userAgent:      req.headers.get("user-agent"),
+    verificationId: verificationId ?? null,
+  })
 
-  if (logErr) {
-    console.error("[invite-consent] consent_log insert failed:", logErr.message)
+  if (!logEntry.ok) {
+    console.error("[invite-consent] consent_log insert failed:", logEntry.error)
     return NextResponse.json({ error: "Failed to record consent" }, { status: 500 })
   }
 
@@ -119,7 +109,7 @@ export async function POST(req: NextRequest) {
     await service
       .from("consent_verifications")
       // eslint-disable-next-line pleks/require-org-scope-on-service-write -- bound by .eq("application_id", …) below to the application the invite token proved; consent_verifications.org_id is nullable and cannot carry this
-      .update({ consent_log_id: logEntry?.id })
+      .update({ consent_log_id: logEntry.id })
       .eq("id", verificationId)
       .eq("application_id", tokenRow.application_id)
   }
@@ -130,6 +120,8 @@ export async function POST(req: NextRequest) {
     .update({
       stage2_consent_given:    true,
       stage2_consent_given_at: now,
+      stage2_consent_ip:       ip,
+      stage2_consent_log_id:   logEntry.id,
       stage2_status:           "pending_payment",
     })
     .eq("id", tokenRow.application_id)
