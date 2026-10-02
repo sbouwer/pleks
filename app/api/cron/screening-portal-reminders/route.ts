@@ -27,6 +27,7 @@ import { buildDirectorReminderElement } from "@/lib/applications/commercial-emai
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { inviteRoute } from "@/lib/applications/juristicParties"
+import { isLateParty } from "@/lib/screening/partySet"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
@@ -167,6 +168,11 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
     .maybeSingle()
   if (applicationError) throw new Error(`read application for invite route: ${applicationError.message}`)
   if (!application || inviteRoute({ party: row, application }) !== "director") return "held"
+  // P1-R3b / 14V §3.5b: a hold lifted AFTER payment leaves a party the fee never priced — a late party, refused on this
+  // application. Not reminded and not expired: the line is not theirs to complete.
+  const late = await isLateParty(service, { orgId: line.org_id, applicationId: line.application_id, coApplicantId: line.subject_id })
+  if (!late.ok) throw new Error("read late-party state failed")
+  if (late.late) return "skipped"
 
   if (daysElapsed >= 14) return expireDirectorLine(service, line, row)
   const stage = dueStage(daysElapsed, sent)

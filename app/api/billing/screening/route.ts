@@ -13,6 +13,8 @@
  *         14W PAYABILITY GATE (BUILD_72 P1-R8b-4): refused 409 until EVERY priced party has stage-2 consent
  *         (`awaitingConsent`, the one predicate), naming who is outstanding — checked BEFORE the stamp, so the first
  *         show of the fee is the moment it becomes payable, and the ITN never writes a paid-but-unconsented line.
+ *         P1-R3b: a HELD party is outside the set (lib/screening/partySet.ts) — not priced, not counted, not awaited —
+ *         and is returned in `held` (name + reason) on both the 200 and the 409, so the lead sees who is not included.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -163,6 +165,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not verify the parties to this application" }, { status: 503 })
   }
   const isJoint = !party.set.entity && party.set.persons > 1
+  const held = party.set.held.map((h) => ({ name: h.name, reason: h.reason }))
 
   // 14W: not payable until every priced party has consented to their own screening (P1-R8b-4).
   const waiting = awaitingConsent(application, party.set)
@@ -171,6 +174,7 @@ export async function POST(req: NextRequest) {
       error: awaitingConsentMessage(waiting),
       reason: "awaiting_consent",
       awaiting: waiting.map((w) => ({ subject_type: w.subject_type, name: w.name })),
+      held,
     }, { status: 409 })
   }
 
@@ -197,5 +201,6 @@ export async function POST(req: NextRequest) {
     payfast_data: form.data,
     fee_cents: feeCents,
     is_joint: isJoint,
+    held,
   })
 }

@@ -10,6 +10,7 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import { ModalCard } from "@/components/ui/modal-card"
 import { IdReveal } from "./_components/IdReveal"
 import { formatZAR } from "@/lib/constants"
+import { heldPartiesNotice } from "@/lib/applications/juristicParties"
 
 export interface PartyInfo {
   label: string
@@ -61,6 +62,8 @@ export function ApplicantsCard({ applicationId, canViewId, primary, others }: Re
   }
 
   const all = [primary, ...others]
+  // P1-R3b: a held party is outside the screening — not priced, not counted, not a payability blocker.
+  const heldCount = others.filter((p) => p.held).length
   return (
     <DetailCard title="Applicants" count={all.length}>
       <ul className="space-y-2 text-sm">
@@ -76,6 +79,7 @@ export function ApplicantsCard({ applicationId, canViewId, primary, others }: Re
           </li>
         ))}
       </ul>
+      {heldCount > 0 && <p className="mt-3 text-xs text-amber-700">{heldPartiesNotice(heldCount)}</p>}
       <ModalCard open={viewing != null} onOpenChange={(o) => { if (!o) setViewing(null) }} eyebrow={viewing ? roleLabel(viewing.role) : ""} title={viewing?.label ?? ""}>
         {viewing && <PartyDetails party={viewing} applicationId={applicationId} canViewId={canViewId} />}
       </ModalCard>

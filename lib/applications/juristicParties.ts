@@ -237,3 +237,19 @@ export function inviteRoute(input: InviteInput): InviteRoute {
   if (inviteHold(input)) return "held"
   return partyKind({ party: input.party, isJuristic: isJuristicForCopy(input.application) }) === "surety" ? "director" : "co_applicant"
 }
+
+/**
+ * Why a held party is held, for the agent AND the lead (P1-R3 / R3b) — by what the applicant answered (P1-R7a/b) and
+ * the noun they were asked (F7): director / trustee / member. Moved here from the agent page so both read one text.
+ */
+export function heldPartyReason(declaredDirector: boolean | null | undefined, companyInfo: unknown): string {
+  const noun = suretyQuestionNoun((companyInfo as Record<string, unknown> | null | undefined)?.companyType) ?? "director"
+  if (declaredDirector === null || declaredDirector === undefined) return `Invite held: the applicant has not said whether this surety is a ${noun}.`
+  if (declaredDirector && noun !== "director") return `Invite held: the surety invite for a ${noun} is awaiting legal review.`
+  return `Invite held: not a ${noun}. The surety invite for a non-${noun} is awaiting legal review.`
+}
+
+/** BUILD_72 P1-R3b's ruled line: a held party is outside the screening, and both the agent and the lead are told so. */
+export function heldPartiesNotice(count: number): string {
+  return `${count} ${count === 1 ? "party" : "parties"} held — not included in this screening`
+}
