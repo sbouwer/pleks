@@ -96,6 +96,14 @@ describe("POST /api/billing/screening — stamp at first show", () => {
     expect((await res.json()).fee_cents).toBe(32500)
   })
 
+  it("PLANTED: a PAID application with no stamp (paid before 14V) is a 409 — never re-quoted, no second form", async () => {
+    seed(application({ fee_amount_cents: 25000, fee_paid_at: "2026-09-30T10:00:00Z" }), [rate("combined_consumer_credit_report", 19410), rate("vccb_income_estimator", 715)])
+    const res = await post()
+    expect(res.status).toBe(409)
+    expect(await res.json()).not.toHaveProperty("payfast_url")
+    expect(row()).toMatchObject({ fee_amount_cents: 25000, pricing_policy_version: null })
+  })
+
   it("a joint application is priced for two people", async () => {
     const single = (await (await post()).json()).fee_cents
     seed(application({ has_co_applicant: true }), [rate("combined_consumer_credit_report", 19410), rate("vccb_income_estimator", 715)])

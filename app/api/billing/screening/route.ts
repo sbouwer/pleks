@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     .from("applications")
     .select(`
       id, org_id, listing_id, has_co_applicant, entity_type, applicant_type, company_info,
-      fee_amount_cents, pricing_policy_version,
+      fee_amount_cents, pricing_policy_version, fee_paid_at,
       listings(asking_rent_cents, units(unit_number), properties(name))
     `)
     .eq("id", tokenData.application_id)
@@ -104,6 +104,14 @@ export async function POST(req: NextRequest) {
 
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })
+  }
+
+  // A PAID application is never re-quoted and never offered a second form. Rows paid before 14V carry no stamp,
+  // so without this the first POST after deploy would quote afresh and overwrite the fee the applicant actually
+  // paid (walker F2, .handoff/14v-rate-engine/11-walker.md). fee_paid_at, not fee_status: 'refunded' is also
+  // "not paid" by status, and a refunded fee is still one that was paid.
+  if (application.fee_paid_at) {
+    return NextResponse.json({ error: "This screening fee has already been paid." }, { status: 409 })
   }
 
   const listing = application.listings as unknown as {

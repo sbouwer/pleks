@@ -3742,11 +3742,13 @@ COMMENT ON COLUMN property_intelligence_pulls.pricing_policy_version IS
 -- and the ITN cross-check read it as one. A NULL fee now means "not yet quoted", and the ITN refuses it.
 ALTER TABLE applications ALTER COLUMN fee_amount_cents DROP DEFAULT;
 
--- "A quoted fee never moves", for the applications stamp — same shape as screening_payment_fee_immutable.
+-- "A quoted fee never moves", for the applications stamp — same shape as screening_payment_fee_immutable:
+-- paid OR stamped freezes it (§6). The paid arm matters for rows paid before this section, which carry no
+-- stamp — without it the first quote after deploy could overwrite a fee the applicant actually paid.
 CREATE OR REPLACE FUNCTION application_fee_immutable()
 RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
-  IF OLD.pricing_policy_version IS NOT NULL AND (
+  IF (OLD.fee_paid_at IS NOT NULL OR OLD.pricing_policy_version IS NOT NULL) AND (
        NEW.fee_amount_cents       IS DISTINCT FROM OLD.fee_amount_cents
     OR NEW.rate_effective_date    IS DISTINCT FROM OLD.rate_effective_date
     OR NEW.pricing_policy_version IS DISTINCT FROM OLD.pricing_policy_version

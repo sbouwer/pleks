@@ -27,10 +27,12 @@ function twin(fn: string, feeCol: string, extraCols: string, body: string): void
   `)
 }
 
-function attached(trigger: string, table: string): void {
+/** The trigger is on the table, enabled, AND calls the function the twin probes — a name alone could point anywhere. */
+function attached(trigger: string, table: string, fn: string): void {
   psql(`DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '${trigger}' AND tgrelid = 'public.${table}'::regclass AND tgenabled <> 'D') THEN
-      RAISE EXCEPTION '${trigger} is not attached to ${table}';
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '${trigger}' AND tgrelid = 'public.${table}'::regclass
+                   AND tgenabled <> 'D' AND tgfoid = 'public.${fn}()'::regprocedure) THEN
+      RAISE EXCEPTION '${trigger} is not attached to ${table} calling ${fn}';
     END IF;
   END $$;`)
 }
@@ -39,10 +41,11 @@ const STAMPED = `INSERT INTO twin (FEE, rate_effective_date, pricing_policy_vers
   VALUES (25000, '2026-10-01', 'v1', 20280);`
 
 describe("applications — trg_application_fee_immutable", () => {
-  const run = (body: string) => twin("application_fee_immutable", "fee_amount_cents", "", body.replaceAll("FEE", "fee_amount_cents"))
+  const run = (body: string) =>
+    twin("application_fee_immutable", "fee_amount_cents", ", fee_paid_at timestamptz", body.replaceAll("FEE", "fee_amount_cents"))
 
   it("is attached to applications", () => {
-    expect(() => attached("trg_application_fee_immutable", "applications")).not.toThrow()
+    expect(() => attached("trg_application_fee_immutable", "applications", "application_fee_immutable")).not.toThrow()
   })
 
   it("KNOWN-GOOD: an unstamped row takes a fee and a stamp", () => {
@@ -65,6 +68,11 @@ describe("applications — trg_application_fee_immutable", () => {
     expect(() => run(`${STAMPED} UPDATE twin SET pricing_policy_version = NULL;`)).toThrow(/a quoted fee never moves/)
   })
 
+  it("PLANTED: a PAID row refuses a changed fee even with no stamp (paid before 14V)", () => {
+    expect(() => run(`INSERT INTO twin (fee_amount_cents, fee_paid_at) VALUES (25000, now()); UPDATE twin SET fee_amount_cents = 26000;`))
+      .toThrow(/a quoted fee never moves/)
+  })
+
   it("KNOWN-GOOD: a stamped row accepts the SAME values and any other column", () => {
     expect(() => run(`${STAMPED} UPDATE twin SET fee_amount_cents = 25000, pricing_policy_version = 'v1'; UPDATE twin SET note = 'y';`)).not.toThrow()
   })
@@ -75,7 +83,7 @@ describe("application_screening_payments — trg_screening_payment_fee_immutable
     twin("screening_payment_fee_immutable", "fee_cents", ", paid_at timestamptz", body.replaceAll("FEE", "fee_cents"))
 
   it("is attached to application_screening_payments", () => {
-    expect(() => attached("trg_screening_payment_fee_immutable", "application_screening_payments")).not.toThrow()
+    expect(() => attached("trg_screening_payment_fee_immutable", "application_screening_payments", "screening_payment_fee_immutable")).not.toThrow()
   })
 
   it("PLANTED: a stamped payment refuses a changed fee", () => {
