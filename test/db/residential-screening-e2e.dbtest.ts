@@ -9,7 +9,7 @@
  *         Real: the shortlist action's writes, invite-consent, the co screening-consent route, the billing route and
  *         its 14W gate, the application ITN, the view, the line-runner's claim and completion, and every trigger.
  *         Stubbed, and only these: the agent session (requireAgentWriteAccess → the service client for this org),
- *         email context (null → no email leaves), PayFast's ITN signature, the rate READ (fixed rows through the
+ *         the email transport (sendEmail reports success; templates still render, nothing leaves), PayFast's ITN signature, the rate READ (fixed rows through the
  *         real selectCurrentRates + formula — no global searchworx_rates rows written), and the Searchworx bundle
  *         and FitScore calls themselves: nothing here contacts a vendor.
  */
@@ -29,7 +29,10 @@ vi.mock("@/lib/auth/server", async (orig) => ({
   ...(await orig<typeof import("@/lib/auth/server")>()),
   requireAgentWriteAccess: async () => ({ db, userId: null, orgId }),
 }))
-vi.mock("@/lib/applications/buildEmailContext", () => ({ buildEmailContext: async () => null }))
+vi.mock("@/lib/comms/send-email", async (orig) => ({
+  ...(await orig<typeof import("@/lib/comms/send-email")>()),
+  sendEmail: vi.fn(async () => ({ success: true })),
+}))
 vi.mock("@/lib/payfast/validate", () => ({ validatePayFastITN: async () => ({ valid: true }) }))
 vi.mock("@/lib/cron/withCronRun", () => ({ withCronRun: (_n: string, h: unknown) => h }))
 vi.mock("@/lib/screening/bundle-runner", () => ({ runStandardBundle: (a: Parameters<typeof runStandardBundle>[0]) => runStandardBundle(a) }))
@@ -71,7 +74,8 @@ beforeAll(async () => {
   // round — the lead page's own no-phone path — and the probe never touches the SMS provider.
   const { data: app, error: aErr } = await db.from("applications")
     .insert({ org_id: orgId, listing_id: listing.id, unit_id: s.unitId, entity_type: "individual", applicant_type: "individual",
-      first_name: "Lead", last_name: "Applicant", applicant_email: `lead-${randomUUID()}@example.test`, has_co_applicant: true })
+      first_name: "Lead", last_name: "Applicant", applicant_email: `lead-${randomUUID()}@example.test`, has_co_applicant: true,
+      stage1_status: "pre_screen_complete" })
     .select("id").single()
   if (aErr) throw new Error(`seed application: ${aErr.message}`)
   appId = app.id as string
