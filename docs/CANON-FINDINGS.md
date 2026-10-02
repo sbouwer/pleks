@@ -445,6 +445,29 @@ FIX        every GIT_* variable deleted (or set GIT_DIR=<tmp>/.git and GIT_WORK_
            for the same pass-through.
 ```
 
+### CF-15 · NEW LESSON (CD, 2026-10-02): a precedent's shape is a pointer to check, not a shape to inherit
+```
+OBSERVED   ADDENDUM_14V §3.1 gave searchworx_rates a SELECT-for-authenticated USING (true) policy
+           "mirroring prime_rates". prime_rates is public reference data; searchworx_rates is
+           Pleks's supplier cost, so its margin. Every logged-in user, including tenants, could
+           read it. The precedent was copied by shape, never asked what the new row IS.
+COMMAND    CI DB tier on #324 (run 36900071759, at c9a6d86c), npm run security:db:
+             [Cat 7] Open RLS policy on searchworx_rates
+             Detail: Policy "searchworx_rates_select" has USING (true)
+             🚨 DEPLOYMENT BLOCKED — Critical findings must be resolved
+WHY IT IS  Portable: any repo that copies an existing table's access policy onto a new table
+CANON'S    inherits the precedent's data class along with its syntax. The policy was correct for
+           prime_rates and wrong here; nothing in its text differs. The spec, the grounding pass
+           and the review all treated "like prime_rates" as a justification, when it is a claim
+           that the two rows have the same audience — and nobody checked that claim.
+SMALLEST   Ledger entry, CD's wording: "a precedent's shape is a pointer to check, not a shape to
+FIX        inherit — ask what the row IS before copying its policy."
+           Applied (pleks): 2026-10-02, spec 14V §3.1 + §6 corrected; policy dropped in
+           005_operations.sql (204fb6bc, #324) and on prod. Step 7 adds the probe: a planted
+           USING (true) SELECT on searchworx_rates / searchworx_rate_observations must fail
+           security:db.
+```
+
 ---
 
 ## 2 · Lesson answers

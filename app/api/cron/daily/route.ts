@@ -26,6 +26,7 @@ import { GET as trialExpiry } from "../trial-expiry/route"
 import { GET as billingCascade } from "../billing-cascade/route"
 import { GET as purgeImportData } from "../purge-import-data/route"
 import { GET as primeRateSync } from "../prime-rate-sync/route"
+import { GET as searchworxRateSync } from "../searchworx-rate-sync/route"
 import { GET as infoRequests } from "../info-requests/route"
 import { GET as insuranceRenewals } from "../insurance-renewals/route"
 import { GET as feedbackDigest } from "../feedback-digest/route"
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest) {
   await runJob("billing_cascade", billingCascade, cronReq, results, detail)
   await runJob("purge_import_data", purgeImportData, cronReq, results, detail)
   await runJob("prime_rate_sync", primeRateSync, cronReq, results, detail)
+  await runJob("searchworx_rate_sync", searchworxRateSync, cronReq, results, detail)
   await runJob("info_requests", infoRequests, cronReq, results, detail)
   await runJob("insurance_renewals", insuranceRenewals, cronReq, results, detail)
   await runJob("feedback_digest", feedbackDigest, cronReq, results, detail)

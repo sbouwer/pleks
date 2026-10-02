@@ -312,7 +312,8 @@
       "completed_at",
       "created_at",
       "updated_at",
-      "searchworx_envelope_meta"
+      "searchworx_envelope_meta",
+      "rate_effective_date"
     ],
     "application_screening_payments": [
       "id",
@@ -331,7 +332,10 @@
       "expires_at",
       "expired_state",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "rate_effective_date",
+      "pricing_policy_version",
+      "cost_excl_vat_cents"
     ],
     "application_tokens": [
       "id",
@@ -3191,6 +3195,40 @@
       "created_by",
       "created_at"
     ],
+    "searchworx_rate_holds": [
+      "id",
+      "product_key",
+      "held_cents",
+      "current_cents",
+      "observation_id",
+      "status",
+      "first_held_at",
+      "decided_at",
+      "decision_note",
+      "rate_id"
+    ],
+    "searchworx_rate_observations": [
+      "id",
+      "product_key",
+      "cost_excl_vat_cents",
+      "observed_at",
+      "source",
+      "source_ref",
+      "raw",
+      "created_by",
+      "mapping_confidence"
+    ],
+    "searchworx_rates": [
+      "id",
+      "product_key",
+      "cost_excl_vat_cents",
+      "effective_date",
+      "source",
+      "observation_id",
+      "notes",
+      "created_by",
+      "created_at"
+    ],
     "settings_ui_state": [
       "user_id",
       "org_id",
@@ -4018,6 +4056,7 @@
       "caa",
       "app"
     ],
+    "screening_payment_fee_immutable": [],
     "seed_default_retention_policies": [
       "org_uuid"
     ],
@@ -5327,6 +5366,34 @@
     "screening_jobs_status_check": {
       "table": "screening_jobs",
       "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'failed'::text])))"
+    },
+    "searchworx_rate_holds_held_cents_check": {
+      "table": "searchworx_rate_holds",
+      "def": "CHECK ((held_cents >= 0))"
+    },
+    "searchworx_rate_holds_status_check": {
+      "table": "searchworx_rate_holds",
+      "def": "CHECK ((status = ANY (ARRAY['held'::text, 'applied'::text, 'rejected'::text])))"
+    },
+    "searchworx_rate_observations_cost_excl_vat_cents_check": {
+      "table": "searchworx_rate_observations",
+      "def": "CHECK ((cost_excl_vat_cents >= 0))"
+    },
+    "searchworx_rate_observations_mapping_confidence_check": {
+      "table": "searchworx_rate_observations",
+      "def": "CHECK ((mapping_confidence = ANY (ARRAY['exact'::text, 'inferred'::text])))"
+    },
+    "searchworx_rate_observations_source_check": {
+      "table": "searchworx_rate_observations",
+      "def": "CHECK ((source = ANY (ARRAY['pricelist_import'::text, 'pull_observed'::text, 'billing_report'::text])))"
+    },
+    "searchworx_rates_cost_excl_vat_cents_check": {
+      "table": "searchworx_rates",
+      "def": "CHECK ((cost_excl_vat_cents >= 0))"
+    },
+    "searchworx_rates_source_check": {
+      "table": "searchworx_rates",
+      "def": "CHECK ((source = ANY (ARRAY['pricelist_import'::text, 'pull_observed'::text, 'billing_report'::text, 'admin_override'::text])))"
     },
     "signature_sign_tokens_kind_check": {
       "table": "signature_sign_tokens",

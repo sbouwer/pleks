@@ -28,6 +28,7 @@ import { getApplicationFee } from "@/lib/constants"
 import { COMBINED_COST_CENTS, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { VCCB_COST_CENTS, VCCB_PRODUCT_KEY } from "@/lib/searchworx/products/vccbIncomeEstimator"
 import { SEARCHWORX_COSTS } from "@/lib/searchworx/costs"
+import type { PricingBundle } from "@/lib/screening/pricing"
 
 /** SA VAT. Pleks pays input VAT on Searchworx invoices; see rate-card §3 for the registration scenarios. */
 export const VAT_RATE = 0.15
@@ -96,6 +97,29 @@ const SEARCHWORX_BUNDLE_COMPANY: readonly SearchworxCheck[] = [
     note: "Returns registered directors — auto-discovers undeclared ones. Cost disputed vs rate card §2.1.",
   },
 ] as const
+
+/**
+ * ADDENDUM_14V pricing shapes. What a quote PRICES, which can differ from what a pull RUNS:
+ *   · every natural person is priced on the SA bundle, foreign or not (§9.5b — the foreign bundle's lower
+ *     cost is margin, never a second price);
+ *   · the entity line is the two BILLED company products. CIPC Director is not in it: unbilled, and the
+ *     board arrives with the company result (the 2026-10-01 billing report, recorded as
+ *     searchworx_rates source=billing_report by the first rate sync).
+ */
+const ENTITY_LINE_PRODUCT_KEYS: readonly string[] = ["compuscan_company_profile", "cipc_company"]
+
+export function applicationBundle({ juristic, persons }: { juristic: boolean; persons: number }): PricingBundle {
+  return {
+    entityProducts: juristic ? ENTITY_LINE_PRODUCT_KEYS : [],
+    personProducts: SEARCHWORX_BUNDLE_SA.map((c) => c.check_code),
+    persons,
+  }
+}
+
+/** A one-product quote — property-intelligence pulls (§3.4 last bullet). */
+export function singleProductBundle(productKey: string): PricingBundle {
+  return { entityProducts: [productKey], personProducts: [], persons: 0 }
+}
 
 export function getSearchworxBundle(isForeignNational: boolean): readonly SearchworxCheck[] {
   return isForeignNational ? SEARCHWORX_BUNDLE_FOREIGN : SEARCHWORX_BUNDLE_SA

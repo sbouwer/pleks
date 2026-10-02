@@ -124,7 +124,10 @@ const IDENTITY_SCOPED = new Set(["user_passkeys", "passkey_challenges", "passkey
  * unscoped today is debt, not a global — putting it here would convert a finding into a permanent
  * exemption, which is the baseline-widening failure wearing a different hat.
  */
-const GLOBAL_REFERENCE_TABLES = new Set(["lease_clause_library"])
+// `searchworx_rates` / `searchworx_rate_observations` — ADDENDUM_14V §3.1, `005_operations.sql`
+// § ADDENDUM_14V §3.1–§3.5 (2026-10-01): created with no org_id by the spec's stated exception (a vendor
+// price is not a tenant fact), classified in migration-integrity.baseline.json beside prime_rates.
+const GLOBAL_REFERENCE_TABLES = new Set(["lease_clause_library", "searchworx_rates", "searchworx_rate_observations", "searchworx_rate_holds"])
 
 /**
  * Tables bounded by the CALLER'S OWN IDENTITY rather than by an org — and `user_orgs` is the one

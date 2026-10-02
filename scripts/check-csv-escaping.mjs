@@ -30,6 +30,7 @@ const ALLOW = new Map([
   ["lib/security/csvInjection.ts", "IS the escaper"],
   ["lib/import/parseGLReport.ts", "PARSES csv (inbound), never emits it"],
   ["lib/recon/csvBankParser.ts", "PARSES a bank statement (inbound)"],
+  ["lib/searchworx/rates/priceListFile.ts", "INBOUND — turns the vendor's .xls into text for priceList.ts; never served or downloaded. Escaping would rewrite vendor names and break the name→product mapping"],
   // Routes that set a text/csv content-type but DELEGATE the cell-building to an escaped builder. They hand
   // back a finished string; they never touch a cell themselves.
   ["app/api/reports/export/route.ts", "delegates to lib/reports/exportCSV (escaped)"],

@@ -47,6 +47,11 @@ export interface SearchworxCallOptions {
   productPath: string
   buildBody:   (token: string) => Record<string, unknown>
   timeout_ms?: number
+  /**
+   * A list endpoint (the billing report) answers a quiet day with `ResponseObject: []`. That is data, not a
+   * failure — without this a day with no billed searches would page as a source outage (ADDENDUM_14V §3.3).
+   */
+  acceptEmptyList?: boolean
 }
 
 // ─── Token cache ──────────────────────────────────────────────────────────────
@@ -214,7 +219,8 @@ export async function searchworxCall<TResult>(
     // ResponseMessage on success = product identifier (e.g. "CombinedConsumerCreditReport").
     // Failure responses can also populate ResponseObject with just SearchInformation — so presence
     // alone is not sufficient; we check that at least one key besides SearchInformation exists.
-    if (hasProductData(data.ResponseObject)) {
+    const isList = options.acceptEmptyList === true && Array.isArray(data.ResponseObject)
+    if (isList || hasProductData(data.ResponseObject)) {
       return {
         ok:         true,
         data:       data.ResponseObject as TResult,

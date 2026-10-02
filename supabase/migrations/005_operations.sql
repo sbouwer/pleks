@@ -3574,3 +3574,147 @@ ALTER TABLE application_screening_lines ADD COLUMN IF NOT EXISTS searchworx_enve
 
 COMMENT ON COLUMN application_screening_lines.searchworx_envelope_meta IS
   'PII-free Searchworx envelope metadata (top-level keys + SearchInformation minus SearchDescription + payload key names); never the report. Built by lib/searchworx/envelopeMeta.ts. ADDENDUM_14V §3.2a.';
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.1–§3.5: the Searchworx rate engine — observed rates, quote stamps  (2026-10-01)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- A vendor price is an OBSERVATION WITH A DATE, not a constant (Stéan 2026-10-01: "do not hardcode any
+-- pricing into the application flow"). Two platform tables on the prime_rates precedent (004):
+--   searchworx_rate_observations — every sighting of a vendor price, raw, before any decision
+--   searchworx_rates             — the recorded rate per product; one row per change, never updated
+-- The daily cron (searchworx-rate-sync) is the only thing that moves a rate, and only on a mismatch.
+--
+-- NO org_id, by the spec's stated exception (§3.1): the vendor's price is not a tenant fact. Both
+-- tables are classified in scripts/migration-integrity.baseline.json beside prime_rates.
+--
+-- SOURCE NAMES. §3.2 renamed the third source `api_ratecard` → `billing_report` (the account's own
+-- /billingreports/company/ statement) and §3.1's tie-break already uses the new name, so the CHECKs
+-- carry `billing_report`. §3.1's column sketch still lists `api_ratecard`; the sketch predates the rename.
+--
+-- POPIA (§3.2b): a billing row's Description carries the search subject's ID or registration number.
+-- No column here can hold it — source_ref is the Reference WE sent (an application_screening_lines.id),
+-- and `raw` is built by the importer/cron from product, amount and date only.
+
+CREATE TABLE IF NOT EXISTS searchworx_rate_observations (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_key         text NOT NULL,
+  cost_excl_vat_cents integer NOT NULL CHECK (cost_excl_vat_cents >= 0),
+  observed_at         timestamptz NOT NULL DEFAULT now(),
+  source              text NOT NULL CHECK (source IN ('pricelist_import', 'pull_observed', 'billing_report')),
+  source_ref          text,
+  raw                 jsonb,
+  created_by          uuid REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_searchworx_rate_observations_product
+  ON searchworx_rate_observations (product_key, observed_at DESC);
+
+CREATE TABLE IF NOT EXISTS searchworx_rates (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_key         text NOT NULL,
+  cost_excl_vat_cents integer NOT NULL CHECK (cost_excl_vat_cents >= 0),
+  effective_date      date NOT NULL,
+  source              text NOT NULL CHECK (source IN ('pricelist_import', 'pull_observed', 'billing_report', 'admin_override')),
+  observation_id      uuid REFERENCES searchworx_rate_observations(id),
+  notes               text,
+  created_by          uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (product_key, effective_date, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_searchworx_rates_product
+  ON searchworx_rates (product_key, effective_date DESC);
+
+COMMENT ON TABLE searchworx_rates IS
+  'ADDENDUM_14V §3.1. Append-only: no UPDATE or DELETE policy exists. Current rate = greatest effective_date <= as-at, ties admin_override > billing_report > pull_observed > pricelist_import. No row = no rate (never zero). Read by lib/searchworx/rates/read.ts.';
+COMMENT ON TABLE searchworx_rate_observations IS
+  'ADDENDUM_14V §3.2. Every sighting of a vendor price, raw. Never holds a search subject: source_ref is our own Reference, raw is product/amount/date only (§3.2b).';
+
+-- RLS. Rates and observations: RLS on and NO policy at all — service client only; append-only is enforced by
+-- the absence of any UPDATE/DELETE policy (the trust_transactions shape, 004). Rates USED to carry a SELECT
+-- policy for authenticated (§3.1, mirroring prime_rates); it was dropped 2026-10-01 when the security audit
+-- (Cat 7) flagged it: every reader (lib/searchworx/rates/read.ts, sync.ts, the admin route) uses the service
+-- client, so the policy granted nothing needed — and it let any logged-in user, tenant or agent, read Pleks's
+-- supplier cost and so its margin. The DROP stays so a database that ran the old section loses the policy.
+ALTER TABLE searchworx_rates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "searchworx_rates_select" ON searchworx_rates;
+
+ALTER TABLE searchworx_rate_observations ENABLE ROW LEVEL SECURITY;
+
+-- §3.5 stamps — written when the fee is FIRST SHOWN to the payer, never when PayFast returns.
+ALTER TABLE application_screening_payments ADD COLUMN IF NOT EXISTS rate_effective_date    date;
+ALTER TABLE application_screening_payments ADD COLUMN IF NOT EXISTS pricing_policy_version text;
+ALTER TABLE application_screening_payments ADD COLUMN IF NOT EXISTS cost_excl_vat_cents    integer;
+ALTER TABLE application_screening_lines    ADD COLUMN IF NOT EXISTS rate_effective_date    date;
+
+COMMENT ON COLUMN application_screening_payments.pricing_policy_version IS
+  'ADDENDUM_14V §3.5: the PRICING_POLICY_VERSION the fee was computed under. Set at first show; with it set, fee_cents and the stamp are immutable (trg_screening_payment_fee_immutable).';
+COMMENT ON COLUMN application_screening_lines.rate_effective_date IS
+  'ADDENDUM_14V §3.5: effective_date of the searchworx_rates row cost_cents was taken from, so a margin report joins actual cost to the quoted rate.';
+
+-- "A quoted fee never moves" (§6 db:payments-fee-immutable). Once a row is paid OR stamped, fee_cents
+-- and the stamp columns refuse any change. A re-delivered ITN writing the SAME amount is not a change
+-- (IS DISTINCT FROM), so idempotent upserts keep working; refund and expiry columns stay writable.
+CREATE OR REPLACE FUNCTION screening_payment_fee_immutable()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF (OLD.paid_at IS NOT NULL OR OLD.pricing_policy_version IS NOT NULL) AND (
+       NEW.fee_cents              IS DISTINCT FROM OLD.fee_cents
+    OR NEW.rate_effective_date    IS DISTINCT FROM OLD.rate_effective_date
+    OR NEW.pricing_policy_version IS DISTINCT FROM OLD.pricing_policy_version
+    OR NEW.cost_excl_vat_cents    IS DISTINCT FROM OLD.cost_excl_vat_cents
+  ) THEN
+    RAISE EXCEPTION 'application_screening_payments %: a quoted or paid fee never moves (ADDENDUM_14V §3.5)', OLD.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_screening_payment_fee_immutable ON application_screening_payments;
+CREATE TRIGGER trg_screening_payment_fee_immutable
+  BEFORE UPDATE ON application_screening_payments
+  FOR EACH ROW EXECUTE FUNCTION screening_payment_fee_immutable();
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.2: searchworx_rate_observations.mapping_confidence  (ruled 2026-10-01)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- The vendor's BILLING SearchType is the authoritative name for a product; a price-list name is a key
+-- into it. A list name already seen on a billing row maps `exact`; one mapped by inference from the list
+-- alone (Lightstone short erf, deeds base tier) is `inferred`. It seeds the table so a quote exists, and
+-- the first billing row for that product replaces the key and flips it to `exact`. The map itself is
+-- lib/searchworx/rates/productNames.ts.
+ALTER TABLE searchworx_rate_observations ADD COLUMN IF NOT EXISTS mapping_confidence text NOT NULL DEFAULT 'exact';
+ALTER TABLE searchworx_rate_observations DROP CONSTRAINT IF EXISTS searchworx_rate_observations_mapping_confidence_check;
+ALTER TABLE searchworx_rate_observations ADD CONSTRAINT searchworx_rate_observations_mapping_confidence_check
+  CHECK (mapping_confidence IN ('exact', 'inferred'));
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.3 step 4: searchworx_rate_holds — a held price, once per (product, value)  (2026-10-01)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- A price beyond plausibilityThresholdPct is not applied by the cron; it is HELD for an admin to apply or
+-- reject (/api/admin/searchworx-rate). This table is that decision's state, and the reason the alert fires
+-- ONCE per (product, value) rather than every morning: the cron alerts only when it inserts the row.
+-- A rejected value is never re-held or applied by the cron; an applied one is applied by it thereafter.
+-- Platform table, no org_id (same exception as the two above); RLS on, NO policy — service client only.
+CREATE TABLE IF NOT EXISTS searchworx_rate_holds (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_key     text NOT NULL,
+  held_cents      integer NOT NULL CHECK (held_cents >= 0),
+  current_cents   integer,
+  observation_id  uuid NOT NULL REFERENCES searchworx_rate_observations(id),
+  status          text NOT NULL DEFAULT 'held' CHECK (status IN ('held', 'applied', 'rejected')),
+  first_held_at   timestamptz NOT NULL DEFAULT now(),
+  decided_at      timestamptz,
+  decision_note   text,
+  rate_id         uuid REFERENCES searchworx_rates(id),
+  UNIQUE (product_key, held_cents)
+);
+
+COMMENT ON TABLE searchworx_rate_holds IS
+  'ADDENDUM_14V §3.3 step 4. One row per (product, held value). Inserted by searchworx-rate-sync (the insert IS the alert); decided by /api/admin/searchworx-rate, audited under PLATFORM_ORG_ID.';
+
+ALTER TABLE searchworx_rate_holds ENABLE ROW LEVEL SECURITY;
