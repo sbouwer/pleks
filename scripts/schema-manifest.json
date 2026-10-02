@@ -529,7 +529,12 @@
       "fitscore_band_at_decision",
       "approve_below_band",
       "approve_below_band_note",
-      "searchworx_run_started_at"
+      "searchworx_run_started_at",
+      "rate_effective_date",
+      "pricing_policy_version",
+      "cost_excl_vat_cents",
+      "priced_party_count",
+      "priced_entity"
     ],
     "arrears_actions": [
       "id",
@@ -3032,7 +3037,10 @@
       "failed_at",
       "refunded_at",
       "search_token",
-      "searchworx_pdf_storage_path"
+      "searchworx_pdf_storage_path",
+      "rate_effective_date",
+      "pricing_policy_version",
+      "cost_excl_vat_cents"
     ],
     "property_photos": [
       "id",
@@ -3216,7 +3224,8 @@
       "source_ref",
       "raw",
       "created_by",
-      "mapping_confidence"
+      "mapping_confidence",
+      "vendor_effective_date"
     ],
     "searchworx_rates": [
       "id",
@@ -3898,6 +3907,7 @@
       "p_amount_cents",
       "p_actor"
     ],
+    "application_fee_immutable": [],
     "apply_invoice_payment_atomic": [
       "p_org_id",
       "p_invoice_id",
@@ -3923,6 +3933,7 @@
     "claim_purge_slot": [
       "p_org_id"
     ],
+    "co_applicant_party_set_guard": [],
     "compute_contact_dedup_hash": [],
     "compute_legal_hold_instrument_hash": [],
     "count_active_memberships_for_user": [

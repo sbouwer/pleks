@@ -30,7 +30,8 @@ import type { XdsParsed }                          from "./_subparsers/xds"
 // ─── Product constants ────────────────────────────────────────────────────────
 
 export const COMBINED_PRODUCT_KEY  = "combined_consumer_credit_report"
-export const COMBINED_COST_CENTS   = 17000  // R170.00 ex-VAT — ADDENDUM_14H v3 rate card
+// COMBINED_COST_CENTS (R170.00) was retired in ADDENDUM_14V step 7: the cost is the recorded rate
+// (searchworx_rates), read by bundle-runner per line and reconciled from billing.
 const COMBINED_PRODUCT_PATH = "credit/combinedreport/consumer"
 // Three exports were removed 2026-08-21, none with a caller: COMBINED_SEARCH_TYPE (= 126,
 // Searchworx's CSICombinedCreditReport id — this integration addresses the product by PATH, above,

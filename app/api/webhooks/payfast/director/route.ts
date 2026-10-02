@@ -19,7 +19,6 @@ import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
-import { APPLICATION_FEE_CENTS } from "@/lib/constants"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -88,12 +87,18 @@ export async function POST(req: Request) {
       flagMismatch("co_applicant_not_found", null)
       return NextResponse.json({ ok: false, reason: "co_applicant_not_found" })
     }
+    // individual_fee_cents is the STAMP the payment page writes before it signs the form (ADDENDUM_14V §3.5).
+    // Never a literal fallback: a payment against an unstamped director cannot be checked, so it is not accepted.
+    const expectedCents = coApp.individual_fee_cents
+    if (typeof expectedCents !== "number") {
+      flagMismatch("no_quoted_fee", null)
+      return NextResponse.json({ ok: false, reason: "no_quoted_fee" })
+    }
     if (paidCents === null) {
-      flagMismatch("unparseable_amount_gross", coApp.individual_fee_cents ?? APPLICATION_FEE_CENTS)
+      flagMismatch("unparseable_amount_gross", expectedCents)
       return NextResponse.json({ ok: false, reason: "unparseable_amount" })
     }
 
-    const expectedCents = coApp.individual_fee_cents ?? APPLICATION_FEE_CENTS
     if (paidCents < expectedCents) {
       // UNDERPAID — no payment row, so the director's screening line never reaches ready_to_run and no
       // bureau call is made. 200 so PayFast stops retrying; Sentry above is the signal for a human.

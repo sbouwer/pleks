@@ -36,7 +36,8 @@ export async function recordObservations(db: SupabaseClient, observations: reado
       source: o.source,
       source_ref: o.sourceRef,
       mapping_confidence: o.mappingConfidence ?? "exact",
-      raw: { ...o.raw, vendor_effective_date: o.vendorEffectiveDate ?? null },
+      vendor_effective_date: o.vendorEffectiveDate ?? null,
+      raw: o.raw ?? {},
       created_by: o.createdBy ?? null,
     })),
   )

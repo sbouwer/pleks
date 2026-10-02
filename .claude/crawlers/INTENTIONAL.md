@@ -67,11 +67,12 @@ card and `INDEX.md`/ADDENDUMs disagree about a DECISION, INDEX/ADDENDUM wins** (
 ruled-on inconsistency in an unversioned reference document. Supplier per-call prices remain the
 card's domain and are not stale by default.
 
-### Pleks sells ONE bundle, and the single-bundle economics assertion lives inside the SSOT
+### Pleks sells ONE bundle, and its fee is a quote, never a constant
 
-`lib/screening/searchworxBundle.ts` derives cost and margin rather than stating them, and asserts
-price > cost inside the module. A finding that "there is only one bundle" or that the margin is
-computed rather than declared is describing the design.
+`lib/screening/searchworxBundle.ts` states bundle MEMBERSHIP only; the fee is quoted from recorded rates by
+`lib/screening/quote.ts` (ADDENDUM_14V) and stamped on the payable row. A finding that "there is only one
+bundle", that no fee constant exists, or that the margin is computed rather than declared is describing the
+design. `bundle-economics.test.ts` asserts fee > cost as a property over generated rate tables.
 
 ### No per-user seat caps on any tier
 

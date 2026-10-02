@@ -44,6 +44,7 @@ import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
 import { buildCensus, PUBLIC_ALLOWLIST, probePath } from "./route-census.mjs"
 import { buildActionCensus } from "./server-action-census.mjs"
+import { READ_ONLY_PUBLIC_TABLES, openPolicyVerdict } from "./open-policy.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, "../..")
@@ -212,19 +213,8 @@ async function appFetch(path, opts = {}) {
 }
 
 // ─── All tables to test ──────────────────────────────────────
-// Tables that intentionally have USING (true) for SELECT — read-only reference/seed data
-// NOTE: allowlisting only suppresses the finding for a SELECT-only USING(true) policy
-// (see the `pol.cmd === "SELECT"` guard below) — a future FOR ALL / write USING(true)
-// on any of these STILL fails. Each entry below was verified: RLS enabled, writes locked
-// (no public write policy), content-only / no PII. Re-verify before adding any new table.
-const READ_ONLY_PUBLIC_TABLES = new Set([
-  "lease_clause_library",     // Shared clause seed data — no org_id
-  "prime_rates",              // SARB prime rate history — public reference
-  "rule_templates",           // Shared property rule templates — no org_id
-  "external_links",           // Public link registry (footer/health-checked) — SELECT-only, writes RLS-blocked
-  "site_content",             // Public marketing/site copy — SELECT-only, writes RLS-blocked
-  "privacy_policy_versions",  // Published privacy-policy text (meant to be public) — SELECT-only; writes gated to platform_admin
-])
+// READ_ONLY_PUBLIC_TABLES and Cat 7's USING (true) verdict live in ./open-policy.mjs, shared with the
+// planted-policy DB probe (test/db/searchworx-rates-rls.dbtest.ts) so both judge with one function.
 
 const SENSITIVE_TABLES = [
   "organisations", "user_orgs", "contacts", "tenants", "landlords",
@@ -838,9 +828,9 @@ async function cat7_rlsPolicyAudit() {
 
     // Check for USING (true) — wide open (unless it's a known read-only table with SELECT-only policy)
     for (const pol of pols) {
-      if (pol.qual && pol.qual.trim() === "true") {
-        const isReadOnlyAllowed = READ_ONLY_PUBLIC_TABLES.has(table) && (pol.cmd === "SELECT")
-        if (isReadOnlyAllowed) {
+      const verdict = openPolicyVerdict(table, pol)
+      if (verdict) {
+        if (verdict === "allowed") {
           test(`Policy "${pol.policyname}" on ${table}`)
           ok("USING (true) on SELECT — intentional read-only public table")
           pass(7, table)

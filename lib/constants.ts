@@ -88,63 +88,11 @@ export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month
  */
 export const FOUNDING_AGENT_DURATION_MONTHS = 24
 
-// Application screening fees. SSOT: brief/legal/SEARCHWORX_RATE_CARD.md §1.1 (amended 2026-05-18).
-// R250 is the CURRENT price and R399 the superseded March-2026 single-bundle model — these constants
-// were the last place still charging R399, three months after 005_operations.sql:1790 dropped the
-// listings default to 25000 "down from R399". Bundle cost is R202.80 (Combined Consumer Credit Report
-// R170 + VCCB R6.35 + fees), so R250 carries R47.20 (19%) margin. Do NOT price below R250 without
-// re-reading rate-card §5: a R150 Lite tier was evaluated and rejected (D-RATE-08) because the R170
-// Combined call is the floor for credible screening.
-export const APPLICATION_FEE_CENTS = 25000 // R250 single — rate card §1.1
-// R470 joint. NOT from the rate card: `grep -i joint` over SEARCHWORX_RATE_CARD.md returns ZERO hits —
-// §1.1 prices ONE bundle and the card's only multi-subject pricing is D-RATE-06 (commercial: R250 company
-// + R250 per director, which would imply R500 for two). R470 is a STÉAN DECISION of 2026-08-14, carrying
-// the ~6% joint discount implied by the superseded R399/R749 pair. Recorded here because an earlier
-// version of this comment mis-attributed it to the rate card. Amend the card, or keep the decision here —
-// but do not cite §1.1 for it.
-export const JOINT_APPLICATION_FEE_CENTS = 47000
-
-/** What the applicant pays. Lives HERE, not in searchworxBundle: that module imports the Searchworx
- *  product modules (and through them supabase/server -> next/headers), which any consumer wanting only
- *  the fee should not have to load. */
-export function getApplicationFee(isJoint: boolean): number {
-  return isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
-}
-
-/**
- * The WHOLE fee for an application, by the lines it screens. One transaction covers every line.
- *
- * JURISTIC (pty_ltd / cc / npc / trust): the entity's own line PLUS one line per surety party
- * (director, or trustee for a trust) — rate card D-RATE-06, "R250 company + N × per-director", N >= 0.
- * The entity and any sureties are paid for TOGETHER, in one transaction. A surety is OPTIONAL — the
- * company is screened on its own profile, and a surety is added only when it is not strong enough
- * (Stéan 2026-10-01, BUILD_72 R0; the "at least one required" rule attributed to 2026-08-15 was never
- * his and is retired).
- *
- * INDIVIDUAL: R250 single, R470 joint. NOT per-head — that is a recorded pricing decision, and
- * per-head pricing for 3+ residential applicants is blocked on the v2 Searchworx pipeline
- * (brief/build/DEBT.md § Per-head screening fee).
- */
-export function screeningFeeCents(input: {
-  readonly isJuristic: boolean
-  /** Surety directors/trustees accompanying a juristic application. */
-  readonly suretyCount: number
-  /** Residential joint application (a couple). Ignored when isJuristic. */
-  readonly hasCoApplicant: boolean
-}): number {
-  if (input.isJuristic) return APPLICATION_FEE_CENTS * (1 + Math.max(0, input.suretyCount))
-  return getApplicationFee(input.hasCoApplicant)
-}
-
-/** The per-subject lines a fee covers, for writing one application_screening_payments row per line. */
-export function screeningFeeLineCount(input: {
-  readonly isJuristic: boolean
-  readonly suretyCount: number
-  readonly hasCoApplicant: boolean
-}): number {
-  if (input.isJuristic) return 1 + Math.max(0, input.suretyCount)
-  return input.hasCoApplicant ? 2 : 1
-}
+// The application screening fee is QUOTED, never held here (ADDENDUM_14V): lib/screening/quote.ts prices it from
+// the recorded Searchworx rates through lib/screening/pricing.ts, and the payable application carries the stamp
+// (fee_amount_cents + rate_effective_date + pricing_policy_version + cost_excl_vat_cents). APPLICATION_FEE_CENTS,
+// JOINT_APPLICATION_FEE_CENTS, getApplicationFee, screeningFeeCents and screeningFeeLineCount were retired in
+// step 7 — git history has them and the decisions they recorded (R250/R470, D-RATE-06).
 export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income — PRINCIPAL/co-applicant ceiling (rent ÷ combined gross; ≈ income ≥ 3.33× rent)
 // A GUARANTOR_MIN_INCOME_MULTIPLE of 4 lived here, described as the guarantor/surety affordability floor —
 // decoupled from and stricter than the principal threshold above (ADDENDUM_14M J4). It had no callers: the

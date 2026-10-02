@@ -56,6 +56,9 @@ export async function POST(req: NextRequest) {
     mapped: report.mapped.map((m) => ({ product_key: m.productKey, cents: m.cents, confidence: m.confidence, line: m.line })),
     unmapped: report.unmapped.map((u) => ({ name: u.name, cents: u.cents, line: u.line })),
     rejected: report.rejected,
+    stale_on_arrival: result.ok && result.staleOnArrival
+      ? { vendor_effective_date: result.staleOnArrival.vendorEffectiveDate, age_days: result.staleOnArrival.ageDays, stale_after_days: result.staleOnArrival.staleAfterDays }
+      : null,
   }
 
   if (result.ok) {

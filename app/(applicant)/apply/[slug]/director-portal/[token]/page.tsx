@@ -11,17 +11,23 @@
  */
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
-import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { formatZAR } from "@/lib/constants"
+import { quoteApplicationFee } from "@/lib/screening/quote"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import Link from "next/link"
 import { CheckCircle2, Clock, Circle } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
+async function displayQuote(): Promise<number | null> {
+  const q = await quoteApplicationFee({ juristic: false, persons: 1 }, "director-portal")
+  return q.ok ? q.fee_cents : null
+}
+
 interface DirectorPortalData {
   firstName: string | null
   propertyLabel: string
-  feeCents: number
+  feeCents: number | null
   consentGiven: boolean
   paymentPaid: boolean
   checksComplete: boolean
@@ -94,9 +100,9 @@ export default async function DirectorPortalPage({
   const data: DirectorPortalData = {
     firstName:      coApp.first_name,
     propertyLabel,
-    // individual_fee_cents is currently never written, so this fallback is what renders today —
-    // derive it rather than duplicating the literal.
-    feeCents:       coApp.individual_fee_cents ?? APPLICATION_FEE_CENTS,
+    // The stamp once the payment page has written it, else a display-only quote (ADDENDUM_14V) — this page
+    // never stamps; the payment page is the first show.
+    feeCents:       typeof coApp.individual_fee_cents === "number" ? coApp.individual_fee_cents : await displayQuote(),
     consentGiven:   !!coApp.stage2_consent_given_at,
     paymentPaid:    !!payment?.paid_at,
     checksComplete: coApp.searchworx_check_status === "complete",
@@ -115,7 +121,7 @@ export default async function DirectorPortalPage({
       href: `${base}/consent`,
     },
     {
-      label: `Pay your fee — ${formatZAR(data.feeCents)}`,
+      label: data.feeCents === null ? "Pay your fee" : `Pay your fee — ${formatZAR(data.feeCents)}`,
       sublabel: "Covers credit check, identity and income verification",
       done: data.paymentPaid,
       href: `${base}/payment`,

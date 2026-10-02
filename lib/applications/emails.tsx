@@ -7,7 +7,8 @@ import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/li
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { ApplicantLegalFooter } from "@/lib/comms/templates/ApplicantLegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
-import { formatZAR, getApplicationFee } from "@/lib/constants"
+import { formatZAR } from "@/lib/constants"
+import { quoteApplicationFee } from "@/lib/screening/quote"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtDateLongZA } from "@/lib/dates"
@@ -15,14 +16,15 @@ import { fmtDateLongZA } from "@/lib/dates"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 /**
- * The fee quoted to an applicant — derived, and JOINT-AWARE. A single module constant used to quote
- * R250 to everyone while buildApplicationFeeForm charged a joint applicant R470, so the decline email
- * then told them "the screening fee of R250 is non-refundable" about a sum they had paid R470 for.
- * `isJoint` is deliberately REQUIRED at every call site: an optional flag would default to the single
- * fee and reproduce exactly that silent mis-quote.
+ * The fee quoted to an applicant — the ADDENDUM_14V formula over recorded rates, and JOINT-AWARE. A single
+ * module constant once quoted R250 to everyone while the form charged a joint applicant R470. `isJoint` is
+ * deliberately REQUIRED: an optional flag would default to the single fee and reproduce that silent mis-quote.
+ * Display-only: the fee is stamped when the payment form is first built, not when this email is sent. With no
+ * rate there is no number — the sentence says the fee is shown before payment rather than inventing one.
  */
-function screeningFeeDisplay(isJoint: boolean): string {
-  return formatZAR(getApplicationFee(isJoint))
+async function screeningFeeDisplay(isJoint: boolean): Promise<string> {
+  const q = await quoteApplicationFee({ juristic: false, persons: isJoint ? 2 : 1 }, "shortlist-email")
+  return q.ok ? `A screening fee of ${formatZAR(q.fee_cents)}` : "A screening fee, shown to you before you pay"
 }
 
 interface ApplicationSummary {
@@ -322,6 +324,7 @@ export async function sendShortlistInvitation(
   opts: { inviteToken: string; isJoint: boolean }
 ) {
   const inviteLink = absoluteUrl(`/apply/invite/${opts.inviteToken}`)
+  const feeLine = await screeningFeeDisplay(opts.isJoint)
 
   return sendEmail({
     orgId: org.orgId,
@@ -335,7 +338,7 @@ export async function sendShortlistInvitation(
         <EmailSectionHeading>Next step: Tenant screening</EmailSectionHeading>
         <p style={S.body}>To complete your application we need to run a credit and background check. This requires:</p>
         <p style={S.body}>1. Your consent (POPIA requirement)</p>
-        <p style={S.body}>2. A screening fee of {screeningFeeDisplay(opts.isJoint)}</p>
+        <p style={S.body}>2. {feeLine}</p>
         <p style={S.body}>The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {org.orgName} only.</p>
         <EmailButton href={inviteLink} accentColor={org.branding.accentColor}>Continue to screening →</EmailButton>
         <p style={S.footer}>This link expires in 7 days.{org.orgPhone ? ` Contact: ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>

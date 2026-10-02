@@ -68,8 +68,8 @@ interface ApplicationFeeFormData {
   propertyName: string
   unitName: string
   /**
-   * The fee to actually charge, in cents — from APPLICATION_FEE_CENTS / JOINT_APPLICATION_FEE_CENTS
-   * via the billing route, NEVER a literal here. This was hardcoded "399.00" until 2026-08-14, so the
+   * The fee to actually charge, in cents — the application's stamped fee_amount_cents, quoted by
+   * lib/screening/quote.ts via the billing route, NEVER a literal here. This was hardcoded "399.00" until 2026-08-14, so the
    * caller computed the correct fee, wrote it to applications.fee_amount_cents, and then charged a
    * different (stale) amount — the DB said one thing and PayFast took another. buildDirectorFeeForm
    * below always took feeCents as a parameter; this one simply never did.
@@ -148,22 +148,6 @@ export function buildDirectorFeeForm({
   return { url: PAYFAST_CONFIG.processUrl, data }
 }
 
-// Product retail prices in Rands (spec D-14A-03)
-export const PI_RETAIL_CENTS: Record<string, number> = {
-  deeds_search:          3000,
-  lightstone_erf_short:  15500,
-  cipc_company:          2500,
-  cipc_director:         2500,
-}
-
-// Searchworx cost ex-VAT in cents (for vendor_usage margin reporting)
-export const PI_COST_CENTS: Record<string, number> = {
-  deeds_search:          2280,
-  lightstone_erf_short:  11700,
-  cipc_company:          1565,
-  cipc_director:         1565,
-}
-
 const PI_PRODUCT_LABELS: Record<string, string> = {
   deeds_search:         "Deeds Office Search",
   lightstone_erf_short: "Lightstone Erf Valuation",
@@ -175,6 +159,7 @@ interface PropertyIntelligenceFeeFormData {
   pullId:       string
   orgId:        string
   productType:  string
+  retailCents:  number   // the pull's stamped retail_cents — quoted by the initiate route (ADDENDUM_14V), never a table here
   subjectLabel: string
   tokenise:     boolean  // true on first pull (no saved card), false on re-checkout
 }
@@ -183,11 +168,11 @@ export function buildPropertyIntelligenceFeeForm({
   pullId,
   orgId,
   productType,
+  retailCents,
   subjectLabel,
   tokenise,
 }: PropertyIntelligenceFeeFormData) {
-  const retailCents = PI_RETAIL_CENTS[productType]
-  if (!retailCents) throw new Error(`Unknown productType: ${productType}`)
+  if (!Number.isInteger(retailCents) || retailCents <= 0) throw new Error(`Invalid retailCents for ${productType}: ${retailCents}`)
 
   const amount = (retailCents / 100).toFixed(2)
   const label  = PI_PRODUCT_LABELS[productType] ?? productType

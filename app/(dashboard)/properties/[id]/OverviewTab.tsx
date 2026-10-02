@@ -72,6 +72,7 @@ interface OverviewTabProps {
   canAccessIntelligence: boolean
   latestDeeds: LatestPull | null
   latestLightstone: LatestPull | null
+  piPrices: { deeds_search: number | null; lightstone_erf_short: number | null }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -178,6 +179,7 @@ export function OverviewTab({
   canAccessIntelligence,
   latestDeeds,
   latestLightstone,
+  piPrices,
 }: Readonly<OverviewTabProps>) {
   const totalUnits    = activeUnits.length
   const occupied      = activeUnits.filter((u) => u.status === "occupied").length
@@ -338,6 +340,7 @@ export function OverviewTab({
         canAccessIntelligence={canAccessIntelligence}
         latestDeeds={latestDeeds}
         latestLightstone={latestLightstone}
+        prices={piPrices}
       />
 
       {/* Recent activity */}

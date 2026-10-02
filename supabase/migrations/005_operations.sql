@@ -3718,3 +3718,140 @@ COMMENT ON TABLE searchworx_rate_holds IS
   'ADDENDUM_14V §3.3 step 4. One row per (product, held value). Inserted by searchworx-rate-sync (the insert IS the alert); decided by /api/admin/searchworx-rate, audited under PLATFORM_ORG_ID.';
 
 ALTER TABLE searchworx_rate_holds ENABLE ROW LEVEL SECURITY;
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14V §3.5–§3.6 step 7: the consumer sweep — stamps where the fee is shown, no literal fee  (2026-10-02)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- STAMP HOME (ruled 2026-10-02): an application's fee is stamped on `applications` beside fee_amount_cents —
+-- the column the application ITN cross-checks — by the first successful POST /api/billing/screening, and
+-- reused after. A property-intelligence pull carries the same three columns, written at initiate.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS rate_effective_date    date;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS pricing_policy_version text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS cost_excl_vat_cents    integer;
+ALTER TABLE property_intelligence_pulls ADD COLUMN IF NOT EXISTS rate_effective_date    date;
+ALTER TABLE property_intelligence_pulls ADD COLUMN IF NOT EXISTS pricing_policy_version text;
+ALTER TABLE property_intelligence_pulls ADD COLUMN IF NOT EXISTS cost_excl_vat_cents    integer;
+
+COMMENT ON COLUMN applications.pricing_policy_version IS
+  'ADDENDUM_14V §3.5: the PRICING_POLICY_VERSION fee_amount_cents was quoted under. Set at first show (POST /api/billing/screening); with it set, fee_amount_cents and the stamp are immutable (trg_application_fee_immutable).';
+COMMENT ON COLUMN property_intelligence_pulls.pricing_policy_version IS
+  'ADDENDUM_14V §3.4/§3.5: the PRICING_POLICY_VERSION retail_cents was quoted under, written at initiate.';
+
+-- No literal fee in the flow (§3.6). The default made every new application carry a fee nobody had quoted,
+-- and the ITN cross-check read it as one. A NULL fee now means "not yet quoted", and the ITN refuses it.
+ALTER TABLE applications ALTER COLUMN fee_amount_cents DROP DEFAULT;
+
+-- §3.5a (ruled 2026-10-02): a QUOTE is bound to the party set it priced. The stamp records that set — natural
+-- persons and whether an entity line was priced — so the ITN can refuse a payment whose set moved under it.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS priced_party_count integer;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS priced_entity      boolean;
+COMMENT ON COLUMN applications.priced_party_count IS
+  'ADDENDUM_14V §3.5a/b: natural persons the stamped quote priced (residential: 1 + live co rows; juristic: live surety parties). Part of the stamp — voided with it, frozen once paid.';
+
+-- "A quoted fee never moves" (§3.5a): the stamp is a QUOTE until fee_paid_at and a FEE from then on.
+--   · PAID   — the fee, the stamp and the priced set never change. Rows paid before 14V carry no stamp, which is
+--              why the paid arm reads fee_paid_at and not the stamp.
+--   · QUOTED — the only change is a VOID: all six columns cleared together. The fee goes with the stamp because
+--              the ITN cross-checks fee_amount_cents, so a void that left it would still accept a form left open at
+--              the old amount; with it NULL the ITN refuses no_quoted_fee. The next first show re-stamps.
+CREATE OR REPLACE FUNCTION application_fee_immutable()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF NOT (
+       NEW.fee_amount_cents       IS DISTINCT FROM OLD.fee_amount_cents
+    OR NEW.rate_effective_date    IS DISTINCT FROM OLD.rate_effective_date
+    OR NEW.pricing_policy_version IS DISTINCT FROM OLD.pricing_policy_version
+    OR NEW.cost_excl_vat_cents    IS DISTINCT FROM OLD.cost_excl_vat_cents
+    OR NEW.priced_party_count     IS DISTINCT FROM OLD.priced_party_count
+    OR NEW.priced_entity          IS DISTINCT FROM OLD.priced_entity
+  ) THEN
+    RETURN NEW;
+  END IF;
+  IF OLD.fee_paid_at IS NOT NULL THEN
+    RAISE EXCEPTION 'applications %: a quoted fee never moves once paid (ADDENDUM_14V §3.5a)', OLD.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF OLD.pricing_policy_version IS NOT NULL AND NOT (
+        NEW.fee_amount_cents IS NULL AND NEW.rate_effective_date IS NULL AND NEW.pricing_policy_version IS NULL
+    AND NEW.cost_excl_vat_cents IS NULL AND NEW.priced_party_count IS NULL AND NEW.priced_entity IS NULL
+  ) THEN
+    RAISE EXCEPTION 'applications %: a quoted fee never moves — void the whole stamp or none of it (ADDENDUM_14V §3.5a)', OLD.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_application_fee_immutable ON applications;
+CREATE TRIGGER trg_application_fee_immutable
+  BEFORE UPDATE ON applications
+  FOR EACH ROW EXECUTE FUNCTION application_fee_immutable();
+
+-- The party set's own guard (§3.5a/b). On application_co_applicants, not applications, because every writer of the
+-- set writes this table (the co-applicant route's flag update is a separate statement that can fail on its own):
+--   · stamped, unpaid — an add, a decline or a delete VOIDS the parent's stamp; the next first show re-quotes.
+--   · paid — an add is refused (a late party joins a new application until 14W's per-party line exists, §3.5b);
+--            a hard DELETE is refused (no removal, no refund, 14W); a declined_at write PASSES — the reminder
+--            cron expiring an unconsented line is the 14W §3 outcome, not a set change, and the fee stays.
+-- A parent that is not found is the application's own delete cascading here, which is not a set change.
+CREATE OR REPLACE FUNCTION co_applicant_party_set_guard()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  app_id uuid;
+  parent record;
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.declined_at IS NOT DISTINCT FROM OLD.declined_at THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'DELETE' THEN app_id := OLD.primary_application_id; ELSE app_id := NEW.primary_application_id; END IF;
+
+  SELECT fee_paid_at, pricing_policy_version INTO parent FROM applications WHERE id = app_id;
+  IF NOT FOUND THEN
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
+  END IF;
+
+  IF parent.fee_paid_at IS NOT NULL THEN
+    IF TG_OP = 'INSERT' THEN
+      RAISE EXCEPTION 'application %: a party who arrives after payment joins a new application (ADDENDUM_14V §3.5b)', app_id
+        USING ERRCODE = 'check_violation';
+    ELSIF TG_OP = 'DELETE' THEN
+      RAISE EXCEPTION 'application %: a paid party set is frozen — no removal, no refund (ADDENDUM_14V §3.5a)', app_id
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF parent.pricing_policy_version IS NOT NULL THEN
+    UPDATE applications
+       SET fee_amount_cents = NULL, rate_effective_date = NULL, pricing_policy_version = NULL,
+           cost_excl_vat_cents = NULL, priced_party_count = NULL, priced_entity = NULL
+     WHERE id = app_id;
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_co_applicant_party_set ON application_co_applicants;
+CREATE TRIGGER trg_co_applicant_party_set
+  BEFORE INSERT OR DELETE OR UPDATE OF declined_at ON application_co_applicants
+  FOR EACH ROW EXECUTE FUNCTION co_applicant_party_set_guard();
+
+-- The vendor's printed date is METADATA (§8, ruled 2026-10-01) and now a real column. It was carried in
+-- raw->>'vendor_effective_date' until this section; the backfill copies every valid ISO day across.
+ALTER TABLE searchworx_rate_observations ADD COLUMN IF NOT EXISTS vendor_effective_date date;
+UPDATE searchworx_rate_observations
+   SET vendor_effective_date = (raw->>'vendor_effective_date')::date
+ WHERE vendor_effective_date IS NULL
+   AND raw->>'vendor_effective_date' ~ '^\d{4}-\d{2}-\d{2}$';
+
+-- A billing row's source_ref is the call's Reference = the screening line / PI pull id; the reconcile in
+-- the rate sync joins on it.
+CREATE INDEX IF NOT EXISTS idx_searchworx_rate_observations_billing_ref
+  ON searchworx_rate_observations (source_ref) WHERE source = 'billing_report';
+
+-- The listing comment carried rand fees and the cancelled Estate bundle (ADDENDUM_14E). Restated without either.
+COMMENT ON COLUMN listings.screening_bundle IS
+  '"standard" — the one screening bundle Pleks sells. "estate" was cancelled (ADDENDUM_14E) and is kept in the CHECK only for historical rows. The fee is not a listing property: it is quoted per application from searchworx_rates (ADDENDUM_14V).';

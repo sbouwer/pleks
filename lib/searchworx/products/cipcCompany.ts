@@ -12,7 +12,8 @@ import { searchworxCall, type SearchworxResult } from "@/lib/searchworx/client"
 
 export interface CipcCompanyInput {
   registrationNumber: string  // SA company reg format: YYYY/NNNNNN/NN
-  reference?:         string
+  /** The PI pull id. Sent as reference so a billing-report row joins back to exactly one pull (ADDENDUM_14V). */
+  reference:          string
 }
 
 export async function runCipcCompany(
@@ -22,7 +23,7 @@ export async function runCipcCompany(
     productPath: "cipc/company/registrationNumber/NoMulti",
     buildBody: (token) => ({
       sessionToken:       token,              // camelCase — CIPC Company quirk; differs from all other products
-      reference:          input.reference ?? input.registrationNumber,
+      reference:          input.reference,
       registrationNumber: input.registrationNumber,
     }),
   })

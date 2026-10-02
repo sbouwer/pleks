@@ -10,7 +10,6 @@ import {
   HELP_ENTRIES, HELP_CATEGORIES, HELP_ROLES, ALL_ROLES,
   entriesForRole, categoriesForRole, type HelpRole,
 } from "@/lib/help/help-data"
-import { APPLICATION_FEE_CENTS, formatZAR } from "@/lib/constants"
 
 const CATEGORY_IDS = new Set(HELP_CATEGORIES.map((c) => c.id))
 const ROLE_IDS = new Set<HelpRole>(HELP_ROLES.map((r) => r.id))
@@ -42,9 +41,13 @@ describe("help corpus integrity", () => {
     }
   })
 
-  it("the application-fee answer is derived from lib/constants, not hardcoded", () => {
-    const fee = HELP_ENTRIES.find((e) => e.id === "q-applications-fee")
-    expect(fee?.a).toContain(formatZAR(APPLICATION_FEE_CENTS))
+  // ADDENDUM_14V §3.6: the fee is a formula over recorded rates, so no answer may state a rand amount for it.
+  it("the application-fee answers carry no rand amount", () => {
+    for (const id of ["q-applications-fee", "q-applications-cost-t"]) {
+      const entry = HELP_ENTRIES.find((e) => e.id === realId(id))
+      expect(entry?.a, id).toMatch(/screening fee/i)
+      expect(entry?.a, id).not.toMatch(/R\s?\d/)
+    }
   })
 })
 

@@ -1,7 +1,7 @@
 /**
  * lib/searchworx/rates/__tests__/fakeRateDb.ts — in-memory stand-in for the 14V platform tables, for tests
  *
- * Notes:  Supports exactly the chains the rate code uses (select/eq/in/order/limit/single/maybeSingle,
+ * Notes:  Supports exactly the chains the rate code uses (select/eq/in/is/lte/order/limit/single/maybeSingle,
  *         insert[.select().single()], update[.eq…][.select()]) and enforces the two UNIQUE constraints that
  *         behaviour depends on — searchworx_rates (product_key, effective_date, source) and
  *         searchworx_rate_holds (product_key, held_cents) — returning 23505 the way PostgREST does.
@@ -81,6 +81,8 @@ export function fakeRateDb(seed: Record<string, Row[]> = {}, failInsert: Record<
       select: () => q,
       eq: (col: string, v: unknown) => (filters.push((r) => get(r, col) === v), q),
       in: (col: string, vs: unknown[]) => (filters.push((r) => vs.includes(get(r, col))), q),
+      is: (col: string, v: null) => (filters.push((r) => (get(r, col) ?? null) === v), q),
+      lte: (col: string, v: string) => (filters.push((r) => String(get(r, col)) <= v), q),
       order: (col: string, o: { ascending: boolean }) => ((order = { col, asc: o.ascending }), q),
       limit: (n: number) => ((lim = n), q),
       single: () => ((one = "single"), q),

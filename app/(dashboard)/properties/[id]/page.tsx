@@ -34,6 +34,7 @@ import { formatZAR } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { diffCalendarDays, saTodayISO } from "@/lib/dates"
 import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
+import { quotePropertyIntelligencePrices } from "@/lib/screening/quote"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -681,7 +682,8 @@ export default async function PropertyDetailPage({
   const canSeeBroker = tier !== "owner"
 
   // Tab-specific data fetching
-  const [overviewData, unitsData, operationsData, insuranceData, schemeData] = await Promise.all([
+  const canAccessIntelligence = hasFeature(tier, "property_intelligence")
+  const [overviewData, unitsData, operationsData, insuranceData, schemeData, piPrices] = await Promise.all([
     activeTab === "overview"
       ? fetchOverviewData(service, id, orgId, property.landlord_id ?? null, property.managing_agent_id ?? null)
       : Promise.resolve(null),
@@ -697,6 +699,10 @@ export default async function PropertyDetailPage({
     activeTab === "scheme" && managingSchemeId
       ? fetchSchemeData(service, managingSchemeId, orgId, (propRaw.levy_amount_cents as number | null) ?? null)
       : Promise.resolve(null),
+    // ADDENDUM_14V: display-only quotes for the verification card; /initiate re-quotes and stamps at the click
+    activeTab === "overview" && canAccessIntelligence
+      ? quotePropertyIntelligencePrices(["deeds_search", "lightstone_erf_short"], "property-verification-card")
+      : Promise.resolve({} as Record<string, number | null>),
   ])
 
   // Documents only need property_documents
@@ -827,9 +833,13 @@ export default async function PropertyDetailPage({
               activity={overviewData.activity}
               managingScheme={overviewData.managingScheme}
               hasManagingScheme={hasManagingScheme}
-              canAccessIntelligence={hasFeature(tier, "property_intelligence")}
+              canAccessIntelligence={canAccessIntelligence}
               latestDeeds={overviewData.latestDeeds}
               latestLightstone={overviewData.latestLightstone}
+              piPrices={{
+                deeds_search:         piPrices.deeds_search ?? null,
+                lightstone_erf_short: piPrices.lightstone_erf_short ?? null,
+              }}
             />
           </>
         )}

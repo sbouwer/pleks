@@ -266,7 +266,7 @@ TS/TSX format:
 - When adding new API routes: Category 8 auto-discovers them from disk — no list to update. Just gate the route with a recognized auth helper; a route with no gate that isn't a conscious public route FAILS the census until you add it to `PUBLIC_ALLOWLIST` (with a reason) in `route-census.mjs`. <!-- @enforced audit:cat8_serverActionAbuse -->
 - When adding new server actions (`"use server"`): Category 15 auto-discovers them — gate each with the helper appropriate to its location (`app/(admin)` → `requireAdminAuth`; agent → `requireAgentWriteAccess`/`gateway`; portal → `getTenantSession`), or add the file to `ACTION_ALLOWLIST` (with a reason) in `server-action-census.mjs`. A bare `gateway()` on an `app/(admin)` action FAILS — admin surfaces need the admin gate. <!-- @enforced audit:cat15_serverActionAuth -->
 - When adding new webhook handlers: add signature verification from day one. Category 10 sends forged payloads. <!-- @enforced audit:cat10_webhookSignatures -->
-- No bundle is sold below cost — asserted INSIDE the SSOT module, runs under `npm run check`. <!-- @enforced test:lib/screening/__tests__/bundle-economics.test.ts -->
+- No bundle is sold below cost — asserted as a property over every application shape on generated rate tables, runs under `npm run check`. <!-- @enforced test:lib/screening/__tests__/bundle-economics.test.ts -->
 - org_id on every new table — **one bounded exception: identity-scoped tables** (a row describing a
    HUMAN, read before `/switch-role` selects an org: `user_passkeys`, `passkey_challenges`,
    `passkey_aal_grants`). Membership test + cascade companion rule in
@@ -438,8 +438,8 @@ If it says the code *does* X, anchor it.
 
 **On compaction or new session:** read CURRENT.md first. It tells you where you are. Do not ask Stéan to re-explain — the answer is in the file.
 
-- Never hardcode a fee literal at a CALL SITE — import `APPLICATION_FEE_CENTS` instead.
-  **UNENFORCEABLE** — MECHANISABLE → **M-009**. The test above asserts price > cost WITHIN the SSOT module; it does not scan call sites. A call site writing `25000` rather than importing the constant would not fail it.
+- Never hardcode a screening or property-intelligence fee at a CALL SITE — quote it (`lib/screening/quote.ts`) or read the payable row's stamp.
+  **UNENFORCEABLE** — MECHANISABLE → **M-009**. The test above asserts the formula never sells below cost; it does not scan call sites. A call site writing a rand amount rather than reading a quote or a stamp would not fail it.
 
 - **PRICING PRECEDENCE (Stéan ruling 2026-08-15).** When `brief/legal/SEARCHWORX_RATE_CARD.md` and
 `brief/build/INDEX.md`/ADDENDUMs disagree about a DECISION — a bundle cancelled, a fee changed, a
@@ -493,7 +493,7 @@ section that never mentioned joint applications).
 - **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: other) — sketch: scan filled headers for surviving literal placeholder text (e.g. "(omit if not a page)") and fail; nothing does today.
 - **UNENFORCEABLE** — MECHANISABLE (rung: ci · blast: other) — the `pr-title` job validates only the title's `type(scope): subject` grammar (`amannn/action-semantic-pull-request`, no `subjectPattern` configured); it does not check the PR/commit body for a `BREAKING CHANGE:` footer. `semantic-release` (the `release` job) parses the footer at RELEASE time to size the version bump, but that runs after merge — nothing blocks a `!` with no matching footer from merging. Full sketch → **M-052** in `docs/MECHANISABLE.md`.
 - **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — sketch: scan `app/**`/`lib/**` for tier-price/name/lease-cap-shaped literals (e.g. "R699", "R1,199", "R2,599", "R4,499", the lease-cap numbers 15/30/75/150) outside the two SSOT files, the way `no-rerolled-money-format`/`no-adhoc-dates` guard their own SSOTs.
-- **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — sketch: scan for a raw `25000`/`47000`/`0.30`-shaped literal outside `lib/constants.ts`, the way a `no-rerolled-*` rule guards its own SSOT. Same mechanism family as the tier-literal check above — could ship as one combined script.
+- **UNENFORCEABLE** — MECHANISABLE (rung: check · blast: money) — sketch: scan for a rand-amount literal at a screening/PI fee call site (the fee is a quote, never a constant) and a `0.30`-shaped affordability literal outside `lib/constants.ts`, the way a `no-rerolled-*` rule guards its own SSOT. Same mechanism family as the tier-literal check above — could ship as one combined script.
 - **UNENFORCEABLE** — "never duplicate content" is a semantic overlap judgement between two prose files; `check-rules-tracked.mjs` verifies each rules file is git-tracked and carries `paths:` frontmatter (tagged above) but does not compare content against CLAUDE.md.
 - **UNENFORCEABLE** — the ORDERING of actions within a session (local work before the gated action) is a planning choice with no artefact; only the final gated action itself is checkable (see next).
 - **UNENFORCEABLE** — whether a task "should have" been delegated is a judgement about task shape; nothing in a transcript or diff fails when a repo-wide grep sweep was run inline instead of via `census`.
@@ -694,9 +694,9 @@ conversation, so this cannot fall out of context or go stale. <!-- @enforced hoo
 | What | File |
 |---|---|
 | Tier names, prices, lease caps | `lib/marketing/tiers.ts` (cents in `lib/constants.ts`) |
-| Screening bundle cost + margin | `lib/screening/searchworxBundle.ts` — all DERIVED, never a literal |
-| Application/joint fees, affordability threshold | `lib/constants.ts` |
-| Screening cost + margin (all derived) | `lib/screening/searchworxBundle.ts` |
+| Screening + PI fees (quoted, never a literal) | `lib/screening/quote.ts` over `searchworx_rates`; formula in `lib/screening/pricing.ts` |
+| Screening bundle composition | `lib/screening/searchworxBundle.ts` — membership only, no costs |
+| Affordability threshold | `lib/constants.ts` |
 | Dates, business days, SA public holidays | `lib/dates/*` |
 | Audit writes · money format · property label | `recordAudit` · `formatZAR` · `formatPropertyLabel` |
 | Env access | `lib/env.ts` |

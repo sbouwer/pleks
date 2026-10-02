@@ -3,7 +3,8 @@
  *
  * Route:  /apply/invite/[token]
  * Auth:   Public — access by application-invite token (application_tokens); no session
- * Data:   application_tokens (+ applications, listings); service client
+ * Data:   application_tokens (+ applications, listings); service client; the fee is the stamp or a
+ *         display-only quote (lib/screening/quote.ts)
  * Notes:  Server component. Shows an expiry screen once the token's expires_at passes.
  *
  *         ⚠ THE 30-DAY "REUSE YOUR RECENT REPORT — FREE" CARD WAS REMOVED 2026-08-19, along with
@@ -31,7 +32,8 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
-import { formatZAR, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { formatZAR } from "@/lib/constants"
+import { quoteApplicationFee } from "@/lib/screening/quote"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { MapPin, Clock, CheckCircle2 } from "lucide-react"
@@ -82,7 +84,16 @@ export default async function InvitePage({
   // permanently false, and this page QUOTED R250 to a joint applicant whom /api/billing/screening then
   // charged R470. Same flag the billing route reads, so the quote and the charge cannot diverge.
   const isJoint = application?.has_co_applicant === true
-  const fee = isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
+  // ADDENDUM_14V: the stamped fee once /api/billing/screening has quoted it (it never moves), else a display-only
+  // quote through the formula — the stamp is written by that route, not by a page view. Juristic pricing is the
+  // route's (it counts surety parties); this landing page quotes the residential shape the flag describes.
+  let fee: number | null = null
+  if (application?.pricing_policy_version && typeof application.fee_amount_cents === "number") {
+    fee = application.fee_amount_cents
+  } else {
+    const q = await quoteApplicationFee({ juristic: false, persons: isJoint ? 2 : 1 }, "invite-landing")
+    fee = q.ok ? q.fee_cents : null
+  }
 
   // Days remaining — computed server-side
   const currentTime = new Date()
@@ -132,7 +143,9 @@ export default async function InvitePage({
             <span className="text-sm text-muted-foreground">
               {isJoint ? "Joint application screening" : "Screening fee"}
             </span>
-            <span className="text-2xl font-semibold">{formatZAR(fee)}</span>
+            <span className="text-2xl font-semibold">
+              {fee === null ? "Temporarily unavailable" : formatZAR(fee)}
+            </span>
           </div>
           <div className="flex items-center gap-2 text-sm text-yellow-500">
             <Clock className="size-4" />

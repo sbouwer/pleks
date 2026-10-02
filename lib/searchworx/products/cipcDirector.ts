@@ -15,6 +15,8 @@ export interface CipcDirectorInput {
   surname:            string
   firstName:          string
   registrationNumber: string  // company reg — used to narrow matches
+  /** The PI pull id. Sent as Reference so a billing-report row joins back to exactly one pull (ADDENDUM_14V). */
+  reference:          string
 }
 
 export async function runCipcDirector(
@@ -24,7 +26,7 @@ export async function runCipcDirector(
     productPath: "cipc/director",
     buildBody: (token) => ({
       SessionToken: token,
-      Reference:    input.registrationNumber,
+      Reference:    input.reference,
       Surname:      input.surname,
       Firstname:    input.firstName,  // PascalCase — different from Sigma's lowercase `firstname`
       IDNumber:     input.idNumber,

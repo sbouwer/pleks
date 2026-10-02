@@ -20,19 +20,23 @@
  *         row, so a held value alerts once, not every morning (ruled 2026-10-01); it stays counted in `held`
  *         on every run until an admin decides it. A rejected value is never applied or re-alerted; an
  *         admin-applied value is applied by the cron when it is observed again.
- *         An applied row is dated to the observation's vendor date, else today (§3.3 step 3), and links
- *         observation_id. A UNIQUE (product_key, effective_date, source) collision is reported, never thrown.
+ *         An applied row is dated to the day it applies to quoting (§8, ruled 2026-10-01): a billing row's billed
+ *         day, a list's IMPORT day — never the list's printed date, which is metadata — and links observation_id. A UNIQUE (product_key, effective_date, source) collision is reported, never thrown.
  *         Billing is fetched for one day — yesterday (SA) unless the caller backfills a date. A failed or
  *         unreadable fetch records nothing from billing but the comparison still runs over what is recorded,
  *         and the route turns the failure into Sentry + 502.
+ *         A cleanly read billing day is also RECONCILED (reconcile.ts): each billed row's UnitPrice replaces the
+ *         estimated cost on the screening line or PI pull its Reference names. All of the day's rows, not only
+ *         the newly recorded ones, so a backfill re-run completes a reconcile an earlier run did not finish.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { addCalendarDays, diffCalendarDays } from "@/lib/dates"
+import { addCalendarDays, diffCalendarDays, saDateISO } from "@/lib/dates"
 import type { BillingFetch } from "@/lib/searchworx/billingReport"
 import { billingObservations } from "@/lib/searchworx/rates/billing"
 import { recordObservations, type ObservationSource } from "@/lib/searchworx/rates/observe"
 import { selectCurrentRates, type RateRow } from "@/lib/searchworx/rates/read"
 import { VENDOR_NAME_TO_PRODUCT } from "@/lib/searchworx/rates/productNames"
+import { reconcileBilledCosts } from "@/lib/searchworx/rates/reconcile"
 
 export interface LinkedRateRow extends RateRow {
   observation_id: string | null
@@ -44,6 +48,8 @@ export interface LatestObservation {
   cost_excl_vat_cents: number
   source: ObservationSource
   observed_at: string
+  /** The vendor's own date for the price (a column since ADDENDUM_14V step 7; was raw.vendor_effective_date). */
+  vendor_effective_date: string | null
   raw: Record<string, unknown> | null
 }
 
@@ -73,9 +79,15 @@ const SYNCED_PRODUCT_KEYS: readonly string[] = [
 
 export const holdKey = (productKey: string, cents: number) => `${productKey}|${cents}`
 
-function vendorDay(o: LatestObservation): string | null {
-  const d = o.raw?.vendor_effective_date
-  return typeof d === "string" && ISO_DAY.test(d) ? d : null
+/**
+ * The day a rate applies to quoting (ADDENDUM_14V §8, ruled 2026-10-01). A billing row: the billed day. A price
+ * list: the day it was IMPORTED — the vendor's printed date is metadata on the observation and never backdates a
+ * rate (a list dated April, imported in October, prices nothing before October).
+ */
+function quotingDay(o: LatestObservation, today: string): string {
+  if (o.source === "pricelist_import") return saDateISO(new Date(o.observed_at))
+  const d = o.vendor_effective_date
+  return typeof d === "string" && ISO_DAY.test(d) ? d : today
 }
 
 export function decideRateMoves(args: {
@@ -96,7 +108,7 @@ export function decideRateMoves(args: {
     if (!obs) return { kind: "no_observation", productKey, hasRate: current !== undefined }
     if (applied.has(obs.id)) return { kind: "unchanged", productKey, reason: "already_applied" }
 
-    const effectiveDate = vendorDay(obs) ?? args.today
+    const effectiveDate = quotingDay(obs, args.today)
     if (!current) return { kind: "apply", productKey, observation: obs, effectiveDate, fromCents: null }
 
     const from = current.costExclVatCents
@@ -181,6 +193,8 @@ export interface SyncResult {
     conflicts: number
     unmapped: number
     rejected_rows: number
+    /** Screening lines / PI pulls whose estimated cost was replaced by the billed UnitPrice. */
+    reconciled: number
   }
   alerts: SyncAlert[]
 }
@@ -223,9 +237,19 @@ async function recordBilling(
   const seen = new Set<unknown>((existing ?? []).map((r: { raw: Record<string, unknown> | null }) => r.raw?.billing_key))
   const fresh = parsed.observations.filter((o) => !seen.has(o.raw?.billing_key))
   result.summary.recorded = await recordObservations(db, fresh)
+
+  const rec = await reconcileBilledCosts(db, parsed.observations)
+  result.summary.reconciled = rec.lines + rec.pulls
+  if (rec.failures.length > 0) {
+    result.alerts.push({
+      level: "error",
+      message: "searchworx-rate-sync: billed cost could not be written back to its line or pull",
+      extra: { billing_day: billingDay, failures: rec.failures.length, first: rec.failures[0] },
+    })
+  }
 }
 
-const OBS_COLUMNS = "id, product_key, cost_excl_vat_cents, source, observed_at, raw"
+const OBS_COLUMNS = "id, product_key, cost_excl_vat_cents, source, observed_at, vendor_effective_date, raw"
 
 async function newestOf(db: SupabaseClient, productKey: string, sources: readonly ObservationSource[]): Promise<LatestObservation | null> {
   const { data, error } = await db
@@ -336,7 +360,7 @@ export async function runRateSync(
     sourceFailure: null,
     summary: {
       billing_rows: 0, recorded: 0, applied: 0, held: 0, held_new: 0, rejected: 0, unchanged: 0, stale: 0,
-      no_observation: 0, list_below_billed: 0, conflicts: 0, unmapped: 0, rejected_rows: 0,
+      no_observation: 0, list_below_billed: 0, conflicts: 0, unmapped: 0, rejected_rows: 0, reconciled: 0,
     },
     alerts: [],
   }

@@ -9,13 +9,20 @@
  *         { mode: "adhoc", pullId }      — saved card; client POSTs to /run/[pullId] directly
  *         Recent-pull suppression check (30-day window per D-14A-05) runs before insert.
  *         Tier gate: property_intelligence must be in org's feature set (Steward+).
+ *         ADDENDUM_14V step 7: the price is QUOTED here from the recorded Searchworx rates and stamped on the pull
+ *         (retail_cents, cost_cents, rate_effective_date, pricing_policy_version, cost_excl_vat_cents); everything
+ *         downstream (checkout form, adhoc charge, run) reads the pull; the ITN reads retail_cents but does not
+ *         compare it with amount_gross (on main before 14V, unchanged here). No rate → 503, no row. The card MUST
+ *         send the price it showed as quotedCents; a moved or missing quote is a 409 carrying the price, never a
+ *         charge at a price the payer did not see.
  */
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { gateway } from "@/lib/supabase/gateway"
 import { hasFeature } from "@/lib/tier/gates"
 import type { Tier } from "@/lib/constants"
-import { buildPropertyIntelligenceFeeForm, PI_RETAIL_CENTS, PI_COST_CENTS } from "@/lib/payfast/forms"
+import { buildPropertyIntelligenceFeeForm } from "@/lib/payfast/forms"
+import { quotePropertyIntelligence, stampColumns } from "@/lib/screening/quote"
 import { chargeAdhoc } from "@/lib/payfast/adhoc"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -43,9 +50,10 @@ export async function POST(req: NextRequest) {
       propertyId?:        string
       landlordId?:        string
       forceRun?:          boolean
+      quotedCents?:       number
     }
 
-    const { productType, subjectIdentifier, subjectLabel, propertyId, landlordId, forceRun } = body
+    const { productType, subjectIdentifier, subjectLabel, propertyId, landlordId, forceRun, quotedCents } = body
 
     if (!productType || !subjectIdentifier) {
       return NextResponse.json({ error: "productType and subjectIdentifier are required" }, { status: 400 })
@@ -54,8 +62,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid productType" }, { status: 400 })
     }
 
-    const retailCents = PI_RETAIL_CENTS[productType]
-    const costCents   = PI_COST_CENTS[productType]
+    const quote = await quotePropertyIntelligence(productType, "pi-initiate")
+    if (!quote.ok) {
+      return NextResponse.json({ error: "Property intelligence is temporarily unavailable" }, { status: 503 })
+    }
+    const retailCents = quote.fee_cents
+    // REQUIRED, not optional (walker F4): a body with no quotedCents — a tab loaded before this check — would
+    // otherwise charge a saved card at a price nobody showed. Missing is treated as moved: the 409 carries it.
+    if (quotedCents !== retailCents) {
+      return NextResponse.json({ error: "price_changed", retailCents }, { status: 409 })
+    }
 
     // Recent-pull suppression (D-14A-05): 30-day window per product + subject
     if (!forceRun) {
@@ -94,7 +110,8 @@ export async function POST(req: NextRequest) {
         subject_label:      subjectLabel ?? subjectIdentifier,
         status:             "pending",
         retail_cents:       retailCents,
-        cost_cents:         costCents,
+        cost_cents:         quote.cost_excl_cents,
+        ...stampColumns(quote),
         created_by_user_id: userId,
       })
       .select("id")
@@ -133,6 +150,7 @@ export async function POST(req: NextRequest) {
           pullId:       pull.id,
           orgId,
           productType,
+          retailCents,
           subjectLabel: label,
           tokenise:     false,
         })
@@ -155,6 +173,7 @@ export async function POST(req: NextRequest) {
       pullId:       pull.id,
       orgId,
       productType,
+      retailCents,
       subjectLabel: subjectLabel ?? subjectIdentifier,
       tokenise:     true,
     })

@@ -18,7 +18,8 @@
  *         `surety_party_required` at payment went with it. A citation that resolves to nothing is not a
  *         ruling, however confidently it is dated.
  *
- *         Payment for the entity + its surety parties is ONE transaction (see screeningFeeCents).
+ *         Payment for the entity + its surety parties is ONE transaction (quoted as applicationBundle
+ *         { juristic, persons: N } by lib/screening/quote.ts).
  *         CONSENT stays strictly per-person — D-14B-01, no proxy consent.
  */
 import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
@@ -72,7 +73,7 @@ export function orgMarkerFrom(entityType: unknown, applicantType: unknown): unkn
  * Is this application PAID FOR as juristic — the entity's line plus one per surety party?
  *
  * ONE answer for the two places that must agree: the price (`billing/screening`, via
- * `screeningFeeCents`) and the paid lines the PayFast application ITN writes. If they disagree, the
+ * `quoteApplicationFee`) and the paid lines the PayFast application ITN writes. If they disagree, the
  * applicant is charged for one set of lines and the ITN records another.
  *
  * ⚠ DELIBERATELY reads `entity_type ?? applicant_type`, NOT `orgMarkerFrom` — so it is FALSE for every
@@ -126,8 +127,8 @@ export interface PaidScreeningSubject {
 /**
  * The subjects ONE application-fee payment marks paid, for the PayFast application ITN.
  *
- * Juristic → the entity line plus one per surety, N >= 0: exactly the 1 + N lines `screeningFeeCents`
- * priced (a surety is optional, BUILD_72 R0, so N = 0 still pays the entity line). Not juristic → NONE:
+ * Juristic → the entity line plus one per surety, N >= 0: exactly the 1 + N subjects the quote's
+ * applicationBundle priced (a surety is optional, BUILD_72 R0, so N = 0 still pays the entity line). Not juristic → NONE:
  * an individual application's payment is recorded on the application row, and a RESIDENTIAL guarantor
  * must never produce a "company" line or a split of a residential fee. That second case is the reason
  * this is a function with a test rather than an `if` in the route: before BUILD_72 the ITN wrote these

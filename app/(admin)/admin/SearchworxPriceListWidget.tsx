@@ -7,8 +7,9 @@
  * Data:   POST /api/admin/searchworx-rates/import — records observations; the daily cron moves rates
  * Notes:  Reads the file in the browser and posts its text. Searchworx delivers an .xls: a workbook is turned into
  *         the same text by lib/searchworx/rates/priceListFile.ts (SheetJS loaded only when a workbook is picked),
- *         and its metadata tab's EffectiveDate is SHOWN beside the date field — never filled in for the admin,
- *         because the download date and the vendor's date differ and which one a list takes effect on is a decision.
+ *         and its metadata tab's EffectiveDate is SHOWN beside the date field — never filled in for the admin, who
+ *         confirms it. That date is METADATA (ADDENDUM_14V §8, ruled 2026-10-01): a list applies to quoting from its
+ *         import day, and one already older than staleAfterDays on arrival is flagged in the result.
  *         The result lists what mapped and how many names were reported unmapped, because an import that silently
  *         dropped a product is the failure to see.
  */
@@ -28,6 +29,7 @@ interface ImportSummary {
   mapped: { product_key: string; confidence: string; line: number }[]
   unmapped: { name: string }[]
   rejected: { line: number; reason: string }[]
+  stale_on_arrival: { vendor_effective_date: string; age_days: number; stale_after_days: number } | null
 }
 
 /** The file's price-list text: a CSV as-is, a workbook through priceListFile. Throws with the refusal reason. */
@@ -109,7 +111,10 @@ export function SearchworxPriceListWidget() {
               <Input id="sw-pricelist" type="file" accept=".xls,.xlsx,.csv" onChange={(e) => void handleFile(e.target.files?.[0] ?? null)} />
             </div>
             <div>
-              <Label>Effective date (the list&apos;s date)</Label>
+              <Label>The vendor&apos;s date printed on the list</Label>
+              <p className="text-xs text-muted-foreground">
+                Recorded as metadata. The prices apply to quoting from today, the day you import them.
+              </p>
               <DatePickerInput value={effectiveDate} onChange={setEffectiveDate} />
               {list?.meta && (
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -126,6 +131,13 @@ export function SearchworxPriceListWidget() {
                   {summary.ok ? `Recorded ${summary.recorded}` : `Nothing imported (${summary.reason})`} · {summary.unmapped.length} unmapped ·{" "}
                   {summary.rejected.length} rejected
                 </p>
+                {summary.stale_on_arrival && (
+                  <p className="text-amber-600">
+                    This list is dated {summary.stale_on_arrival.vendor_effective_date} — {summary.stale_on_arrival.age_days} days old,
+                    beyond the {summary.stale_on_arrival.stale_after_days}-day staleness limit. It was imported; check Searchworx
+                    for a newer one.
+                  </p>
+                )}
                 {summary.mapped.map((m) => (
                   <p key={m.product_key} className="text-muted-foreground">
                     {m.product_key} — line {m.line} ({m.confidence})

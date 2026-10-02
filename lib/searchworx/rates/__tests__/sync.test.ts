@@ -20,6 +20,8 @@ import {
   type ProductObservations,
 } from "@/lib/searchworx/rates/sync"
 import type { BillingFetch } from "@/lib/searchworx/billingReport"
+import { billedTotals, reconcileBilledCosts } from "@/lib/searchworx/rates/reconcile"
+import type { Observation } from "@/lib/searchworx/rates/observe"
 import { fakeRateDb, type Row } from "./fakeRateDb"
 
 const TODAY = "2026-10-02"
@@ -31,7 +33,8 @@ const obsRow = (over: Row = {}): Row => ({
   cost_excl_vat_cents: 19410,
   source: "pricelist_import",
   observed_at: "2026-10-01T09:00:00.000Z",
-  raw: { vendor_effective_date: "2026-10-01" },
+  vendor_effective_date: "2026-10-01",
+  raw: {},
   ...over,
 })
 
@@ -290,9 +293,26 @@ describe("decideRateMoves — pure", () => {
     expect(decide(r, o, new Map([[holdKey(CCR, 19999), "rejected" as const]]))[0]).toMatchObject({ kind: "hold", existing: null })
   })
 
-  it("an observation with no vendor date is dated today", () => {
-    const [d] = decide([], seen({ raw: null }))
+  it("a billing observation with no vendor date is dated today", () => {
+    const [d] = decide([], seen({ source: "billing_report", vendor_effective_date: null }, "billed"))
     expect(d).toMatchObject({ kind: "apply", effectiveDate: TODAY })
+  })
+
+  it("a billing observation is dated to its billed day", () => {
+    const [d] = decide([], seen({ source: "billing_report", vendor_effective_date: "2026-09-30" }, "billed"))
+    expect(d).toMatchObject({ kind: "apply", effectiveDate: "2026-09-30" })
+  })
+
+  // §8 (ruled 2026-10-01): a list applies from the day it was IMPORTED; its printed date is metadata.
+  it("a list is dated to its IMPORT day, never backdated to the vendor's printed date", () => {
+    const [d] = decide([], seen({ vendor_effective_date: "2026-04-20", observed_at: "2026-10-01T09:00:00.000Z" }))
+    expect(d).toMatchObject({ kind: "apply", effectiveDate: "2026-10-01" })
+  })
+
+  it("a list's import day is the SA day, not the UTC day", () => {
+    // 23:30 UTC on 30 Sep is 01:30 SAST on 1 Oct.
+    const [d] = decide([], seen({ vendor_effective_date: "2026-04-20", observed_at: "2026-09-30T23:30:00.000Z" }))
+    expect(d).toMatchObject({ kind: "apply", effectiveDate: "2026-10-01" })
   })
 
   it("a future-dated rate is not current, but its observation is not applied again", () => {
@@ -309,5 +329,74 @@ describe("staleProducts", () => {
     ]
     const o = new Map([at("a", "2025-08-27T08:00:00.000Z"), at("b", "2025-08-28T08:00:00.000Z")])
     expect(staleProducts({ observations: o, staleAfterDays: 400, today: TODAY })).toEqual([{ productKey: "a", days: 401 }])
+  })
+})
+
+// §3.6 (ruled 2026-10-02): every call sends Reference = our row id; a billed row overwrites that row's estimate.
+describe("runRateSync — billing reconcile", () => {
+  const LINE = "11111111-2222-4333-8444-555555555555"
+  const PULL = "99999999-8888-4777-8666-555555555555"
+  const seeded = (extra: Record<string, Row[]>) => {
+    const f = fakeDb({ observations: [obsRow({ id: "obs-2" })], rates: [rateRow()] })
+    Object.assign(f.tables, extra)
+    return f
+  }
+
+  it("a billed line takes the billed UnitPrice and KEEPS the date of the rate it was quoted from", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410, rate_effective_date: "2026-09-15" }],
+    })
+    const r = await sync(db, billed([billingRow("176.40", LINE)]))
+    expect(r.summary.reconciled).toBe(1)
+    expect(tables.application_screening_lines[0]).toMatchObject({ cost_cents: 17640, rate_effective_date: "2026-09-15" })
+  })
+
+  it("a Reference billed twice, or with Quantity > 1, is charged the SUM — never the last row", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410 }],
+    })
+    await sync(db, billed([billingRow("176.40", LINE), { ...billingRow("176.40", LINE), Quantity: "2", Cost: "352.80" }]))
+    expect(tables.application_screening_lines[0].cost_cents).toBe(3 * 17640)
+  })
+
+  it("PLANTED: a non-UUID reference never reaches a query — the guard holds without Postgres's 22P02", async () => {
+    const obs = (sourceRef: string) =>
+      ({ productKey: CCR, costExclVatCents: 17640, source: "billing_report", sourceRef, raw: { quantity: 1 } }) as unknown as Observation
+    expect(billedTotals([obs("app-1-abcdef12"), obs("erf-1234")])).toEqual([])
+    const refusing = { from: () => { throw new Error("queried a non-UUID reference") } } as unknown as SupabaseClient
+    await expect(reconcileBilledCosts(refusing, [obs("app-1-abcdef12")])).resolves.toMatchObject({ lines: 0, pulls: 0 })
+  })
+
+  it("a billed PI pull takes the billed cost on the pull and its searchworx vendor_usage row — never the stamp", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [],
+      property_intelligence_pulls: [{ id: PULL, product_type: CCR, cost_cents: 19410, cost_excl_vat_cents: 19410 }],
+      vendor_usage: [
+        { ref_table: "property_intelligence_pulls", ref_id: PULL, vendor: "searchworx", cost_cents: 19410 },
+        { ref_table: "property_intelligence_pulls", ref_id: PULL, vendor: "payfast", cost_cents: 880 },
+      ],
+    })
+    const r = await sync(db, billed([billingRow("176.40", PULL)]))
+    expect(r.summary.reconciled).toBe(1)
+    expect(tables.property_intelligence_pulls[0]).toMatchObject({ cost_cents: 17640, cost_excl_vat_cents: 19410 })
+    expect(tables.vendor_usage.map((u) => u.cost_cents)).toEqual([17640, 880])
+  })
+
+  it("PLANTED: a non-UUID reference (pre-change calls) and a product mismatch update nothing", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: "vccb_income_estimator", cost_cents: 715 }],
+      property_intelligence_pulls: [],
+    })
+    const r = await sync(db, billed([billingRow("176.40", LINE), billingRow("176.40", "app-1-abcdef12")]))
+    expect(r.summary.reconciled).toBe(0)
+    expect(tables.application_screening_lines[0].cost_cents).toBe(715)
+  })
+
+  it("an unreadable billing day reconciles nothing", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410 }],
+    })
+    await sync(db, billed([billingRow("176.40", LINE), { ...billingRow("x", LINE) }]))
+    expect(tables.application_screening_lines[0].cost_cents).toBe(19410)
   })
 })

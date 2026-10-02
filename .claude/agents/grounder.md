@@ -163,7 +163,8 @@ Promote    none | <section ref> → <suggested destination>
 `lib/ai/client.ts` · `sendEmail` · `requireCronAuth` · `lib/env.ts` · `lib/dates/*` ·
 `recordAudit` · `formatZAR` · `formatPropertyLabel` · `lib/marketing/tiers.ts` (tier names,
 prices, lease caps) · `lib/constants.ts` (fee cents, thresholds) ·
-`lib/screening/searchworxBundle.ts` (screening cost/margin, all derived).
+`lib/screening/quote.ts` (screening + PI fees, quoted from `searchworx_rates`) ·
+`lib/screening/searchworxBundle.ts` (bundle composition only).
 
 ### Definition-of-record for schema
 

@@ -8,6 +8,9 @@
  *         lightstone_erf_short. Triggers modal → PayFast checkout or 1-click adhoc charge.
  *         Hidden entirely for owner tier (canAccessIntelligence=false).
  *         Recent-pull suppression (30-day) enforced server-side; UI shows suppression message.
+ *         ADDENDUM_14V step 7: prices are a prop quoted server-side from the recorded rates (null = no rate →
+ *         that pull is disabled). Each is sent back as quotedCents; a 409 from /initiate carries the new price,
+ *         which the card shows for confirmation before anything is charged.
  */
 "use client"
 
@@ -34,20 +37,24 @@ interface Props {
   canAccessIntelligence:    boolean
   latestDeeds:              LatestPull | null
   latestLightstone:         LatestPull | null
+  /** Retail in cents per product, quoted server-side; null where no rate is recorded. */
+  prices:                   Record<PiProduct, number | null>
 }
+
+type PiProduct = "deeds_search" | "lightstone_erf_short"
 
 type ModalState =
   | { open: false }
-  | { open: true; product: "deeds_search" | "lightstone_erf_short"; step: "confirm" | "checkout" | "adhoc_wait" | "result"; pullId?: string; formData?: { url: string; data: Record<string, string> }; suppressed?: boolean; recentPullId?: string; recentPullDate?: string }
+  | { open: true; product: PiProduct; step: "confirm" | "checkout" | "adhoc_wait" | "result" | "repriced"; forceRun?: boolean; pullId?: string; formData?: { url: string; data: Record<string, string> }; suppressed?: boolean; recentPullId?: string; recentPullDate?: string }
 
 const PRODUCT_LABELS = {
   deeds_search:         "Deeds Office Search",
   lightstone_erf_short: "Lightstone Erf Valuation",
 }
 
-const PRODUCT_PRICES = {
-  deeds_search:         "R30",
-  lightstone_erf_short: "R155",
+/** A quoted price as the cards show it; "unavailable" when no rate is recorded (the button is then disabled). */
+export function piPriceLabel(cents: number | null): string {
+  return cents == null ? "unavailable" : formatZAR(cents, cents % 100 !== 0)
 }
 
 function formatDate(d: string | null): string {
@@ -104,7 +111,7 @@ function PullRow({
   canAccessIntelligence,
 }: {
   label:                 string
-  price:                 string
+  price:                 number | null
   pull:                  LatestPull | null
   onVerify:              () => void
   onReVerify:            () => void
@@ -131,11 +138,12 @@ function PullRow({
             tone="secondary"
             size="sm"
             className="h-7 text-xs"
+            disabled={price == null}
             onClick={isComplete || isNoData ? onReVerify : onVerify}
           >
             {isComplete || isNoData
-              ? <><RefreshCw className="h-3 w-3 mr-1" />Re-verify {price}</>
-              : `Verify — ${price}`}
+              ? <><RefreshCw className="h-3 w-3 mr-1" />Re-verify {piPriceLabel(price)}</>
+              : `Verify — ${piPriceLabel(price)}`}
           </ActionButton>
         )}
         {!canAccessIntelligence && (
@@ -176,8 +184,10 @@ export function PropertyVerificationCard({
   canAccessIntelligence,
   latestDeeds: initialDeeds,
   latestLightstone: initialLightstone,
+  prices: initialPrices,
 }: Props) {
   const [modal, setModal] = useState<ModalState>({ open: false })
+  const [prices, setPrices] = useState(initialPrices)
   const [loading, setLoading] = useState(false)
   const [latestDeeds, setLatestDeeds]           = useState(initialDeeds)
   const [latestLightstone, setLatestLightstone] = useState(initialLightstone)
@@ -211,11 +221,12 @@ export function PropertyVerificationCard({
   }, [])
 
   const handleVerify = useCallback(async (
-    product: "deeds_search" | "lightstone_erf_short",
+    product: PiProduct,
     forceRun = false,
   ) => {
     const identifier = product === "deeds_search" ? deedsIdentifier : lightstoneIdentifier
-    if (!identifier) return
+    const quotedCents = prices[product]
+    if (!identifier || quotedCents == null) return
 
     setLoading(true)
     try {
@@ -228,9 +239,11 @@ export function PropertyVerificationCard({
           subjectLabel:      erfNumber ?? identifier,
           propertyId,
           forceRun,
+          quotedCents,
         }),
       })
       const json = await res.json() as {
+        retailCents?: number
         mode?: "checkout" | "adhoc"
         pullId?: string
         url?: string
@@ -240,6 +253,12 @@ export function PropertyVerificationCard({
         recentPullDate?: string
       }
 
+      if (res.status === 409 && typeof json.retailCents === "number") {
+        const retailCents = json.retailCents
+        setPrices((p) => ({ ...p, [product]: retailCents }))
+        setModal({ open: true, product, step: "repriced", forceRun })
+        return
+      }
       if (json.suppressed) {
         setModal({ open: true, product, step: "confirm", suppressed: true, recentPullId: json.recentPullId, recentPullDate: json.recentPullDate })
         return
@@ -254,7 +273,7 @@ export function PropertyVerificationCard({
     } finally {
       setLoading(false)
     }
-  }, [deedsIdentifier, lightstoneIdentifier, erfNumber, propertyId, pollForResult])
+  }, [deedsIdentifier, lightstoneIdentifier, erfNumber, propertyId, prices, pollForResult])
 
 
   if (!canAccessIntelligence) {
@@ -285,7 +304,7 @@ export function PropertyVerificationCard({
         <div className="px-4 py-4 space-y-4">
           <PullRow
             label="Owner verification"
-            price="R30"
+            price={prices.deeds_search}
             pull={latestDeeds}
             canAccessIntelligence={canAccessIntelligence}
             onVerify={() => handleVerify("deeds_search")}
@@ -294,7 +313,7 @@ export function PropertyVerificationCard({
           <div className="border-t border-border/40 pt-4">
             <PullRow
               label="Property valuation"
-              price="R155"
+              price={prices.lightstone_erf_short}
               pull={latestLightstone}
               canAccessIntelligence={canAccessIntelligence}
               onVerify={() => handleVerify("lightstone_erf_short")}
@@ -324,7 +343,26 @@ export function PropertyVerificationCard({
                     disabled={loading}
                     onClick={() => handleVerify(modal.product, true)}
                   >
-                    Re-verify — {PRODUCT_PRICES[modal.product]}
+                    Re-verify — {piPriceLabel(prices[modal.product])}
+                  </ActionButton>
+                </div>
+              </>
+            )}
+
+            {modal.step === "repriced" && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  The price of this verification has changed since the page loaded. It is now{" "}
+                  {piPriceLabel(prices[modal.product])} incl. VAT.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <ActionButton tone="secondary" onClick={() => setModal({ open: false })}>Cancel</ActionButton>
+                  <ActionButton
+                    tone="primary"
+                    disabled={loading}
+                    onClick={() => handleVerify(modal.product, modal.forceRun ?? false)}
+                  >
+                    Continue — {piPriceLabel(prices[modal.product])}
                   </ActionButton>
                 </div>
               </>
@@ -339,7 +377,7 @@ export function PropertyVerificationCard({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cost</span>
-                    <span className="font-medium">{PRODUCT_PRICES[modal.product]} incl. VAT</span>
+                    <span className="font-medium">{piPriceLabel(prices[modal.product])} incl. VAT</span>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -350,7 +388,7 @@ export function PropertyVerificationCard({
                   <PayFastForm
                     url={modal.formData.url}
                     data={modal.formData.data}
-                    label={`Pay ${PRODUCT_PRICES[modal.product]} →`}
+                    label={`Pay ${piPriceLabel(prices[modal.product])} →`}
                   />
                 </div>
               </>

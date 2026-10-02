@@ -6,7 +6,8 @@
  * Data:   applications (fee_status, screening trigger) + audit_log on any rejected/mismatched payment
  * Notes:  Cross-checks amount_gross against the recorded fee. Fails CLOSED on a lookup error (503) or a
  *         missing application row; ignores a duplicate delivery once fee_status is paid, so a PayFast
- *         retry cannot re-arm a completed screening and bill Searchworx twice.
+ *         retry cannot re-arm a completed screening and bill Searchworx twice. Refuses a payment whose live
+ *         party set no longer matches the one the stamp priced (ADDENDUM_14V §3.5a) — never re-splits it.
  */
 import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -16,7 +17,8 @@ import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendPaymentReceived } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
-import { isJuristicApplication, paidScreeningSubjects, SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
+import { paidScreeningSubjects } from "@/lib/applications/juristicParties"
+import { livePartySet, stampMatches } from "@/lib/screening/partySet"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -51,7 +53,7 @@ export async function POST(req: Request) {
     const paidCents = Number.isFinite(parsedGross) ? Math.round(parsedGross * 100) : null
 
     const { data: expectedRow, error: expectedError } = await supabase
-      .from("applications").select("org_id, fee_amount_cents, fee_status, entity_type, applicant_type, company_info").eq("id", applicationId).maybeSingle()
+      .from("applications").select("org_id, fee_amount_cents, fee_status, entity_type, applicant_type, company_info, priced_party_count, priced_entity").eq("id", applicationId).maybeSingle()
     logQueryError("POST applications fee cross-check", expectedError)
     const expectedCents = expectedRow?.fee_amount_cents ?? null
 
@@ -111,7 +113,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, duplicate: true })
     }
 
-    if (expectedCents !== null && paidCents !== expectedCents) {
+    if (expectedCents === null) {
+      // FAIL CLOSED on NO QUOTED FEE. Until ADDENDUM_14V the column carried a literal DEFAULT, so null meant
+      // "never priced" and was rare; the default is gone and the fee exists only once /api/billing/screening has
+      // stamped it, which precedes every form it signs. A payment against an unpriced application cannot be
+      // checked, so it is not accepted — the audit row + Sentry above make the money visible to reconciliation.
+      await flagMismatch("no_quoted_fee")
+      return NextResponse.json({ ok: false, reason: "no_quoted_fee" })
+    }
+
+    if (paidCents !== expectedCents) {
       if (paidCents < expectedCents) {
         // UNDERPAID — do not mark paid and do not start screening; screening costs real money per head.
         // 200 (not 4xx) so PayFast stops retrying: a retry cannot fix an underpayment. The audit row +
@@ -121,6 +132,21 @@ export async function POST(req: Request) {
       }
       // OVERPAID — proceed. The applicant has paid; stranding them punishes the wrong party.
       await flagMismatch("overpaid")
+    }
+
+    // THE PARTY SET (ADDENDUM_14V §3.5a/b). The fee priced a set — priced_party_count natural persons, plus an entity
+    // line when priced_entity. Before 14V this ITN RECOUNTED sureties here and split the money over whatever it
+    // found, so a surety added after the quote was screened without being paid for (walker F1). The trigger voids a
+    // stamp when the set changes, so a mismatch here means it changed between the void and this delivery: the
+    // payment is refused, never re-split. Same reader as the route that stamped it.
+    const party = await livePartySet(supabase, { id: applicationId, ...expectedRow })
+    if (!party.ok) {
+      await flagMismatch("party_set_lookup_failed")
+      return NextResponse.json({ ok: false, reason: "party_set_lookup_failed" }, { status: 503 })
+    }
+    if (!stampMatches(expectedRow, party.set)) {
+      await flagMismatch("party_set_changed")
+      return NextResponse.json({ ok: false, reason: "party_set_changed" })
     }
 
     // Update application: fee paid, trigger screening
@@ -149,22 +175,9 @@ export async function POST(req: Request) {
     // `applicant_type='company'` application used to have its director lines marked paid out of a single
     // R250 (N+1 screens for one fee); now each director pays their own through the portal. Accepted —
     // the old split sold screening below cost, and the surface retires in Phase 1.
-    const juristic = expectedRow ? isJuristicApplication(expectedRow) : false
-    const { data: sureties, error: suretyError } = juristic
-      ? await supabase
-          .from("application_co_applicants")
-          .select("id")
-          .eq("primary_application_id", applicationId)
-          .or(SURETY_PARTY_OR_FILTER)
-          .is("declined_at", null)
-      : { data: [] as { id: string }[], error: null }
-    logQueryError("POST application_co_applicants surety lines", suretyError)
-
-    const subjects = expectedRow && !suretyError && sureties
-      ? paidScreeningSubjects(expectedRow, applicationId, sureties.map((s) => s.id as string))
-      : []
+    const subjects = paidScreeningSubjects(expectedRow, applicationId, party.set.suretyIds)
     if (subjects.length > 0) {
-      const perLineCents = Math.round(paidCents / subjects.length) // the 1 + N lines billing priced
+      const perLineCents = Math.round(paidCents / subjects.length) // the 1 + N lines the stamp priced
       const lines = subjects.map((l) => ({
         org_id: expectedRow.org_id,
         application_id: applicationId,

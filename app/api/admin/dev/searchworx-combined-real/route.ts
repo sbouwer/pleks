@@ -6,7 +6,10 @@
  *         Calls both Combined + VCCB against UAT and returns raw parsed shape as JSON.
  *         Empirically verifies credit/csi endpoint path — if that 404s, check COMBINED_PRODUCT_PATH.
  *         NOT for production use — admin/dev namespace only.
+ *         The Searchworx Reference is a fresh `dev-<uuid>`, never the ID number: the Reference comes back on the
+ *         vendor's billing report and is imported as an observation's source_ref (ADDENDUM_14V §3.2a).
  */
+import { randomUUID } from "node:crypto"
 import { type NextRequest, NextResponse } from "next/server"
 import { runCombinedConsumerCreditReport } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { runVccbIncomeEstimator }          from "@/lib/searchworx/products/vccbIncomeEstimator"
@@ -30,7 +33,7 @@ export async function GET(req: NextRequest) {
   let vccbOut: unknown
 
   try {
-    const r = await runCombinedConsumerCreditReport({ orgId, applicationId, reference: `dev-${idNumber}`, idNumber })
+    const r = await runCombinedConsumerCreditReport({ orgId, applicationId, reference: `dev-${randomUUID()}`, idNumber })
     combinedOut = r.ok
       ? { ok: true, parsed: r.parsed, pdfStoragePath: r.pdfStoragePath, resultSummaryKey: r.resultSummaryKey }
       : { ok: false, error: r.error.message, category: r.error.category }
@@ -39,7 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const r = await runVccbIncomeEstimator({ orgId, applicationId, reference: `dev-${idNumber}`, idNumber })
+    const r = await runVccbIncomeEstimator({ orgId, applicationId, reference: `dev-${randomUUID()}`, idNumber })
     vccbOut = r.ok
       ? { ok: true, parsed: r.parsed, pdfStoragePath: r.pdfStoragePath, resultSummaryKey: r.resultSummaryKey }
       : { ok: false, error: r.error.message, category: r.error.category }
