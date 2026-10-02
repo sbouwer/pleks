@@ -2,12 +2,15 @@
  * lib/searchworx/rates/reconcile.ts — billed UnitPrice back onto the line or pull that made the call (ADDENDUM_14V §3.6)
  *
  * Auth:   none of its own — server-only; called by runRateSync, whose caller is the cron (requireCronAuth).
- * Data:   updates application_screening_lines (cost_cents, rate_effective_date), property_intelligence_pulls
- *         (cost_cents) and the searchworx vendor_usage row of a pull (cost_cents)
+ * Data:   updates application_screening_lines (cost_cents), property_intelligence_pulls (cost_cents) and the
+ *         searchworx vendor_usage row of a pull (cost_cents)
  * Notes:  Every Searchworx call sends Reference = the id of the row it is for, minted before the call
- *         (bundle-runner's line id, the PI pull id). The billing report echoes it, so one billed row names one
- *         row of ours. A billed row OVERWRITES the estimate with what was actually charged (ruled 2026-10-02);
- *         an unbilled row keeps its estimate and its rate_effective_date.
+ *         (bundle-runner's line id, the PI pull id). The billing report echoes it, so billed rows name a row of
+ *         ours. What was actually charged OVERWRITES the estimate (ruled 2026-10-02); an unbilled row keeps it.
+ *         What was charged is the SUM over every billed row carrying that Reference and product, each
+ *         Quantity × UnitPrice — the caller passes the whole bill day on every run, so the sum is idempotent.
+ *         rate_effective_date is NOT touched: its column COMMENT (005) makes it the searchworx_rates row the
+ *         estimate was quoted from, so a margin report joins actual cost to the QUOTED rate (walker F5).
  *         CROSS-ORG BY CONSTRUCTION: this is the platform's own reconcile across every org's lines. It is
  *         bounded by the id the vendor echoed AND the product the vendor billed — a reference that is not a
  *         UUID (calls made before this change used `<application>-<run>` or an erf number) is skipped, and a
@@ -27,15 +30,29 @@ export interface ReconcileResult {
   failures: string[]
 }
 
-export async function reconcileBilledCosts(db: SupabaseClient, billed: readonly Observation[]): Promise<ReconcileResult> {
-  const out: ReconcileResult = { lines: 0, pulls: 0, failures: [] }
+/** Billed cost per (Reference, product): Σ Quantity × UnitPrice. A non-UUID Reference never reaches a query. */
+export function billedTotals(billed: readonly Observation[]): { sourceRef: string; productKey: string; costExclVatCents: number }[] {
+  const totals = new Map<string, { sourceRef: string; productKey: string; costExclVatCents: number }>()
   for (const o of billed) {
     if (o.source !== "billing_report" || !UUID.test(o.sourceRef)) continue
-    const billDay = o.vendorEffectiveDate ?? null
+    const quantity = typeof o.raw?.quantity === "number" ? o.raw.quantity : 1
+    const key = `${o.sourceRef}|${o.productKey}`
+    const t = totals.get(key) ?? { sourceRef: o.sourceRef, productKey: o.productKey, costExclVatCents: 0 }
+    t.costExclVatCents += quantity * o.costExclVatCents
+    totals.set(key, t)
+  }
+  return [...totals.values()]
+}
 
+export async function reconcileBilledCosts(db: SupabaseClient, billed: readonly Observation[]): Promise<ReconcileResult> {
+  const out: ReconcileResult = { lines: 0, pulls: 0, failures: [] }
+  for (const o of billedTotals(billed)) {
+    // CROSS-ORG BY CONSTRUCTION (header): bounded by the vendor-echoed row id AND the billed product, never by
+    // org. pleks/require-org-scope-on-service-write cannot see this write (`db` is a parameter), so the
+    // classification lives here rather than in a directive the rule would report as unused.
     const { data: lines, error: lineErr } = await db
       .from("application_screening_lines")
-      .update({ cost_cents: o.costExclVatCents, rate_effective_date: billDay })
+      .update({ cost_cents: o.costExclVatCents })
       .eq("id", o.sourceRef)
       .eq("product_key", o.productKey)
       .select("id")

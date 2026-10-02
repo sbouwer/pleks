@@ -20,6 +20,8 @@ import {
   type ProductObservations,
 } from "@/lib/searchworx/rates/sync"
 import type { BillingFetch } from "@/lib/searchworx/billingReport"
+import { billedTotals, reconcileBilledCosts } from "@/lib/searchworx/rates/reconcile"
+import type { Observation } from "@/lib/searchworx/rates/observe"
 import { fakeRateDb, type Row } from "./fakeRateDb"
 
 const TODAY = "2026-10-02"
@@ -340,13 +342,29 @@ describe("runRateSync — billing reconcile", () => {
     return f
   }
 
-  it("a billed line takes the billed UnitPrice and the bill day", async () => {
+  it("a billed line takes the billed UnitPrice and KEEPS the date of the rate it was quoted from", async () => {
     const { db, tables } = seeded({
-      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410, rate_effective_date: "2026-10-01" }],
+      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410, rate_effective_date: "2026-09-15" }],
     })
     const r = await sync(db, billed([billingRow("176.40", LINE)]))
     expect(r.summary.reconciled).toBe(1)
-    expect(tables.application_screening_lines[0]).toMatchObject({ cost_cents: 17640, rate_effective_date: "2026-10-01" })
+    expect(tables.application_screening_lines[0]).toMatchObject({ cost_cents: 17640, rate_effective_date: "2026-09-15" })
+  })
+
+  it("a Reference billed twice, or with Quantity > 1, is charged the SUM — never the last row", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410 }],
+    })
+    await sync(db, billed([billingRow("176.40", LINE), { ...billingRow("176.40", LINE), Quantity: "2", Cost: "352.80" }]))
+    expect(tables.application_screening_lines[0].cost_cents).toBe(3 * 17640)
+  })
+
+  it("PLANTED: a non-UUID reference never reaches a query — the guard holds without Postgres's 22P02", async () => {
+    const obs = (sourceRef: string) =>
+      ({ productKey: CCR, costExclVatCents: 17640, source: "billing_report", sourceRef, raw: { quantity: 1 } }) as unknown as Observation
+    expect(billedTotals([obs("app-1-abcdef12"), obs("erf-1234")])).toEqual([])
+    const refusing = { from: () => { throw new Error("queried a non-UUID reference") } } as unknown as SupabaseClient
+    await expect(reconcileBilledCosts(refusing, [obs("app-1-abcdef12")])).resolves.toMatchObject({ lines: 0, pulls: 0 })
   })
 
   it("a billed PI pull takes the billed cost on the pull and its searchworx vendor_usage row — never the stamp", async () => {
