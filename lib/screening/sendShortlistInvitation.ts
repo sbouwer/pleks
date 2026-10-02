@@ -39,7 +39,10 @@ const STAGE2_WINDOW_DAYS = 14
 
 const NOT_SENT = { error: "Could not send the invitation" }
 
-export async function sendShortlistInvitation(applicationId: string) {
+/** Declared, not inferred: with a shared `NOT_SENT` constant the inferred union has no `error` on its success arm. */
+type ShortlistResult = { success: true; error?: undefined } | { error: string; success?: undefined }
+
+export async function sendShortlistInvitation(applicationId: string): Promise<ShortlistResult> {
   let gw
   try {
     gw = await requireAgentWriteAccess("send_manual_comm")
