@@ -329,3 +329,56 @@ describe("staleProducts", () => {
     expect(staleProducts({ observations: o, staleAfterDays: 400, today: TODAY })).toEqual([{ productKey: "a", days: 401 }])
   })
 })
+
+// §3.6 (ruled 2026-10-02): every call sends Reference = our row id; a billed row overwrites that row's estimate.
+describe("runRateSync — billing reconcile", () => {
+  const LINE = "11111111-2222-4333-8444-555555555555"
+  const PULL = "99999999-8888-4777-8666-555555555555"
+  const seeded = (extra: Record<string, Row[]>) => {
+    const f = fakeDb({ observations: [obsRow({ id: "obs-2" })], rates: [rateRow()] })
+    Object.assign(f.tables, extra)
+    return f
+  }
+
+  it("a billed line takes the billed UnitPrice and the bill day", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410, rate_effective_date: "2026-10-01" }],
+    })
+    const r = await sync(db, billed([billingRow("176.40", LINE)]))
+    expect(r.summary.reconciled).toBe(1)
+    expect(tables.application_screening_lines[0]).toMatchObject({ cost_cents: 17640, rate_effective_date: "2026-10-01" })
+  })
+
+  it("a billed PI pull takes the billed cost on the pull and its searchworx vendor_usage row — never the stamp", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [],
+      property_intelligence_pulls: [{ id: PULL, product_type: CCR, cost_cents: 19410, cost_excl_vat_cents: 19410 }],
+      vendor_usage: [
+        { ref_table: "property_intelligence_pulls", ref_id: PULL, vendor: "searchworx", cost_cents: 19410 },
+        { ref_table: "property_intelligence_pulls", ref_id: PULL, vendor: "payfast", cost_cents: 880 },
+      ],
+    })
+    const r = await sync(db, billed([billingRow("176.40", PULL)]))
+    expect(r.summary.reconciled).toBe(1)
+    expect(tables.property_intelligence_pulls[0]).toMatchObject({ cost_cents: 17640, cost_excl_vat_cents: 19410 })
+    expect(tables.vendor_usage.map((u) => u.cost_cents)).toEqual([17640, 880])
+  })
+
+  it("PLANTED: a non-UUID reference (pre-change calls) and a product mismatch update nothing", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: "vccb_income_estimator", cost_cents: 715 }],
+      property_intelligence_pulls: [],
+    })
+    const r = await sync(db, billed([billingRow("176.40", LINE), billingRow("176.40", "app-1-abcdef12")]))
+    expect(r.summary.reconciled).toBe(0)
+    expect(tables.application_screening_lines[0].cost_cents).toBe(715)
+  })
+
+  it("an unreadable billing day reconciles nothing", async () => {
+    const { db, tables } = seeded({
+      application_screening_lines: [{ id: LINE, product_key: CCR, cost_cents: 19410 }],
+    })
+    await sync(db, billed([billingRow("176.40", LINE), { ...billingRow("x", LINE) }]))
+    expect(tables.application_screening_lines[0].cost_cents).toBe(19410)
+  })
+})

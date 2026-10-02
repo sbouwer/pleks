@@ -1,9 +1,14 @@
 /**
  * lib/screening/bundle-runner.ts — Standard screening bundle orchestrator
  *
+ * Data:   application_screening_lines (insert); searchworx_rates via currentRates() for each line's cost estimate
  * Notes:  ADDENDUM_14H v3 §5. Called by the screening-line-runner cron for each ready_to_run line.
- *         Standard bundle = Combined Consumer Credit Report (R170) + VCCB Income Estimator (R6.35).
+ *         Standard bundle = Combined Consumer Credit Report + VCCB Income Estimator.
  *         Foreign nationals: VCCB is skipped — no passport-based lookup available.
+ *         ADDENDUM_14V §3.5/§3.6: each line's id is minted BEFORE its call and sent as the Searchworx Reference,
+ *         so a billing-report row joins back to exactly one line; cost_cents is the current recorded rate
+ *         (with rate_effective_date) until the billing reconcile in the rate sync overwrites it with the
+ *         billed UnitPrice. No rate → cost_cents NULL plus a Sentry event — a paid screening still runs.
  *         The runner writes one application_screening_lines row per product_key.
  *         screeningRunId groups all products in a single run; re-screening creates a new run_id.
  *         Does NOT touch searchworx_check_status on applications/co-applicants — the cron owns that.
@@ -11,6 +16,7 @@
  *         searchworx_extracted_data JSONB on the subject row for the FitScore orchestrator.
  */
 import { randomUUID }                             from "node:crypto"
+import * as Sentry                                from "@sentry/nextjs"
 import { createServiceClient }                    from "@/lib/supabase/server"
 import { decrypt }                                from "@/lib/crypto/encryption"
 import { runCombinedConsumerCreditReport, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
@@ -18,6 +24,8 @@ import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_RESULT_SUMMARIES } from 
 import { extractBureauScores } from "@/lib/screening/searchworxBureauAdapter"
 import { assertScreeningConsent, screeningSubjectFor } from "@/lib/screening/consentGuard"
 import { getSearchworxBundle } from "@/lib/screening/searchworxBundle"
+import { currentRates, type CurrentRates } from "@/lib/searchworx/rates/read"
+import { saTodayISO } from "@/lib/dates"
 import type { SearchworxEnvelopeMeta } from "@/lib/searchworx/envelopeMeta"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -57,7 +65,6 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     throw new Error(`No ID number on record for subject ${subjectId} (${subjectType})`)
   }
 
-  const reference  = `${applicationId}-${screeningRunId.slice(0, 8)}`
   const subjectTable = subjectType === "company" ? "applications" : "application_co_applicants"
   const subjectRowId = subjectType === "company" ? applicationId : subjectId
 
@@ -72,12 +79,11 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   // staying green while describing a product that does not exist. Its own header records that
   // happening once already — "Nothing imported this file, so the drift was invisible."
   //
-  // The costs are identical today by construction (the SSOT imports the same two constants), so
-  // nothing charged changes; what changes is that there is now ONE derivation instead of two.
+  // MEMBERSHIP still comes from that SSOT. COST no longer does (ADDENDUM_14V §3.6): it is the recorded
+  // rate for the product on the day the line runs, the same table the fee was quoted from.
   const isForeignNational = idType !== "sa_id"
   const bundle = getSearchworxBundle(isForeignNational)
-  const costOf = (checkCode: string) =>
-    bundle.find((c) => c.check_code === checkCode)?.cost_excl_vat_cents ?? 0
+  const costOf = await lineCosts(bundle.map((c) => c.check_code), applicationId)
 
   // A product in the SSOT that this runner cannot run must FAIL, not be silently skipped. Without
   // this, adding a line item to SEARCHWORX_BUNDLE_SA changes the asserted margin and the applicant's
@@ -97,16 +103,18 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   const runsVccb = bundle.some((c) => c.check_code === VCCB_PRODUCT_KEY)
 
   // ── Run Combined Consumer Credit Report (always) ────────────────────────────
+  const combinedLineId = randomUUID()
   const combinedResult = await runCombinedConsumerCreditReport({
     orgId,
     applicationId,
-    reference,
+    reference: combinedLineId,
     idNumber,
   })
 
   const combinedSummary = combinedResult.ok ? combinedResult.resultSummaryKey : "failed"
 
   await upsertScreeningLine(service, {
+    id:             combinedLineId,
     orgId,
     applicationId,
     subjectType,
@@ -114,7 +122,7 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     screeningRunId,
     productKey:     COMBINED_PRODUCT_KEY,
     status:         combinedResult.ok ? "completed" : "failed",
-    costCents:      costOf(COMBINED_PRODUCT_KEY),
+    ...costOf(COMBINED_PRODUCT_KEY),
     pdfStoragePath: combinedResult.ok ? combinedResult.pdfStoragePath : null,
     resultSummary:  combinedSummary,
     searchToken:    combinedResult.ok ? combinedResult.parsed.searchToken : null,
@@ -129,8 +137,8 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   // ── VCCB Income Estimator (SA citizens only) ────────────────────────────────
   const { vccbOk, vccbSummary } = await runVccbStep({
     service, orgId, applicationId, subjectType, subjectId,
-    subjectTable, subjectRowId, screeningRunId, reference, idNumber,
-    runsVccb, vccbCostCents: costOf(VCCB_PRODUCT_KEY),
+    subjectTable, subjectRowId, screeningRunId, idNumber,
+    runsVccb, vccbCost: costOf(VCCB_PRODUCT_KEY),
   })
 
   // ── Update applications.current_screening_run_id (primary applicant only) ──
@@ -157,15 +165,15 @@ interface VccbStepArgs {
   subjectTable:   "applications" | "application_co_applicants"
   subjectRowId:   string
   screeningRunId: string
-  reference:      string
   idNumber:       string
   runsVccb:       boolean
-  vccbCostCents:  number
+  vccbCost:       LineCost
 }
 
 async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skipped"; vccbSummary: string }> {
   if (!a.runsVccb) {
     await upsertScreeningLine(a.service, {
+      id:             randomUUID(),
       orgId:          a.orgId,
       applicationId:  a.applicationId,
       subjectType:    a.subjectType,
@@ -174,6 +182,7 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
       productKey:     VCCB_PRODUCT_KEY,
       status:         "skipped",
       costCents:      0,
+      rateEffectiveDate: null,
       pdfStoragePath: null,
       resultSummary:  VCCB_RESULT_SUMMARIES.foreign_national_skip,
       searchToken:    null,
@@ -182,16 +191,18 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
     return { vccbOk: "skipped", vccbSummary: VCCB_RESULT_SUMMARIES.foreign_national_skip }
   }
 
+  const vccbLineId = randomUUID()
   const vccbResult = await runVccbIncomeEstimator({
     orgId:         a.orgId,
     applicationId: a.applicationId,
-    reference:     a.reference,
+    reference:     vccbLineId,
     idNumber:      a.idNumber,
   })
 
   const vccbSummary = vccbResult.ok ? vccbResult.resultSummaryKey : "failed"
 
   await upsertScreeningLine(a.service, {
+    id:             vccbLineId,
     orgId:          a.orgId,
     applicationId:  a.applicationId,
     subjectType:    a.subjectType,
@@ -199,7 +210,7 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
     screeningRunId: a.screeningRunId,
     productKey:     VCCB_PRODUCT_KEY,
     status:         vccbResult.ok ? "completed" : "failed",
-    costCents:      a.vccbCostCents,
+    ...a.vccbCost,
     pdfStoragePath: vccbResult.ok ? vccbResult.pdfStoragePath : null,
     resultSummary:  vccbSummary,
     searchToken:    vccbResult.ok ? vccbResult.parsed.searchToken : null,
@@ -266,7 +277,35 @@ async function mergeExtractedData(
   }
 }
 
+type LineCost = { costCents: number | null; rateEffectiveDate: string | null }
+
+/**
+ * The recorded rate per product for lines run today. A read failure or a missing rate records NULL — never a
+ * literal — and raises Sentry; the screening was paid for and still runs.
+ */
+async function lineCosts(productKeys: string[], applicationId: string): Promise<(productKey: string) => LineCost> {
+  let read: CurrentRates | null = null
+  try {
+    read = await currentRates(productKeys, saTodayISO())
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: "screening-line-cost" }, extra: { applicationId } })
+  }
+  if (read && read.missing.length > 0) {
+    Sentry.captureMessage("Screening line run with no recorded rate — cost_cents left NULL", {
+      level: "error",
+      tags: { area: "screening-line-cost" },
+      extra: { applicationId, missing: read.missing },
+    })
+  }
+  return (productKey) => {
+    const r = read?.rates.get(productKey)
+    return r ? { costCents: r.costExclVatCents, rateEffectiveDate: r.effectiveDate } : { costCents: null, rateEffectiveDate: null }
+  }
+}
+
 interface ScreeningLinePayload {
+  /** Minted before the call and sent as its Searchworx Reference — the billing reconcile joins on it. */
+  id:             string
   orgId:          string
   applicationId:  string
   subjectType:    "company" | "co_applicant"
@@ -274,7 +313,8 @@ interface ScreeningLinePayload {
   screeningRunId: string
   productKey:     string
   status:         string
-  costCents:      number
+  costCents:      number | null
+  rateEffectiveDate: string | null
   pdfStoragePath: string | null
   resultSummary:  string
   searchToken:    string | null
@@ -290,6 +330,7 @@ async function upsertScreeningLine(
   const { error } = await service
     .from("application_screening_lines")
     .insert({
+      id:                      p.id,
       org_id:                  p.orgId,
       application_id:          p.applicationId,
       subject_type:            p.subjectType,
@@ -298,6 +339,7 @@ async function upsertScreeningLine(
       product_key:             p.productKey,
       status:                  p.status,
       cost_cents:              p.costCents,
+      rate_effective_date:     p.rateEffectiveDate,
       pdf_storage_path:        p.pdfStoragePath || null,
       result_summary:          p.resultSummary,
       searchworx_search_token: p.searchToken || null,

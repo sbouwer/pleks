@@ -32,21 +32,23 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 
 // ─── Product dispatch ─────────────────────────────────────────────────────────
 
+/** `reference` is the pull id: Searchworx echoes it on the billing report, and the rate sync reconciles on it. */
 async function dispatchProduct(
   productType: string,
   subjectId: string,
+  reference: string,
 ): Promise<SearchworxResult<unknown>> {
   switch (productType) {
     case "deeds_search": {
       const [erfNumber, municipality] = subjectId.split("|")
-      return runDeedsSearch({ erfNumber: erfNumber ?? subjectId, municipality: municipality ?? "" })
+      return runDeedsSearch({ erfNumber: erfNumber ?? subjectId, municipality: municipality ?? "", reference })
     }
     case "lightstone_erf_short": {
       const [erfNumber, municipality] = subjectId.split("|")
-      return runLightstoneErfShort({ erfNumber: erfNumber ?? subjectId, municipality: municipality ?? "" })
+      return runLightstoneErfShort({ erfNumber: erfNumber ?? subjectId, municipality: municipality ?? "", reference })
     }
     case "cipc_company":
-      return runCipcCompany({ registrationNumber: subjectId })
+      return runCipcCompany({ registrationNumber: subjectId, reference })
     case "cipc_director": {
       const [idNumber, surname, firstName, registrationNumber] = subjectId.split("|")
       return runCipcDirector({
@@ -54,6 +56,7 @@ async function dispatchProduct(
         surname:            surname ?? "",
         firstName:          firstName ?? "",
         registrationNumber: registrationNumber ?? "",
+        reference,
       })
     }
     default:
@@ -194,7 +197,7 @@ export async function POST(
 
     const productType  = pull.product_type as string
     const subjectId    = pull.subject_identifier as string
-    const vendorResult = await dispatchProduct(productType, subjectId)
+    const vendorResult = await dispatchProduct(productType, subjectId, pullId)
 
     if (!vendorResult.ok) {
       const status = await handleVendorFailure(service, pull, vendorResult.error, pullId, productType, subjectId, now)

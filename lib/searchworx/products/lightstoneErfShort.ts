@@ -13,6 +13,8 @@ export interface LightstoneErfShortInput {
   erfNumber:      string
   municipality:   string
   portionNumber?: string
+  /** The PI pull id. Sent as Reference so a billing-report row joins back to exactly one pull (ADDENDUM_14V). */
+  reference:      string
 }
 
 export async function runLightstoneErfShort(
@@ -22,7 +24,7 @@ export async function runLightstoneErfShort(
     productPath: "lightstone/valuation/erf",
     buildBody: (token) => ({
       SessionToken:  token,
-      Reference:     input.erfNumber,
+      Reference:     input.reference,
       Township:      input.municipality,
       ErfNumber:     input.erfNumber,
       PortionNumber: input.portionNumber ?? "0",
