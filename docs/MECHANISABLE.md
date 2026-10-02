@@ -927,6 +927,18 @@ unreferenced directory is a file, not a gate, and nothing about the file reveals
 **that each hook blocks on failure and passes on success**, driven through a command seam so the
 probe does not need a two-minute run. **Tagged:** `check:check-git-hooks`.
 
+**Rung 1 SCOPED, 2026-10-02.** M-007 built the commit gate as a second push gate: `pre-commit` ran the
+whole `check` (116s warm, measured — `.handoff/gate-split/01-timings.md`). It now runs
+`npm run check:scoped` — `scripts/check-scope.mjs`, which maps every `check` step to selector globs,
+`universal` or `full`, and runs what the **staged** diff (against the merge-base, renames both sides,
+deletions included) selects. It falls through to the full chain on `scripts/**`, `.claude/hooks/**`,
+`.githooks/**`, any config file, any path no step selects that is not inert (`**/*.md`, `docs/**`), and
+no merge-base. `check-test-floor` never follows a scoped vitest. **Push and CI are unchanged**, so a step
+skipped at commit still runs before anything reaches origin. `pre-merge-commit` and `prepare-commit-msg`
+stay on the full chain, and `check-git-hooks` now asserts each hook resolves exactly its own row's command
+(it accepted `check` or `check:full` for every hook until this change, which made the table a label).
+Probes: `check-scope.mjs --selftest`. Outcome tracked as E18.
+
 **Operational cost, stated rather than softened:** `check:full` includes `test:db` and
 `security:db`, so on a machine with no reachable database **pre-push blocks every push**. That is
 the honest reading of "never push red". If it proves wrong for this team, change the rule visibly

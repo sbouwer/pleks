@@ -18,14 +18,19 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 const HOOKS = [
-  { file: ".githooks/pre-commit", env: "PLEKS_PRECOMMIT_CMD", wraps: "npm run check" },
+  // SCOPED since 2026-10-02 (M-007 rung 1): a plain commit runs what its STAGED diff selects
+  // (scripts/check-scope.mjs). The two gates below stay on the full chain — a merge's paths against a
+  // merge-base are not this branch's diff, and a cherry-pick's diff is the picked commit's.
+  { file: ".githooks/pre-commit", env: "PLEKS_PRECOMMIT_CMD", wraps: "npm run check:scoped" },
   // `tail` names a SECOND seam for work the hook does after $CMD. pre-push runs the schema-drift
   // trigger outside the main seam, so stubbing only $CMD left the probe running a live, credentialed
   // network check and calling the result "does the hook pass when its command succeeds". It does not
   // — in CI's detached checkout the drift arm is unconditionally required and has no token, so both
   // success-direction probes failed on a property neither is about. Stub every command the hook
   // runs, or the probe is measuring something it cannot name.
-  { file: ".githooks/pre-push", env: "PLEKS_PREPUSH_CMD", wraps: "npm run check:full", tail: "PLEKS_DRIFT_CMD" },
+  // `resolves`: pre-push picks its chain through prepush-scope (quick → check, DB surface → check:full),
+  // so either is correct HERE — and only here; every other row must resolve exactly its `wraps`.
+  { file: ".githooks/pre-push", env: "PLEKS_PREPUSH_CMD", wraps: "npm run check:full", resolves: ["npm run check", "npm run check:full"], tail: "PLEKS_DRIFT_CMD" },
   // Git does NOT run pre-commit for a merge. Without this hook the commit gate had a hole the
   // size of every merge commit — including the one that brought main into this branch.
   { file: ".githooks/pre-merge-commit", env: "PLEKS_PRECOMMIT_CMD", wraps: "npm run check" },
@@ -167,7 +172,7 @@ for (const { file, env, wraps, tail } of HOOKS) {
   const shimDir = mkdtempSync(join(tmpdir(), "hookshim-"))
   writeFileSync(join(shimDir, "npm"), '#!/bin/sh\necho "SHIM npm $*"\nexit 0\n', { mode: 0o755 })
 
-  for (const { file, env, tail } of HOOKS) {
+  for (const { file, env, wraps, resolves = [wraps], tail } of HOOKS) {
     clearMarker()
     const withFlag = spawnSync("sh", [file], {
       encoding: "utf8",
@@ -206,11 +211,14 @@ for (const { file, env, wraps, tail } of HOOKS) {
     // every hook's final echo before running is the command it resolved.
     const arrows = out.split(/\r?\n/).filter((l) => l.includes("→"))
     const resolved = (arrows.at(-1) ?? "").replace(/^.*→\s*/, "").trim()
-    ok(/^npm run check(:full)?$/.test(resolved) && !out.includes("SEAM-LEAKED"),
-      `${file}: …and IGNORED without it — resolved "${resolved || "(no output)"}"`)
+    // EXACTLY its own row's command. This accepted any of `check`/`check:full` for every hook until
+    // 2026-10-02, which made the table's `wraps` column a label: pre-merge-commit could have been
+    // scoped along with pre-commit and stayed green.
+    ok(resolves.includes(resolved) && !out.includes("SEAM-LEAKED"),
+      `${file}: …and IGNORED without it — resolved "${resolved || "(no output)"}", expected ${resolves.map((r) => `"${r}"`).join(" or ")}`)
     // The shim must actually have been the thing that ran, or the assertion above is about an echo
     // and nothing else — the hook could resolve the right string and invoke something else.
-    ok(out.includes("SHIM npm run check"), `${file}: …and INVOKED it — the shimmed npm was reached`)
+    ok(resolved !== "" && out.includes(`SHIM ${resolved}`), `${file}: …and INVOKED it — the shimmed npm was reached`)
   }
 
   // THE TAIL SEAM, both directions. pre-push runs the schema-drift trigger AFTER its main chain and

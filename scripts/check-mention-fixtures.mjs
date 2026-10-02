@@ -76,6 +76,10 @@ export const REGISTRY = {
     searches: false,
     reason: "Matches control markers by RESOLVING them against settings.json and the hooks directory, not by scanning free text for the token. Its selftest already drives that resolution from structured input, so a mention in prose has no path into it.",
   },
+  "check-scope.mjs": {
+    searches: false,
+    reason: "Names docs/MECHANISABLE.md only as a PATH in its header and a selftest case, to say which checker selects it. It matches changed file paths against globs; it never reads file contents for a token.",
+  },
   "agent-distribution.mjs": {
     searches: false,
     reason: "The tokens appear only in its header prose describing the register. It reads transcript JSONL and agent spines, never repo text.",
