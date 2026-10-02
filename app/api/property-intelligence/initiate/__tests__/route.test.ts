@@ -39,6 +39,8 @@ const post = (extra: Row = {}) =>
     body: JSON.stringify({ productType: "cipc_company", subjectIdentifier: "2020/000001/07", forceRun: true, ...extra }),
   }))
 const pulls = () => fake.tables.property_intelligence_pulls ?? []
+/** The price the server quotes right now — what the card would have shown (a body with no quotedCents is a 409 carrying it). */
+const shownPrice = async () => (await (await post()).json()).retailCents as number
 
 beforeEach(() => {
   chargeAdhoc.mockReset()
@@ -47,7 +49,7 @@ beforeEach(() => {
 
 describe("POST /api/property-intelligence/initiate — quoted and stamped", () => {
   it("inserts the pull with the formula's fee, the rate cost and the three stamp columns; the form charges that fee", async () => {
-    const res = await post()
+    const res = await post({ quotedCents: await shownPrice() })
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.mode).toBe("checkout")
@@ -81,8 +83,17 @@ describe("POST /api/property-intelligence/initiate — quoted and stamped", () =
     expect(chargeAdhoc).not.toHaveBeenCalled()
   })
 
+  it("PLANTED: a body with NO quotedCents (a tab from before the check) is a 409 — a saved card is never charged blind", async () => {
+    fake.tables.organisation_payment_tokens.push({ org_id: "org-1", payfast_token: "tok", deleted_at: null, created_at: "2026-10-01" })
+    const res = await post()
+    expect(res.status).toBe(409)
+    expect((await res.json()).retailCents).toBeGreaterThan(1565)
+    expect(pulls()).toHaveLength(0)
+    expect(chargeAdhoc).not.toHaveBeenCalled()
+  })
+
   it("the price the card showed, when it still holds, is the price charged to a saved card", async () => {
-    const shown = (await (await post()).json(), pulls()[0].retail_cents as number)
+    const shown = await shownPrice()
     fake = fakeRateDb({
       searchworx_rates: [rate("cipc_company", 1565)],
       organisation_payment_tokens: [{ org_id: "org-1", payfast_token: "tok", deleted_at: null, created_at: "2026-10-01" }],

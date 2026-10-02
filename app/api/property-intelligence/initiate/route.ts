@@ -11,9 +11,10 @@
  *         Tier gate: property_intelligence must be in org's feature set (Steward+).
  *         ADDENDUM_14V step 7: the price is QUOTED here from the recorded Searchworx rates and stamped on the pull
  *         (retail_cents, cost_cents, rate_effective_date, pricing_policy_version, cost_excl_vat_cents); everything
- *         downstream (checkout form, adhoc charge, ITN, run) reads the pull. No rate → 503, no row. The card sends
- *         the price it showed as quotedCents; a moved quote is a 409 carrying the new price, never a charge at a
- *         price the payer did not see.
+ *         downstream (checkout form, adhoc charge, run) reads the pull; the ITN reads retail_cents but does not
+ *         compare it with amount_gross (on main before 14V, unchanged here). No rate → 503, no row. The card MUST
+ *         send the price it showed as quotedCents; a moved or missing quote is a 409 carrying the price, never a
+ *         charge at a price the payer did not see.
  */
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -66,7 +67,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Property intelligence is temporarily unavailable" }, { status: 503 })
     }
     const retailCents = quote.fee_cents
-    if (quotedCents !== undefined && quotedCents !== retailCents) {
+    // REQUIRED, not optional (walker F4): a body with no quotedCents — a tab loaded before this check — would
+    // otherwise charge a saved card at a price nobody showed. Missing is treated as moved: the 409 carries it.
+    if (quotedCents !== retailCents) {
       return NextResponse.json({ error: "price_changed", retailCents }, { status: 409 })
     }
 
