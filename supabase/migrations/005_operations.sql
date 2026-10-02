@@ -3631,14 +3631,14 @@ COMMENT ON TABLE searchworx_rates IS
 COMMENT ON TABLE searchworx_rate_observations IS
   'ADDENDUM_14V §3.2. Every sighting of a vendor price, raw. Never holds a search subject: source_ref is our own Reference, raw is product/amount/date only (§3.2b).';
 
--- RLS. Rates: SELECT for authenticated (§3.1); inserts come through the service client only; NO update
--- or delete policy, so append-only is enforced by absence (the trust_transactions shape, 004).
--- Observations: RLS on and NO policy at all — service client only. They are the cron's and the admin
--- import's working set, not something an org user reads.
+-- RLS. Rates and observations: RLS on and NO policy at all — service client only; append-only is enforced by
+-- the absence of any UPDATE/DELETE policy (the trust_transactions shape, 004). Rates USED to carry a SELECT
+-- policy for authenticated (§3.1, mirroring prime_rates); it was dropped 2026-10-01 when the security audit
+-- (Cat 7) flagged it: every reader (lib/searchworx/rates/read.ts, sync.ts, the admin route) uses the service
+-- client, so the policy granted nothing needed — and it let any logged-in user, tenant or agent, read Pleks's
+-- supplier cost and so its margin. The DROP stays so a database that ran the old section loses the policy.
 ALTER TABLE searchworx_rates ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "searchworx_rates_select" ON searchworx_rates;
-CREATE POLICY "searchworx_rates_select" ON searchworx_rates
-  FOR SELECT TO authenticated USING (true);
 
 ALTER TABLE searchworx_rate_observations ENABLE ROW LEVEL SECURITY;
 
