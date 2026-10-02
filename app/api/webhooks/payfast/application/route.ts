@@ -163,46 +163,8 @@ export async function POST(req: Request) {
       searchworx_check_status: "pending",
     }).eq("id", applicationId)
 
-    // JURISTIC: one payment covers the entity AND every surety party (N >= 0 — a surety is optional,
-    // Stéan 2026-10-01, BUILD_72 R0), so write ONE application_screening_payments row per screened subject
-    // here rather than leaving each director or trustee to pay their own. Their line is paid on arrival —
-    // they still have to CONSENT individually (D-14B-01, no proxy consent), which is what their portal is
-    // for. This is also what makes the director-reminder copy ("X has already paid for your portion") true.
-    //
-    // WHICH lines is `paidScreeningSubjects` — gated on `isJuristicApplication`, the same answer billing
-    // priced with, so a residential guarantor never yields a company line (its docstring has the history).
-    // BUILD_72 Phase 0 changed one reachable case: a board declared via the unlinked /directors page on an
-    // `applicant_type='company'` application used to have its director lines marked paid out of a single
-    // R250 (N+1 screens for one fee); now each director pays their own through the portal. Accepted —
-    // the old split sold screening below cost, and the surface retires in Phase 1.
-    const subjects = paidScreeningSubjects(expectedRow, applicationId, party.set.suretyIds)
-    if (subjects.length > 0) {
-      const perLineCents = Math.round(paidCents / subjects.length) // the 1 + N lines the stamp priced
-      const lines = subjects.map((l) => ({
-        org_id: expectedRow.org_id,
-        application_id: applicationId,
-        subject_type: l.subject_type,
-        subject_id: l.subject_id,
-        fee_cents: perLineCents,
-        paid_at: new Date().toISOString(),
-        paid_by_email: params.email_address ?? null,
-        payfast_transaction_id: params.pf_payment_id || params.m_payment_id,
-      }))
-
-      const { error: linesError } = await supabase
-        .from("application_screening_payments")
-        .upsert(lines, { onConflict: "application_id,subject_type,subject_id" })
-      if (linesError) {
-        // Do NOT fail the ITN — the money is taken and the application is marked paid. A missing line
-        // blocks that subject's screening, which is visible on the co-parties roster, so surface it loudly.
-        console.error("[payfast] surety line write failed:", linesError.message)
-        Sentry.captureMessage("PayFast juristic surety lines not written", {
-          level: "error",
-          tags: { route: "webhooks/payfast/application" },
-          extra: { applicationId, lineCount: lines.length, error: linesError.message },
-        })
-      }
-    }
+    await writePaidScreeningRows(supabase, { applicationId, orgId: expectedRow.org_id as string, paidCents, params,
+      subjects: paidScreeningSubjects(expectedRow, applicationId, party.set.coIds) })
 
     // Send Email 6: Payment received
     try {
@@ -240,4 +202,72 @@ export async function POST(req: Request) {
     console.error("[payfast/application] unhandled error:", err)
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
+}
+
+type Svc = Awaited<ReturnType<typeof createServiceClient>>
+
+/**
+ * ONE payment covers every subject the stamp priced (BUILD_72 P1-R8a): one application_screening_payments row
+ * per subject, born paid — the application's own line (`company` for a juristic applicant, `applicant` for the
+ * lead natural person, P1-R8b-1) plus one `co_applicant` per priced party row (sureties, or every live
+ * residential co row). Before P1-R8a this was juristic-only, so no residential line could ever reach
+ * `ready_to_run`. Each person still CONSENTS on their own link (D-14B-01, no proxy consent); the billing route
+ * refuses to take payment until all of them have (14W), so these rows are born paid AND consented.
+ * The set is the one just checked against the stamp, so the split is never re-derived from a different count.
+ *
+ * Never fails the ITN — the money is taken and the application is marked paid. A missing line blocks that
+ * subject's screening, which is visible on the co-parties roster, so every failure is surfaced loudly.
+ */
+async function writePaidScreeningRows(supabase: Svc, input: {
+  applicationId: string; orgId: string; paidCents: number; params: Record<string, string>
+  subjects: ReturnType<typeof paidScreeningSubjects>
+}): Promise<void> {
+  const { applicationId, orgId, paidCents, params, subjects } = input
+  const report = (message: string, extra: Record<string, unknown>, level: "error" | "warning" = "error") => {
+    console.error(`[payfast] ${message}`, extra)
+    Sentry.captureMessage(message, { level, tags: { route: "webhooks/payfast/application" }, extra: { applicationId, ...extra } })
+  }
+
+  // A row already PAID is someone's own payment record — a director can pay their portion on the director portal
+  // before the lead pays (walker F5, 72-p1-r8). It is never overwritten: its amount and transaction id are the record
+  // of a different payment. That person's share has then been paid twice, which is surfaced, not resolved. If the
+  // read fails nothing is written: an overwrite cannot be undone, a missing row can be.
+  const { data: paidRows, error: paidErr } = await supabase
+    .from("application_screening_payments")
+    .select("subject_type, subject_id")
+    .eq("org_id", orgId)
+    .eq("application_id", applicationId)
+    .not("paid_at", "is", null)
+  if (paidErr) {
+    report("PayFast screening payment rows not written", { stage: "read_paid", error: paidErr.message })
+    return
+  }
+  const alreadyPaid = new Set((paidRows ?? []).map((r) => `${r.subject_type}:${r.subject_id}`))
+  if (alreadyPaid.size > 0) {
+    report("PayFast application payment covers a subject that had already paid", { alreadyPaid: [...alreadyPaid] }, "warning")
+  }
+
+  // Split exactly over the whole priced set: the remainder goes to the first lines, so the rows sum to what was paid
+  // (less any share a row already paid on its own carries in its own record).
+  const base = Math.floor(paidCents / subjects.length)
+  const remainder = paidCents - base * subjects.length
+  const now = new Date().toISOString()
+  const lines = subjects
+    .map((l, i) => ({
+      org_id: orgId,
+      application_id: applicationId,
+      subject_type: l.subject_type,
+      subject_id: l.subject_id,
+      fee_cents: base + (i < remainder ? 1 : 0),
+      paid_at: now,
+      paid_by_email: params.email_address ?? null,
+      payfast_transaction_id: params.pf_payment_id || params.m_payment_id,
+    }))
+    .filter((l) => !alreadyPaid.has(`${l.subject_type}:${l.subject_id}`))
+  if (lines.length === 0) return
+
+  const { error: linesError } = await supabase
+    .from("application_screening_payments")
+    .upsert(lines, { onConflict: "application_id,subject_type,subject_id" })
+  if (linesError) report("PayFast screening payment rows not written", { lineCount: lines.length, error: linesError.message })
 }

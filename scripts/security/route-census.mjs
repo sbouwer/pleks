@@ -32,6 +32,7 @@ export const PUBLIC_ALLOWLIST = {
   "/api/applications/save-draft": "applicant token-gated (no agent session)",
   "/api/applications/resend-link": "applicant token-gated",
   "/api/applications/co-applicant/[token]/save": "co-applicant access_token is the credential",
+  "/api/applications/co-applicant/[token]/screening-consent": "co-applicant access_token is the credential (BUILD_72 P1-R8 stage-2 consent)",
   "/api/applications/[id]/co-status": "applicant polling; token-gated",
   "/api/applications/[id]/co-applicant": "applicant token-gated (resolveApplicationCredential)",
   "/api/applications/[id]/detect-document": "applicant token-gated",

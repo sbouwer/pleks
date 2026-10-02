@@ -5,6 +5,8 @@
  *         the fee with its three stamp columns; a second POST after the rates have moved REUSES the stamp; no rate
  *         is a 503 that writes nothing (fail closed, §4); a row that someone else stamped first is re-read, never
  *         overwritten. The PayFast form builder is stubbed — this file probes the price, not the form.
+ *         14W gate (BUILD_72 P1-R8b-4): every priced party must have stage-2 consent before a form is offered —
+ *         the fixtures default to consented so the pricing cases stand alone; the gate's own cases plant the gap.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
@@ -37,6 +39,7 @@ const application = (over: Row = {}): Row => ({
   entity_type: null,
   applicant_type: "individual",
   company_info: null,
+  stage2_consent_given_at: "2026-10-01T09:00:00Z",
   fee_amount_cents: null,
   pricing_policy_version: null,
   rate_effective_date: null,
@@ -48,7 +51,10 @@ const application = (over: Row = {}): Row => ({
   ...over,
 })
 
-const coRow = (id: string): Row => ({ id, org_id: "org-1", primary_application_id: "app-1", declined_at: null })
+const coRow = (id: string, over: Row = {}): Row => ({
+  id, org_id: "org-1", primary_application_id: "app-1", declined_at: null,
+  first_name: "Co", last_name: id, stage2_consent_given_at: "2026-10-01T09:00:00Z", ...over,
+})
 
 function seed(app: Row, rates: Row[], co: Row[] = []) {
   fake = fakeRateDb({
@@ -141,5 +147,42 @@ describe("POST /api/billing/screening — stamp at first show", () => {
     expect(res.status).toBe(200)
     expect(row()).toMatchObject({ priced_party_count: 2, cost_excl_vat_cents: 2 * (19410 + 715), pricing_policy_version: PRICING_POLICY.version })
     expect((await res.json()).fee_cents).not.toBe(32500)
+  })
+})
+
+describe("POST /api/billing/screening — the 14W payability gate (BUILD_72 P1-R8b-4)", () => {
+  const RATES = [rate("combined_consumer_credit_report", 19410), rate("vccb_income_estimator", 715)]
+
+  it("PLANTED: the lead has not consented → 409 naming them, no form, nothing stamped", async () => {
+    seed(application({ stage2_consent_given_at: null }), RATES)
+    const res = await post()
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body).toMatchObject({ reason: "awaiting_consent", awaiting: [{ subject_type: "applicant", name: null }] })
+    expect(body.error).toMatch(/Still waiting on: you\./)
+    expect(body).not.toHaveProperty("payfast_url")
+    expect(row()).toMatchObject({ fee_amount_cents: null, pricing_policy_version: null })
+  })
+
+  it("PLANTED: a co-applicant has not consented → 409 naming that party, though the lead has", async () => {
+    seed(application({ has_co_applicant: true }), RATES, [coRow("co-1"), coRow("co-2", { first_name: "Thandi", last_name: "M", stage2_consent_given_at: null })])
+    const res = await post()
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.awaiting).toEqual([{ subject_type: "co_applicant", name: "Thandi M" }])
+    expect(body.error).toMatch(/Still waiting on: Thandi M\./)
+    expect(row()).toMatchObject({ fee_amount_cents: null, pricing_policy_version: null })
+  })
+
+  it("a DECLINED party is not priced and so not awaited — the remaining set is payable", async () => {
+    seed(application({ has_co_applicant: true }), RATES, [coRow("co-1", { declined_at: "2026-10-01T00:00:00Z", stage2_consent_given_at: null })])
+    expect((await post()).status).toBe(200)
+  })
+
+  it("KNOWN-GOOD: everyone priced has consented → the form is offered", async () => {
+    seed(application({ has_co_applicant: true }), RATES, [coRow("co-1"), coRow("co-2")])
+    const res = await post()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toHaveProperty("payfast_url")
   })
 })

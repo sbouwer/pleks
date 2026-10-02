@@ -9,7 +9,11 @@
  * Notes:  14R Phase 2 — a co is a FULL applicant: this is a thin door into the ONE listing portal (applyPortalChrome
  *         + the shared <StepPanel>), entering at the hub / their own card (actor isLead:false). If the lead linked
  *         THIS co as their in-community spouse (by ID), we pre-fill the marriage to confirm (14M §1).
+ *         BUILD_72 P1-R8: once shortlisted (stage2_invited_at) and until they consent, the same link renders the
+ *         applicant screening-consent step (CoScreeningConsent) in place of the hub — stage 2 is this person's own
+ *         consent to a bureau enquiry, and this link is the only surface they have.
  */
+import type { ReactNode } from "react"
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -19,6 +23,7 @@ import { formatZAR } from "@/lib/constants"
 import { ApplyPortalShell, ApplyAgentCard, Eyebrow } from "../../applyPortalChrome"
 import { StepPanel, type ResumeState } from "../../[slug]/applyOrchestrator"
 import { buildCoResumeState } from "./buildCoResume"
+import { CoScreeningConsent } from "./CoScreeningConsent"
 import { getServerUser } from "@/lib/auth/server"
 import { fmtDateZA } from "@/lib/dates"
 
@@ -34,13 +39,15 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
 
   const { data: co, error } = await service
     .from("application_co_applicants")
-    .select("id, org_id, applicant_email, stage1_consent_given, started_at, access_token_expires, declined_at, primary_application_id")
+    .select("id, org_id, applicant_email, stage1_consent_given, started_at, access_token_expires, declined_at, primary_application_id, stage2_invited_at, stage2_consent_given_at")
     .eq("access_token", token).is("declined_at", null).maybeSingle()
   logQueryError("co-applicant page load", error)
   if (!co) notFound()
 
   const appId = co.primary_application_id as string
   const expired = !!co.access_token_expires && new Date(co.access_token_expires as string) < new Date()
+  // Stage 2 is asked for only after the shortlist invite, and only of a party who has finished stage 1.
+  const awaitingStage2 = !!co.stage2_invited_at && !co.stage2_consent_given_at && co.stage1_consent_given === true
 
   // "Started application" signal for the hub: they clicked through their invite link → mark started_at once (until
   // they consent). Fire-and-forget so it never blocks render; the lead's hub poll reads this as "Started application".
@@ -129,30 +136,44 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
     />
   )
 
+  let body: ReactNode
+  if (expired) {
+    body = (
+      <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
+        <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
+          <Eyebrow>Invite expired</Eyebrow>
+          <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">Your invite has expired</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">Please ask the main applicant to resend your invitation link.</p>
+        </div>
+        {agentCard}
+      </div>
+    )
+  } else if (awaitingStage2) {
+    body = (
+      <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
+        <CoScreeningConsent token={token} />
+        {agentCard}
+      </div>
+    )
+  } else {
+    body = (
+      <StepPanel
+        slug={listing?.public_slug ?? ""}
+        orgId={co.org_id as string}
+        listingTitle={stripTitle}
+        leaseType={leaseType}
+        askingRentCents={listing?.asking_rent_cents ?? 0}
+        resume={resume}
+        actor={{ isLead: false, coId: co.id as string, peersIncomplete }}
+        verifiedEmail={(await getServerUser())?.email ?? null}
+        agentCard={agentCard}
+      />
+    )
+  }
+
   return (
     <ApplyPortalShell stripTitle={stripTitle} stripDetail={rentStr ? `${rentStr}/mo · available ${availStr}` : `available ${availStr}`} begun={true}>
-      {expired ? (
-        <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
-          <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
-            <Eyebrow>Invite expired</Eyebrow>
-            <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">Your invite has expired</h2>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">Please ask the main applicant to resend your invitation link.</p>
-          </div>
-          {agentCard}
-        </div>
-      ) : (
-        <StepPanel
-          slug={listing?.public_slug ?? ""}
-          orgId={co.org_id as string}
-          listingTitle={stripTitle}
-          leaseType={leaseType}
-          askingRentCents={listing?.asking_rent_cents ?? 0}
-          resume={resume}
-          actor={{ isLead: false, coId: co.id as string, peersIncomplete }}
-          verifiedEmail={(await getServerUser())?.email ?? null}
-          agentCard={agentCard}
-        />
-      )}
+      {body}
     </ApplyPortalShell>
   )
 }

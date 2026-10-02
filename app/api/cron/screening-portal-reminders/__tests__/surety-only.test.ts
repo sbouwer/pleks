@@ -4,7 +4,9 @@
  * Notes:  BUILD_72 P1-R1 (census build-72-p1 row 29) + P1-R3/R5/R6. The view lists every live co-applicant as a
  *         line; this cron used to send every one of them director copy. Probed both ways per branch:
  *         · a residential co-applicant gets `co_applicant_invited` verbatim, never director copy (R5), and is
- *           declined past expires_at with the payment row untouched — refunds are struck (R6, 14W);
+ *           declined 14 days after its stage-2 invite with the payment row untouched — refunds are struck (R6, 14W);
+ *         · both residential clocks run from `stage2_invited_at`, never `created_at`, and an uninvited party is left
+ *           alone (BUILD_72 P1-R8b-2);
  *         · a declared director surety still gets director copy, so a router that sent nothing would fail;
  *         · a surety who is not a declared director is HELD — no send, no decline (R3), and so is a trustee's or a
  *           CC member's "yes" (F7 ruling: director copy is for a company's director only);
@@ -90,7 +92,7 @@ beforeEach(() => {
 describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)", () => {
   it("a residential co-applicant is reminded with co_applicant_invited, never director copy (R5)", async () => {
     line = { ...baseLine, party_kind: "co_applicant" }
-    coApp = { ...baseCo, role: "co_applicant", is_surety_director: false }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(4), role: "co_applicant", is_surety_director: false }
     expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
     expect(sendEmail).not.toHaveBeenCalled()
     expect(sendCoApplicantInvited).toHaveBeenCalledTimes(1)
@@ -103,15 +105,15 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
 
   it("a residential guarantor gets co_applicant_invited, never director copy (R3a)", async () => {
     line = { ...baseLine, party_kind: "guarantor" }
-    coApp = { ...baseCo, role: "guarantor", is_surety_director: false }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(4), role: "guarantor", is_surety_director: false }
     expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
     expect(sendEmail).not.toHaveBeenCalled()
     expect(sendCoApplicantInvited).toHaveBeenCalledTimes(1)
   })
 
-  it("a residential co-applicant past expires_at is declined, with no email and no refund flag (R6)", async () => {
-    line = { ...baseLine, party_kind: "co_applicant", state: "expired_no_consent", paid_at: daysAgo(10), expires_at: daysAgo(1) }
-    coApp = { ...baseCo, created_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
+  it("a residential co-applicant 14 days past its stage-2 invite is declined, with no email and no refund flag (R6)", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, created_at: daysAgo(20), stage2_invited_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
     expect(sendEmail).not.toHaveBeenCalled()
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
@@ -171,7 +173,7 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
 describe("a failed send is not recorded as sent (walker F4)", () => {
   it("residential: the milestone stays unstamped when co_applicant_invited reports failure", async () => {
     line = { ...baseLine, party_kind: "co_applicant" }
-    coApp = { ...baseCo, role: "co_applicant", is_surety_director: false }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(4), role: "co_applicant", is_surety_director: false }
     sendCoApplicantInvited.mockResolvedValueOnce({ success: false, error: "rejected" })
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
     expect(updates).toEqual([])
@@ -192,6 +194,52 @@ describe("a trustee's or CC member's 'yes' is HELD, not sent director copy (F7 r
     coApp = { ...baseCo, created_at: daysAgo(20), role: "guarantor", is_surety_director: false, declared_director: true }
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
     expect(sendEmail).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+  })
+})
+
+describe("the residential clock runs from the stage-2 invite, never created_at (BUILD_72 P1-R8b-2)", () => {
+  it("PLANTED: a party created 20 days ago but never invited to stage 2 is neither chased nor declined", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, created_at: daysAgo(20), stage2_invited_at: null, role: "co_applicant", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+  })
+
+  it("PLANTED: created 20 days ago, invited 4 days ago → the T+3 reminder, NOT a decline", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, created_at: daysAgo(20), stage2_invited_at: daysAgo(4), role: "co_applicant", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(updates).toEqual([{ table: "application_co_applicants", patch: { reminder_milestones_sent: { t3: true } } }])
+  })
+
+  it("a stale payment-row expires_at does not end a window the invite has not yet run out", async () => {
+    line = { ...baseLine, party_kind: "co_applicant", expires_at: daysAgo(1) }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(2), role: "co_applicant", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(updates).toEqual([])
+  })
+
+  it("PLANTED (walker F1): a co who CONSENTED and waits on the lead's payment is neither declined past the window…", async () => {
+    line = { ...baseLine, party_kind: "co_applicant", state: "consented_pending_payment" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(updates).toEqual([])
+  })
+
+  it("PLANTED (walker F1): …nor chased with a reminder inside it", async () => {
+    line = { ...baseLine, party_kind: "co_applicant", state: "consented_pending_payment" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(4), role: "co_applicant", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+  })
+
+  it("KNOWN-GOOD: invited 13 days ago is still inside the window", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(13), role: "co_applicant", is_surety_director: false, reminder_milestones_sent: { t3: true, t7: true, t10: true } }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
     expect(updates).toEqual([])
   })
 })

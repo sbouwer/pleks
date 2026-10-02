@@ -11,8 +11,10 @@
  *         · any other surety (a non-director; a trustee or CC member, even one answered "yes") → HELD: no send, no expiry (P1-R3/F7 — no reviewed copy exists).
  *         · co_applicant, or guarantor (a surety on a NON-juristic application, P1-R3a) →
  *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); declined once
- *           unconsented past `expires_at` (P1-R6). The refund branch and any expiry notice are gated on
- *           Stéan, so neither is written here.
+ *           unconsented 14 days after its STAGE-2 INVITE (P1-R6, P1-R8b-2). Both clocks run from
+ *           `stage2_invited_at` (written at shortlist), never from `created_at` — a party is not chased, or
+ *           expired, for a consent nobody has asked them for yet; an uninvited party is skipped. The refund
+ *           branch and any expiry notice are gated on Stéan, so neither is written here.
  *         · anything else (null/unknown party_kind) → skipped. No email beats a wrong one.
  *         Milestone tracking: reminder_milestones_sent jsonb on application_co_applicants prevents
  *         re-sending if the daily cron misses a run — each key (t3/t7/t10) is marked once sent.
@@ -33,6 +35,8 @@ import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 const DAY_MS = 86_400_000
+/** The stage-2 consent window (14W), from stage2_invited_at. */
+const STAGE2_WINDOW_MS = 14 * DAY_MS
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -98,6 +102,7 @@ type CoAppRow = {
   applicant_email: string
   first_name: string | null
   created_at: string
+  stage2_invited_at: string | null
   primary_application_id: string
   access_token: string
   reminder_milestones_sent: Record<string, boolean> | null
@@ -125,19 +130,28 @@ function dueStage(daysElapsed: number, sent: Record<string, boolean>): "t3" | "t
 async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("applicant_email, first_name, created_at, primary_application_id, access_token, reminder_milestones_sent, role, is_surety_director, declared_director")
+    .select("applicant_email, first_name, created_at, stage2_invited_at, primary_application_id, access_token, reminder_milestones_sent, role, is_surety_director, declared_director")
     .eq("id", line.subject_id)
     .is("declined_at", null)
     .single()
 
   if (coErr || !coApp) return "skipped"
   const row = coApp as CoAppRow & { is_surety_director: boolean | null; declared_director: boolean | null }
-  const daysElapsed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / DAY_MS)
   const sent = (row.reminder_milestones_sent ?? {}) as Record<string, boolean>
 
   // A residential guarantor (P1-R3a) was invited with co_applicant_invited, so it is reminded and expired
-  // exactly as a joint co-applicant is.
-  if (line.party_kind === "co_applicant" || line.party_kind === "guarantor") return processCoApplicantLine(service, line, row, daysElapsed, sent)
+  // exactly as a joint co-applicant is — from its stage-2 invite (P1-R8b-2), and not at all before one.
+  if (line.party_kind === "co_applicant" || line.party_kind === "guarantor") {
+    if (!row.stage2_invited_at) return "skipped"
+    // Consented and waiting on the lead's payment — the normal wait under the 14W gate, not a failure of THIS party.
+    // Reminders and the window are for parties who have not given stage 2 (R8b); chasing or declining a consented
+    // party would drop a person who did everything asked of them (walker F1, 72-p1-r8).
+    if (line.state === "consented_pending_payment") return "skipped"
+    const invitedAt = new Date(row.stage2_invited_at).getTime()
+    return processCoApplicantLine(service, line, row, invitedAt, Math.floor((Date.now() - invitedAt) / DAY_MS), sent)
+  }
+  // The director path keeps its own clock, from the row's creation (unchanged by P1-R8b).
+  const daysElapsed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / DAY_MS)
   // Every branch below sends director copy, which is reviewed for a DIRECTOR audience only (P1-R3). The
   // view's state set for it is unchanged; `expired_no_consent` is the co_applicant branch's alone.
   if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
@@ -162,11 +176,11 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
 
 /** Residential joint co-applicant (P1-R5/R6). The reminder is the invite, verbatim; no new copy. */
 async function processCoApplicantLine(
-  service: Svc, line: PendingLine, coApp: CoAppRow, daysElapsed: number, sent: Record<string, boolean>,
+  service: Svc, line: PendingLine, coApp: CoAppRow, invitedAt: number, daysElapsed: number, sent: Record<string, boolean>,
 ): Promise<LineOutcome> {
-  // R6: the payment row's expires_at when there is one, else the same T+14 the director branch uses.
-  const expiresAt = line.expires_at ? new Date(line.expires_at).getTime() : new Date(coApp.created_at).getTime() + 14 * DAY_MS
-  if (Date.now() >= expiresAt) return declineCoApplicantLine(service, line)
+  // R6 + R8b-2: the consent window is 14 days from the stage-2 invite. Not the payment row's expires_at: under the
+  // 14W gate a payment row is only ever written for a party who has already consented, so it never bounds this.
+  if (Date.now() >= invitedAt + STAGE2_WINDOW_MS) return declineCoApplicantLine(service, line)
 
   const stage = dueStage(daysElapsed, sent)
   if (!stage) return "skipped"

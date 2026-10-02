@@ -6,6 +6,9 @@
  *         quote (the stamp priced one person, two are live) is refused as party_set_changed and NOT marked paid —
  *         never re-split over the new count, which is the F1 hole this closes. A stamp that recorded no set fails
  *         closed the same way.
+ *         BUILD_72 P1-R8a/R8b: a paid application writes one application_screening_payments row per subject priced,
+ *         born paid — `applicant` for a residential lead (never `company`), `co_applicant` per live co row — and the
+ *         rows sum exactly to what was paid.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fakeRateDb, type Row } from "@/lib/searchworx/rates/__tests__/fakeRateDb"
@@ -50,6 +53,8 @@ beforeEach(() => {
   fake = fakeRateDb({ applications: [application()], application_co_applicants: [] })
 })
 
+const payments = () => fake.tables.application_screening_payments ?? []
+
 describe("application ITN — the party set the stamp priced (§3.5a/b)", () => {
   it("KNOWN-GOOD: the live set matches the stamp → marked paid", async () => {
     const res = await itn()
@@ -78,5 +83,48 @@ describe("application ITN — the party set the stamp priced (§3.5a/b)", () => 
   it("a declined co row is not part of the set", async () => {
     fake.tables.application_co_applicants.push({ ...coRow("co-gone"), declined_at: "2026-10-01T00:00:00Z" })
     expect(await (await itn()).json()).toMatchObject({ ok: true })
+  })
+})
+
+describe("application ITN — one payment row per natural person priced (BUILD_72 P1-R8a/R8b)", () => {
+  it("a single residential applicant → ONE 'applicant' row keyed to the application, born paid, for the whole fee", async () => {
+    expect(await (await itn()).json()).toMatchObject({ ok: true })
+    expect(payments()).toEqual([expect.objectContaining({
+      application_id: "app-1", subject_type: "applicant", subject_id: "app-1", fee_cents: 32500, paid_at: expect.any(String),
+    })])
+  })
+
+  it("a residential joint application → an 'applicant' row AND a 'co_applicant' row — no longer juristic-only", async () => {
+    fake = fakeRateDb({ applications: [application({ priced_party_count: 2 })], application_co_applicants: [coRow("co-1")] })
+    expect(await (await itn()).json()).toMatchObject({ ok: true })
+    expect(payments().map((p) => [p.subject_type, p.subject_id])).toEqual([["applicant", "app-1"], ["co_applicant", "co-1"]])
+    expect(payments().every((p) => typeof p.paid_at === "string")).toBe(true)
+  })
+
+  it("the rows sum EXACTLY to the amount paid — an odd cent is never rounded away or invented", async () => {
+    fake = fakeRateDb({ applications: [application({ priced_party_count: 3, fee_amount_cents: 32501 })], application_co_applicants: [coRow("co-1"), coRow("co-2")] })
+    expect(await (await itn("325.01")).json()).toMatchObject({ ok: true })
+    const cents = payments().map((p) => p.fee_cents as number)
+    expect(cents.reduce((a, b) => a + b, 0)).toBe(32501)
+    expect(Math.max(...cents) - Math.min(...cents)).toBeLessThanOrEqual(1)
+  })
+
+  it("PLANTED (walker F5): a row a party already PAID on its own is never overwritten; the rest are still written", async () => {
+    const own = { org_id: "org-1", application_id: "app-1", subject_type: "co_applicant", subject_id: "co-1",
+      fee_cents: 9999, paid_at: "2026-10-01T00:00:00Z", payfast_transaction_id: "pf-director" }
+    fake = fakeRateDb({
+      applications: [application({ priced_party_count: 2 })],
+      application_co_applicants: [coRow("co-1")],
+      application_screening_payments: [own],
+    })
+    expect(await (await itn()).json()).toMatchObject({ ok: true })
+    expect(payments().find((p) => p.subject_id === "co-1")).toMatchObject({ fee_cents: 9999, payfast_transaction_id: "pf-director" })
+    expect(payments().find((p) => p.subject_type === "applicant")).toMatchObject({ paid_at: expect.any(String), payfast_transaction_id: "pf-1" })
+  })
+
+  it("PLANTED: a refused payment (party set changed) writes NO payment rows", async () => {
+    fake.tables.application_co_applicants.push(coRow("co-late"))
+    expect(await (await itn()).json()).toMatchObject({ ok: false, reason: "party_set_changed" })
+    expect(payments()).toEqual([])
   })
 })

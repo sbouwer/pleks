@@ -120,29 +120,28 @@ export function partyKind(input: Readonly<{ party: Parameters<typeof isSuretyPar
 
 /** One subject a screening payment covers — one `application_screening_payments` row. */
 export interface PaidScreeningSubject {
-  readonly subject_type: "company" | "co_applicant"
+  readonly subject_type: "applicant" | "company" | "co_applicant"
   readonly subject_id: string
 }
 
 /**
- * The subjects ONE application-fee payment marks paid, for the PayFast application ITN.
+ * The subjects ONE application-fee payment marks paid, for the PayFast application ITN: one per subject the stamp
+ * priced, born paid (BUILD_72 P1-R8a, which retired the juristic-only rule this function used to carry).
  *
- * Juristic → the entity line plus one per surety, N >= 0: exactly the 1 + N subjects the quote's
- * applicationBundle priced (a surety is optional, BUILD_72 R0, so N = 0 still pays the entity line). Not juristic → NONE:
- * an individual application's payment is recorded on the application row, and a RESIDENTIAL guarantor
- * must never produce a "company" line or a split of a residential fee. That second case is the reason
- * this is a function with a test rather than an `if` in the route: before BUILD_72 the ITN wrote these
- * lines whenever it found surety rows, which was safe only while the roster never wrote that marker.
+ * The application's own line comes first — `company` for a juristic applicant, `applicant` for the lead natural
+ * person of every other application (P1-R8b-1: a natural person is never a `company`) — then one `co_applicant` per
+ * priced party row: sureties on a juristic application, every live co row (co-applicant or guarantor) on a
+ * residential one. That is exactly the 1 + N lines `applicationBundle` priced. Each person still CONSENTS on their
+ * own link (D-14B-01, no proxy consent); a paid line runs only once its subject has.
  */
 export function paidScreeningSubjects(
   application: Parameters<typeof isJuristicApplication>[0],
   applicationId: string,
-  suretyIds: readonly string[],
+  coIds: readonly string[],
 ): PaidScreeningSubject[] {
-  if (!isJuristicApplication(application)) return []
   return [
-    { subject_type: "company", subject_id: applicationId },
-    ...suretyIds.map((id) => ({ subject_type: "co_applicant" as const, subject_id: id })),
+    { subject_type: isJuristicApplication(application) ? "company" : "applicant", subject_id: applicationId },
+    ...coIds.map((id) => ({ subject_type: "co_applicant" as const, subject_id: id })),
   ]
 }
 
