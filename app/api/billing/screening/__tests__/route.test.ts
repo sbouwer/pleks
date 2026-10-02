@@ -41,15 +41,21 @@ const application = (over: Row = {}): Row => ({
   pricing_policy_version: null,
   rate_effective_date: null,
   cost_excl_vat_cents: null,
+  priced_party_count: null,
+  priced_entity: null,
+  fee_paid_at: null,
   listings: { asking_rent_cents: 1000000, units: { unit_number: "1" }, properties: { name: "P" } },
   ...over,
 })
 
-function seed(app: Row, rates: Row[]) {
+const coRow = (id: string): Row => ({ id, org_id: "org-1", primary_application_id: "app-1", declined_at: null })
+
+function seed(app: Row, rates: Row[], co: Row[] = []) {
   fake = fakeRateDb({
     application_tokens: [{ token: "tok", token_type: "shortlist_invite", application_id: "app-1", applicant_email: "x", expires_at: "2099-01-01T00:00:00Z" }],
     applications: [app],
     searchworx_rates: rates,
+    application_co_applicants: co,
   })
 }
 
@@ -70,6 +76,8 @@ describe("POST /api/billing/screening — stamp at first show", () => {
       rate_effective_date: "2026-10-01",
       pricing_policy_version: PRICING_POLICY.version,
       cost_excl_vat_cents: 19410 + 715,
+      priced_party_count: 1,
+      priced_entity: false,
     })
   })
 
@@ -90,7 +98,7 @@ describe("POST /api/billing/screening — stamp at first show", () => {
   })
 
   it("a stamp already on the row is returned as-is, even with no rates at all", async () => {
-    seed(application({ fee_amount_cents: 32500, pricing_policy_version: "v1-test", rate_effective_date: "2026-09-01" }), [])
+    seed(application({ fee_amount_cents: 32500, pricing_policy_version: "v1-test", rate_effective_date: "2026-09-01", priced_party_count: 1, priced_entity: false }), [])
     const res = await post()
     expect(res.status).toBe(200)
     expect((await res.json()).fee_cents).toBe(32500)
@@ -104,11 +112,34 @@ describe("POST /api/billing/screening — stamp at first show", () => {
     expect(row()).toMatchObject({ fee_amount_cents: 25000, pricing_policy_version: null })
   })
 
-  it("a joint application is priced for two people", async () => {
+  it("a joint application is priced for its live co rows — counted, never the has_co_applicant flag (§3.5b)", async () => {
+    const RATES = [rate("combined_consumer_credit_report", 19410), rate("vccb_income_estimator", 715)]
     const single = (await (await post()).json()).fee_cents
-    seed(application({ has_co_applicant: true }), [rate("combined_consumer_credit_report", 19410), rate("vccb_income_estimator", 715)])
+    seed(application({ has_co_applicant: true }), RATES, [coRow("co-1")])
     const joint = (await (await post()).json()).fee_cents
     expect(joint).toBeGreaterThan(single)
-    expect(row()).toMatchObject({ joint_fee_paid: true, cost_excl_vat_cents: 2 * (19410 + 715) })
+    expect(row()).toMatchObject({ joint_fee_paid: true, cost_excl_vat_cents: 2 * (19410 + 715), priced_party_count: 2 })
+
+    // A third residential party is priced by the formula, which the boolean never could (§3.5b).
+    seed(application({ has_co_applicant: true }), RATES, [coRow("co-1"), coRow("co-2")])
+    await post()
+    expect(row()).toMatchObject({ cost_excl_vat_cents: 3 * (19410 + 715), priced_party_count: 3 })
+
+    // has_co_applicant is set once and never cleared: a declined co row is not priced.
+    seed(application({ has_co_applicant: true }), RATES, [{ ...coRow("co-1"), declined_at: "2026-10-01T00:00:00Z" }])
+    await post()
+    expect(row()).toMatchObject({ priced_party_count: 1, joint_fee_paid: false })
+  })
+
+  it("PLANTED: a stamp for a set that has since changed is voided and re-quoted — never reused (§3.5a)", async () => {
+    seed(
+      application({ fee_amount_cents: 32500, pricing_policy_version: "v1-test", rate_effective_date: "2026-09-01", cost_excl_vat_cents: 1, priced_party_count: 1, priced_entity: false }),
+      [rate("combined_consumer_credit_report", 19410), rate("vccb_income_estimator", 715)],
+      [coRow("co-late")],
+    )
+    const res = await post()
+    expect(res.status).toBe(200)
+    expect(row()).toMatchObject({ priced_party_count: 2, cost_excl_vat_cents: 2 * (19410 + 715), pricing_policy_version: PRICING_POLICY.version })
+    expect((await res.json()).fee_cents).not.toBe(32500)
   })
 })

@@ -10,6 +10,8 @@
  *         Directions: an unstamped row takes a fee; a stamped row refuses a changed fee and every changed stamp
  *         column; a stamped row accepts the SAME values (an idempotent re-write is not a change) and any other
  *         column. For payments, paid_at alone also freezes the fee.
+ *         §3.5a: an UNPAID stamp may be voided — all six columns NULL together, fee included, since the ITN reads the
+ *         fee — and nothing less; a PAID stamp may not be voided at all.
  */
 import { describe, expect, it } from "vitest"
 import { psql } from "@/test/db/tier"
@@ -42,7 +44,10 @@ const STAMPED = `INSERT INTO twin (FEE, rate_effective_date, pricing_policy_vers
 
 describe("applications — trg_application_fee_immutable", () => {
   const run = (body: string) =>
-    twin("application_fee_immutable", "fee_amount_cents", ", fee_paid_at timestamptz", body.replaceAll("FEE", "fee_amount_cents"))
+    twin("application_fee_immutable", "fee_amount_cents", ", fee_paid_at timestamptz, priced_party_count integer, priced_entity boolean",
+      body.replaceAll("FEE", "fee_amount_cents"))
+  const VOID_ALL = `UPDATE twin SET fee_amount_cents = NULL, rate_effective_date = NULL, pricing_policy_version = NULL,
+    cost_excl_vat_cents = NULL, priced_party_count = NULL, priced_entity = NULL;`
 
   it("is attached to applications", () => {
     expect(() => attached("trg_application_fee_immutable", "applications", "application_fee_immutable")).not.toThrow()
@@ -58,14 +63,26 @@ describe("applications — trg_application_fee_immutable", () => {
     ["rate_effective_date", "'2026-10-02'"],
     ["pricing_policy_version", "'v2'"],
     ["cost_excl_vat_cents", "1"],
+    ["priced_party_count", "2"],
+    ["priced_entity", "true"],
   ] as const) {
     it(`PLANTED: a stamped row refuses a changed ${col}`, () => {
       expect(() => run(`${STAMPED} UPDATE twin SET ${col} = ${value};`)).toThrow(/a quoted fee never moves/)
     })
   }
 
-  it("PLANTED: a stamped row refuses clearing the stamp to re-quote", () => {
-    expect(() => run(`${STAMPED} UPDATE twin SET pricing_policy_version = NULL;`)).toThrow(/a quoted fee never moves/)
+  it("KNOWN-GOOD: an UNPAID stamp is voided whole — all six columns at once (§3.5a)", () => {
+    expect(() => run(`${STAMPED} ${VOID_ALL}`)).not.toThrow()
+  })
+
+  it("PLANTED: a partial void is refused — a fee left behind is a fee the ITN would still accept", () => {
+    expect(() => run(`${STAMPED} UPDATE twin SET pricing_policy_version = NULL;`)).toThrow(/void the whole stamp or none of it/)
+    expect(() => run(`${STAMPED} UPDATE twin SET pricing_policy_version = NULL, rate_effective_date = NULL, cost_excl_vat_cents = NULL;`))
+      .toThrow(/void the whole stamp or none of it/)
+  })
+
+  it("PLANTED: a PAID stamp is never voided (§3.5a — paid lines frozen)", () => {
+    expect(() => run(`${STAMPED} UPDATE twin SET fee_paid_at = now(); ${VOID_ALL}`)).toThrow(/never moves once paid/)
   })
 
   it("PLANTED: a PAID row refuses a changed fee even with no stamp (paid before 14V)", () => {

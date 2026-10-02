@@ -532,7 +532,9 @@
       "searchworx_run_started_at",
       "rate_effective_date",
       "pricing_policy_version",
-      "cost_excl_vat_cents"
+      "cost_excl_vat_cents",
+      "priced_party_count",
+      "priced_entity"
     ],
     "arrears_actions": [
       "id",
@@ -3931,6 +3933,7 @@
     "claim_purge_slot": [
       "p_org_id"
     ],
+    "co_applicant_party_set_guard": [],
     "compute_contact_dedup_hash": [],
     "compute_legal_hold_instrument_hash": [],
     "count_active_memberships_for_user": [
