@@ -28,9 +28,21 @@ export interface ScreeningSubject {
   id: string
 }
 
+/**
+ * A screening line's subject (BUILD_72 P1-R8b-1). `applicant` is the lead natural person of a non-organisation
+ * application and `company` the juristic applicant — both live on the `applications` row, keyed to its id; a
+ * natural person is never a `company`. `co_applicant` is every party row.
+ */
+export type ScreeningSubjectType = "applicant" | "company" | "co_applicant"
+
+/** True when the subject's row is the application itself rather than a party row. */
+export function isApplicationSubject(subjectType: ScreeningSubjectType): boolean {
+  return subjectType === "applicant" || subjectType === "company"
+}
+
 /** Map bundle-runner's subjectType to the table that holds that subject's consent. */
-export function screeningSubjectFor(subjectType: "company" | "co_applicant", subjectId: string): ScreeningSubject {
-  return { table: subjectType === "company" ? "applications" : "application_co_applicants", id: subjectId }
+export function screeningSubjectFor(subjectType: ScreeningSubjectType, subjectId: string): ScreeningSubject {
+  return { table: isApplicationSubject(subjectType) ? "applications" : "application_co_applicants", id: subjectId }
 }
 
 /**

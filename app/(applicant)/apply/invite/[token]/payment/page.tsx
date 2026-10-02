@@ -8,11 +8,14 @@
  * Data:   POST /api/billing/screening returns the PayFast URL + signed field set
  * Notes:  Client page. Submits a hidden auto-built form to PayFast; shows the route's stamped fee_cents. When
  *         no rate can price the screening the route refuses (503) and this page shows that message.
+ *         BUILD_72 P1-R3b: a held party is not included in the screening; the route returns them in `held` and this
+ *         page says so (with the reason) whether or not the fee is payable yet.
  */
 
 import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
 import { formatZAR } from "@/lib/constants"
+import { heldPartiesNotice } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { CreditCard, Landmark, ShieldCheck, Loader2 } from "lucide-react"
@@ -31,6 +34,7 @@ export default function PaymentPage() {
   const [payfastUrl, setPayfastUrl] = useState("")
   const [payfastData, setPayfastData] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  const [held, setHeld] = useState<{ name: string | null; reason: string }[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -42,12 +46,10 @@ export default function PaymentPage() {
           body: JSON.stringify({ token }),
         })
 
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error ?? "Failed to load payment")
-        }
-
         const data = await res.json()
+        if (!cancelled && Array.isArray(data.held)) setHeld(data.held)
+        if (!res.ok) throw new Error(data.error ?? "Failed to load payment")
+
         if (!cancelled) {
           setIsJoint(data.is_joint)
           setFee(data.fee_cents)
@@ -80,10 +82,18 @@ export default function PaymentPage() {
     )
   }
 
+  const heldNotice = held.length > 0 && (
+    <div className="rounded-[var(--r-button)] border border-border p-3 text-xs text-muted-foreground space-y-1">
+      <p className="font-medium text-foreground">{heldPartiesNotice(held.length)}</p>
+      {held.map((h, i) => <p key={`${h.name ?? "party"}-${i}`}>{h.name ? `${h.name}: ` : ""}{h.reason}</p>)}
+    </div>
+  )
+
   if (error) {
     return (
       <div className="space-y-4 text-center py-12">
         <p className="text-sm text-destructive">{error}</p>
+        {heldNotice}
       </div>
     )
   }
@@ -120,6 +130,8 @@ export default function PaymentPage() {
           </p>
         </CardContent>
       </Card>
+
+      {heldNotice}
 
       {/* Payment methods */}
       <Card>

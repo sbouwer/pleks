@@ -3104,7 +3104,45 @@ LEFT JOIN application_screening_payments asp
   ON asp.application_id = caa.primary_application_id
   AND asp.subject_type  = 'co_applicant'
   AND asp.subject_id    = caa.id
-WHERE caa.declined_at IS NULL;
+WHERE caa.declined_at IS NULL
+
+UNION ALL
+
+-- BUILD_72 P1-R8b-1 (2026-10-02): the lead natural person of a NON-organisation application. Until this branch
+-- the residential lead had no line at all, so the runner never screened the person who paid. Keyed to app.id
+-- exactly as the company branch is, but as subject_type 'applicant' — a natural person is never a 'company'.
+SELECT
+  app.id AS application_id,
+  app.org_id,
+  'applicant'::text AS subject_type,
+  app.id AS subject_id,
+  app.first_name || ' ' || app.last_name AS subject_name,
+  asp.fee_cents,
+  asp.paid_at,
+  app.stage2_consent_given_at AS consented_at,
+  asp.expires_at,
+  CASE
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'complete'                            THEN 'complete'
+    -- 'running' and 'failed' ahead of the rest for the M-111 reason given on the company branch.
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'running'                             THEN 'running'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'failed'                              THEN 'failed'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
+    WHEN asp.paid_at IS NULL    AND app.stage2_consent_given_at IS NOT NULL      THEN 'consented_pending_payment'
+    WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
+    ELSE 'pending_both'
+  END AS state,
+  NULL::text AS party_kind
+FROM applications app
+LEFT JOIN application_screening_payments asp
+  ON asp.application_id = app.id
+  AND asp.subject_type = 'applicant'
+  AND asp.subject_id   = app.id
+WHERE app.entity_type IS DISTINCT FROM 'organisation';
 
 COMMENT ON VIEW v_application_screening_lines IS
   'Multi-party screening portal view. Joins applications + co-applicants +
@@ -3855,3 +3893,30 @@ CREATE INDEX IF NOT EXISTS idx_searchworx_rate_observations_billing_ref
 -- The listing comment carried rand fees and the cancelled Estate bundle (ADDENDUM_14E). Restated without either.
 COMMENT ON COLUMN listings.screening_bundle IS
   '"standard" — the one screening bundle Pleks sells. "estate" was cancelled (ADDENDUM_14E) and is kept in the CHECK only for historical rows. The fee is not a listing property: it is quoted per application from searchworx_rates (ADDENDUM_14V).';
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § BUILD_72 P1-R8 / R8a / R8b: every natural person on a residential application is screened  (2026-10-02)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- R8b-1: the residential LEAD is a screening subject in its own right, 'applicant' — keyed to app.id as the
+-- company line is, never reusing 'company' for a natural person. Its view branch is in v_application_screening_lines
+-- above; these widen the two subject_type CHECKs it needs. DROP + ADD because CREATE TABLE IF NOT EXISTS never
+-- alters an existing table.
+ALTER TABLE application_screening_payments DROP CONSTRAINT IF EXISTS application_screening_payments_subject_type_check;
+ALTER TABLE application_screening_payments ADD CONSTRAINT application_screening_payments_subject_type_check
+  CHECK (subject_type IN ('applicant','company','co_applicant','guarantor'));
+ALTER TABLE application_screening_lines DROP CONSTRAINT IF EXISTS application_screening_lines_subject_type_check;
+ALTER TABLE application_screening_lines ADD CONSTRAINT application_screening_lines_subject_type_check
+  CHECK (subject_type IN ('applicant','company','co_applicant','guarantor'));
+
+-- R8b-2: when this party was invited to stage 2 (screening consent). Written at shortlist for every live co row;
+-- the reminder cron's clock and the 14-day consent window run from it, never from created_at — a co added at
+-- stage 1 would otherwise be chased, and expired, for a consent nobody had yet asked them for.
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS stage2_invited_at timestamptz;
+COMMENT ON COLUMN application_co_applicants.stage2_invited_at IS
+  'BUILD_72 P1-R8b-2: when the stage-2 (screening consent) invite was sent on this party''s access_token link — at shortlist, or on being added after it. Anchors the reminder clock and the 14-day consent window. NULL = not yet invited to stage 2.';
+
+-- R8: a residential co-applicant verifies its screening consent by SMS on its own access_token, as a director
+-- does — but it is not a director, so it gets its own consent_type rather than borrowing director_standard.
+ALTER TABLE consent_verifications DROP CONSTRAINT IF EXISTS consent_verifications_consent_type_check;
+ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_consent_type_check
+  CHECK (consent_type IN ('standard_bundle','estate_criminal','director_standard','director_estate_criminal','application_email','co_applicant_standard'));

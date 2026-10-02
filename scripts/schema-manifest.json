@@ -187,7 +187,8 @@
       "started_at",
       "tenant_id",
       "searchworx_run_started_at",
-      "declared_director"
+      "declared_director",
+      "stage2_invited_at"
     ],
     "application_directors": [
       "id",
@@ -4272,7 +4273,7 @@
     },
     "application_screening_lines_subject_type_check": {
       "table": "application_screening_lines",
-      "def": "CHECK ((subject_type = ANY (ARRAY['company'::text, 'co_applicant'::text, 'guarantor'::text])))"
+      "def": "CHECK ((subject_type = ANY (ARRAY['applicant'::text, 'company'::text, 'co_applicant'::text, 'guarantor'::text])))"
     },
     "application_screening_payments_expired_state_check": {
       "table": "application_screening_payments",
@@ -4280,7 +4281,7 @@
     },
     "application_screening_payments_subject_type_check": {
       "table": "application_screening_payments",
-      "def": "CHECK ((subject_type = ANY (ARRAY['company'::text, 'co_applicant'::text, 'guarantor'::text])))"
+      "def": "CHECK ((subject_type = ANY (ARRAY['applicant'::text, 'company'::text, 'co_applicant'::text, 'guarantor'::text])))"
     },
     "application_tokens_token_type_check": {
       "table": "application_tokens",
@@ -4548,7 +4549,7 @@
     },
     "consent_verifications_consent_type_check": {
       "table": "consent_verifications",
-      "def": "CHECK ((consent_type = ANY (ARRAY['standard_bundle'::text, 'estate_criminal'::text, 'director_standard'::text, 'director_estate_criminal'::text, 'application_email'::text])))"
+      "def": "CHECK ((consent_type = ANY (ARRAY['standard_bundle'::text, 'estate_criminal'::text, 'director_standard'::text, 'director_estate_criminal'::text, 'application_email'::text, 'co_applicant_standard'::text])))"
     },
     "consent_verifications_status_check": {
       "table": "consent_verifications",

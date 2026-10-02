@@ -22,7 +22,7 @@ import { decrypt }                                from "@/lib/crypto/encryption"
 import { runCombinedConsumerCreditReport, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_RESULT_SUMMARIES } from "@/lib/searchworx/products/vccbIncomeEstimator"
 import { extractBureauScores } from "@/lib/screening/searchworxBureauAdapter"
-import { assertScreeningConsent, screeningSubjectFor } from "@/lib/screening/consentGuard"
+import { assertScreeningConsent, isApplicationSubject, screeningSubjectFor, type ScreeningSubjectType } from "@/lib/screening/consentGuard"
 import { getSearchworxBundle } from "@/lib/screening/searchworxBundle"
 import { currentRates, type CurrentRates } from "@/lib/searchworx/rates/read"
 import { saTodayISO } from "@/lib/dates"
@@ -32,7 +32,7 @@ import type { SearchworxEnvelopeMeta } from "@/lib/searchworx/envelopeMeta"
 
 export interface BundleArgs {
   applicationId: string
-  subjectType:   "company" | "co_applicant"
+  subjectType:   ScreeningSubjectType
   subjectId:     string
   orgId:         string
   screeningRunId?: string
@@ -65,8 +65,8 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     throw new Error(`No ID number on record for subject ${subjectId} (${subjectType})`)
   }
 
-  const subjectTable = subjectType === "company" ? "applications" : "application_co_applicants"
-  const subjectRowId = subjectType === "company" ? applicationId : subjectId
+  const subjectTable = isApplicationSubject(subjectType) ? "applications" : "application_co_applicants"
+  const subjectRowId = isApplicationSubject(subjectType) ? applicationId : subjectId
 
   // ── WHICH PRODUCTS RUN, AND WHAT THEY COST — asked of the SSOT, not re-derived here ──────────
   //
@@ -141,8 +141,8 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     runsVccb, vccbCost: costOf(VCCB_PRODUCT_KEY),
   })
 
-  // ── Update applications.current_screening_run_id (primary applicant only) ──
-  if (subjectType === "company") {
+  // ── Update applications.current_screening_run_id (the application's own subject only) ──
+  if (isApplicationSubject(subjectType)) {
     const { error } = await service
       .from("applications")
       .update({ current_screening_run_id: screeningRunId })
@@ -160,7 +160,7 @@ interface VccbStepArgs {
   service:        Awaited<ReturnType<typeof createServiceClient>>
   orgId:          string
   applicationId:  string
-  subjectType:    "company" | "co_applicant"
+  subjectType:    ScreeningSubjectType
   subjectId:      string
   subjectTable:   "applications" | "application_co_applicants"
   subjectRowId:   string
@@ -230,10 +230,10 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
 
 async function fetchSubjectCredentials(
   service: Awaited<ReturnType<typeof createServiceClient>>,
-  subjectType: "company" | "co_applicant",
+  subjectType: ScreeningSubjectType,
   subjectId: string,
 ): Promise<{ idNumberEncrypted: string | null; idType: string | null }> {
-  if (subjectType === "company") {
+  if (isApplicationSubject(subjectType)) {
     const { data, error } = await service
       .from("applications")
       .select("id_number, id_type")
@@ -308,7 +308,7 @@ interface ScreeningLinePayload {
   id:             string
   orgId:          string
   applicationId:  string
-  subjectType:    "company" | "co_applicant"
+  subjectType:    ScreeningSubjectType
   subjectId:      string
   screeningRunId: string
   productKey:     string

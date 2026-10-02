@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { runStandardBundle } from "@/lib/screening/bundle-runner"
+import { isApplicationSubject, type ScreeningSubjectType } from "@/lib/screening/consentGuard"
 import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { withCronRun } from "@/lib/cron/withCronRun"
@@ -89,8 +90,8 @@ async function handler(_req: NextRequest): Promise<Response> {
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 
 async function markLineFailed(service: Svc, line: ScreeningLine, reason: string): Promise<void> {
-  const table = line.subject_type === "company" ? "applications" : "application_co_applicants"
-  const rowId = line.subject_type === "company" ? line.application_id : line.subject_id
+  const table = isApplicationSubject(line.subject_type) ? "applications" : "application_co_applicants"
+  const rowId = isApplicationSubject(line.subject_type) ? line.application_id : line.subject_id
 
   const { error } = await service
     .from(table)
@@ -112,7 +113,7 @@ async function markLineFailed(service: Svc, line: ScreeningLine, reason: string)
 
 type ScreeningLine = {
   application_id: string
-  subject_type: string
+  subject_type: ScreeningSubjectType
   subject_id: string
   subject_name: string
   org_id: string
@@ -134,8 +135,8 @@ async function processLine(
   // "another runner owns this line". The batch then reported ok. The constraint is fixed in
   // 005_operations.sql, and the error path is separated from the empty-result path here so that the
   // next constraint, permission or column defect surfaces as a failure instead of a skip.
-  const table = line.subject_type === "company" ? "applications" : "application_co_applicants"
-  const rowId = line.subject_type === "company" ? line.application_id : line.subject_id
+  const table = isApplicationSubject(line.subject_type) ? "applications" : "application_co_applicants"
+  const rowId = isApplicationSubject(line.subject_type) ? line.application_id : line.subject_id
 
   const { data: claimed, error: claimError } = await service
     .from(table)
@@ -154,7 +155,7 @@ async function processLine(
   // Run the Standard bundle (Combined + VCCB). Results are written to application_screening_lines.
   await runStandardBundle({
     applicationId: line.application_id,
-    subjectType:   line.subject_type as "company" | "co_applicant",
+    subjectType:   line.subject_type,
     subjectId:     line.subject_id,
     orgId:         line.org_id,
   })
@@ -168,8 +169,8 @@ async function markLineComplete(
   line: ScreeningLine,
   now: string,
 ): Promise<void> {
-  const table = line.subject_type === "company" ? "applications" : "application_co_applicants"
-  const rowId = line.subject_type === "company" ? line.application_id : line.subject_id
+  const table = isApplicationSubject(line.subject_type) ? "applications" : "application_co_applicants"
+  const rowId = isApplicationSubject(line.subject_type) ? line.application_id : line.subject_id
 
   // searchworx_run_started_at is cleared, not left behind: it is the sweep's input, and a completed
   // row that still carries a claim timestamp is a row the next schema change could re-strand.
@@ -199,11 +200,13 @@ async function maybeRunOrchestrator(
     .single()
   if (appErr || !app || app.searchworx_check_status !== "complete") return
 
-  // All co-applicants must be complete
+  // All LIVE co-applicants must be complete. A declined party has left the set (the view drops it too), so it never
+  // completes — counting it held FitScore back for good once residential lines reached this runner (walker F8).
   const { data: coApps, error: coErr } = await service
     .from("application_co_applicants")
     .select("searchworx_check_status")
     .eq("primary_application_id", applicationId)
+    .is("declined_at", null)
   if (coErr) return
   if ((coApps ?? []).some(c => c.searchworx_check_status !== "complete")) return
 

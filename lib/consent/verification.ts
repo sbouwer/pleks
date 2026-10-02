@@ -20,6 +20,7 @@ export type ConsentType =
   | "estate_criminal"
   | "director_standard"
   | "director_estate_criminal"
+  | "co_applicant_standard"
 
 export interface RateLimitResult {
   allowed: boolean
