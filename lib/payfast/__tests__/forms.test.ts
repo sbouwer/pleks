@@ -12,7 +12,6 @@
  */
 import { describe, it, expect } from "vitest"
 import { buildApplicationFeeForm } from "@/lib/payfast/forms"
-import { APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 
 const BASE = {
   applicationId: "11111111-1111-1111-1111-111111111111",
@@ -30,9 +29,18 @@ describe("buildApplicationFeeForm charges what the caller asked for", () => {
     expect(buildApplicationFeeForm({ ...BASE, feeCents: 31337 }).data.amount).toBe("313.37")
   })
 
-  it("never emits the superseded R399 unless that is what it was handed", () => {
-    expect(buildApplicationFeeForm({ ...BASE, feeCents: APPLICATION_FEE_CENTS }).data.amount).not.toBe("399.00")
-    expect(buildApplicationFeeForm({ ...BASE, feeCents: JOINT_APPLICATION_FEE_CENTS }).data.amount).not.toBe("749.00")
+  it("charges exactly feeCents for EVERY fee a quote can produce — R0.01 to R5 000, seeded", () => {
+    // The fee is a quote over moving rates now (ADDENDUM_14V), so no fixed pair of constants can stand in for
+    // it: the property is that the amount PayFast receives is the cents handed in, whatever they are.
+    let seed = 147
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      return seed / 2147483648
+    }
+    for (let i = 0; i < 500; i++) {
+      const feeCents = 1 + Math.floor(rand() * 500000)
+      expect(buildApplicationFeeForm({ ...BASE, feeCents }).data.amount, `feeCents=${feeCents}`).toBe((feeCents / 100).toFixed(2))
+    }
   })
 
   it("formats as PayFast requires — 2dp, no thousands separator, no currency symbol", () => {

@@ -24,7 +24,7 @@ import {
   suretyPartyLabelPlural,
   SURETY_PARTY_OR_FILTER,
 } from "@/lib/applications/juristicParties"
-import { screeningFeeCents, screeningFeeLineCount, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { applicationBundle } from "@/lib/screening/searchworxBundle"
 
 const JURISTIC = ["pty_ltd", "cc", "npc", "trust"] as const
 const UNINCORPORATED = ["sole_proprietor", "partnership", "other"] as const
@@ -90,36 +90,25 @@ describe("the surety party is named correctly for the entity", () => {
   })
 })
 
-describe("the juristic fee covers the entity AND its sureties in one transaction", () => {
-  it("charges the company line plus one line per surety", () => {
-    const one = screeningFeeCents({ isJuristic: true, suretyCount: 1, hasCoApplicant: false })
-    const two = screeningFeeCents({ isJuristic: true, suretyCount: 2, hasCoApplicant: false })
-    expect(one).toBe(APPLICATION_FEE_CENTS * 2)   // company + 1 director
-    expect(two).toBe(APPLICATION_FEE_CENTS * 3)   // company + 2 directors
-    // Rate card D-RATE-06 worked example: company + 1 director = R500, + 2 = R750.
-    expect(one).toBe(50000)
-    expect(two).toBe(75000)
+describe("the juristic quote covers the entity AND its sureties in one transaction", () => {
+  // The fee itself is the formula's (lib/screening/__tests__/pricing.test.ts, bundle-economics.test.ts); what
+  // belongs here is the SHAPE billing prices, which paidScreeningSubjects below must mirror line for line.
+  it("prices the company line plus one SA bundle per surety", () => {
+    for (const n of [1, 2, 3]) {
+      const b = applicationBundle({ juristic: true, persons: n })
+      expect(b.entityProducts.length).toBeGreaterThan(0)
+      expect(b.persons).toBe(n)
+    }
   })
 
-  it("charges a company applying ALONE one line — a surety is optional (BUILD_72 R0)", () => {
-    expect(screeningFeeCents({ isJuristic: true, suretyCount: 0, hasCoApplicant: false })).toBe(APPLICATION_FEE_CENTS)
-    expect(screeningFeeLineCount({ isJuristic: true, suretyCount: 0, hasCoApplicant: false })).toBe(1)
+  it("prices a company applying ALONE as the entity line only — a surety is optional (BUILD_72 R0)", () => {
+    expect(applicationBundle({ juristic: true, persons: 0 })).toMatchObject({ persons: 0 })
+    expect(applicationBundle({ juristic: true, persons: 0 }).entityProducts.length).toBeGreaterThan(0)
   })
 
-  it("counts one payable line per screened subject", () => {
-    expect(screeningFeeLineCount({ isJuristic: true, suretyCount: 1, hasCoApplicant: false })).toBe(2)
-    expect(screeningFeeLineCount({ isJuristic: true, suretyCount: 3, hasCoApplicant: false })).toBe(4)
-    expect(screeningFeeLineCount({ isJuristic: false, suretyCount: 0, hasCoApplicant: false })).toBe(1)
-    expect(screeningFeeLineCount({ isJuristic: false, suretyCount: 0, hasCoApplicant: true })).toBe(2)
-  })
-
-  it("leaves the individual path on its recorded prices", () => {
-    expect(screeningFeeCents({ isJuristic: false, suretyCount: 0, hasCoApplicant: false })).toBe(APPLICATION_FEE_CENTS)
-    expect(screeningFeeCents({ isJuristic: false, suretyCount: 0, hasCoApplicant: true })).toBe(JOINT_APPLICATION_FEE_CENTS)
-  })
-
-  it("ignores suretyCount for an individual application", () => {
-    expect(screeningFeeCents({ isJuristic: false, suretyCount: 5, hasCoApplicant: false })).toBe(APPLICATION_FEE_CENTS)
+  it("prices an individual application per person, with no entity line", () => {
+    expect(applicationBundle({ juristic: false, persons: 1 }).entityProducts).toEqual([])
+    expect(applicationBundle({ juristic: false, persons: 2 }).persons).toBe(2)
   })
 })
 
@@ -180,7 +169,8 @@ describe("paidScreeningSubjects — the lines one application payment marks paid
   it("writes exactly the lines billing priced: 1 + N", () => {
     for (const ids of [[], ["d1"], ["d1", "d2", "d3"]]) {
       const lines = paidScreeningSubjects(company, "app-1", ids)
-      expect(lines).toHaveLength(screeningFeeLineCount({ isJuristic: true, suretyCount: ids.length, hasCoApplicant: false }))
+      const priced = applicationBundle({ juristic: true, persons: ids.length })
+      expect(lines).toHaveLength((priced.entityProducts.length > 0 ? 1 : 0) + priced.persons)
       expect(lines.filter((l) => l.subject_type === "co_applicant").map((l) => l.subject_id)).toEqual(ids)
     }
   })

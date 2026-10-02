@@ -68,8 +68,8 @@ interface ApplicationFeeFormData {
   propertyName: string
   unitName: string
   /**
-   * The fee to actually charge, in cents — from APPLICATION_FEE_CENTS / JOINT_APPLICATION_FEE_CENTS
-   * via the billing route, NEVER a literal here. This was hardcoded "399.00" until 2026-08-14, so the
+   * The fee to actually charge, in cents — the application's stamped fee_amount_cents, quoted by
+   * lib/screening/quote.ts via the billing route, NEVER a literal here. This was hardcoded "399.00" until 2026-08-14, so the
    * caller computed the correct fee, wrote it to applications.fee_amount_cents, and then charged a
    * different (stale) amount — the DB said one thing and PayFast took another. buildDirectorFeeForm
    * below always took feeCents as a parameter; this one simply never did.

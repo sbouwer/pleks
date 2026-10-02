@@ -22,7 +22,8 @@ import {
 // ─── Product constants ────────────────────────────────────────────────────────
 
 export const VCCB_PRODUCT_KEY  = "vccb_income_estimator"
-export const VCCB_COST_CENTS   = 635   // R6.35 ex-VAT — ADDENDUM_14H v3 rate card
+// VCCB_COST_CENTS (R6.35) was retired in ADDENDUM_14V step 7: the cost is the recorded rate
+// (searchworx_rates), read by bundle-runner per line and reconciled from billing.
 const VCCB_PRODUCT_PATH = "credit/vericred/incomeestimate"
 // VCCB_SEARCH_TYPE (= 220, VeriCredIncomeEstimation) was exported here and read by nobody — the
 // integration addresses the product by PATH, above. Removed 2026-08-21; same call as its twin in

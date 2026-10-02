@@ -970,6 +970,10 @@ rather than quietly weakening the hook.
 - **Rung:** check · **Blast:** money
 - **Satisfied when:** extends:check:check-money-literals
 - **Sketch:** PARTIAL. The test (`bundle-economics.test.ts`) asserts price > cost WITHIN the SSOT module itself — a real, running invariant — but it does not scan call sites, so "never hardcode a fee literal" elsewhere in the codebase is unchecked; a call site that writes `25000` instead of importing `APPLICATION_FEE_CENTS` would not fail this test. Sketch: same call-site literal scan as M-007/M-008, applied to the screening fee cents value.
+- **ADDENDUM_14V step 7 (2026-10-02):** the constants this rule pointed at are retired. The fee is a quote over
+  `searchworx_rates` (`lib/screening/quote.ts`) and the payable row carries its stamp, so the scan's target is now
+  any rand amount at a fee call site, not a `25000`-shaped literal. `bundle-economics.test.ts` became a property
+  test over generated rate tables; it still does not scan call sites.
 - **Covering spec:** NEW
 
 ### M-010 — `no-restricted-syntax` pattern for a hand-rolled debit-order/DebiCheck flow

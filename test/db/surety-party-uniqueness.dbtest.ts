@@ -4,8 +4,8 @@
  *
  * Auth:   service-role client vs LOCAL Supabase (npm run test:db)
  *
- * Notes:  The hazard is a duplicated CHARGE, not a duplicated row. `screeningFeeCents` multiplies
- *         APPLICATION_FEE_CENTS by the surety count, and every surety line also sends a real
+ * Notes:  The hazard is a duplicated CHARGE, not a duplicated row. The quote prices one SA bundle per
+ *         surety (applicationBundle persons = N), and every surety line also sends a real
  *         invitation email to a real portal — so a re-entered declaration step that INSERTs
  *         unconditionally quotes the applicant more money for people who do not exist.
  *

@@ -200,9 +200,9 @@ rule is narrower, and the register says so; those gaps are yours because no rege
   full ID; a screen must mask via `maskIdNumber`. No check inspects JSX for this. **M-016.**
 - **PII in a `console.log`.** No `no-console` rule is configured and nothing inspects argument
   shape. **M-017.**
-- **A fee, tier price or lease cap written as a literal at a CALL SITE** rather than imported from
-  `lib/constants.ts` / `lib/marketing/tiers.ts`. The bundle-economics test asserts price > cost
-  INSIDE the SSOT and never scans call sites. **M-009.**
+- **A fee, tier price or lease cap written as a literal at a CALL SITE** rather than quoted
+  (`lib/screening/quote.ts`), read from a stamp, or imported from `lib/marketing/tiers.ts`. The
+  bundle-economics property test asserts fee > cost and never scans call sites. **M-009.**
 - **A debit-order or DebiCheck mandate flow built out of ordinary Supabase writes**, with no SDK
   import for `no-restricted-imports` to catch. **M-010** — and this one changes what Pleks legally
   is, so it outranks everything else in this list.

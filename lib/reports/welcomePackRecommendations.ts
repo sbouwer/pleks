@@ -69,7 +69,9 @@ function staticFallback(data: WelcomePackData): Recommendation[] {
     priority: "medium",
     title: "Run tenant credit checks",
     body: "No FitScores are on file for any tenant. Running credit checks now establishes a baseline risk profile and surfaces any existing arrears at other properties.",
-    financial_impact: "~R 50 per check via Searchworx",
+    // No rand figure: the screening fee is quoted from the recorded Searchworx rates (ADDENDUM_14V) and this
+    // text is rendered into a stored report, where a number would outlive the rate it came from.
+    financial_impact: "The current screening fee per applicant, via Searchworx",
   })
 
   if (data.compliance.cpa_notices.length > 0) {

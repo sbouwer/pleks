@@ -13,6 +13,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { DetailPageLayout } from "@/components/detail/DetailPageLayout"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { formatZAR } from "@/lib/constants"
+import { quoteApplicationFee } from "@/lib/screening/quote"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { ApplicationTriageList, type TriageApp } from "./ApplicationTriageList"
 import { ListingQuickbar } from "./ListingQuickbar"
@@ -33,7 +34,7 @@ function unwrap<T>(v: T | T[] | null | undefined): T | null {
 
 interface ListingDetail {
   id: string; public_slug: string | null; asking_rent_cents: number; available_from: string | null
-  requirements: string | null; status: string; application_fee_cents: number; views_count: number | null
+  requirements: string | null; status: string; views_count: number | null
   closes_at: string | null; description: string | null; min_income_multiple: number | null; pet_friendly: boolean | null
   units: { unit_number: string; properties: { name: string } | { name: string }[] } | { unit_number: string; properties: { name: string } }[]
 }
@@ -47,7 +48,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   const { data: listingRaw, error: lErr } = await db
     .from("listings")
-    .select("id, public_slug, asking_rent_cents, available_from, requirements, status, application_fee_cents, views_count, closes_at, description, min_income_multiple, pet_friendly, units(unit_number, properties(name))")
+    .select("id, public_slug, asking_rent_cents, available_from, requirements, status, views_count, closes_at, description, min_income_multiple, pet_friendly, units(unit_number, properties(name))")
     .eq("public_slug", slug)
     .eq("org_id", orgId)
     .maybeSingle()
@@ -109,11 +110,15 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const property = unit ? unwrap(unit.properties) : null
   const applyUrl = listing.public_slug ? absoluteUrl(`/apply/${listing.public_slug}`) : null
 
+  // ADDENDUM_14V: listings.application_fee_cents is vestigial — the fee is quoted from the recorded rates and
+  // stamped on the payable application. Display-only here; a refused quote reads as unavailable, never a number.
+  const singleFee = await quoteApplicationFee({ juristic: false, persons: 1 }, "listing-page")
+
   const facts: DetailFact[] = [
     { k: "Rent", v: `${formatZAR(listing.asking_rent_cents)}/mo` },
     { k: "Available", v: listing.available_from ?? "Now" },
     { k: "Closes", v: listing.closes_at ? fmtDateZA(listing.closes_at) : "—" },
-    { k: "Application fee", v: formatZAR(listing.application_fee_cents) },
+    { k: "Screening fee", v: singleFee.ok ? `${formatZAR(singleFee.fee_cents)} single applicant` : "Unavailable" },
     { k: "Views", v: String(listing.views_count ?? 0) },
     { k: "Submitted", v: String(triage.length) },
   ]
