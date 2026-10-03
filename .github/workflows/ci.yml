@@ -162,6 +162,19 @@ jobs:
       - name: Run the DB integration tier
         run: npm run test:db
 
+      # A gateway 502 from the stack (PR #337, 2026-10-03: "An invalid response was received from the
+      # upstream server") said WHAT failed and nothing about WHY. These two containers hold the why —
+      # a PostgREST restart, a pool exhaustion, a dropped keep-alive — and they are gone once the stack
+      # stops. Diagnostic only: it runs on failure and never changes the job's result.
+      - name: Dump PostgREST and Kong logs on failure
+        if: failure()
+        run: |
+          for c in $(docker ps -a --format '{{.Names}}' | grep -E 'supabase_(rest|kong)_'); do
+            echo "::group::$c"
+            docker logs --tail 300 --timestamps "$c" 2>&1 || true
+            echo "::endgroup::"
+          done
+
       # NOW.md item 14d. These categories used to live in a separate `security-scan` job pointed at
       # CI_SUPABASE_* secrets that were never set, so it went green in ~45s having scanned nothing.
       # They run here instead, against the stack this job already booted — no long-lived service-role

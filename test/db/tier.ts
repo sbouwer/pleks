@@ -13,6 +13,7 @@ import { execSync } from "node:child_process"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { addCalendarDays, saDateISO } from "@/lib/dates"
 import { dockerCandidates, resolveDockerFrom } from "./resolve-docker"
+import { gatewayRetryFetch } from "./gateway-retry"
 
 // Resolved once. `docker` is not reliably on PATH on Windows even when the daemon is running —
 // see resolve-docker.ts for why. global-setup.ts was fixed first and this file was NOT, so the
@@ -57,7 +58,8 @@ export function svc(): SupabaseClient {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
+    // Retries only the gateway's 502/503/504 — never a Postgres error. Why, and the limits: gateway-retry.ts.
+    { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: gatewayRetryFetch() } },
   )
 }
 
