@@ -823,6 +823,43 @@ session started after #318 merged, so agent-brief-gate v2 and the batch-2 spines
   CF-5 class recurring on other rows, and CF-5's structural fix closes it: run the estate's own rule
   set over the kit before shipping a `tracked` row.
 
+**Build in arcs, canon `574460f` — adopted 2026-10-03** (handover `docs/handovers/2026-10-03-pleks.md`,
+`d235b18`; every kit byte read with `git -C <canon> show 574460f:<path>`).
+- **Adopted:** `build` v2 · `verify-spec` v2 · `wrap` v2 — canon bytes outside KIT:CONFIG; every v1 region
+  carried by name (build: specs, preflight, nonnegotiables · verify-spec: resolve, instrument, unversioned,
+  ruler, downstream · wrap: gate, push, registers). No region was v1-only or v2-only. Canon may delete the
+  three v1 pins.
+- **Ruled, not carried — `build` · `preflight`:** STALE (1) mid-arc diffs the stamp's anchor against HEAD;
+  staleness from THIS arc's merged PRs only is expected, stated, and cited by commit; any other commit is
+  still a stop. UNRULED (3) mid-arc stops only under (a)–(c), otherwise builds to the tree and records the
+  row under `Decided in build`. Both stay `decision-needed` outside an arc. The region says the exit code
+  cannot tell arc staleness from rot, so `1` opens the question and never answers it.
+- **Ruled, not carried — `verify-spec` · `downstream`:** the same in-arc exception, and the same sentence
+  about the exit code.
+- **`CLAUDE.md` line:** §1, ahead of "Session state" — *"pleks builds in arcs (`dev-standards/playbooks/
+  5-ARCS.md`; ruled `brief/DECISIONS.md` 2026-10-03)…"*, naming (a)–(c), the default, `Decided in build`,
+  the spec freeze and the queue at `brief/build/ARCS.md`.
+- **Census:** re-label confirmed on disk 2026-10-03 — `01`–`05` all classify as EXISTS (wired) /
+  DISCONNECTED / ABSENT; the one surviving `RUNS` is `01`'s re-label note itself. The arc order is Stéan's
+  ruling, not derived from the old labels. Prod evidence: one row so far
+  (`.handoff/auth-user-triggers-1003/01-db-inspector.md`, L2/T2 DISCONNECTED); the screening arc's
+  db-inspector rows come when Arc 1 is walked.
+
+**WITHDRAWN (2026-10-03) — "the `agent-write-scope` probe reads the LIVE manifest" was pleks's defect, not
+canon's.** The two failing cases are in pleks's own `scripts/check-agent-write-scope.mjs`, which builds its
+payloads with `cwd: process.cwd()`, so a leftover `.handoff/write-manifest.json` flipped its two no-manifest
+cases from ask to deny. Canon's v6 kit probe (`.claude/hooks/agent-write-scope.probe.mjs`, installed here)
+builds every manifest case in a temp directory and never had the bug. Canon classified this in its pleks
+handover §5 (`e66a014`) and left pleks the choice: retire the local script, or give it temp directories.
+**Chose the temp directory** for those two cases. The local script keeps cases the kit probe does not carry:
+- the `.claude/handoff` move regression;
+- crawler-doctrine's scope;
+- the commit denial naming its alternative;
+- `.handoff/` being gitignored.
+
+Probed in both directions with a valid manifest planted: the old script failed 2 cases and the new one passes.
+Nothing here is for canon to lift.
+
 **KIT CANDIDATE (not a finding) — scoped commit gate, built 2026-10-02 from canon's handover
 `docs/handovers/2026-10-02-pleks.md` (`88de00a`).** `scripts/check-scope.mjs` plus `pre-commit` →
 `npm run check:scoped`. Push and CI are unchanged. It is not proposed for a kit row yet: canon's kit has
