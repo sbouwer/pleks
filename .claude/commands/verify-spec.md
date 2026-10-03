@@ -2,7 +2,7 @@
 description: Verify a spec's present-tense claims against the code, and stamp the result with the SHA it ran against
 argument-hint: [spec id or path]
 ---
-<!-- @kit verify-spec v1 — tracked OUTSIDE its KIT:CONFIG regions. Edit it in dev-standards and
+<!-- @kit verify-spec v2 — tracked OUTSIDE its KIT:CONFIG regions. Edit it in dev-standards and
      re-adopt; a change outside a region is a fork, and check-kit-drift says so. It restates no
      spine: scripts/check-commands.mjs fails a command that copies one. -->
 
@@ -42,7 +42,7 @@ pipeline: verify-spec · step 1 of 1 · artefact: .handoff/<slug>/01-grounder.md
 
 > **Extract every present-tense assertion the spec makes about this repository's tree** — "the code
 > does X", "`foo.ts` exports `bar`". Include claims made in tables, headers and parentheticals, not
-> only in prose.
+> only in prose. **Live sections only**: prose the spec marks superseded is never verified again.
 >
 > **Exclude every assertion of intent.** "The code *should* do X", "we will add Y" are authored, not
 > observed, and out of scope: *does X* is a claim, *should X* is not. When a sentence is genuinely
@@ -197,8 +197,16 @@ Present the rows, recommend nothing, and wait.
 `/build` checks this block before building from a spec: absent or stale is `decision-needed`, not a
 build.
 
+**In an arc** (playbooks/5-ARCS.md §5) this command runs when the arc opens, and the stamp freezes the
+spec until arc end. Findings and ideas that arrive mid-arc go to the next arc's queue, not into the
+spec, unless they are a live legal or security exposure, a schema change no spec names, or a product
+question with two defensible answers.
+
 <!-- /* KIT:CONFIG downstream — yours: what else here reads the stamp, and the limit of that binding */ -->
 `/build`'s preflight and the `implementer` surface both check the block: absent or stale →
-`decision-needed`. That half binds without the spec author's cooperation, but it is guidance, not a
-gate — nothing forces the check to run. The honest limit is filed as **M-106**.
+`decision-needed` — **except mid-arc**, where a stamp made stale only by this arc's own merged PRs is
+expected and stated with those commits (`/build` step 2). `check-spec-verification.mjs` cannot tell
+arc staleness from rot, so its exit `1` opens that question and never answers it. That half binds
+without the spec author's cooperation, but it is guidance, not a gate — nothing forces the check to
+run. The honest limit is filed as **M-106**.
 <!-- /* KIT:CONFIG /downstream */ -->
