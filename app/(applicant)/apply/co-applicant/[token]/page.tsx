@@ -12,6 +12,8 @@
  *         BUILD_72 P1-R8: once shortlisted (stage2_invited_at) and until they consent, the same link renders the
  *         applicant screening-consent step (CoScreeningConsent) in place of the hub — stage 2 is this person's own
  *         consent to a bureau enquiry, and this link is the only surface they have.
+ *         ADDENDUM_14W §0: once they have consented and until their own line is paid, the link renders their pay step
+ *         (→ the role-agnostic per-line payment page, same token) — each party pays for their own screening.
  */
 import type { ReactNode } from "react"
 import { notFound } from "next/navigation"
@@ -26,6 +28,9 @@ import { buildCoResumeState } from "./buildCoResume"
 import { CoScreeningConsent } from "./CoScreeningConsent"
 import { getServerUser } from "@/lib/auth/server"
 import { fmtDateZA } from "@/lib/dates"
+import { readLine } from "@/lib/screening/lineFee"
+import { ActionButton } from "@/components/ui/actions"
+import Link from "next/link"
 
 type CoListing = {
   public_slug: string | null; asking_rent_cents: number | null; available_from: string | null
@@ -48,6 +53,16 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
   const expired = !!co.access_token_expires && new Date(co.access_token_expires as string) < new Date()
   // Stage 2 is asked for only after the shortlist invite, and only of a party who has finished stage 1.
   const awaitingStage2 = !!co.stage2_invited_at && !co.stage2_consent_given_at && co.stage1_consent_given === true
+  // 14W §0: consent → pay, per line. Once this party has consented, the link's next step is their OWN fee — nobody
+  // pays it for them. A failed line read shows the pay step: the payment page re-reads and redirects a paid line.
+  let awaitingPayment = false
+  if (co.stage2_invited_at && co.stage2_consent_given_at) {
+    const line = await readLine(service, {
+      orgId: co.org_id as string, applicationId: co.primary_application_id as string,
+      subjectType: "co_applicant", subjectId: co.id as string,
+    })
+    awaitingPayment = !(line.ok && line.row?.paid_at)
+  }
 
   // "Started application" signal for the hub: they clicked through their invite link → mark started_at once (until
   // they consent). Fire-and-forget so it never blocks render; the lead's hub poll reads this as "Started application".
@@ -152,6 +167,25 @@ export default async function CoApplicantPage({ params }: Readonly<{ params: Pro
     body = (
       <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
         <CoScreeningConsent token={token} />
+        {agentCard}
+      </div>
+    )
+  } else if (awaitingPayment) {
+    body = (
+      <div className="flex flex-col gap-4 [@media(min-width:1024px)_and_(min-height:700px)]:max-w-2xl">
+        <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-raised)] p-6">
+          <Eyebrow>Screening fee</Eyebrow>
+          <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">Pay for your own screening</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--ink-soft)]">
+            Your consent is recorded. Each party pays for their own screening; yours covers your own credit check,
+            identity and income verification. The screening service commences upon successful payment.
+          </p>
+          <ActionButton asChild tone="primary" className="mt-4">
+            {/* The payment page reads [slug] only to build its own links — the token is the key — so a listing with no
+                public_slug still gets its pay step rather than falling through to the form (walker 14w-s0a F7). */}
+            <Link href={`/apply/${listing?.public_slug || appId}/director-portal/${token}/payment`}>Pay your screening fee →</Link>
+          </ActionButton>
+        </div>
         {agentCard}
       </div>
     )

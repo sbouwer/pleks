@@ -9,6 +9,7 @@ import { ApplicantLegalFooter } from "@/lib/comms/templates/ApplicantLegalFooter
 import { sendEmail } from "@/lib/comms/send-email"
 import { formatZAR, SCREENING_WINDOW_DAYS } from "@/lib/constants"
 import { quoteApplicationFee } from "@/lib/screening/quote"
+import { bundleFor } from "@/lib/screening/lineFee"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { fmtDateLongZA } from "@/lib/dates"
@@ -16,14 +17,14 @@ import { fmtDateLongZA } from "@/lib/dates"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
 /**
- * The fee quoted to an applicant — the ADDENDUM_14V formula over recorded rates, and JOINT-AWARE. A single
- * module constant once quoted R250 to everyone while the form charged a joint applicant R470. `isJoint` is
- * deliberately REQUIRED: an optional flag would default to the single fee and reproduce that silent mis-quote.
- * Display-only: the fee is stamped when the payment form is first built, not when this email is sent. With no
- * rate there is no number — the sentence says the fee is shown before payment rather than inventing one.
+ * The fee quoted to the shortlisted applicant — the ADDENDUM_14V formula over recorded rates, for THEIR OWN line.
+ * Under 14W §0 every party pays for their own screening, so a joint application no longer quotes the lead for two
+ * (walker 14w-s0a F3); a co party sees their own fee on their own link. Display-only: the fee is stamped when the
+ * payment form is first built, not when this email is sent. With no rate there is no number — the sentence says
+ * the fee is shown before payment rather than inventing one.
  */
-async function screeningFeeDisplay(isJoint: boolean): Promise<string> {
-  const q = await quoteApplicationFee({ juristic: false, persons: isJoint ? 2 : 1 }, "shortlist-email")
+async function screeningFeeDisplay(): Promise<string> {
+  const q = await quoteApplicationFee(bundleFor("applicant"), "shortlist-email")
   return q.ok ? `A screening fee of ${formatZAR(q.fee_cents)}` : "A screening fee, shown to you before you pay"
 }
 
@@ -321,10 +322,10 @@ export async function sendShortlistInvitation(
   app: ApplicationSummary,
   listing: ListingSummary,
   org: OrgContext,
-  opts: { inviteToken: string; isJoint: boolean }
+  opts: { inviteToken: string }
 ) {
   const inviteLink = absoluteUrl(`/apply/invite/${opts.inviteToken}`)
-  const feeLine = await screeningFeeDisplay(opts.isJoint)
+  const feeLine = await screeningFeeDisplay()
 
   return sendEmail({
     orgId: org.orgId,

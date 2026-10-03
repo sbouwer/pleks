@@ -127,7 +127,7 @@ async function handler(_req: NextRequest): Promise<Response> {
     if (!ctx) continue
 
     trackSend(sends, `application-reminders stage2 ${app.id}`,
-      sendShortlistInvitation(ctx.appSummary, ctx.listingSummary, ctx.orgContext, { inviteToken: tok.token, isJoint: ctx.isJoint }))
+      sendShortlistInvitation(ctx.appSummary, ctx.listingSummary, ctx.orgContext, { inviteToken: tok.token }))
 
     await service.from("applications")
       .update({ stage2_reminder_sent_at: now.toISOString() })

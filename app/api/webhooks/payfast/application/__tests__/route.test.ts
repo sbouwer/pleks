@@ -1,16 +1,15 @@
 /**
- * app/api/webhooks/payfast/application/__tests__/route.test.ts — the application ITN accepts a payment only for the party set it priced (ADDENDUM_14V §3.5a/b)
+ * app/api/webhooks/payfast/application/__tests__/route.test.ts — the application ITN pays the lead's OWN line, against its own stamp (ADDENDUM_14W §0)
  *
- * Notes:  Against fakeRateDb, signature validation, email and audit stubbed. Both directions: a payment whose live
- *         set still matches priced_party_count / priced_entity is marked paid; one where a party joined after the
- *         quote (the stamp priced one person, two are live) is refused as party_set_changed and NOT marked paid —
- *         never re-split over the new count, which is the F1 hole this closes. A stamp that recorded no set fails
- *         closed the same way.
- *         BUILD_72 P1-R8a/R8b: a paid application writes one application_screening_payments row per subject priced,
- *         born paid — `applicant` for a residential lead (never `company`), `co_applicant` per live co row — and the
- *         rows sum exactly to what was paid.
+ * Notes:  Against fakeRateDb, signature validation, email and audit stubbed. The payment is ONE line — `applicant` for a
+ *         residential lead (never `company`), `company` for a juristic one — checked against that line's stamped fee
+ *         and marked paid IN PLACE: fee_cents untouched (the immutability trigger's column), no other party's row
+ *         written, nothing split. Both directions on every refusal: underpaid, no stamped line (fail closed),
+ *         duplicate delivery, a lookup failure. A paid line without the lead's consent is recorded and flagged, and
+ *         the runner's own ready_to_run gate is what keeps it from running.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import * as Sentry from "@sentry/nextjs"
 import { fakeRateDb, type Row } from "@/lib/searchworx/rates/__tests__/fakeRateDb"
 
 let fake = fakeRateDb()
@@ -32,14 +31,15 @@ const application = (over: Row = {}): Row => ({
   company_info: null,
   fee_status: "pending",
   fee_paid_at: null,
-  fee_amount_cents: 32500,
-  pricing_policy_version: "v1-test",
-  priced_party_count: 1,
-  priced_entity: false,
+  stage2_consent_given_at: "2026-10-01T09:00:00Z",
   ...over,
 })
+const COMPANY = { entity_type: "organisation", applicant_type: "company", company_info: { companyType: "pty_ltd" } }
 
-const coRow = (id: string): Row => ({ id, org_id: "org-1", primary_application_id: "app-1", declined_at: null })
+const line = (over: Row = {}): Row => ({
+  id: "line-1", org_id: "org-1", application_id: "app-1", subject_type: "applicant", subject_id: "app-1",
+  fee_cents: 32500, pricing_policy_version: "v1-test", paid_at: null, ...over,
+})
 
 const itn = (amount = "325.00") =>
   POST(new Request("https://x/api/webhooks/payfast/application", {
@@ -47,84 +47,102 @@ const itn = (amount = "325.00") =>
     body: new URLSearchParams({ payment_status: "COMPLETE", custom_str1: "app-1", amount_gross: amount, pf_payment_id: "pf-1" }).toString(),
   }))
 
-const row = () => fake.tables.applications[0]
+const app = () => fake.tables.applications[0]
+const lines = () => fake.tables.application_screening_payments
 
-beforeEach(() => {
-  fake = fakeRateDb({ applications: [application()], application_co_applicants: [] })
+function seed(a: Row = application(), ls: Row[] = [line()]) {
+  fake = fakeRateDb({ applications: [a], application_screening_payments: ls, application_co_applicants: [] })
+}
+
+beforeEach(() => { seed(); vi.mocked(Sentry.captureMessage).mockClear() })
+
+describe("application ITN — the lead's own line", () => {
+  it("KNOWN-GOOD: the stamped amount → the line is marked paid in place and the application moves on", async () => {
+    expect(await (await itn()).json()).toMatchObject({ ok: true })
+    expect(lines()).toEqual([expect.objectContaining({ id: "line-1", fee_cents: 32500, paid_at: expect.any(String), payfast_transaction_id: "pf-1" })])
+    expect(app()).toMatchObject({ fee_status: "paid", stage2_status: "screening_in_progress", searchworx_check_status: "pending", payfast_payment_id: "pf-1", fee_amount_cents: 32500 })
+  })
+
+  it("a juristic lead pays the COMPANY line — never an `applicant` line", async () => {
+    seed(application(COMPANY), [line({ subject_type: "company" })])
+    expect(await (await itn()).json()).toMatchObject({ ok: true })
+    expect(lines()).toHaveLength(1)
+    expect(lines()[0]).toMatchObject({ subject_type: "company", paid_at: expect.any(String) })
+  })
+
+  it("writes no other party's row — a co's unpaid line is left exactly as it was", async () => {
+    const co = line({ id: "line-co", subject_type: "co_applicant", subject_id: "co-1", fee_cents: 32500 })
+    seed(application(), [line(), co])
+    expect(await (await itn()).json()).toMatchObject({ ok: true })
+    expect(lines().find((l) => l.id === "line-co")).toEqual(co)
+  })
+
+  it("OVERPAID: accepted, flagged, and the line keeps its quoted fee", async () => {
+    expect(await (await itn("400.00")).json()).toMatchObject({ ok: true })
+    expect(lines()[0]).toMatchObject({ fee_cents: 32500, paid_at: expect.any(String) })
+    expect(vi.mocked(Sentry.captureMessage).mock.calls.some(([, o]) => (o as { tags: { reason: string } }).tags.reason === "overpaid")).toBe(true)
+  })
 })
 
-const payments = () => fake.tables.application_screening_payments ?? []
-
-describe("application ITN — the party set the stamp priced (§3.5a/b)", () => {
-  it("KNOWN-GOOD: the live set matches the stamp → marked paid", async () => {
-    const res = await itn()
-    expect(await res.json()).toMatchObject({ ok: true })
-    expect(row()).toMatchObject({ fee_status: "paid", stage2_status: "screening_in_progress" })
+describe("application ITN — refusals fail closed", () => {
+  it("PLANTED: underpaid → NOT marked paid, application untouched", async () => {
+    expect(await (await itn("100.00")).json()).toMatchObject({ ok: false, reason: "amount_mismatch_underpaid" })
+    expect(lines()[0].paid_at).toBeNull()
+    expect(app()).toMatchObject({ fee_status: "pending", fee_paid_at: null })
   })
 
-  it("KNOWN-GOOD: a joint application priced for two, with one live co row → marked paid", async () => {
-    fake = fakeRateDb({ applications: [application({ priced_party_count: 2 })], application_co_applicants: [coRow("co-1")] })
-    expect(await (await itn()).json()).toMatchObject({ ok: true })
-    expect(row().fee_status).toBe("paid")
+  it("PLANTED: no stamped line (incl. a pooled form opened before §0) → no_quoted_fee, nothing written", async () => {
+    seed(application(), [])
+    expect(await (await itn()).json()).toMatchObject({ ok: false, reason: "no_quoted_fee" })
+    expect(lines()).toEqual([])
+    expect(app().fee_status).toBe("pending")
   })
 
-  it("PLANTED: a party joined after the quote → party_set_changed, NOT marked paid, never re-split", async () => {
-    fake.tables.application_co_applicants.push(coRow("co-late"))
-    expect(await (await itn()).json()).toMatchObject({ ok: false, reason: "party_set_changed" })
-    expect(row()).toMatchObject({ fee_status: "pending", fee_paid_at: null })
+  it("PLANTED: an UNSTAMPED line row is no quote either", async () => {
+    seed(application(), [line({ pricing_policy_version: null })])
+    expect(await (await itn()).json()).toMatchObject({ ok: false, reason: "no_quoted_fee" })
+    expect(lines()[0].paid_at).toBeNull()
   })
 
-  it("PLANTED: a stamp that recorded no party set fails closed", async () => {
-    fake = fakeRateDb({ applications: [application({ priced_party_count: null, priced_entity: null })], application_co_applicants: [] })
-    expect(await (await itn()).json()).toMatchObject({ ok: false, reason: "party_set_changed" })
-    expect(row().fee_status).toBe("pending")
+  it("PLANTED: a missing application → application_not_found", async () => {
+    fake = fakeRateDb({ applications: [], application_screening_payments: [line()] })
+    expect(await (await itn()).json()).toMatchObject({ ok: false, reason: "application_not_found" })
+    expect(lines()[0].paid_at).toBeNull()
   })
 
-  it("a declined co row is not part of the set", async () => {
-    fake.tables.application_co_applicants.push({ ...coRow("co-gone"), declined_at: "2026-10-01T00:00:00Z" })
-    expect(await (await itn()).json()).toMatchObject({ ok: true })
+  it("PLANTED: an unparseable amount is never read as 0 or NaN", async () => {
+    expect(await (await itn("abc")).json()).toMatchObject({ ok: false, reason: "unparseable_amount" })
+    expect(lines()[0].paid_at).toBeNull()
+  })
+
+  it("a DUPLICATE delivery after the line is paid changes nothing and re-arms nothing", async () => {
+    seed(application({ fee_status: "paid", searchworx_check_status: "complete" }), [line({ paid_at: "2026-10-01T10:00:00Z", payfast_transaction_id: "pf-0" })])
+    expect(await (await itn()).json()).toMatchObject({ ok: true, duplicate: true })
+    expect(lines()[0]).toMatchObject({ payfast_transaction_id: "pf-0" })
+    expect(app().searchworx_check_status).toBe("complete")
+  })
+
+  it("a DUPLICATE caught by the LINE alone (application not yet marked) changes nothing", async () => {
+    seed(application(), [line({ paid_at: "2026-10-01T10:00:00Z", payfast_transaction_id: "pf-0" })])
+    expect(await (await itn()).json()).toMatchObject({ ok: true, duplicate: true })
+    expect(lines()[0]).toMatchObject({ payfast_transaction_id: "pf-0" })
+    expect(app()).toMatchObject({ fee_status: "pending", fee_paid_at: null })
   })
 })
 
-describe("application ITN — one payment row per natural person priced (BUILD_72 P1-R8a/R8b)", () => {
-  it("a single residential applicant → ONE 'applicant' row keyed to the application, born paid, for the whole fee", async () => {
+describe("application ITN — the display copy", () => {
+  it("an application carrying a pre-§0 stamp is marked paid WITHOUT fee_amount_cents (the immutability trigger refuses it)", async () => {
+    seed(application({ pricing_policy_version: "v0-pooled", fee_amount_cents: 47000 }))
     expect(await (await itn()).json()).toMatchObject({ ok: true })
-    expect(payments()).toEqual([expect.objectContaining({
-      application_id: "app-1", subject_type: "applicant", subject_id: "app-1", fee_cents: 32500, paid_at: expect.any(String),
-    })])
+    expect(app()).toMatchObject({ fee_status: "paid", fee_amount_cents: 47000, stage2_status: "screening_in_progress" })
   })
+})
 
-  it("a residential joint application → an 'applicant' row AND a 'co_applicant' row — no longer juristic-only", async () => {
-    fake = fakeRateDb({ applications: [application({ priced_party_count: 2 })], application_co_applicants: [coRow("co-1")] })
+describe("application ITN — consent belt", () => {
+  it("a paid line without the lead's consent is recorded and flagged paid_pending_consent", async () => {
+    seed(application({ stage2_consent_given_at: null }))
     expect(await (await itn()).json()).toMatchObject({ ok: true })
-    expect(payments().map((p) => [p.subject_type, p.subject_id])).toEqual([["applicant", "app-1"], ["co_applicant", "co-1"]])
-    expect(payments().every((p) => typeof p.paid_at === "string")).toBe(true)
-  })
-
-  it("the rows sum EXACTLY to the amount paid — an odd cent is never rounded away or invented", async () => {
-    fake = fakeRateDb({ applications: [application({ priced_party_count: 3, fee_amount_cents: 32501 })], application_co_applicants: [coRow("co-1"), coRow("co-2")] })
-    expect(await (await itn("325.01")).json()).toMatchObject({ ok: true })
-    const cents = payments().map((p) => p.fee_cents as number)
-    expect(cents.reduce((a, b) => a + b, 0)).toBe(32501)
-    expect(Math.max(...cents) - Math.min(...cents)).toBeLessThanOrEqual(1)
-  })
-
-  it("PLANTED (walker F5): a row a party already PAID on its own is never overwritten; the rest are still written", async () => {
-    const own = { org_id: "org-1", application_id: "app-1", subject_type: "co_applicant", subject_id: "co-1",
-      fee_cents: 9999, paid_at: "2026-10-01T00:00:00Z", payfast_transaction_id: "pf-director" }
-    fake = fakeRateDb({
-      applications: [application({ priced_party_count: 2 })],
-      application_co_applicants: [coRow("co-1")],
-      application_screening_payments: [own],
-    })
-    expect(await (await itn()).json()).toMatchObject({ ok: true })
-    expect(payments().find((p) => p.subject_id === "co-1")).toMatchObject({ fee_cents: 9999, payfast_transaction_id: "pf-director" })
-    expect(payments().find((p) => p.subject_type === "applicant")).toMatchObject({ paid_at: expect.any(String), payfast_transaction_id: "pf-1" })
-  })
-
-  it("PLANTED: a refused payment (party set changed) writes NO payment rows", async () => {
-    fake.tables.application_co_applicants.push(coRow("co-late"))
-    expect(await (await itn()).json()).toMatchObject({ ok: false, reason: "party_set_changed" })
-    expect(payments()).toEqual([])
+    expect(lines()[0].paid_at).toEqual(expect.any(String))
+    expect(vi.mocked(Sentry.captureMessage).mock.calls.some(([, o]) => (o as { tags: { reason: string } }).tags.reason === "paid_pending_consent")).toBe(true)
   })
 })

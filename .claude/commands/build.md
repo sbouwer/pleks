@@ -2,7 +2,7 @@
 description: Implement a spec — preflight, ground first, phase by phase, walk-ready
 argument-hint: [spec id or path]
 ---
-<!-- @kit build v1 — tracked OUTSIDE its KIT:CONFIG regions. Edit it in dev-standards and re-adopt;
+<!-- @kit build v2 — tracked OUTSIDE its KIT:CONFIG regions. Edit it in dev-standards and re-adopt;
      a change outside a region is a fork, and check-kit-drift says so. It restates no spine:
      scripts/check-commands.mjs fails a command that copies one. -->
 
@@ -21,15 +21,23 @@ does not. Pick one slug for the build and keep it for every spawn.
 2. **Preflight.** A spec's present-tense claims about the tree are observations, and they rot. If
    this project stamps its specs, check the stamp before grounding. A failing preflight is
    `decision-needed` naming the spec and what failed — never a build, and never a verification run
-   as a side quest.
+   as a side quest. **In an arc** (playbooks/5-ARCS.md §5) the stamp is checked when the arc opens:
+   a stamp made stale only by this arc's own merged PRs is expected, and you say so, citing the
+   commits that moved the files. Staleness from any other commit is still a stop.
 
    <!-- /* KIT:CONFIG preflight — yours: the check a spec must pass first, and what each exit means */ -->
    `node scripts/check-spec-verification.mjs <spec path>`:
    - **FRESH (0)** → build. The confirmed rows are load-bearing facts you may rely on.
-   - **STALE (1) / UNVERIFIED (2)** → `decision-needed`, naming the spec and the exit; offer
-     `/verify-spec <spec>` as the unblocking action and wait.
-   - **UNRULED (3)** → `decision-needed`: refutations await Stéan's ruling, and only one of the four
-     dispositions is "the spec is wrong" (`/verify-spec` §5).
+   - **STALE (1)** → outside an arc, `decision-needed`, naming the spec; offer `/verify-spec <spec>`
+     and wait. **Mid-arc**, first diff the stamp's anchor against HEAD: if every commit that moved a
+     verified file is one of THIS arc's merged PRs, it is expected — say so, cite those commits, build.
+     Any other commit moving a verified file is still a stop. **The exit code cannot tell the two
+     apart** (5-ARCS §5) — `1` is the start of the question, never its verdict.
+   - **UNVERIFIED (2)** → `decision-needed`, naming the spec; offer `/verify-spec <spec>` and wait.
+   - **UNRULED (3)** → outside an arc, `decision-needed`: refutations await Stéan's ruling, and only
+     one of the four dispositions is "the spec is wrong" (`/verify-spec` §5). **Mid-arc**, an unruled
+     refutation stops the build only under (a)–(c) (step 6); otherwise build to the TREE, not the
+     refuted claim, and record the row and what you did under `Decided in build`.
 
    This fires without the spec author's cooperation — a thin grounding pass looks identical to a
    thorough one until the build extends machinery that isn't there. Guidance, not a gate (M-106).
@@ -69,8 +77,16 @@ does not. Pick one slug for the build and keep it for every spawn.
    <the transform · the scope, matching the manifest · inputs: .handoff/<slug>/01-grounder.md §<the sections that bear on this phase>>
    ```
 
-6. **Deviations are allowed, never silent.** Each goes in the report with its reason; the spec's
-   author decides whether it stands. A deviation forced by a refuted claim in the spec is theirs to
-   settle too: `decision-needed`.
+6. **Decide what a build can decide, and write it down.** Every call made without asking — a name,
+   a table, a test's shape, a retry level, metadata against a column, a deviation from the spec —
+   goes under a **`Decided in build`** section of the PR body, with its reason. The spec's author
+   reviews them; a wrong one becomes a follow-up. A PR that decided nothing says so.
 
-7. **Finish with `/walk`** — step 3 of 3, same slug — **then `/wrap`.**
+   **Stop only for one of three, and state a default:** (a) a live legal or security exposure,
+   (b) a schema change no spec names, (c) a product question with two defensible one-line answers.
+   That is `decision-needed`, naming the condition and the default you would take. A refuted claim
+   in the spec is a stop only when it meets one of the three; otherwise build to what the tree
+   shows and record the refutation under `Decided in build`.
+
+7. **Finish with `/walk`** — step 3 of 3, same slug — **then `/wrap`.** In an arc the owner merges
+   on the walker's review alone; the owner's own walk is of the journey, at arc end.
