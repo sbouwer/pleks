@@ -9,7 +9,7 @@
  *         WITH org branding/salutation/standard footer like the residential application emails.
  *         Every sentence here is counsel-approved verbatim (brief/legal/COUNSEL_APPROVED_SCREENING_COMMS_2026-10-03.md);
  *         a diff against that file is the review. commercial-emails.test.ts holds the forbidden phrases out. The
- *         invite's proceed sentence and bullet 1 are returned to counsel and absent until approved (COUNSEL-PENDING).
+ *         invite's proceed sentence and bullet 1 are the per-person who-pays text (14W §0), ruled in the counsel pack §8.
  */
 
 import { EmailLayout, EmailButton } from "@/lib/comms/templates/layout"
@@ -35,6 +35,10 @@ export const SURETY_ROLE_SENTENCES: Readonly<Record<SuretyInviteRole, string>> =
   member: "You are listed as a member of the close corporation who may be signing a personal suretyship in connection with its lease.",
 }
 
+/** Who pays, per person (14W §0) — approved-comms §1 proceed sentence and bullet 1, as ruled in the counsel pack §8. */
+export const SURETY_PROCEED_SENTENCE = "Before the application can proceed, you need to complete your part — your consent, payment of the screening fee for your own check, and your document upload."
+export const SURETY_FEE_BULLET = "You will pay the screening fee for your own check (covers credit check, ID verification and income verification)."
+
 /** The one surety invite (§1). `ttlDays` is the shared screening window, SCREENING_WINDOW_DAYS. */
 export function buildDirectorInviteElement(p: Readonly<{
   role: SuretyInviteRole
@@ -50,16 +54,16 @@ export function buildDirectorInviteElement(p: Readonly<{
     <EmailLayout preview={`${p.primaryContactName}'s application — your portion to complete`} branding={p.branding}>
       <p style={S.greeting}>Hi {p.directorFirstName},</p>
       <p style={S.body}>{p.primaryContactName} has submitted an application on behalf of their business to lease <strong>{p.propertyLabel}</strong>{p.propertyAddress ? ` (${p.propertyAddress})` : ""}.</p>
-      {/* ⚠ COUNSEL-PENDING: the proceed sentence and bullet 1 are RETURNED TO COUNSEL (2026-10-03 — 14W §0 reversed the
-          payment model the same day: each person pays for their own check). Neither ships until counsel returns them:
-          the approved "the lead applicant will pay" is now false, and the proposed replacements are unapproved. The
-          rest of the invite is approved and ships; the fee is shown on the link page before payment. */}
-      <p style={S.body}>{SURETY_ROLE_SENTENCES[p.role]}</p>
+      {/* The proceed sentence and bullet 1 state who pays — per person under 14W §0 (2026-10-03). A who-pays correction
+          is a fact, not a legal representation, so it ships without returning to counsel (Stéan, recorded in the
+          counsel pack §8). Bullet 1 lists no rental history: no TPN check runs (pack §5.1). */}
+      <p style={S.body}>{SURETY_ROLE_SENTENCES[p.role]} {SURETY_PROCEED_SENTENCE}</p>
       <p style={S.body}>This takes about 10 minutes. Your private link:</p>
       <EmailButton href={p.portalUrl} accentColor={p.branding.accentColor}>Complete my portion →</EmailButton>
       <p style={S.body}>This link expires in {p.ttlDays} days.</p>
       <div style={S.notice}>
         <strong>A few things to know:</strong><br />
+        • {SURETY_FEE_BULLET}<br />
         • You will need to upload a recent bank statement (3 months) and your ID document<br />
         • Your screening results will be shared with the leasing agent. You will also receive a copy of your own screening report when complete.<br />
         • You are consenting to processing of your personal information under POPIA. Full details on the link page.
