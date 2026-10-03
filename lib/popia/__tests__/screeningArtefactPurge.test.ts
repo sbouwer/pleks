@@ -69,6 +69,14 @@ describe("isScreeningArtefactPurgeable — the 90-day IRREVERSIBLE guard", () =>
     expect(isScreeningArtefactPurgeable(row({ stage1_status: "not_shortlisted", prescreened_at: longAgo }), NOW)).toBe(true)
   })
 
+  // Counsel Q10 (2026-10-03): a held invite does not extend retention. Adding a held surety to the roster writes the
+  // co row and bumps applications.updated_at (the roster's counters); it never writes reviewed_at / prescreened_at,
+  // which are the clock. A recent updated_at beside an old terminal date must not hold the purge back.
+  it("Q10: a held invite's recent updated_at does not move the retention clock", () => {
+    expect(isScreeningArtefactPurgeable(row({ stage2_status: "declined", reviewed_at: longAgo, updated_at: recent }), NOW)).toBe(true)
+    expect(isScreeningArtefactPurgeable(row({ stage1_status: "not_shortlisted", prescreened_at: longAgo, updated_at: recent }), NOW)).toBe(true)
+  })
+
   it("does NOT purge before 90 days have passed", () => {
     expect(isScreeningArtefactPurgeable(row({ stage2_status: "declined", reviewed_at: recent }), NOW)).toBe(false)
   })

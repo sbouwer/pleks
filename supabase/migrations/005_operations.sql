@@ -2345,6 +2345,29 @@ COMMENT ON COLUMN public.applications.current_screening_run_id IS
 -- §28.4  BUILD_14_AMENDMENT_14H_V2: applicant read access to bureau PDFs, NOT FitScore document
 -- Path: {orgId}/{applicationId}/{productKey}/{token}-{kind}.{ext} — foldername[2] = applicationId.
 -- applicant = tenant without a lease; link is applications.tenant_id → tenants.auth_user_id.
+-- BUILD_72 counsel Q7 (2026-10-03): the lead reads ONLY the lead's own reports — never a co-applicant's or a
+-- surety's. The path has no subject segment, so the subject comes from the line that owns the object. A tenant
+-- cannot read application_screening_lines under its org-scoped RLS, hence the definer helper. Its subject set is
+-- LEAD_REPORT_SUBJECTS in lib/screening/leadReports.ts — change both together. plpgsql, so the body (which names a
+-- table created below) is not validated at create time.
+CREATE OR REPLACE FUNCTION public.is_lead_report_object(p_name text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.application_screening_lines l
+    WHERE l.pdf_storage_path = p_name
+      AND l.subject_type IN ('applicant', 'company')
+  );
+END;
+$$;
+REVOKE ALL ON FUNCTION public.is_lead_report_object(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_lead_report_object(text) TO authenticated;
+
 DO $wrap$ BEGIN
 DROP POLICY IF EXISTS "Applicants can read their own bureau PDFs (not FitScore)" ON storage.objects;
 CREATE POLICY "Applicants can read their own bureau PDFs (not FitScore)"
@@ -2358,6 +2381,7 @@ CREATE POLICY "Applicants can read their own bureau PDFs (not FitScore)"
       WHERE t.auth_user_id = (SELECT auth.uid())
     )
     AND name NOT LIKE '%/fitscore-%'
+    AND public.is_lead_report_object(name)
   );
 EXCEPTION WHEN insufficient_privilege THEN
   RAISE NOTICE 'pleks: storage policy skipped locally (needs storage_admin owner); applies on hosted';
