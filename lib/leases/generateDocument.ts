@@ -270,12 +270,16 @@ export async function generateLeaseDocument(
   const fileName = previewOnly ? "lease_preview.docx" : "lease_draft.docx"
   const storagePath = `orgs/${orgId}/leases/${leaseId}/${fileName}`
 
-  await supabase.storage
+  // The path is persisted below and every reader (checkPrerequisites, sendForSigning, the download route) treats a
+  // non-null generated_doc_path as proof the file exists — so a failed upload must stop here, before that write.
+  // Until 2026-10-03 the result was discarded and the path written regardless (walkability census B5).
+  const { error: uploadError } = await supabase.storage
     .from("documents")
     .upload(storagePath, docxBuffer, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       upsert: true,
     })
+  if (uploadError) throw new Error(`Lease document upload failed: ${uploadError.message}`)
 
   if (!previewOnly) {
     await supabase

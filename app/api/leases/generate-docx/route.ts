@@ -25,13 +25,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "leaseId required" }, { status: 400 })
   }
 
-  const result = await generateLeaseDocument(leaseId, orgId, preview === true)
+  let result: Awaited<ReturnType<typeof generateLeaseDocument>>
+  try {
+    result = await generateLeaseDocument(leaseId, orgId, preview === true)
+  } catch (err) {
+    console.error("generate-docx: generation failed for lease", leaseId, err)
+    return NextResponse.json({ error: "Could not generate the lease document" }, { status: 500 })
+  }
 
-  // Get a signed download URL
+  // Signed download URL, 1 hour. The document IS generated and stored by now (the generator throws otherwise), so a
+  // sign failure is not a generation failure: answer ok with a null link rather than tell the agent it failed.
   const { data: signedUrl, error: signedUrlError } = await db.storage
     .from("documents")
     .createSignedUrl(result.storagePath, 3600)
-    logQueryError("POST documents", signedUrlError) // 1 hour
+  logQueryError("POST documents", signedUrlError)
 
   return NextResponse.json({
     ok: true,

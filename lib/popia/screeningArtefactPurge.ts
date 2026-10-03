@@ -7,7 +7,8 @@
  *         — column strip of ALL declined PII (identity + financial + derived), DERIVED from the erasure plan
  *         (DECLINED_APPLICANT_STRIP_GROUPS) so it can't drift; plus application_screening_lines,
  *         application_bank_statement_classifications, application_prescreens, screening_artifacts — whole-row
- *         deletes + their Storage objects (screening-reports, bank-statements, identity-docs, application-docs).
+ *         deletes + their Storage objects (screening-reports, application-docs). `bank-statements` and
+ *         `identity-docs` were named here until 2026-10-03; neither bucket exists (no migration, not on prod).
  *         NB: consent_verifications is HELD out of the AUTO purge pending counsel (AUTO_PURGE_EXCLUDED_TABLES);
  *         the DSAR erasure path still strips it.
  * Notes:  SINGLE 90-day retention tier (ADDENDUM_70H F3 — reworked from a two-tier draft, and folding in
@@ -193,7 +194,7 @@ async function removeStorageObjects(
  * depth — never trust the caller's filter). Returns true iff it purged (false = guard rejected / no-op).
  *
  * Order: (1) re-assert guard, (2) delete Storage files referenced by each delete-table, (3) whole-row delete
- * those tables, (4) remove the raw bank statement + identity-docs Storage, (4b) remove guarantor-agreement
+ * those tables, (4) [retired — phantom buckets], (4b) remove guarantor-agreement
  * files (application-docs), (4c) remove every uploaded document under the application-docs prefix, (5) strip ALL declined PII columns across the application + its identity/contact
  * child tables (plan-derived strip groups, shared stripGroup engine; ANY group erroring aborts before the
  * latch — V4), (6) stamp pii_purged_at (only after the strip provably ran), (7) one audit row.
@@ -228,18 +229,9 @@ export async function purgeApplicationScreeningArtefacts(
     logQueryError(`purgeApplicationScreeningArtefacts delete ${t.table}`, delErr)
   }
 
-  // (4) the raw Stage-1 bank statement file (bank-statements) + identity docs (identity-docs). The
-  // identity-docs path convention is `${org_id}/${application_id}` (folded from the retired OrgRule).
-  const { data: appFile, error: appFileErr } = await db
-    .from("applications")
-    .select("bank_statement_path")
-    .eq("id", applicationId)
-    .eq("org_id", orgId)
-    .maybeSingle()
-  logQueryError("purgeApplicationScreeningArtefacts applications bank_statement_path", appFileErr)
-  const bankStatementPath = typeof appFile?.bank_statement_path === "string" ? appFile.bank_statement_path : null
-  await removeStorageObjects(db, "bank-statements", [bankStatementPath])
-  await removeStorageObjects(db, "identity-docs", [`${orgId}/${applicationId}`])
+  // (4) RETIRED 2026-10-03: this removed `bank_statement_path` from `bank-statements` and `${org}/${app}` from
+  // `identity-docs`. Neither bucket exists (no migration, not on prod), and `bank_statement_path` — when set at all —
+  // is an application-docs path. The statement and the ID document are removed with the whole prefix in (4c).
 
   // (4b) the declined application's guarantor-agreement PDF(s) (identity + signature) → application-docs
   // bucket (the application-document bucket, app/api/applications/[id]/documents/upload). The column is
@@ -311,7 +303,7 @@ export async function purgeApplicationScreeningArtefacts(
       tier: "declined_90d",
       deleted_tables: DECLINED_APPLICANT_DELETE_TABLES.map((t) => t.table),
       stripped_groups: DECLINED_APPLICANT_STRIP_GROUPS.map((g) => ({ table: g.table, fields: Object.keys(g.fields) })),
-      storage_buckets: ["screening-reports", "bank-statements", "identity-docs", "application-docs"],
+      storage_buckets: ["screening-reports", "application-docs"],
     },
   })
 

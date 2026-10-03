@@ -9,6 +9,7 @@
  *         a caller-supplied route param so the leases update is org-scoped by gw.orgId.
  */
 import { NextRequest, NextResponse } from "next/server"
+import { UPLOAD_MAX_BYTES, UPLOAD_MAX_LABEL } from "@/lib/constants"
 import { gateway } from "@/lib/supabase/gateway"
 import { recordAudit } from "@/lib/audit/recordAudit"
 
@@ -29,9 +30,9 @@ export async function POST(
     return NextResponse.json({ error: "No file provided" }, { status: 400 })
   }
 
-  // Validate size (20MB)
-  if (file.size > 20 * 1024 * 1024) {
-    return NextResponse.json({ error: "File must be under 20MB" }, { status: 400 })
+  // Validate size — Vercel refuses a larger body before this runs, so the guard states the limit that applies.
+  if (file.size > UPLOAD_MAX_BYTES) {
+    return NextResponse.json({ error: `File must be under ${UPLOAD_MAX_LABEL}` }, { status: 400 })
   }
 
   // Validate type

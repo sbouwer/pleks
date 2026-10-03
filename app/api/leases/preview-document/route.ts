@@ -27,7 +27,13 @@ export async function GET(req: NextRequest) {
   const rawLeaseType = req.nextUrl.searchParams.get("leaseType") ?? "residential"
   const leaseType = rawLeaseType === "commercial" ? "commercial" : "residential"
 
-  const { storagePath } = await generateSampleLeaseDocument(orgId, leaseType)
+  let storagePath: string
+  try {
+    ({ storagePath } = await generateSampleLeaseDocument(orgId, leaseType))
+  } catch (err) {
+    console.error("preview-document: sample generation failed for org", orgId, err)
+    return NextResponse.json({ error: "Could not generate the sample" }, { status: 500 })
+  }
 
   // Short-lived signed URL — sample files are temporary
   const { data: signed, error: signErr } = await db.storage
