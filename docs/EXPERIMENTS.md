@@ -2796,3 +2796,20 @@ Both are inside the prediction. One week of real commits is still the result.
 **Review after 30 commits (CD, 2026-10-02).** The count of "passed scoped, failed full at pre-push" IS
 the scope map's error rate, so pre-push keeps the full chain: CD's stamp-skip at pre-push was ruled out
 (canon brief stands), because it would have hidden exactly the commits this row counts. CF-16.
+
+## E19 · Does one PR open at a time, armed to auto-merge, cut open-to-merge time without a red `main`? — **OPEN: arc 1, from 2026-10-03**
+
+**Change (Stéan, 2026-10-03, canon handover `2026-10-03-pleks-pr-flow.md` at `53aec5d`):** one PR open at a
+time; `gh pr merge <n> --auto --squash` once walked, except a PR carrying migration SQL; one PR per arc step;
+commit per phase. Rule in `CLAUDE.md` §1. Kept apart from E18, which changed the commit gate, not the PR flow.
+
+**Before (canon's measurement, GitHub 2026-10-03, pleks `origin/main` at `3529c18f`):** 10 PRs merged that
+day, open-to-merge 10, 20, 27, 38, 63, 72, 93, 123, 157, 204 min (median ~68); `ci.yml` 10 runs averaging
+497 s, max 913 s; four PRs open at once, all `BEHIND`. Not separated: review, walker and owner wait.
+
+**Prediction, registered before the arc:** CI runs per PR falls to ~1 (a PR that is never behind is never
+re-run), and open-to-merge for an armed PR approaches one CI run (~8–15 min) plus the walk.
+
+**After:** for arc 1, per PR — CI runs, open-to-merge minutes, armed or manual. **The failure condition is
+not slowness:** it is `main` going red after an auto-merge, or a migration PR's code landing before its DDL.
+Count those.

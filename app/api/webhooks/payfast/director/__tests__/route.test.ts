@@ -64,6 +64,18 @@ describe("director ITN — the party's own stamped line", () => {
     expect(flagged("overpaid")).toBe(true)
   })
 
+  it("PLANTED (14W §0b walker F3): a payment on a DECLINED party is recorded and flagged paid_after_decline", async () => {
+    seed([co({ declined_at: "2026-10-03T05:00:00Z" })])
+    expect(await (await itn()).json()).toMatchObject({ ok: true })
+    expect(lines()[0].paid_at).not.toBeNull()
+    expect(flagged("paid_after_decline")).toBe(true)
+  })
+
+  it("KNOWN-GOOD twin: a live party's payment is not flagged paid_after_decline", async () => {
+    await itn()
+    expect(flagged("paid_after_decline")).toBe(false)
+  })
+
   it("PLANTED: no stamped line → no_quoted_fee, nothing written", async () => {
     seed([co()], [])
     vi.mocked(recordAudit).mockClear()

@@ -410,6 +410,7 @@
       "prescreened_at",
       "not_shortlisted_reason",
       "stage2_status",
+      "stage2_invited_at",
       "stage2_consent_given",
       "stage2_consent_given_at",
       "stage2_consent_ip",

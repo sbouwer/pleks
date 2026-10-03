@@ -8,6 +8,8 @@
  *         Real: both server actions, every DB write and trigger, email context and template rendering. Stubbed: the
  *         agent session and the email TRANSPORT (sendEmail), which each case drives to success or a planted failure
  *         by template key — so a planted failure is exactly sendEmail's own `{ success: false }` return.
+ *         14W §0b: the lead's own T0 (applications.stage2_invited_at) is written with the co parties', and a juristic
+ *         surety declared at stage 1 is sent its surety invite HERE — it was emailed at declaration on a creation clock.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest"
 import { randomUUID } from "node:crypto"
@@ -81,11 +83,11 @@ afterAll(() => { if (orgId) teardownOrg(orgId) })
 
 async function state() {
   const [{ data: app, error }, { data: co, error: coErr }] = await Promise.all([
-    db.from("applications").select("stage1_status, stage2_status").eq("org_id", orgId).eq("id", appId).single(),
+    db.from("applications").select("stage1_status, stage2_status, stage2_invited_at").eq("org_id", orgId).eq("id", appId).single(),
     db.from("application_co_applicants").select("stage2_invited_at").eq("org_id", orgId).eq("id", coId).single(),
   ])
   if (error || coErr) throw new Error(`read state: ${(error ?? coErr)!.message}`)
-  return { stage1: app.stage1_status, stage2: app.stage2_status, coInvited: co.stage2_invited_at !== null }
+  return { stage1: app.stage1_status, stage2: app.stage2_status, leadInvited: app.stage2_invited_at !== null, coInvited: co.stage2_invited_at !== null }
 }
 
 const sentTemplates = () => sendEmail.mock.calls.map(([p]) => p.templateKey)
@@ -93,7 +95,7 @@ const sentTemplates = () => sendEmail.mock.calls.map(([p]) => p.templateKey)
 describe("stage-2 invite — tick-then-invite, and nothing marked on a failed send (CD 2026-10-02)", () => {
   it("the triage tick marks `shortlisted` and sends nothing", async () => {
     expect(await shortlistStage1Action(appId)).toMatchObject({ ok: true })
-    expect(await state()).toEqual({ stage1: "shortlisted", stage2: null, coInvited: false })
+    expect(await state()).toEqual({ stage1: "shortlisted", stage2: null, leadInvited: false, coInvited: false })
     expect(sendEmail).not.toHaveBeenCalled()
   }, 60_000)
 
@@ -101,27 +103,48 @@ describe("stage-2 invite — tick-then-invite, and nothing marked on a failed se
     sendEmail.mockClear(); failTemplates.clear(); failTemplates.add(CO)
     expect(await sendShortlistInvitation(appId)).toEqual({ error: "Could not send the invitation" })
     expect(sentTemplates()).toEqual([CO])
-    expect(await state()).toEqual({ stage1: "shortlisted", stage2: null, coInvited: false })
+    expect(await state()).toEqual({ stage1: "shortlisted", stage2: null, leadInvited: false, coInvited: false })
   }, 60_000)
 
   it("PLANTED: the lead's send fails → action error, nothing marked (the co party's clock does not start either)", async () => {
     sendEmail.mockClear(); failTemplates.clear(); failTemplates.add(LEAD)
     expect(await sendShortlistInvitation(appId)).toEqual({ error: "Could not send the invitation" })
     expect(sentTemplates()).toEqual([CO, LEAD])
-    expect(await state()).toEqual({ stage1: "shortlisted", stage2: null, coInvited: false })
+    expect(await state()).toEqual({ stage1: "shortlisted", stage2: null, leadInvited: false, coInvited: false })
   }, 60_000)
 
   it("KNOWN-GOOD: a ticked applicant is invited once every send succeeds — lead and co both marked", async () => {
     sendEmail.mockClear(); failTemplates.clear()
     expect(await sendShortlistInvitation(appId)).toEqual({ success: true })
     expect(sentTemplates()).toEqual([CO, LEAD])
-    expect(await state()).toEqual({ stage1: "shortlisted", stage2: "invited", coInvited: true })
+    expect(await state()).toEqual({ stage1: "shortlisted", stage2: "invited", leadInvited: true, coInvited: true })
   }, 60_000)
 
   it("an application already in stage 2 is refused, and nothing is sent", async () => {
     sendEmail.mockClear()
     expect(await sendShortlistInvitation(appId)).toEqual({ error: "This application cannot be invited to screening" })
     expect(sendEmail).not.toHaveBeenCalled()
+  }, 60_000)
+
+  it("14W §0b: a juristic surety declared at stage 1 is sent its surety invite AT shortlist, and its clock starts", async () => {
+    const { data: jApp, error: jErr } = await db.from("applications")
+      .insert({ org_id: orgId, listing_id: listingId, unit_id: unitId, entity_type: "organisation", applicant_type: "company",
+        company_info: { companyType: "pty_ltd" }, first_name: "Lead", last_name: "Director",
+        applicant_email: `jlead-${randomUUID()}@example.test`, has_co_applicant: true, stage1_status: "pre_screen_complete" })
+      .select("id").single()
+    if (jErr) throw new Error(`seed juristic application: ${jErr.message}`)
+    const { data: surety, error: sErr } = await db.from("application_co_applicants")
+      .insert({ org_id: orgId, primary_application_id: jApp.id, co_applicant_index: 1, first_name: "Sure", last_name: "Ty",
+        applicant_email: `surety-${randomUUID()}@example.test`, role: "guarantor", declared_director: true })
+      .select("id").single()
+    if (sErr) throw new Error(`seed surety: ${sErr.message}`)
+    sendEmail.mockClear(); failTemplates.clear()
+    expect(await sendShortlistInvitation(jApp.id as string)).toEqual({ success: true })
+    expect(sentTemplates()).toEqual(["application.director_invited", LEAD])
+    const { data: row, error } = await db.from("application_co_applicants").select("stage2_invited_at")
+      .eq("org_id", orgId).eq("id", surety.id).single()
+    if (error) throw new Error(`read surety: ${error.message}`)
+    expect(row.stage2_invited_at).not.toBeNull()
   }, 60_000)
 
   it("an application still in stage 1 is refused, and nothing is sent", async () => {

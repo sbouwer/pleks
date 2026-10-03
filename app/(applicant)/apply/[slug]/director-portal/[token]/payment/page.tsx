@@ -21,6 +21,7 @@ import { isJuristicForCopy, partyKind } from "@/lib/applications/juristicParties
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { windowOpen } from "@/lib/screening/window"
 
 function ScreeningUnavailable() {
   return (
@@ -43,7 +44,7 @@ export default async function DirectorPaymentPage({
 
   const { data: coApp, error } = await service
     .from("application_co_applicants")
-    .select("id, first_name, last_name, primary_application_id, access_token_expires, declined_at, org_id, stage2_consent_given_at, role, is_surety_director, declared_director")
+    .select("id, first_name, last_name, primary_application_id, access_token_expires, declined_at, org_id, stage2_consent_given_at, stage2_invited_at, role, is_surety_director, declared_director")
     .eq("access_token", token)
     .is("declined_at", null)
     .single()
@@ -51,6 +52,12 @@ export default async function DirectorPaymentPage({
   if (error || !coApp) notFound()
 
   if (coApp.access_token_expires && new Date(coApp.access_token_expires) < new Date()) {
+    redirect(base)
+  }
+  // The pay form lives inside the party's own window and nowhere else (14W §0b walker F3). A co party's token outlives
+  // the window (its column default is 30 days), so the token check alone let a form be opened after the deadline —
+  // and paid into a line the reminders cron was about to decline. The landing explains either state.
+  if (!coApp.stage2_invited_at || !windowOpen(coApp.stage2_invited_at as string)) {
     redirect(base)
   }
 

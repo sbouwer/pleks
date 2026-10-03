@@ -23,7 +23,7 @@ export default async function DirectorConsentPage({
 
   const { data: coApp, error } = await service
     .from("application_co_applicants")
-    .select("id, first_name, applicant_phone, primary_application_id, stage2_consent_given_at, access_token_expires, declined_at")
+    .select("id, first_name, applicant_phone, primary_application_id, stage2_consent_given_at, stage2_invited_at, access_token_expires, declined_at")
     .eq("access_token", token)
     .is("declined_at", null)
     .single()
@@ -34,7 +34,8 @@ export default async function DirectorConsentPage({
     redirect(`/apply/${slug}/director-portal/${token}`)
   }
 
-  if (coApp.stage2_consent_given_at) {
+  // Not yet invited to stage 2 (14W §0b) — the landing explains; the consent route refuses it too.
+  if (coApp.stage2_consent_given_at || !coApp.stage2_invited_at) {
     redirect(`/apply/${slug}/director-portal/${token}`)
   }
 

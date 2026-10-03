@@ -31,6 +31,9 @@ export interface DirectorInviteContext {
   directorFirstName: string
   /** Which approved role sentence the invite carries — `suretyInviteRole`, computed by the caller. */
   role: SuretyInviteRole
+  /** Days the link has left, for the copy's "expires in N days". Omitted = a fresh window. A RESEND passes what is left
+   *  of the party's own window (14W §0b walker F4): the link is pinned to that end, so the full window would be false. */
+  ttlDays?: number
 }
 
 /** Null when the application could not be read — nothing was sent. */
@@ -81,7 +84,7 @@ export async function sendDirectorInvite(ctx: DirectorInviteContext): Promise<Se
       propertyLabel,
       propertyAddress,
       portalUrl,
-      ttlDays: SCREENING_WINDOW_DAYS,
+      ttlDays: ctx.ttlDays ?? SCREENING_WINDOW_DAYS,
       branding,
     }),
     entityType: "application_co_applicant",
