@@ -18,82 +18,21 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { runPipeline } from "@/lib/extraction/pipeline"
 import { reconcile } from "@/lib/extraction/reconciler"
-import { slotTypeForFilename } from "@/lib/extraction/slotType"
 import { evaluateRuling } from "@/lib/applications/ruling"
 import { companyOptionFrom } from "@/lib/applications/assembleAssessment"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
-import { getApplicationDocumentSubjects } from "@/lib/applications/documentRegistry"
+import { loadDocuments } from "@/lib/screening/loadApplicationDocuments"
 import { resolvePoolingRule } from "@/lib/screening/screeningPolicy"
 import { evaluateCompanyRuling, type CompanyVerdict, type DirectorSurety } from "@/lib/applications/companyRuling"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
-import { RECONCILER_VERSION, type DeclaredContext, type Document, type ReconciliationResult, type PipelineDocumentResult } from "@/lib/extraction/types"
+import { RECONCILER_VERSION, type DeclaredContext, type ReconciliationResult, type PipelineDocumentResult } from "@/lib/extraction/types"
 import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
 import { SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
-const BUCKET = "application-docs"
-
-function mimeFromName(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase()
-  if (ext === "pdf") return "application/pdf"
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg"
-  if (ext === "png") return "image/png"
-  return "application/octet-stream"
-}
-
-/** Enumerate + download every uploaded doc for the application — REGISTRY-DRIVEN (14P 0b.5): each registered doc
- *  is downloaded wherever it lives (root for the primary, co_{id}/ subfolder for a director — subfolders isolate a
- *  co's bank_main from the primary's, fixing the flat-path collision) with its registry subjectRef. A storage-
- *  complete fallback also loads any ROOT file NOT in the registry as 'primary' (legacy/unregistered). Drift (a
- *  registry row whose object is missing, or an unregistered file) is logged, never silently skipped (§3). */
-async function loadDocuments(db: Db, orgId: string, appId: string): Promise<Document[]> {
-  const prefix = `applications/${orgId}/${appId}`
-  const subjects = await getApplicationDocumentSubjects(db, appId) // storage_path → subject_ref (authoritative)
-  const docs: Document[] = []
-  const seen = new Set<string>()
-  let missing = 0
-  // 1. Registered docs (root OR co_{id}/ subfolder) — registry attribution.
-  for (const [path, subjectRef] of subjects) {
-    const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(path)
-    if (dlErr || !blob) { missing++; continue }
-    const filename = path.split("/").pop() ?? path
-    docs.push({ path, filename, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(filename), slotType: slotTypeForFilename(filename), subjectRef })
-    seen.add(path)
-  }
-  // 2. Storage-complete fallback for UNregistered files (registration failed) — never silently dropped (§3). A root
-  //    file → 'primary'; a file inside a co_{id}/ subfolder → that subject (path-derived), so a registration-failed
-  //    co-doc is still analysed + attributed correctly, and counted as drift.
-  const { data: files, error } = await db.storage.from(BUCKET).list(prefix)
-  logQueryError("screen storage.list", error)
-  let unregistered = 0
-  const addUnregistered = async (path: string, filename: string, subjectRef: string) => {
-    if (seen.has(path)) return
-    const { data: blob, error: dlErr } = await db.storage.from(BUCKET).download(path)
-    if (dlErr || !blob) { logQueryError("screen storage.download", dlErr); return }
-    docs.push({ path, filename, bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: mimeFromName(filename), slotType: slotTypeForFilename(filename), subjectRef })
-    unregistered++
-  }
-  for (const f of files ?? []) {
-    if (!f.name || f.name.startsWith(".")) continue
-    if (f.id === null) {
-      // A subject subfolder (co_{id}/) — list it; any file not in the registry is attributed by the folder name.
-      if (!f.name.startsWith("co_")) continue
-      const { data: subFiles, error: subErr } = await db.storage.from(BUCKET).list(`${prefix}/${f.name}`)
-      logQueryError("screen storage.list (co subfolder)", subErr)
-      for (const sf of subFiles ?? []) {
-        if (!sf.name || sf.name.startsWith(".") || sf.id === null) continue
-        await addUnregistered(`${prefix}/${f.name}/${sf.name}`, sf.name, f.name)
-      }
-      continue
-    }
-    await addUnregistered(`${prefix}/${f.name}`, f.name, "primary")
-  }
-  if (missing > 0 || unregistered > 0) console.warn(`[screen] ${appId}: ${missing} registry row(s) with a missing object, ${unregistered} unregistered file(s) loaded by path-derived subject (14P §3 drift).`)
-  return docs
-}
 
 /** The company's surety-director SET (14P 0b.3): the primary (lead) + each co-applicant standing surety. Each
  *  director reconciles against ITS OWN declared income + docs (per-subject), scoped to adults:1 (§5.4 — co-directors

@@ -48,7 +48,22 @@ function countPasses(statuses: (string | null | undefined)[]): number {
 // ─── Bureau list from snapshot ────────────────────────────────────────────────
 
 type BureauProcessing = { responding: string[]; outliers: string[] }
-type AppSnap = { bureauProcessing: BureauProcessing; verifiedIncomeCents: number; incomeSharePct: number }
+type AppSnap = { id?: string; bureauProcessing: BureauProcessing; verifiedIncomeCents: number; incomeSharePct: number }
+
+/**
+ * Pair each co row with ITS OWN snapshot entry, by id. The engine writes `id` on every entry (applications.id for the
+ * lead, application_co_applicants.id for a co), and the orchestrator leaves declined cos out of the snapshot — so a
+ * positional join (`applicants[idx + 1]`) put a live co's income and bureau results beside a declined co's name the
+ * moment the two lists differed (walker F1, 14w-s0d). A co the snapshot does not contain was not scored and is not
+ * reported. A snapshot carrying no ids at all (none known; the guard is for one written before the field) keeps the
+ * positional pairing it was written for.
+ */
+function pairCosWithSnapshot<T extends { id: string }>(cos: T[], snaps: AppSnap[]): Array<{ co: T; snap: AppSnap | undefined }> {
+  const coSnaps = snaps.slice(1)
+  if (!coSnaps.some(s => typeof s.id === 'string')) return cos.map((co, idx) => ({ co, snap: coSnaps[idx] }))
+  const byId = new Map(coSnaps.map(s => [s.id, s]))
+  return cos.filter(co => byId.has(co.id)).map(co => ({ co, snap: byId.get(co.id) }))
+}
 
 function filterBureaus(snap: AppSnap | undefined): string[] {
   if (!snap) return []
@@ -160,7 +175,7 @@ export function assembleReportData(
     isForeignNational:     isForeignNational(primaryNat),
   }
 
-  const coEntries: FitScoreApplicantEntry[] = coApplicants.map((co, idx) => {
+  const coEntries: FitScoreApplicantEntry[] = pairCosWithSnapshot(coApplicants, rawSnap.applicants).map(({ co, snap }, idx) => {
     const coNat   = coNatFromIdType(co.id_type)
     const coLabel = APPLICANT_LABELS[idx + 1] ?? `CO${idx + 1}`
     return {
@@ -171,15 +186,15 @@ export function assembleReportData(
       sex:               null,
       ageYears:          null,
       employment:        null,
-      verifiedIncomeCents:   rawSnap.applicants[idx + 1]?.verifiedIncomeCents ?? 0,
-      incomeSharePct:        rawSnap.applicants[idx + 1]?.incomeSharePct ?? 0,
+      verifiedIncomeCents:   snap?.verifiedIncomeCents ?? 0,
+      incomeSharePct:        snap?.incomeSharePct ?? 0,
       verificationPassCount: countPasses([
         co.identity_match_status, co.employer_verification_status,
         co.salary_reconciliation_status, co.document_consistency_status,
         co.bank_account_ownership_status,
       ]),
       verificationTotal:     5,
-      respondingBureaus:     filterBureaus(rawSnap.applicants[idx + 1]),
+      respondingBureaus:     filterBureaus(snap),
       pleksNetworkStatus:    toNetworkStatus(co.pleks_network_history_status),
       pleksNetworkTenancyCount: (co.pleks_network_tenancy_count as number | null) ?? 0,
       isForeignNational:     isForeignNational(coNat),
