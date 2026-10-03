@@ -37,6 +37,8 @@ export const PUBLIC_ALLOWLIST = {
   "/api/applications/[id]/co-applicant": "applicant token-gated (resolveApplicationCredential)",
   "/api/applications/[id]/detect-document": "applicant token-gated",
   "/api/applications/[id]/documents": "applicant token-gated",
+  "/api/applications/[id]/documents/upload-url": "applicant token-gated (resolveApplicantToken); mints a signed upload URL for a server-built path in the caller's own subject folder — DECISIONS 2026-10-03, application-docs has no client policy",
+  "/api/applications/[id]/documents/remove": "applicant token-gated (resolveApplicantToken); removes only a path in the caller's own subject folder — DECISIONS 2026-10-03",
   "/api/applications/[id]/link-account": "applicant token-gated (account-at-completion, 14R)",
   "/api/applications/[id]/screen": "applicant token-gated",
   "/api/applications/[id]/submit": "applicant token-gated (credential SSOT)",

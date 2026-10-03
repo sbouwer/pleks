@@ -15,8 +15,11 @@ type PurgeDb = Parameters<typeof purgeApplicationScreeningArtefacts>[0]
 
 /** Minimal chainable Supabase mock: every builder method returns the same thenable chain (resolves to an
  *  empty result); `update` is spied so a test can assert the pii_purged_at latch was / wasn't stamped. */
-function makeDb() {
+/** Storage listing by prefix: an entry with `id: null` is a folder (how Storage lists one). */
+type Tree = Record<string, Array<{ name: string; id: string | null }>>
+function makeDb(tree: Tree = {}, listFails = false) {
   const updateSpy = vi.fn()
+  const removed: string[] = []
   // Awaiting a plain (non-thenable) object yields the object itself → destructuring { data, error } off it
   // returns these props. No `then` needed (and we avoid making the mock a thenable).
   const makeChain = () => {
@@ -30,8 +33,15 @@ function makeDb() {
   }
   return {
     from: vi.fn(() => makeChain()),
-    storage: { from: vi.fn(() => ({ remove: vi.fn(() => Promise.resolve({ error: null })) })) },
+    storage: { from: vi.fn((bucket: string) => ({
+      remove: vi.fn((paths: string[]) => {
+        if (bucket === "application-docs") { removed.push(...paths) }
+        return Promise.resolve({ error: null })
+      }),
+      list: vi.fn((prefix: string) => Promise.resolve(listFails ? { data: null, error: { message: "boom" } } : { data: tree[prefix] ?? [], error: null })),
+    })) },
     updateSpy,
+    removed,
   }
 }
 
@@ -226,6 +236,33 @@ describe("V4 — a non-self-healed strip error aborts BEFORE the one-way pii_pur
     // the marker update fired exactly once, carrying pii_purged_at
     const stampCalls = db.updateSpy.mock.calls.filter((c) => "pii_purged_at" in (c[0] as object))
     expect(stampCalls).toHaveLength(1)
+  })
+})
+
+// DECISIONS 2026-10-03 (scout R5): the declined purge left every uploaded ID document and bank statement in the
+// application-docs bucket, so the retention sentence was false in code. Both ways: the lead's AND each co's files
+// go; a listing failure aborts before the one-way latch.
+describe("(4c) application-docs — every uploaded document goes, the co_ folders included", () => {
+  const ROOT = "applications/org-1/app-1"
+
+  it("removes the lead's files and each co folder's files", async () => {
+    vi.mocked(stripGroup).mockImplementation(async (_db, group) => group.table === "applications" ? 1 : 0)
+    const db = makeDb({
+      [ROOT]: [{ name: "bank_main.pdf", id: "o1" }, { name: "id.jpg", id: "o2" }, { name: "co_c1", id: null }],
+      [`${ROOT}/co_c1`]: [{ name: "bank_main.pdf", id: "o3" }],
+    })
+    const did = await purgeApplicationScreeningArtefacts(db as unknown as PurgeDb, row({ stage2_status: "declined", reviewed_at: longAgo }), NOW)
+    expect(did).toBe(true)
+    expect(db.removed).toEqual(expect.arrayContaining([`${ROOT}/bank_main.pdf`, `${ROOT}/id.jpg`, `${ROOT}/co_c1/bank_main.pdf`]))
+    expect(db.removed).not.toContain(`${ROOT}/co_c1`)   // a folder is not an object
+  })
+
+  it("a listing failure throws and does NOT stamp pii_purged_at", async () => {
+    vi.mocked(stripGroup).mockImplementation(async (_db, group) => group.table === "applications" ? 1 : 0)
+    const db = makeDb({}, true)
+    await expect(purgeApplicationScreeningArtefacts(db as unknown as PurgeDb, row({ stage2_status: "declined", reviewed_at: longAgo }), NOW))
+      .rejects.toThrow(/application-docs purge failed/)
+    expect(db.updateSpy.mock.calls.filter((c) => "pii_purged_at" in (c[0] as object))).toHaveLength(0)
   })
 })
 

@@ -8,17 +8,22 @@
  * Data:   application-docs storage (prefix applications/{orgId}/{applicationId}).
  * Notes:  Raw filenames are never shown (they can carry an embedded ID number) — only the category label + View.
  *         Presence only; contents are verified in the Step-2 deep scan.
+ *         Every signed-URL mint writes an audit row — who, which paths (DECISIONS 2026-10-03: a document view is
+ *         evidence). Only the links actually rendered are minted: a reveal-gated ID gets no URL at all.
  */
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
+import { recordAudit } from "@/lib/audit/recordAudit"
+
+const SIGNED_URL_SECONDS = 3600
 
 export async function DocumentsCard({ applicationId, incomeKeys, employmentType, canViewId }: Readonly<{
   applicationId: string; incomeKeys: string[]; employmentType: string; canViewId: boolean
 }>) {
   const gw = await gatewaySSR()
   if (!gw) return null
-  const { db, orgId } = gw
+  const { db, orgId, userId } = gw
   const cats = deriveDocCategories(new Set(incomeKeys), employmentType)
   const prefix = `applications/${orgId}/${applicationId}`
 
@@ -26,8 +31,17 @@ export async function DocumentsCard({ applicationId, incomeKeys, employmentType,
   if (error) console.error("DocumentsCard list failed:", error.message)
   const realFiles = (files ?? []).filter((f) => f.name.includes("."))   // skip co-applicant subfolders (no extension)
 
-  const paths = realFiles.map((f) => `${prefix}/${f.name}`)
-  const signedRes = paths.length > 0 ? await db.storage.from("application-docs").createSignedUrls(paths, 3600) : { data: [] }
+  const paths = realFiles
+    .filter((f) => canViewId || categoryForFilename(f.name, cats) !== "id")
+    .map((f) => `${prefix}/${f.name}`)
+  const signedRes = paths.length > 0 ? await db.storage.from("application-docs").createSignedUrls(paths, SIGNED_URL_SECONDS) : { data: [] }
+  const minted = (signedRes.data ?? []).filter((s) => s.signedUrl).map((s) => s.path as string)
+  if (minted.length > 0) {
+    await recordAudit(db, {
+      orgId, actorId: userId, action: "NOTE", table: "applications", recordId: applicationId,
+      after: { action: "application_documents_url_minted", paths: minted, expires_in_seconds: SIGNED_URL_SECONDS },
+    })
+  }
   const urlByPath = new Map((signedRes.data ?? []).filter((s) => s.signedUrl).map((s) => [s.path, s.signedUrl as string]))
 
   const groups = new Map<string, { label: string; urls: string[] }>()

@@ -61,7 +61,12 @@ async function purgeRejectedApplications(
       created_at: new Date(row.created_at),
     })
     if ("erasable" in decision && decision.erasable) {
-      await purgeApplicationDocs(db, orgId, row.id)   // remove the applicant's docs FIRST (was the orphaned-docs gap)
+      // Remove the applicant's docs FIRST (was the orphaned-docs gap). On failure keep the row — it is the only
+      // pointer to the files — and the next run retries.
+      if (!(await purgeApplicationDocs(db, orgId, row.id))) {
+        console.error(`purgeRejectedApplications: application-docs purge failed for ${row.id}; row kept for retry`)
+        continue // counted in neither deleted nor skipped_carveout — it shows as evaluated − both
+      }
       await db.from("applications").delete().eq("id", row.id).eq("org_id", orgId)
       await recordAudit(db, {
         orgId, actorId: null, action: "DELETE", table: "applications", recordId: row.id,
