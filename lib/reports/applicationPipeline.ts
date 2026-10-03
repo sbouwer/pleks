@@ -1,7 +1,8 @@
 /**
  * lib/reports/applicationPipeline.ts — builds the Application Pipeline report (funnel from listing views → applications → fee → screening → lease, plus FitScore distribution)
  *
- * Data:   reads `listings` + `applications` for the org/period via the service client; returns ApplicationPipelineData
+ * Data:   reads `listings` + `applications` for the org/period, and their paid `application_screening_payments` lines for
+ *         fee revenue, via the service client; returns ApplicationPipelineData
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -31,7 +32,7 @@ export async function buildApplicationPipeline(filters: ReportFilters): Promise<
     .from("applications")
     .select(`
       id, listing_id, stage1_status, stage2_status, fee_status,
-      fee_amount_cents, fitscore, tenant_id, created_at
+      fitscore, tenant_id, created_at
     `)
     .eq("org_id", orgId)
     .gte("created_at", fromStr)
@@ -49,9 +50,20 @@ export async function buildApplicationPipeline(filters: ReportFilters): Promise<
   const approved = apps.filter((a) => a.stage2_status === "approved").length
   const leaseSigned = apps.filter((a) => a.tenant_id).length
 
-  const feeRevenue = apps
-    .filter((a) => a.fee_status === "paid")
-    .reduce((s, a) => s + (a.fee_amount_cents ?? 0), 0)
+  // Every PAID screening line on these applications (ADDENDUM_14W §0): each party pays their own line, so the lead's
+  // fee_amount_cents is one line of several and summing it alone under-counts every co party's payment.
+  let feeRevenue = 0
+  const appIds = apps.map((a) => a.id)
+  if (appIds.length > 0) {
+    const { data: paidLines, error: linesError } = await supabase
+      .from("application_screening_payments")
+      .select("fee_cents")
+      .eq("org_id", orgId)
+      .in("application_id", appIds)
+      .not("paid_at", "is", null)
+    logQueryError("buildApplicationPipeline application_screening_payments", linesError)
+    feeRevenue = (paidLines ?? []).reduce((s, l) => s + ((l.fee_cents as number | null) ?? 0), 0)
+  }
 
   // FitScore distribution
   const scored = apps.filter((a) => a.fitscore != null)

@@ -59,6 +59,10 @@ const nextConfig: NextConfig = {
     // Keep a visited dynamic page's RSC for 30s and prefetched/static shells for 3 min so revisiting
     // a recently-seen nav category is instant. Mutations still call router.refresh() to bust it.
     staleTimes: { dynamic: 30, static: 180 },
+    // File uploads through a server action (signed lease, bank statement, municipal bill) died at Next's 1 MB default,
+    // before the action ran. 4 MB = `UPLOAD_MAX_BYTES` in lib/constants.ts, under Vercel's ~4.5 MB request-body cap —
+    // which is the real ceiling, so a larger file needs a signed upload URL, not a bigger number here.
+    serverActions: { bodySizeLimit: "4mb" },
     optimizePackageImports: [
       "lucide-react",
       "@react-email/components",

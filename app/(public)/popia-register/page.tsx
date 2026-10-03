@@ -39,7 +39,7 @@ export default function ProcessingRegisterPage() {
       titleHighlight="register"
       subtitle={`Pleks's POPIA processing-purpose register — all ${MARKETING_FACTS.popiaPurposes.partA} platform purposes and ${MARKETING_FACTS.popiaPurposes.partB} operator purposes, with lawful bases, data categories, retention periods, and the full operators directory.`}
       kicker={[
-        { label: "Last reviewed", value: "2026 · 08 · 14", mono: true },
+        { label: "Last reviewed", value: "2026 · 10 · 03", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
         { label: "Version",        value: LEGAL_VERSIONS.popiaRegister, mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },

@@ -1,14 +1,14 @@
 /**
- * test/db/co-applicant-party-set.dbtest.ts — a quote is bound to the party set it priced: trg_co_applicant_party_set, probed both ways (ADDENDUM_14V §3.5a/b)
+ * test/db/co-applicant-party-set.dbtest.ts — a paid party is never hard-deleted; nothing else about the party set is guarded: trg_co_applicant_party_set, probed both ways (ADDENDUM_14W §0a)
  *
  * Auth:   service-role client vs LOCAL Supabase (npm run test:db)
- * Notes:  Real rows, real trigger — the void reaches across tables, so a temp twin would not show it. Each case
- *         seeds its own application so no case reads another's state.
- *         · stamped-unpaid + add / decline a party → all six stamp columns cleared (re-stamped at next first show)
- *         · paid + add a party → refused, the paid fee unchanged (a late party joins a new application)
- *         · paid + DELETE a party → refused (no removal, no refund)
- *         · paid + declined_at (the expiry cron) → passes, stamp untouched — the line declines, the fee stays
- *         · unstamped + add → nothing to void, nothing refused
+ * Notes:  Real rows, real trigger. §0 prices, stamps and pays every line on its OWN application_screening_payments row, so
+ *         the guard is BEFORE DELETE only and reads the party's OWN line (subject_type co_applicant/guarantor, subject_id =
+ *         the co row). Each case seeds its own application so no case reads another's state.
+ *         · DELETE a co whose own line is paid → refused
+ *         · DELETE a co whose own line is stamped but unpaid, or that has no line → allowed
+ *         · add / decline a co after the lead's line is stamped → the lead's line and applications' stamp columns untouched
+ *         · the expiry cron's declined_at on a paid co → passes
  *         · deleting a PAID application cascades through its co rows — the guard is not a teardown trap
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -26,7 +26,11 @@ const STAMP = {
   priced_entity: false,
 }
 const STAMP_COLS = "fee_amount_cents, rate_effective_date, pricing_policy_version, cost_excl_vat_cents, priced_party_count, priced_entity"
+const LINE_STAMP = { fee_cents: 16250, rate_effective_date: "2026-10-01", pricing_policy_version: "v1-test", cost_excl_vat_cents: 10062 }
+const LINE_COLS = "fee_cents, rate_effective_date, pricing_policy_version, cost_excl_vat_cents, paid_at"
 const PAID_AT = "2026-10-02T08:00:00+00:00"
+
+type LineState = "none" | "stamped" | "paid"
 
 let orgId: string
 let seeded: { unitId: string; propertyId: string }
@@ -45,24 +49,12 @@ beforeAll(async () => {
 }, 120_000)
 afterAll(() => { if (orgId) teardownOrg(orgId) })
 
-/**
- * An application in the given payment state, with one live co row priced into its stamp. Order matters: the co row
- * goes in FIRST and the stamp (and payment) after, exactly as in life — a co row added after payment is refused.
- */
-async function application(state: "unstamped" | "stamped" | "paid"): Promise<{ appId: string; coId: string }> {
+async function seedApplication(): Promise<string> {
   const { data: app, error } = await db.from("applications")
     .insert({ org_id: orgId, listing_id: listingId, unit_id: seeded.unitId, first_name: "Lead", last_name: "Applicant", applicant_email: `lead-${randomUUID()}@example.test` })
     .select("id").single()
   if (error) throw new Error(`seed application: ${error.message}`)
-  const appId = app.id as string
-  const co = await addParty(appId)
-  if (co.error) throw new Error(`seed co row: ${co.error.message}`)
-  if (state !== "unstamped") {
-    const paid = state === "paid" ? { fee_paid_at: PAID_AT, fee_status: "paid" } : {}
-    const { error: stampErr } = await db.from("applications").update({ ...STAMP, ...paid }).eq("org_id", orgId).eq("id", appId)
-    if (stampErr) throw new Error(`seed stamp: ${stampErr.message}`)
-  }
-  return { appId, coId: co.id! }
+  return app.id as string
 }
 
 async function addParty(appId: string): Promise<{ id?: string; error: { message: string } | null }> {
@@ -73,78 +65,130 @@ async function addParty(appId: string): Promise<{ id?: string; error: { message:
   return { id: data?.id as string | undefined, error }
 }
 
-async function stampOf(appId: string): Promise<Record<string, unknown>> {
+/** A line row for a subject, stamped and optionally paid — what stampLineFee / markLinePaid leave behind. */
+async function seedLine(appId: string, subjectType: string, subjectId: string, state: "stamped" | "paid"): Promise<void> {
+  const paid = state === "paid" ? { paid_at: PAID_AT } : {}
+  const { error } = await db.from("application_screening_payments")
+    .insert({ org_id: orgId, application_id: appId, subject_type: subjectType, subject_id: subjectId, ...LINE_STAMP, ...paid })
+  if (error) throw new Error(`seed line: ${error.message}`)
+}
+
+/** An application with one co row whose OWN line is in the given state. */
+async function application(co: LineState): Promise<{ appId: string; coId: string }> {
+  const appId = await seedApplication()
+  const added = await addParty(appId)
+  if (added.error) throw new Error(`seed co row: ${added.error.message}`)
+  if (co !== "none") await seedLine(appId, "co_applicant", added.id!, co)
+  return { appId, coId: added.id! }
+}
+
+async function coRows(coId: string): Promise<number> {
+  const { data, error } = await db.from("application_co_applicants").select("id").eq("org_id", orgId).eq("id", coId)
+  if (error) throw new Error(`read co: ${error.message}`)
+  return data.length
+}
+
+async function appStampOf(appId: string): Promise<Record<string, unknown>> {
   const { data, error } = await db.from("applications").select(`${STAMP_COLS}, fee_paid_at`).eq("org_id", orgId).eq("id", appId).single()
   if (error) throw new Error(`read stamp: ${error.message}`)
   return data as Record<string, unknown>
 }
 
-const CLEARED = Object.fromEntries(Object.keys(STAMP).map((k) => [k, null]))
+async function lineOf(appId: string, subjectType: string, subjectId: string): Promise<Record<string, unknown>> {
+  const { data, error } = await db.from("application_screening_payments").select(LINE_COLS)
+    .eq("org_id", orgId).eq("application_id", appId).eq("subject_type", subjectType).eq("subject_id", subjectId).single()
+  if (error) throw new Error(`read line: ${error.message}`)
+  return data as Record<string, unknown>
+}
 
-describe("trg_co_applicant_party_set — stamped, unpaid", () => {
-  it("PLANTED: a party ADDED after the quote voids the whole stamp", async () => {
-    const { appId } = await application("stamped")
-    expect(await stampOf(appId)).toMatchObject(STAMP)
-    const added = await addParty(appId)
-    expect(added.error).toBeNull()
-    expect(await stampOf(appId)).toMatchObject(CLEARED)
+describe("trg_co_applicant_party_set — DELETE of a co row", () => {
+  it("PLANTED: deleting a co whose OWN line is paid is refused, and the row survives", async () => {
+    const { coId } = await application("paid")
+    const { error } = await db.from("application_co_applicants").delete().eq("org_id", orgId).eq("id", coId)
+    expect(error?.message).toMatch(/a party who has paid is never removed/)
+    expect(await coRows(coId)).toBe(1)
   })
 
-  it("PLANTED: a party DECLINED after the quote voids the whole stamp", async () => {
-    const { appId, coId } = await application("stamped")
-    const { error } = await db.from("application_co_applicants").update({ declined_at: PAID_AT }).eq("org_id", orgId).eq("id", coId)
+  it("KNOWN-GOOD: deleting a co whose line is stamped but unpaid is allowed", async () => {
+    const { coId } = await application("stamped")
+    const { error } = await db.from("application_co_applicants").delete().eq("org_id", orgId).eq("id", coId)
     expect(error).toBeNull()
-    expect(await stampOf(appId)).toMatchObject(CLEARED)
+    expect(await coRows(coId)).toBe(0)
   })
 
-  it("KNOWN-GOOD: an edit that is not a party-set change leaves the stamp alone", async () => {
-    const { appId, coId } = await application("stamped")
-    const { error } = await db.from("application_co_applicants").update({ first_name: "Renamed" }).eq("org_id", orgId).eq("id", coId)
+  it("KNOWN-GOOD: deleting a co with no line at all is allowed", async () => {
+    const { coId } = await application("none")
+    const { error } = await db.from("application_co_applicants").delete().eq("org_id", orgId).eq("id", coId)
     expect(error).toBeNull()
-    expect(await stampOf(appId)).toMatchObject(STAMP)
+    expect(await coRows(coId)).toBe(0)
+  })
+
+  it("KNOWN-GOOD: the lead's paid line does not protect an unpaid co (the guard reads the party's OWN line)", async () => {
+    const { appId, coId } = await application("none")
+    await seedLine(appId, "applicant", appId, "paid")
+    const { error } = await db.from("application_co_applicants").delete().eq("org_id", orgId).eq("id", coId)
+    expect(error).toBeNull()
+    expect(await coRows(coId)).toBe(0)
   })
 })
 
-describe("trg_co_applicant_party_set — paid", () => {
-  it("PLANTED: a party added after payment is refused, and the paid fee is unchanged", async () => {
-    const { appId } = await application("paid")
+describe("trg_co_applicant_party_set — the lead's stamp is not a party-set stamp any more", () => {
+  async function stampedLead(): Promise<{ appId: string; coId: string }> {
+    const { appId, coId } = await application("none")
+    await seedLine(appId, "applicant", appId, "stamped")
+    const { error } = await db.from("applications").update(STAMP).eq("org_id", orgId).eq("id", appId)
+    if (error) throw new Error(`seed app stamp: ${error.message}`)
+    return { appId, coId }
+  }
+
+  it("KNOWN-GOOD: a co ADDED after the lead's line is stamped touches neither the line nor applications' stamp columns", async () => {
+    const { appId } = await stampedLead()
     const added = await addParty(appId)
-    expect(added.error?.message).toMatch(/a party who arrives after payment joins a new application/)
-    expect(await stampOf(appId)).toMatchObject({ ...STAMP, fee_paid_at: PAID_AT })
+    expect(added.error).toBeNull()
+    expect(await lineOf(appId, "applicant", appId)).toMatchObject({ ...LINE_STAMP, paid_at: null })
+    expect(await appStampOf(appId)).toMatchObject(STAMP)
   })
 
-  it("PLANTED: removing a paid party is refused — no removal, no refund", async () => {
-    const { appId, coId } = await application("paid")
-    const { error } = await db.from("application_co_applicants").delete().eq("org_id", orgId).eq("id", coId)
-    expect(error?.message).toMatch(/a paid party set is frozen/)
-    const { data, error: readErr } = await db.from("application_co_applicants").select("id").eq("org_id", orgId).eq("id", coId)
-    expect(readErr).toBeNull()
-    expect(data).toHaveLength(1)
-    expect(await stampOf(appId)).toMatchObject(STAMP)
+  it("KNOWN-GOOD: a co DECLINED after the lead's line is stamped touches neither", async () => {
+    const { appId, coId } = await stampedLead()
+    const { error } = await db.from("application_co_applicants").update({ declined_at: PAID_AT }).eq("org_id", orgId).eq("id", coId)
+    expect(error).toBeNull()
+    expect(await lineOf(appId, "applicant", appId)).toMatchObject({ ...LINE_STAMP, paid_at: null })
+    expect(await appStampOf(appId)).toMatchObject(STAMP)
   })
 
-  it("KNOWN-GOOD: the expiry cron's declined_at passes on a paid party, and the stamp is untouched", async () => {
+  it("KNOWN-GOOD: a co added after the lead's line is PAID is allowed — it is a new line, not a refusal", async () => {
+    const appId = await seedApplication()
+    await seedLine(appId, "applicant", appId, "paid")
+    const added = await addParty(appId)
+    expect(added.error).toBeNull()
+    expect(await lineOf(appId, "applicant", appId)).toMatchObject({ ...LINE_STAMP, paid_at: expect.any(String) })
+  })
+})
+
+describe("trg_co_applicant_party_set — paid lines", () => {
+  it("KNOWN-GOOD: the expiry cron's declined_at passes on a paid co, and its line is untouched", async () => {
     const { appId, coId } = await application("paid")
     const { error } = await db.from("application_co_applicants").update({ declined_at: PAID_AT }).eq("org_id", orgId).eq("id", coId)
     expect(error).toBeNull()
-    expect(await stampOf(appId)).toMatchObject({ ...STAMP, fee_paid_at: PAID_AT })
+    expect(await lineOf(appId, "co_applicant", coId)).toMatchObject({ ...LINE_STAMP, paid_at: expect.any(String) })
   })
 
   it("KNOWN-GOOD: deleting a PAID application cascades through its co rows", async () => {
+    const { appId, coId } = await application("stamped")
+    await seedLine(appId, "applicant", appId, "paid")
+    const { error } = await db.from("applications").delete().eq("org_id", orgId).eq("id", appId)
+    expect(error).toBeNull()
+    expect(await coRows(coId)).toBe(0)
+  })
+
+  // The §0a probe that caught the re-keyed guard refusing the FK cascade: the co row is deleted while its OWN paid line is
+  // still visible, so the guard holds only while the parent application exists. Deleting the application is not removing
+  // a party.
+  it("KNOWN-GOOD: deleting an application whose co line is PAID cascades through its co rows", async () => {
     const { appId, coId } = await application("paid")
     const { error } = await db.from("applications").delete().eq("org_id", orgId).eq("id", appId)
     expect(error).toBeNull()
-    const { data, error: readErr } = await db.from("application_co_applicants").select("id").eq("org_id", orgId).eq("id", coId)
-    expect(readErr).toBeNull()
-    expect(data).toHaveLength(0)
-  })
-})
-
-describe("trg_co_applicant_party_set — unstamped", () => {
-  it("KNOWN-GOOD: adding a party to an unpriced application is not a void and not a refusal", async () => {
-    const { appId } = await application("unstamped")
-    const added = await addParty(appId)
-    expect(added.error).toBeNull()
-    expect(await stampOf(appId)).toMatchObject(CLEARED)
+    expect(await coRows(coId)).toBe(0)
   })
 })

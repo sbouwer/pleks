@@ -91,7 +91,6 @@ export async function sendShortlistInvitation(applicationId: string): Promise<Sh
   // Email 4: Shortlist invitation. Its success is what makes the application "invited".
   const leadSent = await sendShortlistEmail(ctx.appSummary, ctx.listingSummary, ctx.orgContext, {
     inviteToken: inviteToken.token,
-    isJoint: ctx.isJoint,
   })
   if (!leadSent.success) {
     console.error("sendShortlistEmail failed:", leadSent.error)

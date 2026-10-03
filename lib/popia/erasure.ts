@@ -24,6 +24,7 @@ import {
   type ResolvedSubject,
 } from "./anonymiseIdentity"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { eraseLeadDocs } from "@/lib/applications/purgeDocs"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -240,13 +241,21 @@ async function purgeSubjectScreeningStorage(
     await logAudit(db, resolved.orgId, actor_user_id, "popia_erasure", table, resolved.applicationIds[0], requestId)
   }
 
-  const { data: bsc, error: bscErr } = await db
-    .from("application_bank_statement_classifications")
-    .select("bank_statement_doc_path")
-    .in("application_id", resolved.applicationIds)
-  logQueryError("purgeSubjectScreeningStorage bank_statement_classifications", bscErr)
-  await remove("bank-statements", "application_bank_statement_classifications",
-    (bsc ?? []).map((r) => r.bank_statement_doc_path as string | null))
+  // The subject's own uploaded documents (ID, bank statements, payslips) — application-docs, the files directly in
+  // each application's root. `resolveSubject` resolves applications where the subject is the LEAD, so only the root
+  // is theirs: each `co_{id}/` beneath it is another person's and stays. Until 2026-10-03 this removed
+  // `bank_statement_doc_path` from a `bank-statements` bucket that exists nowhere (no writer sets that column either),
+  // so a DSAR erasure deleted none of the subject's documents (walker F1). One audit row per application.
+  // FAILS CLOSED: this runs before the identity strip, and the strip redacts `applicant_email` — for a rejected
+  // applicant with no tenant link, the only key `resolveSubject` can find these files by. Completing the DSAR past a
+  // failed purge would orphan the files permanently under a request stamped "completed". Throw; a re-run retries.
+  const { purged, failed } = await eraseLeadDocs(db, resolved.orgId, resolved.applicationIds)
+  for (const applicationId of purged) {
+    await logAudit(db, resolved.orgId, actor_user_id, "popia_erasure", "applications", applicationId, requestId)
+  }
+  if (failed.length) {
+    throw new Error(`[popia/erasure] application-docs purge failed for ${failed.length} application(s) — erasure aborted before the identity strip`)
+  }
 
   const { data: lines, error: linesErr } = await db
     .from("application_screening_lines")
