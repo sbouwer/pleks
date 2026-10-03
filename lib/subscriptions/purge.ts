@@ -12,21 +12,21 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { SENTINEL_ORG_ID } from "@/lib/subscriptions/retention"
 import { PLATFORM_ORG_ID } from "@/lib/comms/platform-org"
+import { purgeStoragePrefix, purgeOrgApplicationDocs } from "@/lib/applications/purgeDocs"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPurgedConfirm } from "@/lib/subscriptions/emails"
 import { fmtDateLongZA } from "@/lib/dates"
 
 const DECOY_ORG_ID = "00000000-0000-0000-0000-000000000003" as const
 
-// Org-scoped storage buckets whose objects are purged post-cascade (path prefix = {org_id}/)
-const ORG_SCOPED_BUCKETS = [
-  "documents",
-  "inspection-photos",
-  "identity-docs",
-  "bank-statements",
-  "owner-statements",
-  "import-files",
-] as const
+// Org-scoped storage buckets whose objects are purged post-cascade (path prefix = {org_id}/), plus `application-docs`
+// (prefix `applications/{org_id}/`, purgeOrgApplicationDocs). Until 2026-10-03 this list named five buckets that
+// exist in no migration and not on prod (`documents`, `identity-docs`, `bank-statements`, `owner-statements`,
+// `import-files` — read from `storage.buckets` that day), and omitted the one holding applicants' ID documents and
+// bank statements. A name here is a claim that the bucket exists and is keyed `{org_id}/`; add one only with both.
+// `screening-reports` (bureau/credit PDFs, `lib/searchworx/storage.ts`: `{org}/{ref}/{product}/…`) was missing too;
+// the cascade deletes its rows, so its files were orphaned on every org purge.
+const ORG_SCOPED_BUCKETS = ["inspection-photos", "screening-reports"] as const
 
 export type PurgeReason = "cancelled_tail" | "dormancy" | "popia_erasure"
 
@@ -131,17 +131,22 @@ async function purgeOrgStorage(
   supabase: Awaited<ReturnType<typeof createServiceClient>>,
   orgId: string,
 ): Promise<void> {
+  // Recursive: inspection photos sit at `{org}/{inspection}/…`, so the old top-level list returned only folder
+  // names and the remove was a no-op — the purge never deleted a photo.
   for (const bucket of ORG_SCOPED_BUCKETS) {
     try {
-      const { data: files, error: listErr } = await supabase.storage.from(bucket).list(orgId)
-      if (listErr || !files || files.length === 0) continue
-      const paths = files.map((f) => `${orgId}/${f.name}`)
-      const { error: removeErr } = await supabase.storage.from(bucket).remove(paths)
-      if (removeErr) {
-        console.error(`purgeOrg: storage remove failed in ${bucket} for org ${orgId}:`, removeErr.message)
+      if (!(await purgeStoragePrefix(supabase, bucket, orgId))) {
+        console.error(`purgeOrg: storage purge incomplete in ${bucket} for org ${orgId}`)
       }
     } catch (err) {
       console.error(`purgeOrg: storage error in ${bucket} for org ${orgId}:`, err)
     }
+  }
+  try {
+    if (!(await purgeOrgApplicationDocs(supabase, orgId))) {
+      console.error(`purgeOrg: storage purge incomplete in application-docs for org ${orgId}`)
+    }
+  } catch (err) {
+    console.error(`purgeOrg: storage error in application-docs for org ${orgId}:`, err)
   }
 }
