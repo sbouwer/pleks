@@ -36,6 +36,12 @@ git fetch && git log --oneline HEAD..origin/main
 git pull
 ```
 
+**pleks builds in arcs** (`dev-standards/playbooks/5-ARCS.md`; ruled `brief/DECISIONS.md` 2026-10-03).
+An arc is a PR sequence with a walker on each PR; Stéan merges unwalked and walks once, at arc end.
+The build session interrupts only for (a) live legal/security exposure, (b) a schema change no spec
+names, (c) a two-sided product question — always with a default — and records every other call
+under `## Decided in build` in the PR body. Specs freeze for the arc; the queue is `brief/build/ARCS.md`.
+
 **Session state:** `brief/CURRENT.md` — what step is active, what was just done, the next
 action, mid-build decisions. Read it before asking; it survives compaction because it is on disk.
 **And WRITE it — after every meaningful step, before committing:** move finished items to "just

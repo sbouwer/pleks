@@ -1,7 +1,7 @@
 ---
 description: Session close — gate, walk, commit, registers, handoff report, and the handoff artefacts disposed of
 ---
-<!-- @kit wrap v1 — tracked OUTSIDE its KIT:CONFIG regions. Edit it in dev-standards and re-adopt;
+<!-- @kit wrap v2 — tracked OUTSIDE its KIT:CONFIG regions. Edit it in dev-standards and re-adopt;
      a change outside a region is a fork, and check-kit-drift says so. -->
 
 Close out the session. A session that ends without this is one someone else pays for later.
@@ -43,7 +43,10 @@ Close out the session. A session that ends without this is one someone else pays
 6. **Produce the handoff report:**
    - What shipped, as commits (SHA + subject) — origin SHAs if pushed, and say which are not.
    - Deviations from what was asked — each flagged with its reasoning, never silent.
-   - Walk-list: the judgment calls worth eyeballing, ranked.
+   - **Decided in build** — every call made without asking, with its reason, as each PR body
+     carries it. In an arc (playbooks/5-ARCS.md) these are reviewed once, at arc end.
+   - Walk-list: the judgment calls worth eyeballing, ranked. In an arc, say how far the journey now
+     runs, and what still stands between it and the arc walk.
    - Live-data claims, each backed by the query that produced it.
    - What is deliberately NOT done, and what unblocks it.
    - For every defect named, latent or reachable — "wrong but unreachable" and "wrong and live now"
