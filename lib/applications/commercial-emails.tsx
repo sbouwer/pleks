@@ -8,7 +8,8 @@
  *         Returns a React element for sendEmail({ emailElement }) so director emails render
  *         WITH org branding/salutation/standard footer like the residential application emails.
  *         Every sentence here is counsel-approved verbatim (brief/legal/COUNSEL_APPROVED_SCREENING_COMMS_2026-10-03.md);
- *         a diff against that file is the review. commercial-emails.test.ts holds the forbidden phrases out.
+ *         a diff against that file is the review. commercial-emails.test.ts holds the forbidden phrases out. The
+ *         invite's proceed sentence and bullet 1 are returned to counsel and absent until approved (COUNSEL-PENDING).
  */
 
 import { EmailLayout, EmailButton } from "@/lib/comms/templates/layout"
@@ -49,7 +50,11 @@ export function buildDirectorInviteElement(p: Readonly<{
     <EmailLayout preview={`${p.primaryContactName}'s application — your portion to complete`} branding={p.branding}>
       <p style={S.greeting}>Hi {p.directorFirstName},</p>
       <p style={S.body}>{p.primaryContactName} has submitted an application on behalf of their business to lease <strong>{p.propertyLabel}</strong>{p.propertyAddress ? ` (${p.propertyAddress})` : ""}.</p>
-      <p style={S.body}>{SURETY_ROLE_SENTENCES[p.role]} Before the application can proceed, you need to complete your part — your consent and required document upload. Once all required people have completed their consent, the lead applicant will pay the screening fee.</p>
+      {/* ⚠ COUNSEL-PENDING: the proceed sentence and bullet 1 are RETURNED TO COUNSEL (2026-10-03 — 14W §0 reversed the
+          payment model the same day: each person pays for their own check). Neither ships until counsel returns them:
+          the approved "the lead applicant will pay" is now false, and the proposed replacements are unapproved. The
+          rest of the invite is approved and ships; the fee is shown on the link page before payment. */}
+      <p style={S.body}>{SURETY_ROLE_SENTENCES[p.role]}</p>
       <p style={S.body}>This takes about 10 minutes. Your private link:</p>
       <EmailButton href={p.portalUrl} accentColor={p.branding.accentColor}>Complete my portion →</EmailButton>
       <p style={S.body}>This link expires in {p.ttlDays} days.</p>

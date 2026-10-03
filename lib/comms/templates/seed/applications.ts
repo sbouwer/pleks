@@ -245,7 +245,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "{{primaryContactName}} has submitted an application on behalf of their business to lease **{{propertyLabel}}**." },
-      { type: "paragraph", text: "You are listed as a director who may be signing a personal suretyship in connection with this lease. Before the application can proceed, you need to complete your part — your consent and required document upload. Once all required people have completed their consent, the lead applicant will pay the screening fee." },
+      { type: "paragraph", text: "You are listed as a director who may be signing a personal suretyship in connection with this lease." }, // proceed sentence returned to counsel 2026-10-03 (14W §0) — absent until approved
       { type: "paragraph", text: "This takes about 10 minutes. Your private link:" },
       { type: "cta", label: "Complete my portion", href: "{{portalUrl}}" },
       { type: "paragraph", text: "This link expires in 14 days." },

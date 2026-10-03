@@ -20,7 +20,13 @@ const APPROVED: Record<SuretyInviteRole, string> = {
   trustee: "You are listed as a trustee who may be signing a personal suretyship in connection with the lease for the trust named in the application.",
   member: "You are listed as a member of the close corporation who may be signing a personal suretyship in connection with its lease.",
 }
-const PROCEED = "Before the application can proceed, you need to complete your part — your consent and required document upload. Once all required people have completed their consent, the lead applicant will pay the screening fee."
+/** RETURNED TO COUNSEL 2026-10-03 (14W §0): the approved proceed sentence, and the pending replacements for it and bullet 1. None may render until counsel returns them. */
+const HELD_FOR_COUNSEL = [
+  "Before the application can proceed",
+  "the lead applicant will pay the screening fee",
+  "payment of the screening fee for your own check",
+  "You will pay the screening fee for your own check",
+]
 const BULLET_3 = "Your screening results will be shared with the leasing agent. You will also receive a copy of your own screening report when complete."
 const DECLINE = "If you do not wish to provide a personal suretyship for this lease, you can decline on the link page and we will let Lee Lead know to find a replacement."
 const T10 = "After this, the application cannot proceed until the required consent is completed."
@@ -55,9 +61,14 @@ describe("the surety invite — one builder, four approved role sentences (couns
     for (const other of ROLES.filter((r) => r !== role)) expect(body, other).not.toContain(APPROVED[other])
   })
 
-  it.each(ROLES)("the %s invite carries the approved proceed, bullet-3 and decline sentences and the shared window", async (role) => {
+  it.each(ROLES)("the %s invite carries the approved bullet-3 and decline sentences and the shared window", async (role) => {
     const body = await invite(role)
-    for (const s of [PROCEED, BULLET_3, DECLINE, `This link expires in ${SCREENING_WINDOW_DAYS} days.`]) expect(body).toContain(s)
+    for (const s of [BULLET_3, DECLINE, `This link expires in ${SCREENING_WINDOW_DAYS} days.`]) expect(body).toContain(s)
+  })
+
+  it.each(ROLES)("the %s invite carries neither the returned proceed sentence nor either pending replacement", async (role) => {
+    const body = await invite(role)
+    for (const s of HELD_FOR_COUNSEL) expect(body, s).not.toContain(s)
   })
 
   it.each(ROLES)("the %s invite contains no struck phrase", async (role) => {
