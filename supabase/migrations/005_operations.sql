@@ -2995,27 +2995,30 @@ $$;
 
 -- declared_director (BUILD_72 P1-R7a): the applicant's answer to "Is this person a director of the company?",
 -- asked when a guarantor/surety is added on a juristic application. Nullable, NO default, three meanings:
--- NULL = never asked (held), false = asked and not a director (held), true = director (director copy).
+-- NULL = never asked, false = asked and not a director (both: the generic sentence), true = director (office copy).
 -- Kept apart from is_surety_director, which Phase 2 derives from the registry: declaration and registry are
--- two facts, and Phase 2 compares them.
+-- two facts, and Phase 2 compares them. Only the declaration selects copy (ruling on #332, 2026-10-03).
 ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declared_director boolean;
 -- F7 ruling (CD 2026-10-01): the question's noun follows the entity type, so "director" in the column name means
 -- "holds the office this entity type has". The name stays; the concept lives in this comment. Counsel 2026-10-03: the
 -- answer selects the surety invite's role sentence (suretyInviteRole in TS) — director / trustee / CC member, or the
 -- generic sentence for a "no" or no answer. No surety is held for want of copy any more.
 COMMENT ON COLUMN application_co_applicants.declared_director IS
-  'BUILD_72 P1-R7a/F7: the applicant''s answer to "is this person a director / trustee / member of the entity?" - the noun follows the entity type (company: director; trust: trustee; close corporation: member). NULL = never asked, false = no, true = yes. Selects the surety invite''s counsel-approved role sentence (2026-10-03): a yes gives the director / trustee / CC member sentence, a no or NULL the generic one. Kept apart from is_surety_director (registry-derived).';
+  'BUILD_72 P1-R7a/F7: the applicant''s answer to "is this person a director / trustee / member of the entity?" - the noun follows the entity type (company: director; trust: trustee; close corporation: member). NULL = never asked, false = no, true = yes. Selects the surety invite''s counsel-approved role sentence (2026-10-03): a yes gives the director / trustee / CC member sentence, a no or NULL the generic one. The ONLY input to that choice: is_surety_director (registry-derived) never selects copy, and a registry yes against a non-yes answer is shown to the agent as a discrepancy for Phase 2 reconciliation.';
 
 -- is_director_surety(): may this party receive the director-audience surety copy (P1-R3/R7a)? SQL twin of
 -- isDirectorSurety() in lib/applications/juristicParties.ts; test/db/surety-party-predicate.dbtest.ts
--- asserts they agree. A surety party AND a director by either fact — the registry's or the declaration.
+-- asserts they agree. A surety party the applicant DECLARED holds the office — declared_director alone. The
+-- registry flag is_surety_director never selects copy (ruling on #332, 2026-10-03, correcting P1-R7a: counsel's
+-- office sentences are for a person somebody SAID holds the office); a registry yes against a non-yes answer is a
+-- discrepancy for the agent and Phase 2 (directorDeclarationDiscrepancy in TS), not a director.
 -- It does NOT read the entity type: which role sentence the office earns is suretyInviteRole's call (TS).
 CREATE OR REPLACE FUNCTION is_director_surety(caa application_co_applicants)
 RETURNS boolean
 LANGUAGE sql IMMUTABLE
 SET search_path = public
 AS $$
-  SELECT is_surety_party(caa) AND (COALESCE(caa.is_surety_director, false) OR COALESCE(caa.declared_director, false))
+  SELECT is_surety_party(caa) AND COALESCE(caa.declared_director, false)
 $$;
 
 -- ── v_application_screening_lines: orchestration view ────────────────────────

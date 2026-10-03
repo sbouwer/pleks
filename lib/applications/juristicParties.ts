@@ -173,15 +173,35 @@ export function isSuretyParty(row: Readonly<{ role?: string | null; is_surety_di
 export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guarantor"
 
 /**
- * Does this surety hold the office its entity type has — a company's director, a trust's trustee, a CC's member?
- * `suretyInviteRole` reads it to pick the invite's role sentence; a surety who does not is sent the generic one (A).
+ * Did the applicant SAY this surety holds the office its entity type has — a company's director, a trust's trustee,
+ * a CC's member? `suretyInviteRole` reads it to pick the invite's role sentence; any other surety is sent the
+ * generic one (A).
  *
- * The office by EITHER fact: `is_surety_director` (registry-derived, Phase 2) or `declared_director` (the
- * applicant's answer, P1-R7a; NULL = never asked). Read the two together here and nowhere else —
- * `pleks/no-hand-written-surety-filter` holds query filters on either. SQL twin: `is_director_surety()` in 005.
+ * `declared_director` ALONE (Stéan ruling on #332, 2026-10-03, correcting P1-R7a): counsel reviewed the office
+ * sentences for a person somebody SAID holds the office. The registry flag `is_surety_director` is a different fact
+ * and never selects copy — where it disagrees with the answer, `directorDeclarationDiscrepancy` records that for the
+ * agent and for Phase 2's reconciliation. `pleks/no-hand-written-surety-filter` holds query filters on either
+ * column. SQL twin: `is_director_surety()` in 005.
  */
 export function isDirectorSurety(row: Readonly<{ role?: string | null; is_surety_director?: boolean | null; declared_director?: boolean | null }>): boolean {
-  return isSuretyParty(row) && (row.is_surety_director === true || row.declared_director === true)
+  return isSuretyParty(row) && row.declared_director === true
+}
+
+/**
+ * The registry and the applicant DISAGREE about this surety's office: the registry flag says yes, and the applicant
+ * did not (answered no, or was never asked). Ruled 2026-10-03: a registry match is not a "yes". The invite therefore
+ * went out with the generic sentence, the agent is shown this, and Phase 2's registry reconciliation picks it up.
+ * Derived from the two recorded facts rather than stored: a stored copy of a function of two columns can only drift.
+ * The other direction (a "yes" the registry does not show) is not flagged — until Phase 2 runs, a false registry
+ * flag means "not checked", not "checked and absent".
+ */
+export function directorDeclarationDiscrepancy(row: Readonly<{ role?: string | null; is_surety_director?: boolean | null; declared_director?: boolean | null }>): boolean {
+  return isSuretyParty(row) && row.is_surety_director === true && row.declared_director !== true
+}
+
+/** What the agent is shown for a `directorDeclarationDiscrepancy` party. */
+export function directorDiscrepancyNotice(): string {
+  return "The registry lists this person as holding office in the entity, but the applicant did not say so. Their invite used the general wording. Unreconciled."
 }
 
 /**
@@ -212,8 +232,8 @@ type InviteInput = Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; app
 
 /**
  * Which counsel-approved ROLE SENTENCE a juristic surety's invite carries, or null when the party is not a juristic
- * surety (counsel-approved comms 2026-10-03 §1, routing per counsel Q2). The office is held by EITHER fact
- * (`isDirectorSurety`: the registry's flag or the applicant's "yes"), and the entity type names the office:
+ * surety (counsel-approved comms 2026-10-03 §1, routing per counsel Q2). The office is the applicant's "yes"
+ * (`isDirectorSurety` — never the registry flag alone), and the entity type names the office:
  * a company director → `director`; a trustee → `trustee` (variant B); a CC member → `member` (C). Every other
  * natural-person surety → `generic` (A) — including a "no" and an unanswered question, because a "no" to the
  * trustee/member question never infers another capacity, and A asserts none.

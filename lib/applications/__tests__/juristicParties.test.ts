@@ -24,6 +24,8 @@ import {
   suretyPartyLabel,
   suretyPartyLabelPlural,
   SURETY_PARTY_OR_FILTER,
+  directorDeclarationDiscrepancy,
+  isDirectorSurety,
 } from "@/lib/applications/juristicParties"
 import { applicationBundle } from "@/lib/screening/searchworxBundle"
 
@@ -232,9 +234,14 @@ const RESIDENTIAL = { entity_type: "individual", applicant_type: null, company_i
 const party = (role: string, declared_director: boolean | null, is_surety_director = false) => ({ role, is_surety_director, declared_director })
 
 describe("suretyInviteRole — which approved role sentence a juristic surety receives (counsel 2026-10-03 §1, Q2)", () => {
-  it("a company director → director, by either fact", () => {
+  it("a declared company director → director, with or without the registry flag", () => {
     expect(suretyInviteRole({ party: party("guarantor", true), application: entity("pty_ltd") })).toBe("director")
-    expect(suretyInviteRole({ party: party("guarantor", null, true), application: entity("npc") })).toBe("director")
+    expect(suretyInviteRole({ party: party("guarantor", true, true), application: entity("npc") })).toBe("director")
+  })
+  it("the registry flag ALONE never selects an office sentence (ruling on #332): a registry yes against a 'no' or no answer → generic", () => {
+    for (const t of JURISTIC) for (const d of [false, null]) {
+      expect(suretyInviteRole({ party: party("guarantor", d, true), application: entity(t) }), `${t}/${d}`).toBe("generic")
+    }
   })
   it("a trustee's 'yes' → trustee (B); a CC member's 'yes' → member (C)", () => {
     expect(suretyInviteRole({ party: party("guarantor", true), application: entity("trust") })).toBe("trustee")
@@ -249,6 +256,25 @@ describe("suretyInviteRole — which approved role sentence a juristic surety re
   it("is null for anyone not a juristic surety", () => {
     expect(suretyInviteRole({ party: party("guarantor", true), application: RESIDENTIAL })).toBeNull()
     expect(suretyInviteRole({ party: party("co_applicant", null), application: entity("pty_ltd") })).toBeNull()
+  })
+})
+
+describe("directorDeclarationDiscrepancy — a registry yes the applicant did not give (ruling on #332)", () => {
+  it("flags a registry yes against a 'no' and against no answer", () => {
+    expect(directorDeclarationDiscrepancy(party("guarantor", false, true))).toBe(true)
+    expect(directorDeclarationDiscrepancy(party("guarantor", null, true))).toBe(true)
+  })
+  it("KNOWN-GOOD: no flag where the two agree, where only the applicant said yes, or for a non-surety", () => {
+    expect(directorDeclarationDiscrepancy(party("guarantor", true, true))).toBe(false)
+    expect(directorDeclarationDiscrepancy(party("guarantor", true, false))).toBe(false)
+    expect(directorDeclarationDiscrepancy(party("guarantor", false, false))).toBe(false)
+    expect(directorDeclarationDiscrepancy(party("guarantor", null, false))).toBe(false)
+  })
+  it("every flagged party is one the copy treats as NOT holding office — the flag and the routing cannot both claim the office", () => {
+    for (const d of [true, false, null]) for (const r of [true, false]) {
+      const p = party("guarantor", d, r)
+      if (directorDeclarationDiscrepancy(p)) expect(isDirectorSurety(p), `${d}/${r}`).toBe(false)
+    }
   })
 })
 

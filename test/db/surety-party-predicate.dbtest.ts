@@ -153,4 +153,18 @@ describe("is_director_surety() ⇄ isDirectorSurety — who may receive director
     }
     expect(new Set((data ?? []).map((r) => r.is_director_surety))).toEqual(new Set([true, false]))
   }, 60_000)
+
+  it("the registry flag alone is not a director in SQL either; a declared yes is (ruling on #332, both directions)", async () => {
+    const { data, error } = await db.from("application_co_applicants")
+      .select("id, is_director_surety")
+      .eq("org_id", orgId)
+    expect(error).toBeNull()
+    const read = (want: Shape) => (data ?? []).find((r) => {
+      const s = planted.get(r.id as string)!
+      return s.role === want.role && s.is_surety_director === want.is_surety_director && s.declared_director === want.declared_director
+    })?.is_director_surety
+    expect(read({ role: "guarantor", is_surety_director: true, declared_director: false })).toBe(false)
+    expect(read({ role: "guarantor", is_surety_director: true, declared_director: null })).toBe(false)
+    expect(read({ role: "guarantor", is_surety_director: false, declared_director: true })).toBe(true)
+  }, 60_000)
 })
