@@ -11,7 +11,7 @@
  * Notes:  Wired into app/api/cron/daily/route.ts (Hobby plan — no extra vercel.json entry).
  *         SINGLE 90-day declined-applicant tier (ADDENDUM_70H F3): nulls ALL declined PII (identity +
  *         financial + screening artefacts), deletes the screening-artefact tables, and removes
- *         identity-docs/bank-statements/screening-reports Storage. Folds in (and replaces) the retired
+ *         screening-reports + application-docs Storage. Folds in (and replaces) the retired
  *         lib/rules/application/rejected-applicant-purge.ts OrgRule. pii_purged_at is the idempotency marker.
  *         Pass ?dry_run=1 to COUNT eligible applications per org without deleting (review aid).
  */
