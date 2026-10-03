@@ -19,6 +19,7 @@ import { ActionButton } from "@/components/ui/actions"
 import Link from "next/link"
 import { CheckCircle2, Clock, Circle } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { windowOpen } from "@/lib/screening/window"
 
 async function displayQuote(): Promise<number | null> {
   const q = await quoteApplicationFee(bundleFor("co_applicant"), "director-portal")
@@ -47,7 +48,7 @@ export default async function DirectorPortalPage({
   // Validate director token
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("id, org_id, first_name, primary_application_id, stage2_consent_given_at, searchworx_check_status, access_token_expires, declined_at")
+    .select("id, org_id, first_name, primary_application_id, stage2_consent_given_at, stage2_invited_at, searchworx_check_status, access_token_expires, declined_at")
     .eq("access_token", token)
     .is("declined_at", null)
     .single()
@@ -70,6 +71,28 @@ export default async function DirectorPortalPage({
       </div>
     )
   }
+
+  // Stage 2 not yet opened for this party (14W §0b): its invite — and its window — start at shortlist. A link held
+  // from before then shows nothing to do rather than a consent and payment nobody has asked for yet.
+  if (!coApp.stage2_invited_at) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="text-center py-8 space-y-3">
+            <Clock className="size-10 text-muted-foreground mx-auto" />
+            <h1 className="text-xl font-semibold">Screening has not opened yet</h1>
+            <p className="text-sm text-muted-foreground">
+              You will receive an email when the application is shortlisted and your part can be completed.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Past the party's own window with the line unpaid: the pay step is closed (the payment page redirects here), and the
+  // reminders cron declines the line at its next run. Show that rather than a "Start" that loops back (walker F3).
+  const windowClosed = !windowOpen(coApp.stage2_invited_at as string)
 
   // Fetch application + listing context
   const { data: app, error: appError } = await service
@@ -110,6 +133,22 @@ export default async function DirectorPortalPage({
 
   const allDone = data.consentGiven && data.paymentPaid
   const base = `/apply/${slug}/director-portal/${token}`
+
+  if (windowClosed && !data.paymentPaid) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="text-center py-8 space-y-3">
+            <Clock className="size-10 text-muted-foreground mx-auto" />
+            <h1 className="text-xl font-semibold">Your screening window has closed</h1>
+            <p className="text-sm text-muted-foreground">
+              Your portion was not completed in time. Please ask the primary applicant if you still want to take part.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const steps = [
     {

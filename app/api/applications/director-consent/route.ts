@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   const { data: coApp, error } = await service
     .from("application_co_applicants")
     // eslint-disable-next-line pleks/require-org-scope-on-service-read -- bounded by the director's private access_token; org is derived from this row, not asserted against it
-    .select("id, org_id, primary_application_id, applicant_email, stage2_consent_given_at, access_token_expires, declined_at")
+    .select("id, org_id, primary_application_id, applicant_email, stage2_consent_given_at, stage2_invited_at, access_token_expires, declined_at")
     .eq("id", coApplicantId)
     .eq("access_token", token)
     .is("declined_at", null)
@@ -51,6 +51,13 @@ export async function POST(req: NextRequest) {
 
   if (coApp.stage2_consent_given_at) {
     return NextResponse.json({ ok: true, alreadyConsented: true })
+  }
+
+  // Stage 2 not yet offered to this party (14W §0b): a surety is invited at shortlist, and its window runs from that
+  // invite. Consenting before it would start a screening — and a payment — nobody has asked for yet. The residential
+  // twin (screening-consent) holds the same gate; a surety has no stage-1 step, so the invite is its only condition.
+  if (!coApp.stage2_invited_at) {
+    return NextResponse.json({ error: "Screening has not been opened for this application yet", reason: "not_invited" }, { status: 409 })
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null

@@ -3,19 +3,18 @@
  *
  * Route:  GET /api/cron/screening-portal-reminders
  * Auth:   x-cron-secret header
- * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones for
- *         co-applicant lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3):
- *         · surety whose inviteRoute is "surety" (every juristic surety since the 2026-10-03 A/B/C release) → the
- *           role-neutral surety reminder + director-portal link. Its clock runs SCREENING_WINDOW_DAYS from creation.
- *           T+14: line declined, payment flagged for manual refund (14C), expiry email sent; primary
- *           contact notified at T+7 and T+10 (informational only).
+ * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 milestones and the T+14 deadline
+ *         for co-party lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3). ONE CLOCK (14W §0b):
+ *         every party's window runs SCREENING_WINDOW_DAYS from its own `stage2_invited_at`, written at shortlist for
+ *         every party, sureties included; an uninvited party is skipped. At the deadline every unfinished party is
+ *         declined by one writer (`declineLine`) — whoever completed counts — and the FitScore orchestrator is
+ *         offered the application. Nothing here refunds: a paid line is never declined (§0).
+ *         · surety whose inviteRoute is "surety" → the role-neutral surety reminder + director-portal link; primary
+ *           contact notified at T+7 and T+10 (informational only); expiry notice at the deadline.
  *         · a surety inviteHold still holds (none today: no approved role sentence fits it) → HELD: no send, no expiry.
  *         · co_applicant, or guarantor (a surety on a NON-juristic application, P1-R3a) →
- *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); declined once
- *           unconsented 14 days after its STAGE-2 INVITE (P1-R6, P1-R8b-2). Both clocks run from
- *           `stage2_invited_at` (written at shortlist), never from `created_at` — a party is not chased, or
- *           expired, for a consent nobody has asked them for yet; an uninvited party is skipped. The refund
- *           branch and any expiry notice are gated on Stéan, so neither is written here.
+ *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); no notice at the deadline.
+ *         · consented, unpaid → no reminder (no approved pay prompt exists), declined at the deadline like anyone.
  *         · anything else (null/unknown party_kind) → skipped. No email beats a wrong one.
  *         Milestone tracking: reminder_milestones_sent jsonb on application_co_applicants prevents
  *         re-sending if the daily cron misses a run — each key (t3/t7/t10) is marked once sent.
@@ -29,6 +28,8 @@ import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { inviteRoute } from "@/lib/applications/juristicParties"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
+import { maybeRunOrchestrator } from "@/lib/screening/maybeRunOrchestrator"
+import { readLine } from "@/lib/screening/lineFee"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 
@@ -141,54 +142,63 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   const row = coApp as CoAppRow & { is_surety_director: boolean | null; declared_director: boolean | null }
   const sent = (row.reminder_milestones_sent ?? {}) as Record<string, boolean>
 
-  // A residential guarantor (P1-R3a) was invited with co_applicant_invited, so it is reminded and expired
-  // exactly as a joint co-applicant is — from its stage-2 invite (P1-R8b-2), and not at all before one.
-  if (line.party_kind === "co_applicant" || line.party_kind === "guarantor") {
-    if (!row.stage2_invited_at) return "skipped"
-    // Consented, own line unpaid. Under 14W §0 this party is waiting on THEIR OWN payment, not the lead's — but the
-    // approved reminder copy is consent copy, so it is not sent here, and declining at the window would drop a person
-    // who consented. A pay reminder and its expiry belong to §0b's one clock (walker 14w-s0a F2); until then this
-    // state is skipped, and the co link itself shows the pay step.
-    if (line.state === "consented_pending_payment") return "skipped"
-    const invitedAt = new Date(row.stage2_invited_at).getTime()
-    return processCoApplicantLine(service, line, row, invitedAt, Math.floor((Date.now() - invitedAt) / DAY_MS), sent)
-  }
-  // The director path keeps its own clock, from the row's creation (unchanged by P1-R8b).
-  const daysElapsed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / DAY_MS)
-  // Every branch below sends surety copy. The view's state set for it is unchanged; `expired_no_consent` is the
-  // co_applicant branch's alone.
-  if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
-  // Consented, own line unpaid — the same rule as the co branch above (§0b owns the pay reminder). The approved reminder says
-  // "your portion is still outstanding" and its t10 line "until the required consent is completed": both false for a
-  // surety who has consented, and a decline at the window would drop someone who did everything asked (walker F5).
-  if (line.state === "consented_pending_payment") return "skipped"
+  if (line.party_kind !== "co_applicant" && line.party_kind !== "guarantor" && line.party_kind !== "surety") return "skipped"
+
+  // ONE CLOCK (14W §0b, §9 rows 26/40): every party's window runs SCREENING_WINDOW_DAYS from its own stage-2 invite,
+  // written at shortlist — sureties included, since they are invited there now. Never `created_at`, never the payment
+  // row's expires_at (a settlement field). A party nobody has invited is not chased, or expired, for it.
+  if (!row.stage2_invited_at) return "skipped"
+  const invitedAt = new Date(row.stage2_invited_at).getTime()
+  const daysElapsed = Math.floor((Date.now() - invitedAt) / DAY_MS)
+  const pastDeadline = Date.now() >= invitedAt + STAGE2_WINDOW_MS
+
   // HELD (P1-R3): a surety no approved role sentence fits is not reminded, and not expired either — declining someone
   // for not completing an invite we withheld would record their failure for ours. Since the 2026-10-03 A/B/C release
   // that set is empty. The decision is inviteRoute's, the same one the first invite and the co-parties Resend read.
-  const { data: application, error: applicationError } = await service
-    .from("applications")
-    .select("entity_type, applicant_type, company_info")
-    .eq("id", line.application_id)
-    .eq("org_id", line.org_id)
-    .maybeSingle()
-  if (applicationError) throw new Error(`read application for invite route: ${applicationError.message}`)
-  if (!application || inviteRoute({ party: row, application }) !== "surety") return "held"
-  // No late-party skip since 14W §0: every line is paid on its own, so a party is never outside a fee someone else paid.
+  if (line.party_kind === "surety") {
+    const { data: application, error: applicationError } = await service
+      .from("applications")
+      .select("entity_type, applicant_type, company_info")
+      .eq("id", line.application_id)
+      .eq("org_id", line.org_id)
+      .maybeSingle()
+    if (applicationError) throw new Error(`read application for invite route: ${applicationError.message}`)
+    if (!application || inviteRoute({ party: row, application }) !== "surety") return "held"
+  }
 
-  if (daysElapsed >= SCREENING_WINDOW_DAYS) return expireDirectorLine(service, line, row)
-  const stage = dueStage(daysElapsed, sent)
-  if (!stage) return "skipped"
-  return sendMilestoneReminder(service, line, row, stage, daysElapsed, sent)
+  if (line.state === "paid_pending_consent") {
+    // Paid without consent — a race the billing gate should make impossible. Never declined: the money has no ruled
+    // outcome at the deadline (§0 refunds only a terminal failure), so it waits for a person, flagged once it is due.
+    if (pastDeadline) {
+      Sentry.captureMessage("Paid screening line without consent reached its deadline", {
+        level: "error", tags: { cron_job: "screening_portal_reminders", reason: "paid_pending_consent_at_deadline" },
+        extra: { application_id: line.application_id, subject_id: line.subject_id },
+      })
+      return "skipped"
+    }
+  }
+
+  // At the deadline, whoever did not complete does not count (§0): consented-but-unpaid included — it is declined on
+  // the same clock as everyone else (walker 14w-s0a F2), and the set it leaves may now be complete.
+  if (pastDeadline) return declineLine(service, line, row)
+
+  // Consented, own line unpaid: no reminder. Every approved reminder is consent copy ("No credit check runs at this
+  // stage"; "until the required consent is completed"), false for this party, and no approved pay prompt exists. The
+  // party's own link shows the pay step. A pay reminder needs copy first (14W §0b, Decided in build).
+  if (line.state === "consented_pending_payment") return "skipped"
+
+  if (line.party_kind === "surety") {
+    const stage = dueStage(daysElapsed, sent)
+    if (!stage) return "skipped"
+    return sendMilestoneReminder(service, line, row, stage, daysElapsed, sent)
+  }
+  return processCoApplicantLine(service, line, row, daysElapsed, sent)
 }
 
-/** Residential joint co-applicant (P1-R5/R6). The reminder is the invite, verbatim; no new copy. */
+/** Residential joint co-applicant or guarantor (P1-R5). The reminder is the invite, verbatim; no new copy. */
 async function processCoApplicantLine(
-  service: Svc, line: PendingLine, coApp: CoAppRow, invitedAt: number, daysElapsed: number, sent: Record<string, boolean>,
+  service: Svc, line: PendingLine, coApp: CoAppRow, daysElapsed: number, sent: Record<string, boolean>,
 ): Promise<LineOutcome> {
-  // R6 + R8b-2: the consent window is 14 days from the stage-2 invite. Not the payment row's expires_at: under the
-  // 14W gate a payment row is only ever written for a party who has already consented, so it never bounds this.
-  if (Date.now() >= invitedAt + STAGE2_WINDOW_MS) return declineCoApplicantLine(service, line)
-
   const stage = dueStage(daysElapsed, sent)
   if (!stage) return "skipped"
   const ctx = await buildEmailContext(line.application_id)
@@ -217,80 +227,69 @@ async function stampMilestone(service: Svc, line: PendingLine, sent: Record<stri
   if (error) throw new Error(`stamp reminder milestone ${stage}: ${error.message}`)
 }
 
-/** R6 decline. The refund branch is STRUCK, not deferred (ADDENDUM_14W, Stéan 2026-10-01): a paid line's payment
- *  row is left untouched, and none is ever refunded. 14W also makes expires_at the consent window and tells the
- *  lead; both are 14W's build, held while its verification is UNRULED, so no notice is sent yet. The roster
- *  shrinks, so the remaining parties may now be all-green. Which column says a residential party has FINISHED
- *  (walker F3) is with CD: this branch declines on the view's state alone. */
-async function declineCoApplicantLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
+/** THE deadline decline, for every party kind (14W §0b — the surety branch's own writer folded in). A declined line
+ *  leaves the set: whoever completed counts. Never reached by a paid line (processLine refuses one), so nothing is
+ *  refunded here — §0's only refund is a terminal run failure, which is not this cron's. The roster shrinks, so:
+ *  (1) the stage-1 "ready to submit" fan-out may fire, and (2) the remaining subjects may now all be complete, so the
+ *  FitScore orchestrator is offered the application — before §0b only a line FINISHING did that, so an application
+ *  whose last open party was declined never ran. A surety is told its portion expired (the approved notice, without
+ *  the refund note it carried under the pooled model); a co party is sent nothing, as before. */
+async function declineLine(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<LineOutcome> {
+  // The state was read once at the start of the run; the party may have paid since (walker 14w-s0b F3). Re-read its own
+  // line immediately before declining, and never decline a paid one. The residual window (an ITN landing between this
+  // read and the update) is held by the ITN, which flags a payment on a declined line for a person.
+  const fresh = await readLine(service, { orgId: line.org_id, applicationId: line.application_id, subjectType: "co_applicant", subjectId: line.subject_id })
+  if (!fresh.ok) throw new Error("decline line: payment re-read failed")
+  if (fresh.row?.paid_at) return "skipped"
+
   const now = new Date().toISOString()
-  const { error } = await service
+  const { data: declined, error } = await service
     .from("application_co_applicants")
     .update({ declined_at: now, decline_reason: "expired_no_completion" })
     .eq("id", line.subject_id)
     .eq("org_id", line.org_id)
-  if (error) throw new Error(`decline co-applicant line: ${error.message}`)
+    .is("declined_at", null)
+    .select("id")
+  if (error) throw new Error(`decline line: ${error.message}`)
+  // An overlapping run already declined it: no second audit row, notice or fan-out (walker F6).
+  if (!declined?.length) return "skipped"
   await recordAudit(service, { orgId: line.org_id, table: "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { declined_at: now, decline_reason: "expired_no_completion" } })
+  // The notice first: the line has left the view, so nothing after this point is retried (walker F6).
+  if (line.party_kind === "surety") await sendSuretyExpiry(service, line, coApp)
   await maybeFireAllGreen(service, line.application_id)
+  await maybeRunOrchestrator(service, line.org_id, line.application_id)
   return "expired"
 }
 
-async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<LineOutcome> {
+async function sendSuretyExpiry(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<void> {
   const { data: app, error: appError } = await service
     .from("applications")
-    .select("first_name, last_name, applicant_email, listings(public_slug, units(unit_number, properties(name)))")
+    .select("first_name, last_name, listings(public_slug, units(unit_number, properties(name)))")
     .eq("id", line.application_id)
-    .single()
-    logQueryError("expireDirectorLine applications", appError)
-
-  if (!app) return "skipped"
+    .eq("org_id", line.org_id)
+    .maybeSingle()
+  logQueryError("sendSuretyExpiry applications", appError)
+  if (!app) return
 
   const { propertyLabel } = resolveListingLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
-  const now = new Date().toISOString()
-
-  await service
-    .from("application_co_applicants")
-    .update({ declined_at: now, decline_reason: "expired_no_completion" })
-    .eq("id", line.subject_id)
-
-  await recordAudit(service, { orgId: line.org_id, table: "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { declined_at: now, decline_reason: "expired_no_completion" } })
-
-  // 14R: declining a non-completing line shrinks the roster — the REMAINING applicants may now be all-green, so fire
-  // the "ready to submit" fan-out (arm is null while a line was pending, so this fires the first all-green).
-  await maybeFireAllGreen(service, line.application_id)
-
-  if (line.paid_at) {
-    const { data: payment, error: paymentError } = await service
-      .from("application_screening_payments")
-      .select("id, fee_cents")
-      .eq("application_id", line.application_id)
-      .eq("subject_type", "co_applicant")
-      .eq("subject_id", line.subject_id)
-      .maybeSingle()
-    logQueryError("expireDirectorLine application_screening_payments", paymentError)
-
-    if (payment) {
-      await service
-        .from("application_screening_payments")
-        .update({ expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents })
-        .eq("id", payment.id)
-
-      await recordAudit(service, { orgId: line.org_id, table: "application_screening_payments", recordId: payment.id, action: "UPDATE", after: { expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents } })
-    }
-  }
-
-  await sendEmail({
+  const sendResult = await sendEmail({
     orgId: line.org_id,
+    // The key keeps its registered name; the refund half of the notice retired with the pooled model (14W §0).
     templateKey: "application.director_expired_refund",
     to: { email: coApp.applicant_email, name: coApp.first_name ?? "" },
     subject: `Your application portion has expired — ${propertyLabel}`,
-    contentHtml: buildExpiryHtml({ directorFirstName: coApp.first_name ?? "there", propertyLabel, primaryContactName, paid: !!line.paid_at }),
+    contentHtml: buildExpiryHtml({ directorFirstName: coApp.first_name ?? "there", propertyLabel, primaryContactName }),
     entityType: "application_co_applicant", entityId: line.subject_id,
     triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
   })
-
-  return "expired"
+  // The decline above stands either way; a failed notice is reported, not retried (the line has left the view).
+  if (!sendResult.success) {
+    Sentry.captureMessage("Surety expiry notice not sent", {
+      level: "warning", tags: { cron_job: "screening_portal_reminders" },
+      extra: { subject_id: line.subject_id, error: sendResult.error ?? "unknown" },
+    })
+  }
 }
 
 async function sendMilestoneReminder(
@@ -365,7 +364,6 @@ async function notifyPrimaryContact(
   const html = `
 <p>Hi ${ctx.primaryContactName},</p>
 <p>${urgency}<strong>${ctx.directorName}</strong> has not yet completed their portion of the application for <strong>${ctx.propertyLabel}</strong>.</p>
-<p>The application cannot proceed until all directors have completed payment and consent.</p>
 <p>If ${ctx.directorName} is unable to proceed, you can replace them from your application portal.</p>`
 
   await sendEmail({
@@ -381,14 +379,10 @@ async function notifyPrimaryContact(
   })
 }
 
-function buildExpiryHtml(p: { directorFirstName: string; propertyLabel: string; primaryContactName: string; paid: boolean }): string {
-  const refundNote = p.paid
-    ? `<p>You had paid your screening fee. The agency will process your refund — please contact them directly if you have not received it within 5 business days.</p>`
-    : ""
+function buildExpiryHtml(p: { directorFirstName: string; propertyLabel: string; primaryContactName: string }): string {
   // A FRAGMENT — sendEmail wraps it in the central EmailLayout and injects the org's branding.
   return `
 <p>Hi ${p.directorFirstName},</p>
 <p>Your portion of the application for <strong>${p.propertyLabel}</strong> has expired as the ${SCREENING_WINDOW_DAYS}-day window has passed without completion.</p>
-${refundNote}
 <p>The application has been notified to ${p.primaryContactName}. If you still want to participate, please ask them to add you again.</p>`
 }

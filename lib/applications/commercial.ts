@@ -61,7 +61,8 @@ async function resolveApplicationOrg(
  * every party the roster lists, which includes residential guarantors (R3a: never director copy) and juristic
  * non-director sureties (R3: held) — and rotating the token on the way killed a residential guarantor's working
  * /apply/co-applicant link. Now:
- *   - director     → rotate the token (and its 14-day expiry, which the copy states), send director_invited
+ *   - director     → rotate the token, its expiry pinned to the party's window end (stage2_invited_at + window, 14W
+ *                    §0b — a resend never re-extends it), send director_invited; refused before the stage-2 invite
  *   - co_applicant → re-send co_applicant_invited on the EXISTING token, as the reminder cron does (P1-R5)
  *   - held         → send nothing, rotate nothing; the page does not offer the button for a held party
  * A LATE party (P1-R3b / 14V §3.5b: on a paid application, a party the payment did not price — a hold lifted after
@@ -89,7 +90,7 @@ export async function resendDirectorInvite(
     service.from("applications").select("entity_type, applicant_type, company_info")
       .eq("id", applicationId).eq("org_id", orgId).maybeSingle(),
     service.from("application_co_applicants")
-      .select("applicant_email, first_name, access_token, role, is_surety_director, declared_director")
+      .select("applicant_email, first_name, access_token, role, is_surety_director, declared_director, stage2_invited_at")
       .eq("id", coApplicantId).eq("primary_application_id", applicationId).eq("org_id", orgId)
       .is("declined_at", null).maybeSingle(),
   ])
@@ -118,10 +119,20 @@ export async function resendDirectorInvite(
   }
 
   if (!suretyRole) return { ok: false, error: "Could not send the invitation" } // route "surety" implies a role
+  // A surety is invited at shortlist (14W §0b); before it there is nothing to resend. And a resend never moves the
+  // deadline: the link lives to the party's own window end (stage2_invited_at + window), not to now + window, so
+  // resending cannot buy a surety a second window — one clock.
+  if (!party.stage2_invited_at) return { ok: false, error: "Screening has not been opened for this application yet" }
+  const windowEnd = directorTokenExpiry(new Date(party.stage2_invited_at as string).getTime())
+  // Past the window there is nothing to resend to: the link would be dead on arrival (walker F4). The copy states the
+  // days actually left, rounded up, never the full window the link no longer has.
+  const msLeft = Date.parse(windowEnd) - Date.now()
+  if (msLeft <= 0) return { ok: false, error: "This party's screening window has closed" }
+  const ttlDays = Math.ceil(msLeft / 86_400_000)
   const newToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")
   const { error } = await service
     .from("application_co_applicants")
-    .update({ access_token: newToken, access_token_expires: directorTokenExpiry() })
+    .update({ access_token: newToken, access_token_expires: windowEnd })
     .eq("id", coApplicantId)
     .eq("primary_application_id", applicationId)
     .eq("org_id", orgId) // org-scope guard (caller-ID census)
@@ -138,6 +149,7 @@ export async function resendDirectorInvite(
     directorEmail: party.applicant_email,
     directorFirstName: party.first_name ?? "there",
     role: suretyRole,
+    ttlDays,
   })
   return result?.success ? { ok: true } : { ok: false, error: "Could not send the invitation" }
 }
