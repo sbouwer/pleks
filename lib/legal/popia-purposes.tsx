@@ -274,7 +274,8 @@ export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
     description: <>
       <p>Accept the applicant&rsquo;s rental application fee directly via the payment gateway (see §C). The fee is a Pleks-to-applicant service charge covering the cost of the underlying credit bureau report and Pleks&rsquo;s cost of operating the application-processing service. The agency receives no portion of any application fee under any tier or commercial arrangement.</p>
       <p><strong>Pricing.</strong> A single application fee covers the credit check, Consumer Report PDF delivery, and bank-statement income analysis (B22). Single and joint applications are priced separately. <strong>Commercial / juristic applicants</strong> are billed per director on a modular basis — each director&rsquo;s FitScore attracts the applicable per-applicant fee.</p>
-      <p><strong>Refund mechanics.</strong> Application fees are non-refundable once the Searchworx API call has been made. Refund requests are logged in the consent log and actioned via the payment gateway reversal mechanism.</p>
+      <p><strong>Refund mechanics.</strong> The screening service commences upon successful payment. The screening checks are then initiated and the resulting reports are generated as part of that service. Fees are not refundable merely because the applicant changes their mind after screening has commenced, subject to any rights or remedies that cannot lawfully be excluded.</p>
+      <p>If a bureau or screening provider experiences a technical failure and, after reasonable retries, no screening report is generated, Pleks will refund the screening fee to the extent required by applicable law.</p>
     </>,
     lawfulBasis: "s11(1)(a) — consent (applicant initiates payment knowing the purpose) + s11(1)(b) — contract",
     data: "Applicant name, email, payment amount, transaction reference, payment method indicator (not full card number — payment gateway is the PCI boundary)",

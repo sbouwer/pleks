@@ -264,6 +264,7 @@ export async function runFitScoreOrchestrator(
       pleks_network_tenancy_count, co_applicant_index
     `)
     .eq('primary_application_id', applicationId)
+    .is('declined_at', null) // a declined party is out of the application (14W §0), as in billing, the ITN and the screen route
     .order('co_applicant_index', { ascending: true })
 
   if (coErr) return { ok: false, reason: `co_applicants_query_failed: ${coErr.message}` }

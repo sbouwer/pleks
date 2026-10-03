@@ -110,6 +110,15 @@ export const MAX_SCREENING_ITERATIONS = 2
  */
 export const SCREENING_WINDOW_DAYS = 14
 
+/**
+ * The largest file an agent can upload through a server action or route handler: 4 MB. Vercel refuses a request body
+ * over ~4.5 MB before our code runs, and `next.config.ts` `serverActions.bodySizeLimit` is set to this. Every
+ * upload guard reads it, so the message the agent sees matches the limit that actually applies. Larger files need a
+ * signed upload URL (as application-docs uses), not a bigger number.
+ */
+export const UPLOAD_MAX_BYTES = 4 * 1024 * 1024
+export const UPLOAD_MAX_LABEL = "4 MB"
+
 /** Inference only: did employment start within the probation window? SA probation isn't fixed (it varies by
  *  contract/sector), so callers must surface this as agent-facing evidence — never a silent filter. */
 export function startedWithinProbation(startDate: string | null | undefined, now: Date = new Date()): boolean {
