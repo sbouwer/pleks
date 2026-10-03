@@ -92,7 +92,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Store HTML report (PDF conversion can be done via Edge Function later)
-    const filename = `reports/${config.org_id}/${config.report_type}-${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}.html`
+    // Keyed `{org}/…` like the other org-scoped buckets, so the org purge CAN remove it by prefix — it does not yet list
+    // this bucket (follow-up to PR #335's ORG_SCOPED_BUCKETS). It carried a redundant
+    // `reports/` prefix until 2026-10-03; the bucket did not exist then, so no object has the old key.
+    const filename = `${config.org_id}/${config.report_type}-${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}.html`
     const { error: uploadErr } = await supabase.storage.from("reports").upload(filename, html, {
       contentType: "text/html",
       upsert: true,

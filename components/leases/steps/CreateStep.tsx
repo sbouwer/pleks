@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FileText, Paperclip, X } from "lucide-react"
 import { toast } from "sonner"
+import { UPLOAD_MAX_BYTES, UPLOAD_MAX_LABEL } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { useOrg } from "@/hooks/useOrg"
 import { createLease, createUploadedLease } from "@/lib/actions/leases"
@@ -158,7 +159,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
     const f = e.target.files?.[0] ?? null
     if (!f) return
     if (f.type !== "application/pdf") { toast.error("PDF files only"); return }
-    if (f.size > 20 * 1024 * 1024) { toast.error("Max 20 MB"); return }
+    if (f.size > UPLOAD_MAX_BYTES) { toast.error(`Max ${UPLOAD_MAX_LABEL}`); return }
     setFile(f)
   }
 
@@ -186,6 +187,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
     }
     const result = await createUploadedLease(buildUploadedFormData(data, cpaApplies, file))
     if ("error" in result) { toast.error(result.error); setError(result.error); return }
+    if (result.documentError) toast.warning(result.documentError)
     router.push(`/leases/${result.leaseId}`)
   }
 
@@ -271,7 +273,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
             >
               <Paperclip className="size-6 text-muted-foreground" />
               <p className="text-sm font-medium">Drop your lease PDF here</p>
-              <p className="text-xs text-muted-foreground">or click to browse · PDF only · Max 20 MB · optional, you can upload later</p>
+              <p className="text-xs text-muted-foreground">or click to browse · PDF only · Max {UPLOAD_MAX_LABEL} · optional, you can upload later</p>
             </button>
           )}
           <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleFileChange} />

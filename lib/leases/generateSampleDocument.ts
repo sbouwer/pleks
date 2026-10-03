@@ -128,12 +128,13 @@ export async function generateSampleLeaseDocument(
 
   const storagePath = `orgs/${orgId}/lease_samples/preview_${leaseType}.docx`
 
-  await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from("documents")
     .upload(storagePath, docxBuffer, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       upsert: true,
     })
+  if (uploadError) throw new Error(`Sample lease upload failed: ${uploadError.message}`)
 
   return { storagePath }
 }

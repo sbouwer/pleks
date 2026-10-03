@@ -11,6 +11,12 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { UPLOAD_MAX_BYTES, UPLOAD_MAX_LABEL } from "@/lib/constants"
+
+// The municipal-bills bucket's limits (011 §29). Not exported — a "use server" module exports async functions only.
+// PDF only: extractMunicipalBill sends every bill to the model as application/pdf, so an image would store and then
+// always fail extraction.
+const MUNICIPAL_BILL_TYPES = new Set(["application/pdf"])
 
 /**
  * @knipignore The missing ENTRY half of a LIVE feature: confirmMunicipalBill/markMunicipalBillPaid in this
@@ -63,6 +69,9 @@ export async function uploadMunicipalBill(formData: FormData) {
   const file = formData.get("file") as File
 
   if (!file) return { error: "File required" }
+  // Mirrors the bucket's own limits (011 §29); checked here too so the agent gets a readable message, not a 4xx.
+  if (!MUNICIPAL_BILL_TYPES.has(file.type)) return { error: "Upload the bill as a PDF" }
+  if (file.size > UPLOAD_MAX_BYTES) return { error: `File too large (max ${UPLOAD_MAX_LABEL})` }
 
   // Org-scope the property read (caller-ID census) — foreign propertyId matches nothing, so the bill +
   // storage object + AI extraction can't be driven against another org.
@@ -77,7 +86,10 @@ export async function uploadMunicipalBill(formData: FormData) {
   if (!property) return { error: "Property not found" }
 
   const sanitized = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, "_")
-  const storagePath = `${propertyId}/${municipalAccountId}/${Date.now()}-${sanitized}`
+  // `{org}/` first, like the other org-scoped buckets, so the org purge CAN remove it by prefix — it does not yet list
+  // this bucket (follow-up to PR #335's ORG_SCOPED_BUCKETS). It began at the property id
+  // until 2026-10-03; the bucket did not exist then, so no object has the old key.
+  const storagePath = `${orgId}/${propertyId}/${municipalAccountId}/${Date.now()}-${sanitized}`
   const buffer = await file.arrayBuffer()
 
   const { error: uploadError } = await db.storage
