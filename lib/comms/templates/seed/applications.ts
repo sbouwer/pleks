@@ -245,12 +245,13 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     body: [
       { type: "salutation", text: "{{recipient.salutation}}" },
       { type: "paragraph", text: "{{primaryContactName}} has submitted an application on behalf of their business to lease **{{propertyLabel}}**." },
-      { type: "paragraph", text: "You are listed as a director who may be signing a personal suretyship in connection with this lease." }, // proceed sentence returned to counsel 2026-10-03 (14W §0) — absent until approved
+      { type: "paragraph", text: "You are listed as a director who may be signing a personal suretyship in connection with this lease. Before the application can proceed, you need to complete your part — your consent, payment of the screening fee for your own check, and your document upload." },
       { type: "paragraph", text: "This takes about 10 minutes. Your private link:" },
       { type: "cta", label: "Complete my portion", href: "{{portalUrl}}" },
       { type: "paragraph", text: "This link expires in 14 days." },
       { type: "heading", text: "A few things to know" },
       { type: "list", items: [
+        "You will pay the screening fee for your own check (covers credit check, ID verification and income verification).",
         "You will need to upload a recent bank statement (3 months) and your ID document",
         "Your screening results will be shared with the leasing agent. You will also receive a copy of your own screening report when complete.",
         "You are consenting to processing of your personal information under POPIA. Full details on the link page.",

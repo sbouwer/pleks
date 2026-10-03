@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest"
 import { render } from "@react-email/components"
-import { buildDirectorInviteElement, buildDirectorReminderElement, SURETY_ROLE_SENTENCES } from "@/lib/applications/commercial-emails"
+import { buildDirectorInviteElement, buildDirectorReminderElement, SURETY_FEE_BULLET, SURETY_PROCEED_SENTENCE, SURETY_ROLE_SENTENCES } from "@/lib/applications/commercial-emails"
 import type { SuretyInviteRole } from "@/lib/applications/juristicParties"
 import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
 
@@ -20,13 +20,11 @@ const APPROVED: Record<SuretyInviteRole, string> = {
   trustee: "You are listed as a trustee who may be signing a personal suretyship in connection with the lease for the trust named in the application.",
   member: "You are listed as a member of the close corporation who may be signing a personal suretyship in connection with its lease.",
 }
-/** RETURNED TO COUNSEL 2026-10-03 (14W §0): the approved proceed sentence, and the pending replacements for it and bullet 1. None may render until counsel returns them. */
-const HELD_FOR_COUNSEL = [
-  "Before the application can proceed",
-  "the lead applicant will pay the screening fee",
-  "payment of the screening fee for your own check",
-  "You will pay the screening fee for your own check",
-]
+/** Who pays, per person (14W §0), ruled in the counsel pack §8 — pinned here as literals, like the role sentences. */
+const PROCEED = "Before the application can proceed, you need to complete your part — your consent, payment of the screening fee for your own check, and your document upload."
+const FEE_BULLET = "You will pay the screening fee for your own check (covers credit check, ID verification and income verification)."
+/** The one-payment model's sentence, false under 14W §0, and the rental-history check that is never run. */
+const NEVER = ["the lead applicant will pay", "rental history"]
 const BULLET_3 = "Your screening results will be shared with the leasing agent. You will also receive a copy of your own screening report when complete."
 const DECLINE = "If you do not wish to provide a personal suretyship for this lease, you can decline on the link page and we will let Lee Lead know to find a replacement."
 const T10 = "After this, the application cannot proceed until the required consent is completed."
@@ -61,14 +59,16 @@ describe("the surety invite — one builder, four approved role sentences (couns
     for (const other of ROLES.filter((r) => r !== role)) expect(body, other).not.toContain(APPROVED[other])
   })
 
-  it.each(ROLES)("the %s invite carries the approved bullet-3 and decline sentences and the shared window", async (role) => {
+  it.each(ROLES)("the %s invite carries the per-person proceed sentence and fee bullet, bullet 3, decline and the shared window", async (role) => {
     const body = await invite(role)
-    for (const s of [BULLET_3, DECLINE, `This link expires in ${SCREENING_WINDOW_DAYS} days.`]) expect(body).toContain(s)
+    expect(SURETY_PROCEED_SENTENCE).toBe(PROCEED)
+    expect(SURETY_FEE_BULLET).toBe(FEE_BULLET)
+    for (const s of [PROCEED, FEE_BULLET, BULLET_3, DECLINE, `This link expires in ${SCREENING_WINDOW_DAYS} days.`]) expect(body).toContain(s)
   })
 
-  it.each(ROLES)("the %s invite carries neither the returned proceed sentence nor either pending replacement", async (role) => {
+  it.each(ROLES)("the %s invite never says the lead pays, and never lists rental history", async (role) => {
     const body = await invite(role)
-    for (const s of HELD_FOR_COUNSEL) expect(body, s).not.toContain(s)
+    for (const s of NEVER) expect(body.toLowerCase(), s).not.toContain(s.toLowerCase())
   })
 
   it.each(ROLES)("the %s invite contains no struck phrase", async (role) => {
