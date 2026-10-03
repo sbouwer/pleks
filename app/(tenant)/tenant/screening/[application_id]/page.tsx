@@ -16,6 +16,7 @@ import { DetailCard } from "@/components/detail/DetailCard"
 import type { DetailStatus } from "@/lib/detail/types"
 import { FileDown, Clock, CheckCircle2, ShieldCheck, ExternalLink } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { fetchLeadReportLines, type LeadReportLine } from "@/lib/screening/leadReports"
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -60,22 +61,17 @@ export default async function ScreeningPage({
   const state = deriveState(app.searchworx_check_status as string | null)
 
   // ── Results ready: fetch screening lines with PDF paths ─────────────────────
-  let pdfLines: { product_key: string; pdf_storage_path: string | null; result_summary: string | null }[] = []
+  // The lead's OWN lines only — never a co-applicant's or surety's report (counsel Q7; lib/screening/leadReports.ts).
+  let pdfLines: LeadReportLine[] = []
 
   if (state === "results" && app.current_screening_run_id) {
-    const { data: lines, error: linesErr } = await service
-      .from("application_screening_lines")
-      .select("product_key, pdf_storage_path, result_summary")
-      .eq("application_id", application_id)
-      .eq("screening_run_id", app.current_screening_run_id)
-      .eq("status", "completed")
-      .not("pdf_storage_path", "is", null)
-
-    if (linesErr) {
-      console.error("[screening page] lines query failed:", linesErr.message)
-    } else {
-      pdfLines = lines ?? []
-    }
+    const { lines, error: linesErr } = await fetchLeadReportLines(service, {
+      orgId: app.org_id as string,
+      applicationId: application_id,
+      screeningRunId: app.current_screening_run_id as string,
+    })
+    if (linesErr) console.error("[screening page] lines query failed:", linesErr)
+    pdfLines = lines
   }
 
   // ── Generate signed URLs for bureau PDFs ────────────────────────────────────
