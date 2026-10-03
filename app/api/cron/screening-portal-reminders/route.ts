@@ -5,10 +5,11 @@
  * Auth:   x-cron-secret header
  * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 / T+14 milestones for
  *         co-applicant lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3):
- *         · surety whose inviteRoute is "director" (a COMPANY's director by registry flag or declared_director, P1-R7a + F7) → director copy + director-portal link (the reviewed audience, P1-R3).
+ *         · surety whose inviteRoute is "surety" (every juristic surety since the 2026-10-03 A/B/C release) → the
+ *           role-neutral surety reminder + director-portal link. Its clock runs SCREENING_WINDOW_DAYS from creation.
  *           T+14: line declined, payment flagged for manual refund (14C), expiry email sent; primary
  *           contact notified at T+7 and T+10 (informational only).
- *         · any other surety (a non-director; a trustee or CC member, even one answered "yes") → HELD: no send, no expiry (P1-R3/F7 — no reviewed copy exists).
+ *         · a surety inviteHold still holds (none today: no approved role sentence fits it) → HELD: no send, no expiry.
  *         · co_applicant, or guarantor (a surety on a NON-juristic application, P1-R3a) →
  *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); declined once
  *           unconsented 14 days after its STAGE-2 INVITE (P1-R6, P1-R8b-2). Both clocks run from
@@ -35,9 +36,10 @@ import { requireCronAuth } from "@/lib/cron/auth"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
+import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
 const DAY_MS = 86_400_000
-/** The stage-2 consent window (14W), from stage2_invited_at. */
-const STAGE2_WINDOW_MS = 14 * DAY_MS
+/** The stage-2 consent window (14W), from stage2_invited_at — THE screening window. */
+const STAGE2_WINDOW_MS = SCREENING_WINDOW_DAYS * DAY_MS
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -153,13 +155,16 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   }
   // The director path keeps its own clock, from the row's creation (unchanged by P1-R8b).
   const daysElapsed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / DAY_MS)
-  // Every branch below sends director copy, which is reviewed for a DIRECTOR audience only (P1-R3). The
-  // view's state set for it is unchanged; `expired_no_consent` is the co_applicant branch's alone.
+  // Every branch below sends surety copy. The view's state set for it is unchanged; `expired_no_consent` is the
+  // co_applicant branch's alone.
   if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
-  // HELD (P1-R3): only a company's director has a reviewed template — a non-director, a trustee and a CC member
-  // (F7 ruling) do not. Not reminded, and not expired either — declining someone for not completing an invite we
-  // withheld would record their failure for ours. The decision is inviteRoute's, the same one the first invite and
-  // the co-parties Resend read; R3 makes the hold visible to the agent.
+  // Consented and waiting on the lead's payment — the same rule as the co branch above. The approved reminder says
+  // "your portion is still outstanding" and its t10 line "until the required consent is completed": both false for a
+  // surety who has consented, and a decline at the window would drop someone who did everything asked (walker F5).
+  if (line.state === "consented_pending_payment") return "skipped"
+  // HELD (P1-R3): a surety no approved role sentence fits is not reminded, and not expired either — declining someone
+  // for not completing an invite we withheld would record their failure for ours. Since the 2026-10-03 A/B/C release
+  // that set is empty. The decision is inviteRoute's, the same one the first invite and the co-parties Resend read.
   const { data: application, error: applicationError } = await service
     .from("applications")
     .select("entity_type, applicant_type, company_info")
@@ -167,14 +172,14 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
     .eq("org_id", line.org_id)
     .maybeSingle()
   if (applicationError) throw new Error(`read application for invite route: ${applicationError.message}`)
-  if (!application || inviteRoute({ party: row, application }) !== "director") return "held"
+  if (!application || inviteRoute({ party: row, application }) !== "surety") return "held"
   // P1-R3b / 14V §3.5b: a hold lifted AFTER payment leaves a party the fee never priced — a late party, refused on this
   // application. Not reminded and not expired: the line is not theirs to complete.
   const late = await isLateParty(service, { orgId: line.org_id, applicationId: line.application_id, coApplicantId: line.subject_id })
   if (!late.ok) throw new Error("read late-party state failed")
   if (late.late) return "skipped"
 
-  if (daysElapsed >= 14) return expireDirectorLine(service, line, row)
+  if (daysElapsed >= SCREENING_WINDOW_DAYS) return expireDirectorLine(service, line, row)
   const stage = dueStage(daysElapsed, sent)
   if (!stage) return "skipped"
   return sendMilestoneReminder(service, line, row, stage, daysElapsed, sent)
@@ -282,9 +287,9 @@ async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppR
   await sendEmail({
     orgId: line.org_id,
     templateKey: "application.director_expired_refund",
-    to: { email: coApp.applicant_email, name: coApp.first_name ?? "Director" },
+    to: { email: coApp.applicant_email, name: coApp.first_name ?? "" },
     subject: `Your application portion has expired — ${propertyLabel}`,
-    contentHtml: buildExpiryHtml({ directorFirstName: coApp.first_name ?? "Director", propertyLabel, primaryContactName, paid: !!line.paid_at }),
+    contentHtml: buildExpiryHtml({ directorFirstName: coApp.first_name ?? "there", propertyLabel, primaryContactName, paid: !!line.paid_at }),
     entityType: "application_co_applicant", entityId: line.subject_id,
     triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
   })
@@ -312,24 +317,8 @@ async function sendMilestoneReminder(
   const { slug, propertyLabel } = resolveListingLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
 
-  // Who ACTUALLY paid this line. Previously `paidByPrimary: !!line.paid_at` — "the line is paid" inferred
-  // as "someone else paid it", so a director who had paid their OWN portion and simply not consented yet
-  // was told "{primary} has already paid for your portion". application_screening_payments records
-  // paid_by_email / paid_by_user_id; read the fact rather than infer it.
-  const { data: payment, error: paymentError } = await service
-    .from("application_screening_payments")
-    .select("paid_at, paid_by_email")
-    .eq("application_id", line.application_id)
-    .eq("subject_type", "co_applicant")
-    .eq("subject_id", line.subject_id)
-    .maybeSingle()
-  logQueryError("sendMilestoneReminder application_screening_payments", paymentError)
-
-  // Paid, and NOT by this director themselves. A null payer is unattributable, so we do not claim
-  // somebody else paid — the copy only appears when we can actually stand behind it.
-  const payerEmail = payment?.paid_by_email?.trim().toLowerCase() ?? null
-  const directorEmail = coApp.applicant_email?.trim().toLowerCase() ?? null
-  const paidBySomeoneElse = Boolean(payment?.paid_at) && payerEmail !== null && payerEmail !== directorEmail
+  // No payer lookup: the "already paid for your portion" line is struck (counsel 2026-10-03 §2) — under 14W the
+  // lead pays once every party has consented, so a party with an outstanding portion has never been paid for.
   const portalUrl = absoluteUrl(`/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`)
 
   const branding = buildBranding(await fetchOrgSettings(line.org_id))
@@ -337,13 +326,13 @@ async function sendMilestoneReminder(
   const sendResult = await sendEmail({
     orgId: line.org_id,
     templateKey: `application.director_reminder_${stage}`,
-    to: { email: coApp.applicant_email, name: coApp.first_name ?? "Director" },
+    to: { email: coApp.applicant_email, name: coApp.first_name ?? "" },
     subject: `Reminder: your portion is still outstanding — ${propertyLabel}`,
     emailElement: buildDirectorReminderElement({
-      directorFirstName: coApp.first_name ?? "Director",
-      primaryContactName, propertyLabel, portalUrl,
-      daysRemaining: Math.max(0, 14 - daysElapsed),
-      stage, paidByPrimary: paidBySomeoneElse,
+      directorFirstName: coApp.first_name ?? "there",
+      propertyLabel, portalUrl,
+      daysRemaining: Math.max(0, SCREENING_WINDOW_DAYS - daysElapsed),
+      stage,
       branding,
     }),
     entityType: "application_co_applicant", entityId: line.subject_id,
@@ -403,7 +392,7 @@ function buildExpiryHtml(p: { directorFirstName: string; propertyLabel: string; 
   // A FRAGMENT — sendEmail wraps it in the central EmailLayout and injects the org's branding.
   return `
 <p>Hi ${p.directorFirstName},</p>
-<p>Your portion of the application for <strong>${p.propertyLabel}</strong> has expired as the 14-day window has passed without completion.</p>
+<p>Your portion of the application for <strong>${p.propertyLabel}</strong> has expired as the ${SCREENING_WINDOW_DAYS}-day window has passed without completion.</p>
 ${refundNote}
 <p>The application has been notified to ${p.primaryContactName}. If you still want to participate, please ask them to add you again.</p>`
 }

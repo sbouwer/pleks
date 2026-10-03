@@ -1,5 +1,5 @@
 /**
- * lib/applications/directorInvite.ts — sends the director-audience surety invite (`application.director_invited`)
+ * lib/applications/directorInvite.ts — sends the surety invite (`application.director_invited`), with its approved role sentence
  *
  * Auth:   none of its own — a server-only helper. Every caller has already established the application and its
  *         org: the roster route reads org_id from the application row, and `resendDirectorInvite` from the
@@ -14,12 +14,12 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding, type SendEmailResult } from "@/lib/comms/send-email"
 import { buildDirectorInviteElement } from "@/lib/applications/commercial-emails"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
+import type { SuretyInviteRole } from "@/lib/applications/juristicParties"
 
-/** The director link's life. The copy states it ("This link expires in N days"), so the row's expiry must match. */
-const DIRECTOR_TOKEN_TTL_DAYS = 14
-
+/** The surety link's life is THE screening window: the copy states it ("This link expires in N days"). */
 export function directorTokenExpiry(now = Date.now()): string {
-  return new Date(now + DIRECTOR_TOKEN_TTL_DAYS * 86_400_000).toISOString()
+  return new Date(now + SCREENING_WINDOW_DAYS * 86_400_000).toISOString()
 }
 
 export interface DirectorInviteContext {
@@ -29,6 +29,8 @@ export interface DirectorInviteContext {
   token: string
   directorEmail: string
   directorFirstName: string
+  /** Which approved role sentence the invite carries — `suretyInviteRole`, computed by the caller. */
+  role: SuretyInviteRole
 }
 
 /** Null when the application could not be read — nothing was sent. */
@@ -70,15 +72,16 @@ export async function sendDirectorInvite(ctx: DirectorInviteContext): Promise<Se
   return sendEmail({
     orgId: ctx.orgId,
     templateKey: "application.director_invited",
-    to: { email: ctx.directorEmail, name: ctx.directorFirstName },
+    to: { email: ctx.directorEmail, name: ctx.directorFirstName === "there" ? "" : ctx.directorFirstName },
     subject: `${primaryContactName}'s application — your portion to complete`,
     emailElement: buildDirectorInviteElement({
+      role: ctx.role,
       directorFirstName: ctx.directorFirstName,
       primaryContactName,
       propertyLabel,
       propertyAddress,
       portalUrl,
-      ttlDays: DIRECTOR_TOKEN_TTL_DAYS,
+      ttlDays: SCREENING_WINDOW_DAYS,
       branding,
     }),
     entityType: "application_co_applicant",

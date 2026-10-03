@@ -20,7 +20,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ApplicationActions } from "./ApplicationActions"
 import { ApplicationDetailShell } from "./ApplicationDetailShell"
 import { ApplicantsCard, type PartyInfo } from "./ApplicantsCard"
-import { heldPartyReason, inviteHold, isJuristicForCopy, partyKind } from "@/lib/applications/juristicParties"
+import { directorDeclarationDiscrepancy, directorDiscrepancyNotice, heldPartyReason, inviteHold, isJuristicForCopy, partyKind } from "@/lib/applications/juristicParties"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import type { DetailFact, DetailStatus, DetailTab } from "@/lib/detail/types"
@@ -283,7 +283,8 @@ export default async function ApplicationDetailPage({
   const otherParties: PartyInfo[] = (coApplicants ?? []).map((c) => ({
     label: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Applicant",
     role: partyKind({ party: c, isJuristic: juristic }),
-    held: !c.declined_at && !c.stage2_consent_given_at && inviteHold({ party: c, application: app }) ? heldPartyReason(c.declared_director, app.company_info) : undefined,
+    held: !c.declined_at && !c.stage2_consent_given_at && inviteHold({ party: c, application: app }) ? heldPartyReason() : undefined,
+    discrepancy: directorDeclarationDiscrepancy(c) ? directorDiscrepancyNotice() : undefined,
     idType: c.id_type as string | null, employment: c.employment_type as string | null, employer: c.employer_name as string | null,
     incomeCents: c.gross_monthly_income_cents as number | null,
   }))

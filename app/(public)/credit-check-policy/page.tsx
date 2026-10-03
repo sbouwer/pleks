@@ -155,14 +155,18 @@ export default function CreditCheckPolicyPage() {
       <section id="fee">
         <p className="sec-num"><span className="bar" /><span>03 · Application fee</span></p>
         <h2 className="sec-h">The <span className="hl">application fee</span></h2>
+        {/* ⚠ COUNSEL-PENDING: "Your explicit consent is obtained first, and payment follows it." is CC-drafted (2026-10-03)
+            to replace "obtained simultaneously" with the approved consent-then-payment sequence. Counsel approved the two
+            bullet paragraphs below verbatim, not this sentence; it needs counsel's nod before it is treated as approved. */}
         <p>
           A once-off application fee is charged per credit check bundle. This fee covers all bureau queries listed in
           section 01 and is paid by the applicant at the time of progressing to Stage 2 of the application.
           The current fee is displayed on the application screen before you are asked to pay. Your explicit consent
-          and payment are obtained simultaneously — bureau queries are only executed after both have been confirmed.
+          is obtained first, and payment follows it. Payment commences the screening service and triggers the screening process.
         </p>
         <ul className="legal-list">
-          <li>The fee is non-refundable once the credit check process has been initiated, as third-party bureau queries are executed immediately and cannot be reversed. If the bureau query fails for technical reasons before any report is generated, the fee is refunded in full.</li>
+          <li>The screening service commences upon successful payment. The screening checks are then initiated and the resulting reports are generated as part of that service. Fees are not refundable merely because the applicant changes their mind after screening has commenced, subject to any rights or remedies that cannot lawfully be excluded.</li>
+          <li>If a bureau or screening provider experiences a technical failure and, after reasonable retries, no screening report is generated, Pleks will refund the screening fee to the extent required by applicable law.</li>
           <li>The fee is paid directly by the applicant — the agency using Pleks does not pay for your check.</li>
           <li>Joint applications (two applicants on one lease) are charged a higher bundled fee, also shown before payment. Each joint applicant must complete the consent process individually — one applicant cannot consent on behalf of the other. Credit checks for joint applicants are run separately; results are made available to the agency for evaluation but are not disclosed between applicants.</li>
           <li>If your application is withdrawn before Stage 2, no fee is charged — credit checks are only triggered when you choose to proceed.</li>

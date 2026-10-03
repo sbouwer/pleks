@@ -4,8 +4,8 @@
  * Notes:  Walker F2 (build-72-p1-walk, 2026-10-01): `resendDirectorInvite` sent director copy to every party the
  *         roster lists and rotated the token, so a residential guarantor got director copy (R3a) and lost their
  *         working /apply/co-applicant link, and a held surety was emailed (R3). Probed both ways: a director is
- *         rotated + sent director copy; a residential party is re-sent joint-rental copy on the SAME token; a held
- *         surety gets neither a send nor a rotation.
+ *         rotated + sent director copy; a residential party is re-sent joint-rental copy on the SAME token. Since the
+ *         2026-10-03 A/B/C release a non-director juristic surety is rotated + sent the generic (A) role sentence.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -59,7 +59,7 @@ describe("co-parties Resend (walker F2)", () => {
     party = { ...baseParty, role: "guarantor", declared_director: true }
     expect(await resendDirectorInvite("co-1", "app-1", "lead-tok")).toEqual({ ok: true })
     expect(updates).toEqual([expect.objectContaining({ access_token_expires: "EXPIRY-14D" })])
-    expect(sendDirectorInvite).toHaveBeenCalledTimes(1)
+    expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ role: "director" }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
   })
 
@@ -75,13 +75,13 @@ describe("co-parties Resend (walker F2)", () => {
     expect(updates).toEqual([])
   })
 
-  it.each([false, null])("a juristic surety whose director answer is %s is HELD: no send, no rotation (R3)", async (declared) => {
+  it.each([false, null])("a juristic surety whose director answer is %s is sent the generic (A) surety copy, rotated (released 2026-10-03)", async (declared) => {
     application = JURISTIC
     party = { ...baseParty, role: "guarantor", declared_director: declared }
-    expect((await resendDirectorInvite("co-1", "app-1", "lead-tok")).ok).toBe(false)
-    expect(sendDirectorInvite).not.toHaveBeenCalled()
+    expect(await resendDirectorInvite("co-1", "app-1", "lead-tok")).toEqual({ ok: true })
+    expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ role: "generic" }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
-    expect(updates).toEqual([])
+    expect(updates).toEqual([expect.objectContaining({ access_token_expires: "EXPIRY-14D" })])
   })
 
   it("a send that reports failure is reported as failure", async () => {

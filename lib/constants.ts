@@ -102,6 +102,13 @@ export const PROBATION_MONTHS = 3 // typical SA probation window — an inferenc
 // Applicants get the initial pre-screen + exactly ONE adjustment (re-check). Caps Sonnet cost + gaming;
 // after this the agent reviews. Hard-enforced server-side (submit + /screen) AND surfaced clearly in the UI.
 export const MAX_SCREENING_ITERATIONS = 2
+/**
+ * THE screening window, in days (BUILD_72 P1-R8b-2; counsel-approved comms 2026-10-03). ONE value read by the surety
+ * invite's link life and its "expires in N days" line, the director reminders' countdown and expiry, the stage-2
+ * consent window, and the lead's shortlist payment link. The emails state it, so a second number anywhere is a
+ * sentence that is false for someone. `window.test.ts` holds each reader to it.
+ */
+export const SCREENING_WINDOW_DAYS = 14
 
 /** Inference only: did employment start within the probation window? SA probation isn't fixed (it varies by
  *  contract/sector), so callers must surface this as agent-facing evidence — never a silent filter. */

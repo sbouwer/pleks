@@ -11,6 +11,7 @@
  *         and the director surety is written directly: the consent routes are probed elsewhere
  *         (screening-consent-provenance, residential-screening-e2e); this file is about the SET.
  *         Stubbed: Sentry, PayFast's ITN signature, the email transport, the rate READ, the vendor calls.
+ *         And `inviteHold`, since the 2026-10-03 release: see the stand-in below — the hold now fires for nobody real.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest"
 import { randomUUID } from "node:crypto"
@@ -26,6 +27,17 @@ vi.mock("@/lib/comms/send-email", async (orig) => ({
   ...(await orig<typeof import("@/lib/comms/send-email")>()),
   sendEmail: vi.fn(async () => ({ success: true })),
 }))
+// Since the 2026-10-03 A/B/C release (counsel-approved comms) no real audience is held — every juristic surety has an
+// approved role sentence — so a held surety can no longer be SEEDED. This stands one in: a surety answered "no" plays an
+// audience with no approved copy, through the module's EXPORTED inviteHold, the one every hold reader (livePartySet →
+// billing, the ITN, isLateParty) calls. What this file proves is the hold MACHINERY, which must still hold the day an
+// audience without approved copy appears; without this stand-in nothing tests that direction (walker F10).
+vi.mock("@/lib/applications/juristicParties", async (orig) => {
+  const real = await orig<typeof import("@/lib/applications/juristicParties")>()
+  const inviteHold: typeof real.inviteHold = (input) =>
+    real.isSuretyParty(input.party) && input.party.declared_director === false ? "awaiting_template" : real.inviteHold(input)
+  return { ...real, inviteHold }
+})
 vi.mock("@/lib/screening/bundle-runner", () => ({ runStandardBundle: vi.fn(async () => undefined) }))
 vi.mock("@/lib/screening/fitScoreOrchestrator", () => ({ runFitScoreOrchestrator: vi.fn(async () => undefined) }))
 vi.mock("@/lib/searchworx/rates/read", async (orig) => {
@@ -74,7 +86,7 @@ beforeAll(async () => {
     .select("token").single()
   if (tErr) throw new Error(`seed invite token: ${tErr.message}`)
   inviteToken = tok.token as string
-  // A director surety (invitable: director copy exists) and a non-director surety (HELD: its copy is with counsel).
+  // A director surety (invitable) and a surety answered "no" (HELD by the stand-in above).
   for (const [i, [who, declared]] of ([["director", true], ["held", false]] as const).entries()) {
     const { data: row, error } = await db.from("application_co_applicants")
       .insert({ org_id: orgId, primary_application_id: appId, co_applicant_index: i + 1, first_name: who === "held" ? "Held" : "Director",
@@ -96,7 +108,7 @@ describe("P1-R3b — a held surety is outside the party set", () => {
     const body = await res.json()
     expect(body.reason).toBe("awaiting_consent")
     expect(body.awaiting).toEqual([{ subject_type: "applicant", name: null }, { subject_type: "co_applicant", name: "Director Surety" }])
-    expect(body.held).toEqual([{ name: "Held Surety", reason: expect.stringContaining("not a director") }])
+    expect(body.held).toEqual([{ name: "Held Surety", reason: expect.stringContaining("no approved invite wording") }])
   }, 60_000)
 
   let feeCents = 0

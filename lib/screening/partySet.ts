@@ -59,7 +59,7 @@ export async function livePartySet(
   }
   const rows = data ?? []
   const isHeld = (r: (typeof rows)[number]) => inviteHold({ party: r, application }) !== null
-  const held = rows.filter(isHeld).map((r) => ({ id: r.id as string, name: nameOf(r), reason: heldPartyReason(r.declared_director, application.company_info) }))
+  const held = rows.filter(isHeld).map((r) => ({ id: r.id as string, name: nameOf(r), reason: heldPartyReason() }))
   const coParties = rows.filter((r) => !isHeld(r)).map((r) => ({ id: r.id as string, name: nameOf(r), consented: !!r.stage2_consent_given_at }))
   const coIds = coParties.map((p) => p.id)
   return juristic

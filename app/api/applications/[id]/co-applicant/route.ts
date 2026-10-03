@@ -20,7 +20,7 @@ import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
-import { inviteRoute } from "@/lib/applications/juristicParties"
+import { inviteRoute, suretyInviteRole } from "@/lib/applications/juristicParties"
 import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
 
 /** Stage 2 has been offered and not yet paid — a party added now joins the open consent round. */
@@ -52,10 +52,9 @@ export async function POST(
   // P1-R7a: the applicant's answer to "is this person a director / trustee / member?", asked only of a juristic
   // surety. A boolean on a guarantor or nothing — NULL is "never asked", which every sender holds like "no".
   const declaredDirector = role === "guarantor" && typeof body.declared_director === "boolean" ? body.declared_director : null
-  const route = inviteRoute({
-    party: { role, is_surety_director: false, declared_director: declaredDirector },
-    application,
-  })
+  const invitee = { party: { role, is_surety_director: false, declared_director: declaredDirector }, application }
+  const route = inviteRoute(invitee)
+  const suretyRole = suretyInviteRole(invitee)
 
   const { data: coApplicant, error } = await supabase
     .from("application_co_applicants")
@@ -73,8 +72,8 @@ export async function POST(
       ...idNumberColumns(body.id_number),
       role,
       declared_director: declaredDirector,
-      // The director copy states a 14-day link; the column default is the co-applicant's 30.
-      ...(route === "director" ? { access_token_expires: directorTokenExpiry() } : {}),
+      // The surety copy states the screening window; the column default is the co-applicant's 30.
+      ...(route === "surety" ? { access_token_expires: directorTokenExpiry() } : {}),
       // BUILD_72 P1-R8b-2: a residential party added AFTER the stage-2 invite went out (sendShortlistInvitation, which
       // sets stage2_status 'invited' — NOT the stage-1 triage mark, which invites nobody) is invited to stage 2 by this
       // very invite: the shortlist already ran, so this is the only moment its consent window can start.
@@ -107,10 +106,10 @@ export async function POST(
 
   // Send the invitation inviteRoute names — or none, for a held surety (the agent page shows the hold).
   try {
-    if (route === "director") {
+    if (route === "surety" && suretyRole) {
       void sendDirectorInvite({
         orgId: application.org_id, applicationId, coApplicantId: coApplicant.id, token: coApplicant.access_token,
-        directorEmail: body.email, directorFirstName: body.first_name || "Director",
+        directorEmail: body.email, directorFirstName: body.first_name || "there", role: suretyRole,
       })
     }
     const ctx = route === "co_applicant" ? await buildEmailContext(applicationId) : null

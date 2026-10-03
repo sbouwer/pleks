@@ -33,9 +33,9 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { inviteRoute } from "@/lib/applications/juristicParties"
 import { canInviteToStage2 } from "@/lib/applications/stage2Invite"
+import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
 
-/** The stage-2 consent window (14W): a party invited at shortlist has this long to consent before its line declines. */
-const STAGE2_WINDOW_DAYS = 14
+/** The stage-2 consent window (14W) and the lead's payment link both run SCREENING_WINDOW_DAYS — one window. */
 
 const NOT_SENT = { error: "Could not send the invitation" }
 
@@ -72,14 +72,15 @@ export async function sendShortlistInvitation(applicationId: string): Promise<Sh
   const co = await sendCoPartyInvites(db, orgId, application, ctx)
   if (!co.ok) return NOT_SENT
 
-  // Create shortlist invite token (7-day expiry)
+  // The lead's payment link: available for the whole screening window. It was 7 days while the parties it waits on
+  // had 14 to consent, so a lead could lose the means to pay for a set the window still held open.
   const { data: inviteToken, error: inviteTokenError } = await db
     .from("application_tokens")
     .insert({
       application_id: applicationId,
       token_type: "shortlist_invite",
       applicant_email: application.applicant_email,
-      expires_at: addDays(new Date(), 7).toISOString(),
+      expires_at: addDays(new Date(), SCREENING_WINDOW_DAYS).toISOString(),
     })
     .select("token")
     .single()
@@ -185,7 +186,7 @@ async function sendCoPartyInvites(
 /** P1-R8b-2, write half: start each party's window. Runs only after every send succeeded. */
 async function stampStage2Invited(db: Db, orgId: string, rows: CoRow[]): Promise<boolean> {
   const now = new Date()
-  const windowEnd = addDays(now, STAGE2_WINDOW_DAYS)
+  const windowEnd = addDays(now, SCREENING_WINDOW_DAYS)
   for (const party of rows) {
     // The link must outlive the window it is the only way through (the column default is 30 days from creation).
     const expires = party.access_token_expires ? new Date(party.access_token_expires) : null

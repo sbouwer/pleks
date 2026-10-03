@@ -18,7 +18,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
-import { inviteRoute } from "@/lib/applications/juristicParties"
+import { inviteRoute, suretyInviteRole } from "@/lib/applications/juristicParties"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
 import { isLateParty } from "@/lib/screening/partySet"
 
@@ -101,6 +101,7 @@ export async function resendDirectorInvite(
   }
 
   const route = inviteRoute({ party, application: app })
+  const suretyRole = suretyInviteRole({ party, application: app })
   if (route === "held") {
     return { ok: false, error: "This invitation is held until its wording is approved" }
   }
@@ -119,6 +120,7 @@ export async function resendDirectorInvite(
     return result.success ? { ok: true } : { ok: false, error: "Could not send the invitation" }
   }
 
+  if (!suretyRole) return { ok: false, error: "Could not send the invitation" } // route "surety" implies a role
   const newToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")
   const { error } = await service
     .from("application_co_applicants")
@@ -137,7 +139,8 @@ export async function resendDirectorInvite(
     coApplicantId,
     token: newToken,
     directorEmail: party.applicant_email,
-    directorFirstName: party.first_name ?? "Director",
+    directorFirstName: party.first_name ?? "there",
+    role: suretyRole,
   })
   return result?.success ? { ok: true } : { ok: false, error: "Could not send the invitation" }
 }
