@@ -3,8 +3,8 @@
  *
  * Route:  /apply/invite/[token]
  * Auth:   Public — access by application-invite token (application_tokens); no session
- * Data:   application_tokens (+ applications, listings); service client; the fee is the stamp or a
- *         display-only quote (lib/screening/quote.ts)
+ * Data:   application_tokens (+ applications, listings); service client; the fee is the lead line's stamp on
+ *         application_screening_payments (lib/screening/lineFee.ts) or a display-only quote (lib/screening/quote.ts)
  * Notes:  Server component. Shows an expiry screen once the token's expires_at passes.
  *
  *         ⚠ THE 30-DAY "REUSE YOUR RECENT REPORT — FREE" CARD WAS REMOVED 2026-08-19, along with
@@ -34,6 +34,8 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { quoteApplicationFee } from "@/lib/screening/quote"
+import { bundleFor, readLine } from "@/lib/screening/lineFee"
+import { leadLineSubjectType } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { MapPin, Clock, CheckCircle2 } from "lucide-react"
@@ -79,20 +81,23 @@ export default async function InvitePage({
 
   const application = tokenRecord.applications
   const listing = application?.listings
-  // `has_co_applicant`, NOT `is_joint` — there is no is_joint column on applications (verified against the
-  // live schema 2026-08-14). The select is `applications(*)`, so it silently came back undefined, isJoint was
-  // permanently false, and this page QUOTED R250 to a joint applicant whom /api/billing/screening then
-  // charged R470. Same flag the billing route reads, so the quote and the charge cannot diverge.
-  const isJoint = application?.has_co_applicant === true
-  // ADDENDUM_14V: the stamped fee once /api/billing/screening has quoted it (it never moves), else a display-only
-  // quote through the formula — the stamp is written by that route, not by a page view. Juristic pricing is the
-  // route's (it counts surety parties); this landing page quotes the residential shape the flag describes.
+  // ADDENDUM_14W §0: the fee shown is the lead's OWN line — one person's check, or the company's line on a juristic
+  // application — never a joint or pooled total; co parties pay their own line on their own link. The line's stamp once
+  // /api/billing/screening has written it (it never moves), else a display-only quote of the same bundle: the stamp is
+  // written by that route, after consent, not by a page view. Until 2026-10-03 this quoted the PAIR for a joint
+  // application, which is the amount §0 stopped charging.
   let fee: number | null = null
-  if (application?.pricing_policy_version && typeof application.fee_amount_cents === "number") {
-    fee = application.fee_amount_cents
-  } else {
-    const q = await quoteApplicationFee({ juristic: false, persons: isJoint ? 2 : 1 }, "invite-landing")
-    fee = q.ok ? q.fee_cents : null
+  if (application) {
+    const subjectType = leadLineSubjectType(application)
+    const line = await readLine(supabase, {
+      orgId: application.org_id, applicationId: application.id, subjectType, subjectId: application.id,
+    })
+    if (line.ok && line.row?.pricing_policy_version) {
+      fee = line.row.fee_cents
+    } else {
+      const q = await quoteApplicationFee(bundleFor(subjectType), "invite-landing")
+      fee = q.ok ? q.fee_cents : null
+    }
   }
 
   // Days remaining — computed server-side
@@ -141,7 +146,7 @@ export default async function InvitePage({
         <CardContent className="space-y-3">
           <div className="flex items-baseline justify-between">
             <span className="text-sm text-muted-foreground">
-              {isJoint ? "Joint application screening" : "Screening fee"}
+              Your screening fee
             </span>
             <span className="text-2xl font-semibold">
               {fee === null ? "Temporarily unavailable" : formatZAR(fee)}

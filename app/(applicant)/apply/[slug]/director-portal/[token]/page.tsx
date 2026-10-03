@@ -3,7 +3,7 @@
  *
  * Route:  /apply/[slug]/director-portal/[token]
  * Auth:   application_co_applicants.access_token lookup — director's private token
- * Data:   application_co_applicants, applications, application_screening_payments
+ * Data:   application_co_applicants, applications, this party's application_screening_payments line (lib/screening/lineFee.ts)
  * Notes:  Each director accesses only their own row — POPIA per-data-subject isolation.
  *         Director portal flow is Consent → Payment only. Searchworx handles document
  *         collection post-consent; there is no in-portal document upload step.
@@ -13,6 +13,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { quoteApplicationFee } from "@/lib/screening/quote"
+import { bundleFor, readLine } from "@/lib/screening/lineFee"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import Link from "next/link"
@@ -20,7 +21,7 @@ import { CheckCircle2, Clock, Circle } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function displayQuote(): Promise<number | null> {
-  const q = await quoteApplicationFee({ juristic: false, persons: 1 }, "director-portal")
+  const q = await quoteApplicationFee(bundleFor("co_applicant"), "director-portal")
   return q.ok ? q.fee_cents : null
 }
 
@@ -46,7 +47,7 @@ export default async function DirectorPortalPage({
   // Validate director token
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("id, first_name, primary_application_id, individual_fee_cents, stage2_consent_given_at, searchworx_check_status, access_token_expires, declined_at")
+    .select("id, org_id, first_name, primary_application_id, stage2_consent_given_at, searchworx_check_status, access_token_expires, declined_at")
     .eq("access_token", token)
     .is("declined_at", null)
     .single()
@@ -87,22 +88,19 @@ export default async function DirectorPortalPage({
     ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
     : "the property"
 
-  // Check payment status
-  const { data: payment, error: paymentError } = await service
-    .from("application_screening_payments")
-    .select("paid_at")
-    .eq("application_id", coApp.primary_application_id)
-    .eq("subject_type", "co_applicant")
-    .eq("subject_id", coApp.id)
-    .maybeSingle()
-    logQueryError("DirectorPortalPage application_screening_payments", paymentError)
+  // This party's own line (14W §0): its paid state and, once the payment page has stamped it, its fee.
+  const line = await readLine(service, {
+    orgId: coApp.org_id as string, applicationId: coApp.primary_application_id as string,
+    subjectType: "co_applicant", subjectId: coApp.id as string,
+  })
+  const payment = line.ok ? line.row : null
 
   const data: DirectorPortalData = {
     firstName:      coApp.first_name,
     propertyLabel,
-    // The stamp once the payment page has written it, else a display-only quote (ADDENDUM_14V) — this page
-    // never stamps; the payment page is the first show.
-    feeCents:       typeof coApp.individual_fee_cents === "number" ? coApp.individual_fee_cents : await displayQuote(),
+    // The line's stamp once the payment page has written it, else a display-only quote (ADDENDUM_14V) — this page
+    // never stamps; the payment page is the first show, after consent.
+    feeCents:       payment?.pricing_policy_version ? payment.fee_cents : await displayQuote(),
     consentGiven:   !!coApp.stage2_consent_given_at,
     paymentPaid:    !!payment?.paid_at,
     checksComplete: coApp.searchworx_check_status === "complete",

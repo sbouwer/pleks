@@ -18,8 +18,8 @@
  *         `surety_party_required` at payment went with it. A citation that resolves to nothing is not a
  *         ruling, however confidently it is dated.
  *
- *         Payment for the entity + its surety parties is ONE transaction (quoted as applicationBundle
- *         { juristic, persons: N } by lib/screening/quote.ts).
+ *         Payment is per line (ADDENDUM_14W §0): the entity's company line is the lead's payment, and each surety
+ *         party pays for their own line after their own consent (`leadLineSubjectType`, lib/screening/lineFee.ts).
  *         CONSENT stays strictly per-person — D-14B-01, no proxy consent.
  */
 import { isJuristicCompanyType } from "@/lib/applications/companyTypes"
@@ -118,31 +118,14 @@ export function partyKind(input: Readonly<{ party: Parameters<typeof isSuretyPar
   return input.isJuristic ? "surety" : "guarantor"
 }
 
-/** One subject a screening payment covers — one `application_screening_payments` row. */
-export interface PaidScreeningSubject {
-  readonly subject_type: "applicant" | "company" | "co_applicant"
-  readonly subject_id: string
-}
-
 /**
- * The subjects ONE application-fee payment marks paid, for the PayFast application ITN: one per subject the stamp
- * priced, born paid (BUILD_72 P1-R8a, which retired the juristic-only rule this function used to carry).
- *
- * The application's own line comes first — `company` for a juristic applicant, `applicant` for the lead natural
- * person of every other application (P1-R8b-1: a natural person is never a `company`) — then one `co_applicant` per
- * priced party row: sureties on a juristic application, every live co row (co-applicant or guarantor) on a
- * residential one. That is exactly the 1 + N lines `applicationBundle` priced. Each person still CONSENTS on their
- * own link (D-14B-01, no proxy consent); a paid line runs only once its subject has.
+ * The subject_type of the application's OWN screening line — the one the shortlist form pays (ADDENDUM_14W §0):
+ * `company` for a juristic applicant, whose signatory pays the company's line for the company only; `applicant` for the
+ * lead natural person of every other application (P1-R8b-1: a natural person is never a `company`). Its subject_id is
+ * the application id. Every co row pays its own `co_applicant` line on its own link.
  */
-export function paidScreeningSubjects(
-  application: Parameters<typeof isJuristicApplication>[0],
-  applicationId: string,
-  coIds: readonly string[],
-): PaidScreeningSubject[] {
-  return [
-    { subject_type: isJuristicApplication(application) ? "company" : "applicant", subject_id: applicationId },
-    ...coIds.map((id) => ({ subject_type: "co_applicant" as const, subject_id: id })),
-  ]
+export function leadLineSubjectType(application: Parameters<typeof isJuristicApplication>[0]): "company" | "applicant" {
+  return isJuristicApplication(application) ? "company" : "applicant"
 }
 
 /**

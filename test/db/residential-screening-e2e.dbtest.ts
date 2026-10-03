@@ -1,17 +1,18 @@
 /**
- * test/db/residential-screening-e2e.dbtest.ts — a residential joint application reaches the runner, every natural person on it (BUILD_72 P1-R8b probe)
+ * test/db/residential-screening-e2e.dbtest.ts — a residential joint application reaches the runner, every natural person paying their own line (BUILD_72 P1-R8b probe, re-sequenced to ADDENDUM_14W §0)
  *
  * Auth:   service-role client vs LOCAL Supabase (npm run test:db); drives the real routes by their tokens
- * Notes:  THE one end-to-end probe P1-R8b names: lead and co both consent on their own links → payable → paid → an
- *         `applicant` and a `co_applicant` payment row → both lines `ready_to_run` → the runner picks both up. Before
- *         this PR the sequence could not complete at any step after "paid": the lead had no view row, the co had no
- *         payment row and no consent surface.
+ * Notes:  THE one end-to-end probe P1-R8b names, in the §0 order (consent → pay → run, per person): the lead consents and
+ *         is payable AT ONCE for ONE person, never waiting on the co → the application ITN marks the lead's `applicant`
+ *         row paid and writes no `co_applicant` row → the co consents on its own link → the payment page stamps the co's
+ *         own line → the director ITN marks it paid → both lines `ready_to_run` → the runner picks both up.
  *         Real: the shortlist action's writes, invite-consent, the co screening-consent route, the billing route and
- *         its 14W gate, the application ITN, the view, the line-runner's claim and completion, and every trigger.
+ *         its 14W gate, both ITN handlers, stampLineFee, the view, the line-runner's claim and completion, and every trigger.
  *         Stubbed, and only these: the agent session (requireAgentWriteAccess → the service client for this org),
- *         the email transport (sendEmail reports success; templates still render, nothing leaves), PayFast's ITN signature, the rate READ (fixed rows through the
- *         real selectCurrentRates + formula — no global searchworx_rates rows written), and the Searchworx bundle
- *         and FitScore calls themselves: nothing here contacts a vendor.
+ *         the email transport (sendEmail reports success; templates still render, nothing leaves), PayFast's ITN signature
+ *         (one validator, shared by both ITN routes), the rate READ (fixed rows through the real selectCurrentRates +
+ *         formula — no global searchworx_rates rows written), and the Searchworx bundle and FitScore calls themselves:
+ *         nothing here contacts a vendor.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest"
 import { randomUUID } from "node:crypto"
@@ -51,7 +52,10 @@ import { POST as inviteConsent } from "@/app/api/applications/invite-consent/rou
 import { POST as coConsent } from "@/app/api/applications/co-applicant/[token]/screening-consent/route"
 import { POST as billing } from "@/app/api/billing/screening/route"
 import { POST as itn } from "@/app/api/webhooks/payfast/application/route"
+import { POST as directorItn } from "@/app/api/webhooks/payfast/director/route"
 import { GET as lineRunner } from "@/app/api/cron/screening-line-runner/route"
+import { stampLineFee } from "@/lib/screening/lineFee"
+import { quoteApplicationFee } from "@/lib/screening/quote"
 
 let caller = 0
 const json = (url: string, body: unknown) => {
@@ -96,7 +100,16 @@ async function lineStates(): Promise<Record<string, string>> {
   return Object.fromEntries((data ?? []).map((l) => [`${l.subject_type}:${l.subject_id}`, l.state as string]))
 }
 
-describe("BUILD_72 P1-R8b — a residential joint application, end to end", () => {
+async function paymentRows() {
+  const { data, error } = await db.from("application_screening_payments")
+    .select("subject_type, subject_id, fee_cents, paid_at, pricing_policy_version").eq("org_id", orgId).eq("application_id", appId)
+  if (error) throw new Error(`read payments: ${error.message}`)
+  return data
+}
+
+describe("ADDENDUM_14W §0 — a residential joint application, every person paying their own line, end to end", () => {
+  let leadFeeCents = 0
+
   it("1 · the shortlist invites the co party to stage 2 and starts its window", async () => {
     expect(await sendShortlistInvitation(appId)).toEqual({ success: true })
     const { data: tok, error } = await db.from("application_tokens").select("token").eq("application_id", appId).eq("token_type", "shortlist_invite").single()
@@ -107,7 +120,7 @@ describe("BUILD_72 P1-R8b — a residential joint application, end to end", () =
     expect(co!.stage2_invited_at).not.toBeNull()
   }, 60_000)
 
-  it("2 · the lead consents on the invite link — and is NOT yet payable: the co has not (14W)", async () => {
+  it("2 · the lead consents → payable IMMEDIATELY: the billing route stamps the lead line for ONE person, the co's consent no condition", async () => {
     const res = await inviteConsent(json("http://localhost/api/applications/invite-consent", { token: inviteToken, verificationId: null }))
     expect(res.status).toBe(200)
     const { data: app, error } = await db.from("applications").select("stage2_consent_given_at, stage2_consent_ip, stage2_consent_log_id").eq("org_id", orgId).eq("id", appId).single()
@@ -115,13 +128,39 @@ describe("BUILD_72 P1-R8b — a residential joint application, end to end", () =
     expect(app!.stage2_consent_given_at).not.toBeNull()
     expect(app!.stage2_consent_ip, "R8b-3 side fix: the lead's row now carries the consent IP").not.toBeNull()
     expect(app!.stage2_consent_log_id, "…and its consent_log id").not.toBeNull()
+    const { data: coBefore, error: coErr } = await db.from("application_co_applicants").select("stage2_consent_given_at").eq("org_id", orgId).eq("id", coId).single()
+    expect(coErr).toBeNull()
+    expect(coBefore!.stage2_consent_given_at, "the co has NOT consented yet").toBeNull()
 
-    const refused = await billing(json("http://localhost/api/billing/screening", { token: inviteToken }))
-    expect(refused.status).toBe(409)
-    expect(await refused.json()).toMatchObject({ reason: "awaiting_consent", awaiting: [{ subject_type: "co_applicant", name: "Co Tenant" }] })
+    const billed = await billing(json("http://localhost/api/billing/screening", { token: inviteToken }))
+    expect(billed.status).toBe(200)
+    const body = await billed.json()
+    expect(body.payfast_url).toBeTruthy()
+    expect(body.payfast_data).toBeTruthy()
+    const onePerson = await quoteApplicationFee({ juristic: false, persons: 1 }, "e2e one-person quote")
+    expect(onePerson.ok).toBe(true)
+    leadFeeCents = body.fee_cents as number
+    expect(leadFeeCents).toBe(onePerson.ok ? onePerson.fee_cents : -1)
+
+    const rows = await paymentRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ subject_type: "applicant", subject_id: appId, fee_cents: leadFeeCents, paid_at: null })
+    expect(rows[0].pricing_policy_version).not.toBeNull()
   }, 60_000)
 
-  it("3 · the co consents on its OWN link: same text version, same log shape, the party-row columns", async () => {
+  it("3 · the application ITN marks the `applicant` row paid in place and writes no `co_applicant` row", async () => {
+    const res = await itn(new Request("http://localhost/api/webhooks/payfast/application", {
+      method: "POST",
+      body: new URLSearchParams({ payment_status: "COMPLETE", custom_str1: appId, amount_gross: (leadFeeCents / 100).toFixed(2), pf_payment_id: `pf-${randomUUID()}` }).toString(),
+    }))
+    expect(await res.json()).toMatchObject({ ok: true })
+    const rows = await paymentRows()
+    expect(rows.map((r) => `${r.subject_type}:${r.subject_id}`)).toEqual([`applicant:${appId}`])
+    expect(rows[0].paid_at).not.toBeNull()
+    expect(rows[0].fee_cents).toBe(leadFeeCents)
+  }, 60_000)
+
+  it("4 · the co consents on its OWN link: same text version, same log shape, the party-row columns", async () => {
     const res = await coConsent(json(`http://localhost/api/applications/co-applicant/${coToken}/screening-consent`, { verificationId: null }), { params: Promise.resolve({ token: coToken }) })
     expect(res.status).toBe(200)
     const { data: co, error } = await db.from("application_co_applicants").select("stage2_consent_given_at, stage2_consent_ip, stage2_consent_log_id").eq("org_id", orgId).eq("id", coId).single()
@@ -137,27 +176,24 @@ describe("BUILD_72 P1-R8b — a residential joint application, end to end", () =
     expect(coLog?.metadata).toMatchObject({ application_id: appId, application_co_applicant_id: coId, stage: 2 })
   }, 60_000)
 
-  let feeCents = 0
-  it("4 · payable: the billing route stamps the joint fee for two persons", async () => {
-    const res = await billing(json("http://localhost/api/billing/screening", { token: inviteToken }))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.is_joint).toBe(true)
-    feeCents = body.fee_cents as number
-    expect(feeCents).toBeGreaterThan(0)
-  }, 60_000)
+  it("5 · the co's line is stamped (the payment page's call), then the director ITN marks THAT row paid", async () => {
+    const stamped = await stampLineFee(db, { orgId, applicationId: appId, subjectType: "co_applicant", subjectId: coId }, "e2e co payment page")
+    expect(stamped.ok).toBe(true)
+    const coFee = stamped.ok ? stamped.cents : 0
+    expect(coFee).toBeGreaterThan(0)
 
-  it("5 · paid: the ITN writes an `applicant` row and a `co_applicant` row, born paid, summing to the fee", async () => {
-    const res = await itn(new Request("http://localhost/api/webhooks/payfast/application", {
+    const res = await directorItn(new Request("http://localhost/api/webhooks/payfast/director", {
       method: "POST",
-      body: new URLSearchParams({ payment_status: "COMPLETE", custom_str1: appId, amount_gross: (feeCents / 100).toFixed(2), pf_payment_id: `pf-${randomUUID()}` }).toString(),
+      body: new URLSearchParams({
+        payment_status: "COMPLETE", custom_str1: appId, custom_str2: coId, custom_str3: orgId, custom_str4: String(coFee),
+        amount_gross: (coFee / 100).toFixed(2), pf_payment_id: `pf-${randomUUID()}`,
+      }).toString(),
     }))
     expect(await res.json()).toMatchObject({ ok: true })
-    const { data: rows, error } = await db.from("application_screening_payments").select("subject_type, subject_id, fee_cents, paid_at").eq("org_id", orgId).eq("application_id", appId)
-    expect(error).toBeNull()
-    expect(rows!.map((r) => `${r.subject_type}:${r.subject_id}`).sort()).toEqual([`applicant:${appId}`, `co_applicant:${coId}`].sort())
-    expect(rows!.every((r) => r.paid_at)).toBe(true)
-    expect(rows!.reduce((a, r) => a + (r.fee_cents as number), 0)).toBe(feeCents)
+    const rows = await paymentRows()
+    expect(rows.map((r) => `${r.subject_type}:${r.subject_id}`).sort()).toEqual([`applicant:${appId}`, `co_applicant:${coId}`].sort())
+    expect(rows.every((r) => r.paid_at)).toBe(true)
+    expect(rows.find((r) => r.subject_type === "co_applicant")!.fee_cents).toBe(coFee)
   }, 60_000)
 
   it("6 · both lines read `ready_to_run`", async () => {

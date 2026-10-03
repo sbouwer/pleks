@@ -8,14 +8,13 @@
  * Data:   POST /api/billing/screening returns the PayFast URL + signed field set
  * Notes:  Client page. Submits a hidden auto-built form to PayFast; shows the route's stamped fee_cents. When
  *         no rate can price the screening the route refuses (503) and this page shows that message.
- *         BUILD_72 P1-R3b: a held party is not included in the screening; the route returns them in `held` and this
- *         page says so (with the reason) whether or not the fee is payable yet.
+ *         ADDENDUM_14W §0: this is the lead's OWN line (or the company's, paid by its signatory). Every other party
+ *         pays their own line on their own link, so nothing here names, counts or waits on anyone else.
  */
 
 import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
 import { formatZAR } from "@/lib/constants"
-import { heldPartiesNotice } from "@/lib/applications/juristicParties"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { CreditCard, Landmark, ShieldCheck, Loader2 } from "lucide-react"
@@ -27,14 +26,12 @@ export default function PaymentPage() {
 
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
-  const [isJoint, setIsJoint] = useState(false)
   // The STAMPED fee the route returns — the same number it signed into the PayFast form. Never recomputed here:
   // a client-side twin is how this page once showed one fee while the route charged another.
   const [fee, setFee] = useState(0)
   const [payfastUrl, setPayfastUrl] = useState("")
   const [payfastData, setPayfastData] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
-  const [held, setHeld] = useState<{ name: string | null; reason: string }[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -47,11 +44,9 @@ export default function PaymentPage() {
         })
 
         const data = await res.json()
-        if (!cancelled && Array.isArray(data.held)) setHeld(data.held)
         if (!res.ok) throw new Error(data.error ?? "Failed to load payment")
 
         if (!cancelled) {
-          setIsJoint(data.is_joint)
           setFee(data.fee_cents)
           setPayfastUrl(data.payfast_url)
           setPayfastData(data.payfast_data)
@@ -82,18 +77,10 @@ export default function PaymentPage() {
     )
   }
 
-  const heldNotice = held.length > 0 && (
-    <div className="rounded-[var(--r-button)] border border-border p-3 text-xs text-muted-foreground space-y-1">
-      <p className="font-medium text-foreground">{heldPartiesNotice(held.length)}</p>
-      {held.map((h, i) => <p key={`${h.name ?? "party"}-${i}`}>{h.name ? `${h.name}: ` : ""}{h.reason}</p>)}
-    </div>
-  )
-
   if (error) {
     return (
       <div className="space-y-4 text-center py-12">
         <p className="text-sm text-destructive">{error}</p>
-        {heldNotice}
       </div>
     )
   }
@@ -115,7 +102,7 @@ export default function PaymentPage() {
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between py-2">
             <span className="text-sm">
-              {isJoint ? "Joint screening fee" : "Screening fee"}
+              Your screening fee
             </span>
             <span className="text-sm font-medium">{formatZAR(fee)}</span>
           </div>
@@ -125,13 +112,11 @@ export default function PaymentPage() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            This is a once-off, non-refundable screening fee. It covers credit
-            checks, ID verification, and background screening.
+            It covers your own credit check, ID verification and background
+            screening. The screening service commences upon successful payment.
           </p>
         </CardContent>
       </Card>
-
-      {heldNotice}
 
       {/* Payment methods */}
       <Card>

@@ -3948,3 +3948,44 @@ COMMENT ON COLUMN application_co_applicants.stage2_invited_at IS
 ALTER TABLE consent_verifications DROP CONSTRAINT IF EXISTS consent_verifications_consent_type_check;
 ALTER TABLE consent_verifications ADD CONSTRAINT consent_verifications_consent_type_check
   CHECK (consent_type IN ('standard_bundle','estate_criminal','director_standard','director_estate_criminal','application_email','co_applicant_standard'));
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14W §0a: per-person pay — the party-set guard keeps only its DELETE refusal  (2026-10-03)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- §0 retires the pooled fee: every line is priced, stamped and paid on its own application_screening_payments row,
+-- so there is no party set to price, freeze or void. Two arms of co_applicant_party_set_guard belonged to that model
+-- and retire here (14W §9 row 10):
+--   · INSERT on a paid application — a party added later is a new line with its own invite and own payment.
+--   · VOID of the application stamp on an add, decline or delete — nothing pooled is left to void.
+-- The hard-DELETE refusal stays (14X trail integrity), RE-KEYED: it used to read the PARENT's fee_paid_at, which under
+-- §0 is only the lead's own line, so a co who had paid could have been hard-deleted from an application whose lead had
+-- not. It now reads this party's own payment row. A declined_at write is not a removal and is not guarded.
+-- Deleting the APPLICATION is not a party removal: its FK cascade reaches this trigger after the parent row is gone,
+-- while the co's paid payment row may still be visible, so the refusal holds only while the parent exists. (The old
+-- guard read the parent's fee_paid_at, which a cascade sees as no row — so it passed; re-keying lost that, and the
+-- §0a DB probe caught it.)
+CREATE OR REPLACE FUNCTION co_applicant_party_set_guard()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF TG_OP <> 'DELETE' THEN
+    RETURN NEW;
+  END IF;
+  IF EXISTS (SELECT 1 FROM applications a WHERE a.id = OLD.primary_application_id) AND EXISTS (
+    SELECT 1 FROM application_screening_payments p
+     WHERE p.application_id = OLD.primary_application_id
+       AND p.subject_type IN ('co_applicant', 'guarantor')
+       AND p.subject_id = OLD.id
+       AND p.paid_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'application_co_applicants %: a party who has paid is never removed — decline the line instead (ADDENDUM_14W §0)', OLD.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_co_applicant_party_set ON application_co_applicants;
+CREATE TRIGGER trg_co_applicant_party_set
+  BEFORE DELETE ON application_co_applicants
+  FOR EACH ROW EXECUTE FUNCTION co_applicant_party_set_guard();
