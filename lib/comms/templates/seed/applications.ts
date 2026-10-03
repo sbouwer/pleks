@@ -237,7 +237,7 @@ export const APPLICATION_SEEDS: TemplateSeed[] = [
     channel: "email",
     commsClass: "correspondence",
     name: "Director Invited (Surety)",
-    description: "Surety invited to complete their part — consent and documents; the lead pays once everyone has consented. ONE template, four approved role sentences selected by (entity type, declared answer): director (shown) / generic (A) / trustee (B) / CC member (C) — live: SURETY_ROLE_SENTENCES in commercial-emails.tsx.",
+    description: "Surety invited to complete their part — consent, documents and their own screening fee; each party pays for their own screening. ONE template, four approved role sentences selected by (entity type, declared answer): director (shown) / generic (A) / trustee (B) / CC member (C) — live: SURETY_ROLE_SENTENCES in commercial-emails.tsx.",
     category: "applications",
     subject: "{{primaryContactName}}'s application — your portion to complete",
     mergeFields: ["{{recipient.salutation}}", "{{primaryContactName}}", "{{propertyLabel}}", "{{portalUrl}}", "{{branding.orgName}}"],
