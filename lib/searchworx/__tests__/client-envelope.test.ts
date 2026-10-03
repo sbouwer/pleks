@@ -5,8 +5,11 @@
  *         failure type (a transport error throws before any envelope exists), so deleting it from the
  *         failure branch would still typecheck — and a "not found" is billed at the standard rate, so
  *         the failure envelope is the one most worth keeping (walk F2, 2026-10-01).
+ *         The client is imported once in beforeAll so its first TRANSFORM is paid there: on a cold cache
+ *         under the full parallel suite it took the first case past the 5s test timeout (main, 2026-10-03).
+ *         resetModules re-evaluates the module per case, which is cheap; it does not re-transform it.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
 const TOKEN = "11111111-2222-3333-4444-555555555555"
 
@@ -20,6 +23,9 @@ function stubVendor(productBody: unknown) {
 }
 
 describe("searchworxCall envelope wiring", () => {
+  beforeAll(async () => {
+    await import("../client")
+  })
   beforeEach(() => {
     vi.stubEnv("SEARCHWORX_USERNAME", "probe")
     vi.stubEnv("SEARCHWORX_PASSWORD", "probe")
