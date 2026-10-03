@@ -494,6 +494,48 @@ FIX        read the writers before consuming it."
 
 ---
 
+### CF-17 · `bash-gate` v7 and v8 run out of heap on a large command and print no decision
+
+```
+OBSERVED   2026-10-03, pleks, reading canon at 02a8dd8 (MANIFEST bash-gate v8; v7 = 98f9636) for the
+           held-gate adoption. A Bash payload of ~100 KB ("r"+"m x " repeated) makes v7 and v8 spend
+           ~5.5 s and die with exit 134, "JavaScript heap out of memory", writing nothing to stdout.
+           pleks's held gate (98d8a9a0 lineage) answers the same input in 82 ms. At 10 KB: held
+           64 ms, v8 207 ms. pleks's own `scripts/check-bash-gate.mjs` already carries a 500 KB
+           case for this (it fails "SUPERLINEAR", exit 134, against v7/v8); its comment cites a
+           realistic 60 KB commit body.
+
+COMMAND    node .handoff/bash-gate-v7/scratch/oom.mjs <hook> <KB>
+             .claude/hooks/bash-gate.js           10KB exit=0 64ms    permissionDecision allow
+             .claude/hooks/bash-gate.js           100KB exit=0 82ms   permissionDecision allow
+             kit/project-kit/hooks/bash-gate.js   10KB exit=0 207ms   permissionDecision allow
+             kit/project-kit/hooks/bash-gate.js   100KB exit=134 5572ms OOM out=(empty)
+
+WHY IT IS  Input size is stack-independent: a long `git commit -F - <<'MSG'` body or a generated
+CANON'S    script reaches it on any repo. A gate that crashes emits no permissionDecision, and Claude
+           Code documents a hook exit other than 0 or 2 as a NON-blocking error — so the likely
+           result is that the command runs ungated (not observed here: the effect of exit 134 inside
+           a live session was not measured). That is the gate failing OPEN on exactly the payloads
+           least likely to be read by a human. The probe set has no size case, so `--against`
+           exits 0 on a configured v7 (16 looser, all declared) while this stands.
+
+SMALLEST   Bound the work before parsing: if the command exceeds a size limit, return `ask` with a
+FIX        reason (never allow, never crash), and find the superlinear step (the held gate's segment
+           scan is linear on the same input, so a pathological regex or repeated re-slicing is the
+           likely site). Add a probe: 500 KB payload → a decision printed within ~1 s, exit 0. Must
+           not change any verdict on the existing case set.
+```
+
+**pleks's adoption is HELD on this.** The rest of the adoption is ready to land: configured v7, `--against` the
+held gate, exits 0 with 16 declared looser verdicts:
+- 12 prose or data false-denies;
+- `--force-with-lease` ×3, which become ask under pleks's push-ask, still looser than deny;
+- canon's own `-n`.
+
+It also needs the `seams` region filled with the five `PLEKS_*` variables, otherwise M-096 is lost. The
+`.env`, `supabase db push|reset` and `apply-prod.mjs` asks go in `PROJECT_ASK`. Detail is in
+`.handoff/bash-gate-v7/01-scout.md`, which is untracked; the numbers that matter are copied here.
+
 ## 2 · Lesson answers
 
 From `node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks`. Read the entry from its
