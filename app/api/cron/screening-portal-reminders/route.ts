@@ -28,7 +28,6 @@ import { buildDirectorReminderElement } from "@/lib/applications/commercial-emai
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { inviteRoute } from "@/lib/applications/juristicParties"
-import { isLateParty } from "@/lib/screening/partySet"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
@@ -146,9 +145,10 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   // exactly as a joint co-applicant is — from its stage-2 invite (P1-R8b-2), and not at all before one.
   if (line.party_kind === "co_applicant" || line.party_kind === "guarantor") {
     if (!row.stage2_invited_at) return "skipped"
-    // Consented and waiting on the lead's payment — the normal wait under the 14W gate, not a failure of THIS party.
-    // Reminders and the window are for parties who have not given stage 2 (R8b); chasing or declining a consented
-    // party would drop a person who did everything asked of them (walker F1, 72-p1-r8).
+    // Consented, own line unpaid. Under 14W §0 this party is waiting on THEIR OWN payment, not the lead's — but the
+    // approved reminder copy is consent copy, so it is not sent here, and declining at the window would drop a person
+    // who consented. A pay reminder and its expiry belong to §0b's one clock (walker 14w-s0a F2); until then this
+    // state is skipped, and the co link itself shows the pay step.
     if (line.state === "consented_pending_payment") return "skipped"
     const invitedAt = new Date(row.stage2_invited_at).getTime()
     return processCoApplicantLine(service, line, row, invitedAt, Math.floor((Date.now() - invitedAt) / DAY_MS), sent)
@@ -158,7 +158,7 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   // Every branch below sends surety copy. The view's state set for it is unchanged; `expired_no_consent` is the
   // co_applicant branch's alone.
   if (line.party_kind !== "surety" || line.state === "expired_no_consent") return "skipped"
-  // Consented and waiting on the lead's payment — the same rule as the co branch above. The approved reminder says
+  // Consented, own line unpaid — the same rule as the co branch above (§0b owns the pay reminder). The approved reminder says
   // "your portion is still outstanding" and its t10 line "until the required consent is completed": both false for a
   // surety who has consented, and a decline at the window would drop someone who did everything asked (walker F5).
   if (line.state === "consented_pending_payment") return "skipped"
@@ -173,11 +173,7 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
     .maybeSingle()
   if (applicationError) throw new Error(`read application for invite route: ${applicationError.message}`)
   if (!application || inviteRoute({ party: row, application }) !== "surety") return "held"
-  // P1-R3b / 14V §3.5b: a hold lifted AFTER payment leaves a party the fee never priced — a late party, refused on this
-  // application. Not reminded and not expired: the line is not theirs to complete.
-  const late = await isLateParty(service, { orgId: line.org_id, applicationId: line.application_id, coApplicantId: line.subject_id })
-  if (!late.ok) throw new Error("read late-party state failed")
-  if (late.late) return "skipped"
+  // No late-party skip since 14W §0: every line is paid on its own, so a party is never outside a fee someone else paid.
 
   if (daysElapsed >= SCREENING_WINDOW_DAYS) return expireDirectorLine(service, line, row)
   const stage = dueStage(daysElapsed, sent)
@@ -317,8 +313,8 @@ async function sendMilestoneReminder(
   const { slug, propertyLabel } = resolveListingLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
 
-  // No payer lookup: the "already paid for your portion" line is struck (counsel 2026-10-03 §2) — under 14W the
-  // lead pays once every party has consented, so a party with an outstanding portion has never been paid for.
+  // No payer lookup: the "already paid for your portion" line is struck (counsel 2026-10-03 §2) — under 14W §0 every
+  // party pays for their own line, so nobody has paid for a party whose portion is outstanding.
   const portalUrl = absoluteUrl(`/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`)
 
   const branding = buildBranding(await fetchOrgSettings(line.org_id))

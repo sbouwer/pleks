@@ -20,7 +20,6 @@ import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { inviteRoute, suretyInviteRole } from "@/lib/applications/juristicParties"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
-import { isLateParty } from "@/lib/screening/partySet"
 
 /**
  * Verifies the applicant credential against this application AND returns the application's own org.
@@ -105,8 +104,6 @@ export async function resendDirectorInvite(
   if (route === "held") {
     return { ok: false, error: "This invitation is held until its wording is approved" }
   }
-  const late = await isLateParty(service, { orgId, applicationId, coApplicantId })
-  if (!late.ok || late.late) return { ok: false, error: "Could not send the invitation" }
 
   if (route === "co_applicant") {
     const ctx = await buildEmailContext(applicationId)

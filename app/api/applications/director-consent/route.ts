@@ -7,13 +7,12 @@
  *         consent_verifications — links verified SMS round to consent_log row (ADDENDUM_14F)
  * Notes:  D-14B-01: directors must consent individually. ADDENDUM_14F: verificationId is optional
  *         (null when director has no phone). When present, verified status is re-checked server-side.
- *         BUILD_72 P1-R3b / 14V §3.5b: a LATE party — a surety whose hold lifted after the application was paid, so the
- *         payment never priced them — is refused here (409 late_party) until 14W's per-party line exists.
+ *         ADDENDUM_14W §0: no late-party refusal — each party pays their own line after this consent, so a party is
+ *         never outside a fee someone else paid.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { isLateParty } from "@/lib/screening/partySet"
 
 export async function POST(req: NextRequest) {
   const { coApplicantId, token, verificationId } = await req.json() as {
@@ -52,12 +51,6 @@ export async function POST(req: NextRequest) {
 
   if (coApp.stage2_consent_given_at) {
     return NextResponse.json({ ok: true, alreadyConsented: true })
-  }
-
-  const late = await isLateParty(service, { orgId: coApp.org_id, applicationId: coApp.primary_application_id, coApplicantId: coApp.id })
-  if (!late.ok) return NextResponse.json({ error: "Failed to record consent" }, { status: 503 })
-  if (late.late) {
-    return NextResponse.json({ error: "Screening consent has not been requested yet", reason: "late_party" }, { status: 409 })
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null

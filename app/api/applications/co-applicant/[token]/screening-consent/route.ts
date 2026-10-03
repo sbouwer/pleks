@@ -13,7 +13,7 @@
  *         consent to give, and the window the reminder cron runs has not started.
  *         The verification is bound to THIS party's own round (director_token = this access_token), not merely to
  *         the application: the lead's round on the same application is not this person's evidence.
- *         BUILD_72 P1-R3b / 14V §3.5b: a party the paid fee did not price is a late party and is refused (late_party).
+ *         ADDENDUM_14W §0: no late-party refusal — this party pays their own line after consenting.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -21,7 +21,6 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { insertScreeningConsentLog } from "@/lib/screening/screeningConsent"
 import { inviteRoute } from "@/lib/applications/juristicParties"
-import { isLateParty } from "@/lib/screening/partySet"
 
 interface Props { params: Promise<{ token: string }> }
 
@@ -75,11 +74,6 @@ export async function POST(req: NextRequest, { params }: Props) {
   }
   if (inviteRoute({ party: coApp, application }) !== "co_applicant") {
     return NextResponse.json({ error: "Screening consent has not been requested yet" }, { status: 409 })
-  }
-  const late = await isLateParty(service, { orgId: coApp.org_id as string, applicationId: coApp.primary_application_id as string, coApplicantId: coApp.id as string })
-  if (!late.ok) return NextResponse.json({ error: "Failed to record consent" }, { status: 503 })
-  if (late.late) {
-    return NextResponse.json({ error: "Screening consent has not been requested yet", reason: "late_party" }, { status: 409 })
   }
 
   if (verificationId) {

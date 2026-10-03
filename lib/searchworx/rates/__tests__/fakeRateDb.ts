@@ -2,7 +2,7 @@
  * lib/searchworx/rates/__tests__/fakeRateDb.ts — in-memory stand-in for the 14V platform tables, for tests
  *
  * Notes:  Supports exactly the chains the rate code uses (select/eq/in/is/lte/order/limit/single/maybeSingle,
- *         insert[.select().single()], update[.eq…][.select()], upsert(rows, { onConflict })) and enforces the two UNIQUE constraints that
+ *         insert[.select().single()], update[.eq…][.select()], upsert(rows, { onConflict, ignoreDuplicates? })) and enforces the two UNIQUE constraints that
  *         behaviour depends on — searchworx_rates (product_key, effective_date, source) and
  *         searchworx_rate_holds (product_key, held_cents) — returning 23505 the way PostgREST does.
  *         `raw->>key` filters read a jsonb key. Not a general Supabase fake: an unsupported chain throws.
@@ -38,7 +38,7 @@ export function fakeRateDb(seed: Record<string, Row[]> = {}, failInsert: Record<
     let order: { col: string; asc: boolean } | null = null
     let lim: number | null = null
     let one: "single" | "maybe" | null = null
-    let op: { kind: "select" } | { kind: "insert"; rows: Row[] } | { kind: "update"; patch: Row } | { kind: "upsert"; rows: Row[]; keys: string[] } = { kind: "select" }
+    let op: { kind: "select" } | { kind: "insert"; rows: Row[] } | { kind: "update"; patch: Row } | { kind: "upsert"; rows: Row[]; keys: string[]; ignoreDuplicates: boolean } = { kind: "select" }
 
     const shape = (rows: Row[]) => {
       if (one === "single") return rows[0] ? { data: rows[0], error: null } : { data: null, error: { code: "PGRST116", message: "no rows" } }
@@ -64,11 +64,11 @@ export function fakeRateDb(seed: Record<string, Row[]> = {}, failInsert: Record<
         return shape(out)
       }
       if (op.kind === "upsert") {
-        // ON CONFLICT (keys) DO UPDATE — merge into the row the keys match, else insert.
-        const { keys } = op
+        // ON CONFLICT (keys) DO UPDATE — merge into the row the keys match, else insert. ignoreDuplicates = DO NOTHING.
+        const { keys, ignoreDuplicates } = op
         const out = op.rows.map((r) => {
           const hit = tables[table].find((x) => keys.every((c) => x[c] === r[c]))
-          if (hit) return Object.assign(hit, r)
+          if (hit) return ignoreDuplicates ? hit : Object.assign(hit, r)
           seq++
           const row: Row = { id: `new-${seq}`, ...r }
           tables[table].push(row)
@@ -107,8 +107,8 @@ export function fakeRateDb(seed: Record<string, Row[]> = {}, failInsert: Record<
       maybeSingle: () => ((one = "maybe"), q),
       insert: (rows: Row | Row[]) => ((op = { kind: "insert", rows: Array.isArray(rows) ? rows : [rows] }), q),
       update: (patch: Row) => ((op = { kind: "update", patch }), q),
-      upsert: (rows: Row | Row[], o: { onConflict: string }) =>
-        ((op = { kind: "upsert", rows: Array.isArray(rows) ? rows : [rows], keys: o.onConflict.split(",").map((k) => k.trim()) }), q),
+      upsert: (rows: Row | Row[], o: { onConflict: string; ignoreDuplicates?: boolean }) =>
+        ((op = { kind: "upsert", rows: Array.isArray(rows) ? rows : [rows], keys: o.onConflict.split(",").map((k) => k.trim()), ignoreDuplicates: !!o.ignoreDuplicates }), q),
       then: (resolve: (v: unknown) => unknown) => resolve(run()),
     }
     return q
