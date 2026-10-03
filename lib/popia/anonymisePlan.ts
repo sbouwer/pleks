@@ -143,7 +143,7 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
   //    the plan was frozen, so they survived erasure). The Storage files referenced by the *_path columns are
   //    purged separately in erasure.ts (file-then-redact); screening_artifacts is manual-review (below). ──────
   { id: "C1.bank_statement_classifications", table: "application_bank_statement_classifications", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
-    fields: { bank_statement_doc_path: REDACTED, payee_signature: REDACTED, payee_description_example: REDACTED } },  // all NOT NULL → REDACTED; doc_path file purged in erasure.ts
+    fields: { bank_statement_doc_path: REDACTED, payee_signature: REDACTED, payee_description_example: REDACTED } },  // all NOT NULL → REDACTED; no writer sets doc_path — the statement is an application-docs upload, purged by prefix
   { id: "C1.application_screening_lines", table: "application_screening_lines", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { pdf_storage_path: null, result_summary: null, searchworx_search_token: null, searchworx_envelope_meta: null } },                       // nullable; pdf file purged in erasure.ts
 
@@ -216,8 +216,11 @@ export const DECLINED_APPLICANT_DELETE_TABLES: DeclinedApplicantDeleteTable[] = 
   { id: "F3.screening_artifacts", table: "screening_artifacts", storagePathColumn: "storage_path", storageBucket: "screening-reports" },
   // per-subject screening result lines — whole row; raw vendor PDF in screening-reports.
   { id: "F3.application_screening_lines", table: "application_screening_lines", storagePathColumn: "pdf_storage_path", storageBucket: "screening-reports" },
-  // bank-statement classifications — whole row; the source statement lives in bank-statements.
-  { id: "F3.bank_statement_classifications", table: "application_bank_statement_classifications", storagePathColumn: "bank_statement_doc_path", storageBucket: "bank-statements" },
+  // bank-statement classifications — whole row, no file of its own. The source statement is an applicant upload in
+  // application-docs, removed with the whole prefix (screeningArtefactPurge step 4c). This pointed at a
+  // `bank-statements` bucket until 2026-10-03 — a bucket in no migration and not on prod — and no writer sets
+  // `bank_statement_doc_path` (grep, 2026-10-03), so the file step could never have removed anything.
+  { id: "F3.bank_statement_classifications", table: "application_bank_statement_classifications", storagePathColumn: null, storageBucket: null },
   // iterative prescreen history — narrative + input_snapshot carry derived financial PII; whole row, no file.
   { id: "F3.application_prescreens", table: "application_prescreens", storagePathColumn: null, storageBucket: null },
 ]
