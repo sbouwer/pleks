@@ -328,7 +328,7 @@ export interface UseApplyFlowProps {
 }
 
 /** The apply wizard state machine. Returns all state, setters, handlers and derived values the render shell needs. */
-export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentCents, prefill, resume, actor = LEAD_ACTOR }: UseApplyFlowProps) {
+export function useApplyFlow({ slug, listingTitle, leaseType, askingRentCents, prefill, resume, actor = LEAD_ACTOR }: UseApplyFlowProps) {
   const commercial = leaseType === "commercial"
   // 14R: a co peer (isLead:false) runs the SAME machine as the lead with three divergences — enter at the hub, never
   // re-verify (token-as-proof), never submit (Phase 2). The lead (default actor) is unchanged.
@@ -838,13 +838,16 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     if (!check.valid) { patch({ uploading: false, error: check.userMessage ?? "File not accepted." }); toast.error(check.userMessage?.split("\n")[0] ?? "File not accepted."); return }
 
     try {
-      const supabase = createClient()
-      const ext = file.name.split(".").pop() ?? "pdf"
-      // A co's docs go to their own co_{coId}/ subfolder (subject-isolated; detect-document infers the subject from
-      // the co_ path); the lead's stay at the flat prefix. (14R §6 / 14P 0b.5)
-      const coPrefix = isCo ? `co_${actor.coId}/` : ""
-      const path = `applications/${orgId}/${applicationId}/${coPrefix}${single ? categoryKey : fileId}.${ext}`
-      const { error: upErr } = await supabase.storage.from("application-docs").upload(path, file, { upsert: true })
+      // The browser has NO storage policy on application-docs (DECISIONS 2026-10-03): the server checks the token,
+      // builds the path inside this subject's own folder (a co's co_{coId}/, the lead's root — 14R §6 / 14P 0b.5)
+      // and mints a one-path signed upload token. The bytes still go straight to Storage.
+      const ext = (file.name.split(".").pop() ?? "pdf").toLowerCase()
+      const minted = await fetch(`/api/applications/${applicationId}/documents/upload-url`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, docKey: categoryKey, ext, single }),
+      })
+      if (!minted.ok) throw new Error(((await minted.json().catch(() => ({}))) as { error?: string }).error ?? "Upload failed")
+      const { path, token: uploadToken } = await minted.json() as { path: string; token: string }
+      const { error: upErr } = await createClient().storage.from("application-docs").uploadToSignedUrl(path, uploadToken, file)
       if (upErr) throw upErr
       let detection: string | null = null
       try {
@@ -857,7 +860,7 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
           // A genuinely password-locked PDF — remove the just-uploaded file and tell the applicant to re-save it.
           const b = await res.json().catch(() => ({})) as { message?: string }
           const msg = b.message ?? "This file is password-protected — please upload an unprotected version."
-          try { await supabase.storage.from("application-docs").remove([path]) } catch { /* best-effort */ }
+          await removeStoredDoc(path)
           patch({ uploading: false, error: msg })
           toast.error(msg)
           return
@@ -873,7 +876,15 @@ export function useApplyFlow({ slug, orgId, listingTitle, leaseType, askingRentC
     const f = (docFiles[categoryKey] ?? []).find((x) => x.id === fileId)
     setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).filter((x) => x.id !== fileId) }))
     // Delete from Storage too — the /screen pipeline enumerates the whole prefix, so a removed file must go.
-    if (f?.storagePath) { try { await createClient().storage.from("application-docs").remove([f.storagePath]) } catch { /* best-effort */ } }
+    if (f?.storagePath) await removeStoredDoc(f.storagePath)
+  }
+  /** Server-side remove (token-checked, own folder only) — the browser holds no DELETE policy. Best-effort. */
+  async function removeStoredDoc(path: string) {
+    try {
+      await fetch(`/api/applications/${applicationId}/documents/remove`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, path }),
+      })
+    } catch { /* best-effort */ }
   }
   function renameDoc(categoryKey: string, fileId: string, name: string) {
     setDocFiles((prev) => ({ ...prev, [categoryKey]: (prev[categoryKey] ?? []).map((f) => f.id === fileId ? { ...f, name } : f) }))

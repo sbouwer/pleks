@@ -29,6 +29,17 @@ export async function registerApplicationDocument(db: SupabaseClient, args: Read
   logQueryError("registerApplicationDocument insert", insErr)
 }
 
+/** Soft-delete the live registry row for a removed file (the applicant took it back before submitting). */
+export async function retireApplicationDocument(db: SupabaseClient, args: Readonly<{
+  orgId: string; applicationId: string; storagePath: string
+}>): Promise<void> {
+  const { error } = await db
+    .from("application_documents").update({ deleted_at: new Date().toISOString() })
+    .eq("org_id", args.orgId).eq("application_id", args.applicationId).eq("storage_path", args.storagePath)
+    .is("deleted_at", null)
+  logQueryError("retireApplicationDocument update", error)
+}
+
 /** storage_path → subject_ref for an application's LIVE registry rows — the loader's attribution source. */
 export async function getApplicationDocumentSubjects(db: SupabaseClient, applicationId: string): Promise<Map<string, string>> {
   const { data, error } = await db

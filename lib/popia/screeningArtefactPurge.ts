@@ -47,6 +47,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { purgeApplicationDocs } from "@/lib/applications/purgeDocs"
 import {
   DECLINED_APPLICANT_STRIP_GROUPS,
   DECLINED_APPLICANT_DELETE_TABLES,
@@ -193,7 +194,7 @@ async function removeStorageObjects(
  *
  * Order: (1) re-assert guard, (2) delete Storage files referenced by each delete-table, (3) whole-row delete
  * those tables, (4) remove the raw bank statement + identity-docs Storage, (4b) remove guarantor-agreement
- * files (application-docs), (5) strip ALL declined PII columns across the application + its identity/contact
+ * files (application-docs), (4c) remove every uploaded document under the application-docs prefix, (5) strip ALL declined PII columns across the application + its identity/contact
  * child tables (plan-derived strip groups, shared stripGroup engine; ANY group erroring aborts before the
  * latch — V4), (6) stamp pii_purged_at (only after the strip provably ran), (7) one audit row.
  */
@@ -253,6 +254,14 @@ export async function purgeApplicationScreeningArtefacts(
   const guarantorPaths = ((guarantorRows ?? []) as unknown as Array<Record<string, unknown>>)
     .map((r) => { const v = r.guarantor_agreement_path; return typeof v === "string" ? v : null })
   await removeStorageObjects(db, "application-docs", guarantorPaths)
+
+  // (4c) every applicant-uploaded document under the application's prefix — the lead's AND each co's `co_{id}/`
+  // folder (DECISIONS 2026-10-03, scout R5). Until this the declined purge left ID documents and bank statements
+  // in place, so the retention sentence was false in code. A failed list/remove aborts BEFORE the one-way latch,
+  // like a strip error (V4): never stamp "purged" with the files still there. Idempotent on the next run.
+  if (!(await purgeApplicationDocs(db, orgId, applicationId))) {
+    throw new Error(`application-docs purge failed on application ${applicationId} — pii_purged_at NOT stamped`)
+  }
 
   // (5) strip ALL declined PII columns across the application AND its identity/contact child tables.
   // Replays the SAME stripGroup engine the DSAR erasure uses over DECLINED_APPLICANT_STRIP_GROUPS (derived

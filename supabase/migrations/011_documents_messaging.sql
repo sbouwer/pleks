@@ -1140,6 +1140,8 @@ UPDATE storage.buckets SET public = true WHERE id = 'org-assets';
 --   INSERT + UPDATE + (re-read) SELECT on the row, plus DELETE for re-uploads. The SELECT policy is REQUIRED —
 --   without it RETURNING fails with "new row violates row-level security policy". All four are scoped to the
 --   bucket + the applications/ prefix (same guard), granted to anon+authenticated.
+--   ⚠ SUPERSEDED by §28 (2026-10-03): all four are DROPPED there, with no replacement — they had no org,
+--   application or owner term. Kept here only for replay fidelity; §28 runs after and removes them.
 -- ═══════════════════════════════════════════════════════════════════════════════
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('application-docs', 'application-docs', false, 20971520,
@@ -1420,3 +1422,26 @@ ALTER TABLE tenant_notices ADD COLUMN IF NOT EXISTS manual_override jsonb;
 COMMENT ON COLUMN tenant_notices.manual_override IS
   'E-4 manual-review override, set at insert only (immutable row): { overridden_by, overridden_at, reason, codes }. '
   'NULL = the notice passed all guards cleanly. Non-null = a named human overrode a manual-review halt for the recorded reason.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §28  SECURITY 2026-10-03 (DECISIONS 2026-10-03, GATES G-11): application-docs is SERVICE-ROLE ONLY
+--   §22's four policies granted anon + authenticated SELECT/INSERT/UPDATE/DELETE across the whole bucket with no
+--   org, application or owner term — any holder of the public key could list, read, overwrite or delete every
+--   applicant's ID document and bank statement by path (confirmed live, .handoff/doc-access-trace-1003/).
+--   Dropped with NO replacement. Browser uploads now use a signed upload URL minted by
+--   /api/applications/[id]/documents/upload-url after the applicant-token check; removal goes through
+--   /api/applications/[id]/documents/remove; every read is the service client. Signed upload tokens need no
+--   policy. Apply via the DDL gate the SAME DAY the code deploys, and only after it — the old client upload
+--   path needs these policies, the new one does not. Never re-grant a client role on this bucket.
+-- ═══════════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+  pol text;
+BEGIN
+  FOREACH pol IN ARRAY ARRAY['application_docs_insert', 'application_docs_update', 'application_docs_delete', 'application_docs_select']
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', pol);
+  END LOOP;
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'pleks: storage policy drop skipped locally (needs storage_admin owner); applies on hosted';
+END $$;

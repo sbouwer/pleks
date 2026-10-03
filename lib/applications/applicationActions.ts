@@ -144,7 +144,10 @@ export async function deleteApplicationAction(applicationId: string) {
   }
 
   // Not submitted (draft / pre-screen only): hard delete + purge docs. consent_log/audit_log aren't FK-cascaded → preserved.
-  await purgeApplicationDocs(db, orgId, applicationId)
+  // Storage first, and never delete the row (the only pointer to the files) while a file may remain.
+  if (!(await purgeApplicationDocs(db, orgId, applicationId))) {
+    return { error: "Could not remove the application's documents. Nothing was deleted — please try again." }
+  }
   const { error } = await db.from("applications").delete().eq("id", applicationId).eq("org_id", orgId)
   if (error) return { error: error.message }
   await recordAudit(db, { orgId, actorId: userId, action: "DELETE", table: "applications", recordId: applicationId, before: { action: "draft_application_deleted" } })
@@ -172,7 +175,7 @@ export async function deleteApplicationsAction(applicationIds: string[]) {
       await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: id, after: { action: "application_soft_deleted", bulk: true } })
       soft++
     } else {
-      await purgeApplicationDocs(db, orgId, id)
+      if (!(await purgeApplicationDocs(db, orgId, id))) continue // row kept: it is the only pointer to the files
       await db.from("applications").delete().eq("id", id).eq("org_id", orgId)
       await recordAudit(db, { orgId, actorId: userId, action: "DELETE", table: "applications", recordId: id, before: { action: "draft_application_deleted", bulk: true } })
       hard++

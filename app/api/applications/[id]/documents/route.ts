@@ -7,13 +7,15 @@
  *         could trigger Sonnet extraction (denial-of-wallet), overwrite prescreen_*, and read the
  *         affordability signal for any known application id.
  * Data:   applications, listings, application-docs storage; Anthropic API via lib/ai/client.ts
- * Notes:  Sonnet income extraction gated behind ai_full (Portfolio+). Falls back to self-reported income.
+ * Notes:  Sonnet income extraction gated behind ai_full (Portfolio+) AND the caller's recorded stage-1 consent —
+ *         no bytes to the processor before consent, on any tier (DECISIONS 2026-10-03). Falls back to
+ *         self-reported income. The path is bound to the token's own subject folder (pathBelongsToSubject).
  */
-/* eslint-disable pleks/require-org-scope-on-service-write -- verifyApplicantToken(supabase, body.token, applicationId) runs BEFORE any mutation and binds the token to THIS application id — that check is the boundary, and the route has no caller org (public apply flow) */
+/* eslint-disable pleks/require-org-scope-on-service-write -- resolveApplicantToken(supabase, body.token, applicationId) runs BEFORE any mutation and binds the token to THIS application id — that check is the boundary, and the route has no caller org (public apply flow) */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
-import { pathBelongsToApplication } from "@/lib/applications/applicationStoragePath"
+import { resolveApplicantToken } from "@/lib/applications/verifyApplicantToken"
+import { pathBelongsToSubject } from "@/lib/applications/applicationStoragePath"
 import { checkAiRateLimit } from "@/lib/ai/rateLimit"
 import { createMessage } from "@/lib/ai/client"
 import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
@@ -35,7 +37,8 @@ export async function POST(
 
   // Auth: an applicant token bound to THIS application (forwarded by the internal detect-document caller).
   // Validate BEFORE any mutation/AI — nothing expensive or state-changing runs unauthenticated.
-  if (!(await verifyApplicantToken(supabase, body.token, applicationId))) {
+  const caller = await resolveApplicantToken(supabase, body.token, applicationId)
+  if (!caller) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
   }
 
@@ -55,7 +58,7 @@ export async function POST(
   // The token gate (#142) proves the caller owns the application, but bankStatementPath was still trusted straight
   // into the RLS-bypassing download() below — a token holder could pass another org's path and read cross-tenant
   // files. Reject a foreign/traversal path before any mutation or AI call. (hotfix 2026-07-07.)
-  if (bankStatementPath && !pathBelongsToApplication(application.org_id as string, applicationId, bankStatementPath)) {
+  if (bankStatementPath && !pathBelongsToSubject(application.org_id as string, applicationId, caller.subject, bankStatementPath)) {
     return NextResponse.json({ error: "Invalid document path" }, { status: 403 })
   }
 
@@ -82,7 +85,7 @@ export async function POST(
 
   // Extract bank statement with Sonnet — only for Portfolio+ (ai_full)
   const tier = await getOrgTierCanonical(application.org_id)
-  if (bankStatementPath && optionalEnv("ANTHROPIC_API_KEY") && hasFeature(tier, "ai_full")) {
+  if (bankStatementPath && caller.stage1ConsentGiven && optionalEnv("ANTHROPIC_API_KEY") && hasFeature(tier, "ai_full")) {
     try {
       const { data: fileData, error: fileDataError } = await supabase.storage
         .from("application-docs")
