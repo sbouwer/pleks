@@ -14,6 +14,7 @@ import {
   isSuretyParty,
   inviteHold,
   inviteRoute,
+  suretyInviteRole,
   suretyQuestion,
   suretyQuestionNoun,
   isJuristicApplicant,
@@ -230,21 +231,32 @@ const entity = (companyType: string) => ({ entity_type: "organisation", applican
 const RESIDENTIAL = { entity_type: "individual", applicant_type: null, company_info: null }
 const party = (role: string, declared_director: boolean | null, is_surety_director = false) => ({ role, is_surety_director, declared_director })
 
-describe("inviteHold — only a company's director has reviewed copy (P1-R3/R7a, F7 ruling)", () => {
-  it("holds a company surety answered 'not a director' and one never asked", () => {
-    for (const t of ["pty_ltd", "npc"]) {
-      expect(inviteHold({ party: party("guarantor", false), application: entity(t) }), t).toBe("awaiting_template")
-      expect(inviteHold({ party: party("guarantor", null), application: entity(t) }), t).toBe("awaiting_template")
+describe("suretyInviteRole — which approved role sentence a juristic surety receives (counsel 2026-10-03 §1, Q2)", () => {
+  it("a company director → director, by either fact", () => {
+    expect(suretyInviteRole({ party: party("guarantor", true), application: entity("pty_ltd") })).toBe("director")
+    expect(suretyInviteRole({ party: party("guarantor", null, true), application: entity("npc") })).toBe("director")
+  })
+  it("a trustee's 'yes' → trustee (B); a CC member's 'yes' → member (C)", () => {
+    expect(suretyInviteRole({ party: party("guarantor", true), application: entity("trust") })).toBe("trustee")
+    expect(suretyInviteRole({ party: party("guarantor", true), application: entity("cc") })).toBe("member")
+  })
+  it("every other natural-person surety → generic (A): a 'no' and an unanswered question infer no capacity", () => {
+    for (const t of JURISTIC) {
+      expect(suretyInviteRole({ party: party("guarantor", false), application: entity(t) }), t).toBe("generic")
+      expect(suretyInviteRole({ party: party("guarantor", null), application: entity(t) }), t).toBe("generic")
     }
   })
-  it("does not hold a company director by either fact", () => {
-    expect(inviteHold({ party: party("guarantor", true), application: entity("pty_ltd") })).toBeNull()
-    expect(inviteHold({ party: party("guarantor", null, true), application: entity("npc") })).toBeNull()
+  it("is null for anyone not a juristic surety", () => {
+    expect(suretyInviteRole({ party: party("guarantor", true), application: RESIDENTIAL })).toBeNull()
+    expect(suretyInviteRole({ party: party("co_applicant", null), application: entity("pty_ltd") })).toBeNull()
   })
-  it("HOLDS a trustee's and a CC member's 'yes' — director_invited says 'a director' (F7)", () => {
-    expect(inviteHold({ party: party("guarantor", true), application: entity("trust") })).toBe("awaiting_template")
-    expect(inviteHold({ party: party("guarantor", true), application: entity("cc") })).toBe("awaiting_template")
-    expect(inviteHold({ party: party("guarantor", null, true), application: entity("trust") })).toBe("awaiting_template")
+})
+
+describe("inviteHold — RELEASED for the A/B/C audiences (counsel 2026-10-03)", () => {
+  it("holds no juristic surety: every answer on every juristic type has an approved sentence", () => {
+    for (const t of JURISTIC) for (const d of [true, false, null]) {
+      expect(inviteHold({ party: party("guarantor", d), application: entity(t) }), `${t}/${d}`).toBeNull()
+    }
   })
   it("never holds a residential guarantor or a co-applicant", () => {
     expect(inviteHold({ party: party("guarantor", null), application: RESIDENTIAL })).toBeNull()
@@ -253,14 +265,10 @@ describe("inviteHold — only a company's director has reviewed copy (P1-R3/R7a,
 })
 
 describe("inviteRoute — the one copy decision every sender reads (walker F1/F2, F7)", () => {
-  it("sends director copy only to a company's director surety", () => {
-    expect(inviteRoute({ party: party("guarantor", true), application: entity("pty_ltd") })).toBe("director")
-    expect(inviteRoute({ party: party("guarantor", null, true), application: entity("npc") })).toBe("director")
-  })
-  it("holds every other juristic surety, a trustee's or member's 'yes' included", () => {
-    expect(inviteRoute({ party: party("guarantor", false), application: entity("pty_ltd") })).toBe("held")
-    expect(inviteRoute({ party: party("guarantor", true), application: entity("trust") })).toBe("held")
-    expect(inviteRoute({ party: party("guarantor", true), application: entity("cc") })).toBe("held")
+  it("sends surety copy to every juristic surety, director or not", () => {
+    for (const t of JURISTIC) for (const d of [true, false, null]) {
+      expect(inviteRoute({ party: party("guarantor", d), application: entity(t) }), `${t}/${d}`).toBe("surety")
+    }
   })
   it("sends joint-rental copy to a residential guarantor, even one answered 'yes', and to a co-applicant", () => {
     expect(inviteRoute({ party: party("guarantor", true), application: RESIDENTIAL })).toBe("co_applicant")

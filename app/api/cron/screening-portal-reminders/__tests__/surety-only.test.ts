@@ -8,8 +8,8 @@
  *         · both residential clocks run from `stage2_invited_at`, never `created_at`, and an uninvited party is left
  *           alone (BUILD_72 P1-R8b-2);
  *         · a declared director surety still gets director copy, so a router that sent nothing would fail;
- *         · a surety who is not a declared director is HELD — no send, no decline (R3), and so is a trustee's or a
- *           CC member's "yes" (F7 ruling: director copy is for a company's director only);
+ *         · since the 2026-10-03 A/B/C release a non-director surety, and a trustee's or CC member's "yes", is reminded
+ *           with the role-neutral reminder and expires at the window like a director — no surety is held;
  *         · an unknown party_kind is skipped;
  *         · a send that reports failure leaves the milestone UNSTAMPED, so the next run retries it (walker F4).
  */
@@ -130,13 +130,26 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
   })
 
-  it("a surety who is not a declared director is HELD: no send, no update (R3)", async () => {
+  it("a surety who is not a director is reminded like any surety — the hold is released (counsel 2026-10-03)", async () => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, role: "guarantor", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: "application.director_reminder_t3" }))
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+  })
+
+  it.each([4, 20])("PLANTED (walker F5): a surety who CONSENTED and waits on the lead's payment is neither reminded nor declined (day %i)", async (days) => {
+    line = { ...baseLine, party_kind: "surety", state: "consented_pending_payment" }
+    coApp = { ...baseCo, created_at: daysAgo(days), role: "guarantor", is_surety_director: true }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+  })
+
+  it("…and past the window it expires, rather than sitting held forever", async () => {
     line = { ...baseLine, party_kind: "surety" }
     coApp = { ...baseCo, created_at: daysAgo(20), role: "guarantor", is_surety_director: false }
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
-    expect(sendEmail).not.toHaveBeenCalled()
-    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
-    expect(updates).toEqual([])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
   })
 
   it("a surety the applicant DECLARED a director gets director copy without the registry flag (R7a)", async () => {
@@ -146,12 +159,11 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: "application.director_reminder_t3" }))
   })
 
-  it.each([false, null])("a surety whose declared_director is %s is HELD (R7a: no and never-asked alike)", async (declared) => {
+  it.each([false, null])("a surety whose declared_director is %s is reminded (released: no and never-asked alike)", async (declared) => {
     line = { ...baseLine, party_kind: "surety" }
-    coApp = { ...baseCo, created_at: daysAgo(20), role: "guarantor", is_surety_director: null, declared_director: declared }
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
-    expect(sendEmail).not.toHaveBeenCalled()
-    expect(updates).toEqual([])
+    coApp = { ...baseCo, role: "guarantor", is_surety_director: null, declared_director: declared }
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: "application.director_reminder_t3" }))
   })
 
   it("a director line in expired_no_consent keeps its old treatment — not selected before, skipped now", async () => {
@@ -187,14 +199,13 @@ describe("a failed send is not recorded as sent (walker F4)", () => {
   })
 })
 
-describe("a trustee's or CC member's 'yes' is HELD, not sent director copy (F7 ruling)", () => {
-  it.each(["trust", "cc"])("%s: declared yes → held, no send, no update", async (t) => {
+describe("a trustee's or CC member's 'yes' is reminded — the role-neutral reminder fits every audience (counsel §2)", () => {
+  it.each(["trust", "cc"])("%s: declared yes → reminded", async (t) => {
     companyType = t
     line = { ...baseLine, party_kind: "surety" }
-    coApp = { ...baseCo, created_at: daysAgo(20), role: "guarantor", is_surety_director: false, declared_director: true }
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
-    expect(sendEmail).not.toHaveBeenCalled()
-    expect(updates).toEqual([])
+    coApp = { ...baseCo, role: "guarantor", is_surety_director: false, declared_director: true }
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: "application.director_reminder_t3" }))
   })
 })
 

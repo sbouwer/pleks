@@ -173,10 +173,10 @@ export function isSuretyParty(row: Readonly<{ role?: string | null; is_surety_di
 export const SURETY_PARTY_OR_FILTER = "is_surety_director.eq.true,role.eq.guarantor"
 
 /**
- * May this party receive the DIRECTOR-audience surety copy (`application.director_invited` and its reminders)?
- * That copy is counsel-reviewed for directors only (BUILD_72 P1-R3); anyone else on the surety path is held.
+ * Does this surety hold the office its entity type has — a company's director, a trust's trustee, a CC's member?
+ * `suretyInviteRole` reads it to pick the invite's role sentence; a surety who does not is sent the generic one (A).
  *
- * A director by EITHER fact: `is_surety_director` (registry-derived, Phase 2) or `declared_director` (the
+ * The office by EITHER fact: `is_surety_director` (registry-derived, Phase 2) or `declared_director` (the
  * applicant's answer, P1-R7a; NULL = never asked). Read the two together here and nowhere else —
  * `pleks/no-hand-written-surety-filter` holds query filters on either. SQL twin: `is_director_surety()` in 005.
  */
@@ -211,42 +211,56 @@ type InviteApplication = Parameters<typeof isJuristicForCopy>[0]
 type InviteInput = Readonly<{ party: Parameters<typeof isDirectorSurety>[0]; application: InviteApplication }>
 
 /**
- * Why a party's invite is HELD, or null (BUILD_72 P1-R3, F7 ruling). Only a COMPANY's director (pty_ltd / npc, by
- * registry or by the applicant's "yes") has counsel-reviewed copy. Every other juristic surety is held — a
- * non-director, and also a trustee or a CC member who answered "yes", because `director_invited` says "a director"
- * and is untrue for them. Their variants are with counsel in one pack. Nothing is sent; the agent sees the state.
+ * Which counsel-approved ROLE SENTENCE a juristic surety's invite carries, or null when the party is not a juristic
+ * surety (counsel-approved comms 2026-10-03 §1, routing per counsel Q2). The office is held by EITHER fact
+ * (`isDirectorSurety`: the registry's flag or the applicant's "yes"), and the entity type names the office:
+ * a company director → `director`; a trustee → `trustee` (variant B); a CC member → `member` (C). Every other
+ * natural-person surety → `generic` (A) — including a "no" and an unanswered question, because a "no" to the
+ * trustee/member question never infers another capacity, and A asserts none.
+ */
+export type SuretyInviteRole = "director" | "generic" | "trustee" | "member"
+export function suretyInviteRole(input: InviteInput): SuretyInviteRole | null {
+  if (partyKind({ party: input.party, isJuristic: isJuristicForCopy(input.application) }) !== "surety") return null
+  const companyType = (input.application.company_info as Record<string, unknown> | null | undefined)?.companyType
+  const noun = suretyQuestionNoun(companyType)
+  if (noun === null) return null
+  return isDirectorSurety(input.party) ? noun : "generic"
+}
+
+/**
+ * Why a party's invite is HELD, or null (BUILD_72 P1-R3). A juristic surety is held only when no approved role
+ * sentence fits it. RELEASED 2026-10-03 for the A/B/C audiences: until counsel approved the generic, trustee and CC
+ * member sentences, only a company's director had reviewed copy and every other juristic surety was held here. Since
+ * `suretyInviteRole` now answers every juristic type, this holds nobody; it stays as the one place a future audience
+ * without approved copy is held, and every hold reader (pricing, the agent page, the lead's notice) still asks it.
  */
 export type InviteHold = "awaiting_template"
 export function inviteHold(input: InviteInput): InviteHold | null {
   const isJuristic = isJuristicForCopy(input.application)
   if (partyKind({ party: input.party, isJuristic }) !== "surety") return null
-  const companyType = (input.application.company_info as Record<string, unknown> | null | undefined)?.companyType
-  const isCompanyDirector = suretyQuestionNoun(companyType) === "director" && isDirectorSurety(input.party)
-  return isCompanyDirector ? null : "awaiting_template"
+  return suretyInviteRole(input) === null ? "awaiting_template" : null
 }
 
 /**
  * Which invite a party is SENT, by every sender: the roster's first invite, the co-parties Resend and the reminder
  * cron. One answer, because the walker found the first two each choosing their own copy (one always joint-rental,
- * one always director) while the cron alone routed by kind. `director` = `application.director_invited`;
- * `co_applicant` = `application.co_applicant_invited` (a joint co-applicant or a residential guarantor, R3a);
- * `held` = nothing is sent (R3).
+ * one always director) while the cron alone routed by kind. `surety` = `application.director_invited`, with the role
+ * sentence `suretyInviteRole` picks; `co_applicant` = `application.co_applicant_invited` (a joint co-applicant or a
+ * residential guarantor, R3a); `held` = nothing is sent (R3).
  */
-export type InviteRoute = "director" | "co_applicant" | "held"
+export type InviteRoute = "surety" | "co_applicant" | "held"
 export function inviteRoute(input: InviteInput): InviteRoute {
   if (inviteHold(input)) return "held"
-  return partyKind({ party: input.party, isJuristic: isJuristicForCopy(input.application) }) === "surety" ? "director" : "co_applicant"
+  return partyKind({ party: input.party, isJuristic: isJuristicForCopy(input.application) }) === "surety" ? "surety" : "co_applicant"
 }
 
 /**
- * Why a held party is held, for the agent AND the lead (P1-R3 / R3b) — by what the applicant answered (P1-R7a/b) and
- * the noun they were asked (F7): director / trustee / member. Moved here from the agent page so both read one text.
+ * Why a held party is held, for the agent AND the lead (P1-R3 / R3b). One text since 2026-10-03: the per-answer
+ * messages (not a director / trustee / member, or unanswered) RETIRED with the A/B/C release — each of those parties
+ * now has an approved role sentence and is invited. What can still be held is a surety no approved sentence fits.
  */
-export function heldPartyReason(declaredDirector: boolean | null | undefined, companyInfo: unknown): string {
-  const noun = suretyQuestionNoun((companyInfo as Record<string, unknown> | null | undefined)?.companyType) ?? "director"
-  if (declaredDirector === null || declaredDirector === undefined) return `Invite held: the applicant has not said whether this surety is a ${noun}.`
-  if (declaredDirector && noun !== "director") return `Invite held: the surety invite for a ${noun} is awaiting legal review.`
-  return `Invite held: not a ${noun}. The surety invite for a non-${noun} is awaiting legal review.`
+export function heldPartyReason(): string {
+  return "Invite held: no approved invite wording exists for this party yet."
 }
 
 /** BUILD_72 P1-R3b's ruled line: a held party is outside the screening, and both the agent and the lead are told so. */

@@ -7,7 +7,7 @@ import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/li
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { ApplicantLegalFooter } from "@/lib/comms/templates/ApplicantLegalFooter"
 import { sendEmail } from "@/lib/comms/send-email"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, SCREENING_WINDOW_DAYS } from "@/lib/constants"
 import { quoteApplicationFee } from "@/lib/screening/quote"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
@@ -341,7 +341,7 @@ export async function sendShortlistInvitation(
         <p style={S.body}>2. {feeLine}</p>
         <p style={S.body}>The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {org.orgName} only.</p>
         <EmailButton href={inviteLink} accentColor={org.branding.accentColor}>Continue to screening →</EmailButton>
-        <p style={S.footer}>This link expires in 7 days.{org.orgPhone ? ` Contact: ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>
+        <p style={S.footer}>This link expires in {SCREENING_WINDOW_DAYS} days.{org.orgPhone ? ` Contact: ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>
         <ApplicantLegalFooter />
       </EmailLayout>
     ),

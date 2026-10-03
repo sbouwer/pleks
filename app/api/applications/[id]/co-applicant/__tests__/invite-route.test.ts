@@ -3,8 +3,8 @@
  *
  * Notes:  Walker F1 (build-72-p1-walk, 2026-10-01): this route sent `co_applicant_invited` to every party it
  *         inserted, so a juristic surety's first email was joint-rental copy (R3) and a held surety was emailed while
- *         the agent page said "held". Probed both ways: each kind gets exactly its copy, a held surety gets none, and
- *         a director's link carries the 14-day expiry its copy states.
+ *         the agent page said "held". Probed both ways: each kind gets exactly its copy, and a surety's link carries the
+ *         window expiry its copy states. Since the 2026-10-03 release every juristic surety is sent, with its role sentence.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -53,20 +53,20 @@ beforeEach(() => {
 })
 
 describe("the roster's first invite (walker F1)", () => {
-  it("a juristic surety declared a director gets director copy on a 14-day link, never joint-rental copy", async () => {
+  it("a juristic surety declared a director gets the director sentence on a window-long link, never joint-rental copy", async () => {
     application = JURISTIC
-    expect(await add({ role: "guarantor", declared_director: true })).toMatchObject({ ok: true, invite: "director" })
-    expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ coApplicantId: "co-1", token: "tok", directorEmail: "pat@test" }))
+    expect(await add({ role: "guarantor", declared_director: true })).toMatchObject({ ok: true, invite: "surety" })
+    expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ coApplicantId: "co-1", token: "tok", directorEmail: "pat@test", role: "director" }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
     expect(inserts[0]).toMatchObject({ role: "guarantor", declared_director: true, access_token_expires: "EXPIRY-14D" })
   })
 
-  it.each([false, undefined])("a juristic surety whose director answer is %s is HELD: inserted, nothing sent", async (declared) => {
+  it.each([false, undefined])("a juristic surety whose director answer is %s gets the generic (A) sentence (released 2026-10-03)", async (declared) => {
     application = JURISTIC
-    expect(await add({ role: "guarantor", declared_director: declared })).toMatchObject({ ok: true, invite: "held" })
-    expect(sendDirectorInvite).not.toHaveBeenCalled()
+    expect(await add({ role: "guarantor", declared_director: declared })).toMatchObject({ ok: true, invite: "surety" })
+    expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ role: "generic" }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
-    expect(inserts).toHaveLength(1)
+    expect(inserts[0]).toMatchObject({ access_token_expires: "EXPIRY-14D" })
   })
 
   it("a residential guarantor gets joint-rental copy even when the answer says director (R3a)", async () => {
@@ -87,11 +87,11 @@ describe("the roster's first invite (walker F1)", () => {
   })
 })
 
-describe("a trustee's 'yes' is held, not sent director copy (F7 ruling)", () => {
-  it("trust + declared yes → held, nothing sent", async () => {
-    application = { ...JURISTIC, company_info: { companyType: "trust" } }
-    expect(await add({ role: "guarantor", declared_director: true })).toMatchObject({ ok: true, invite: "held" })
-    expect(sendDirectorInvite).not.toHaveBeenCalled()
+describe("a trustee's and a CC member's 'yes' get their own sentence, never the director's (F7; counsel B/C)", () => {
+  it.each([["trust", "trustee"], ["cc", "member"]])("%s + declared yes → the %s sentence", async (companyType, role) => {
+    application = { ...JURISTIC, company_info: { companyType } }
+    expect(await add({ role: "guarantor", declared_director: true })).toMatchObject({ ok: true, invite: "surety" })
+    expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ role }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
   })
 })
