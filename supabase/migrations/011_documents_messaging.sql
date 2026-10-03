@@ -1445,3 +1445,31 @@ BEGIN
 EXCEPTION WHEN insufficient_privilege THEN
   RAISE NOTICE 'pleks: storage policy drop skipped locally (needs storage_admin owner); applies on hosted';
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §29  STORAGE 2026-10-03 (walkability census; .handoff/buckets-s29/01-census.md): the seven buckets code writes to
+--   Code has written to these since before this date, but no migration created them and prod did not hold them
+--   (storage.buckets read 2026-10-03), so every upload failed: lease generation (B5), signed-lease upload (B4, B9),
+--   statement import (C7), maintenance photos (C22), audit exports (C16), scheduled reports, municipal bills.
+--   PRIVATE and SERVICE-ROLE ONLY: no anon or authenticated policy, now or later. All 17 call sites use the service
+--   client (census, 0 browser-side); reads go out as signed URLs, which need no policy. Never add a client-role
+--   policy here — §28 is what one cost on application-docs.
+--   Limits per use: types are what each writer sends. Sizes are CEILINGS, not the agent-facing limit — a browser
+--   upload is capped lower by the request body (UPLOAD_MAX_BYTES, lib/constants.ts); server-side writers are not.
+--   ON CONFLICT re-asserts privacy and limits, so a re-run corrects a bucket someone flipped public by hand.
+-- ═══════════════════════════════════════════════════════════════════════════════
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+  ('documents',          'documents',          false, 20971520,
+     ARRAY['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+  ('lease-documents',    'lease-documents',    false, 20971520, ARRAY['application/pdf']),
+  ('bank-statements',    'bank-statements',    false, 20971520,
+     ARRAY['application/pdf','application/x-ofx','application/qif','text/csv']),
+  ('maintenance-photos', 'maintenance-photos', false, 5242880,  ARRAY['image/jpeg']),
+  ('admin-exports',      'admin-exports',      false, 52428800, ARRAY['text/csv']),
+  ('reports',            'reports',            false, 10485760, ARRAY['text/html']),
+  ('municipal-bills',    'municipal-bills',    false, 10485760, ARRAY['application/pdf'])
+ON CONFLICT (id) DO UPDATE
+  SET public             = false,
+      file_size_limit    = EXCLUDED.file_size_limit,
+      allowed_mime_types = EXCLUDED.allowed_mime_types;

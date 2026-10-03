@@ -241,7 +241,7 @@ export async function createLease(formData: FormData) {
   redirect(`/leases/${lease.id}`)
 }
 
-export async function createUploadedLease(formData: FormData): Promise<{ error: string } | { leaseId: string }> {
+export async function createUploadedLease(formData: FormData): Promise<{ error: string } | { leaseId: string; documentError?: string }> {
   const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
@@ -338,25 +338,35 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
     await db.from("units").update({ prospective_tenant_id: tenantId }).eq("id", unitId).eq("org_id", orgId)
   }
 
-  // Upload PDF to storage if provided
+  // Upload the signed PDF if provided. Same bucket and key family as the upload-document route, because
+  // download-document signs `external_document_path` against `documents`. This wrote to `lease-documents` under a
+  // `lease-documents/…` key until 2026-10-03, so even with both buckets present the download signed the wrong bucket;
+  // and it swallowed every failure. The lease row already exists here, so a failed upload is reported, not fatal —
+  // the agent can re-upload from the lease page (Path B/C).
+  let documentError: string | undefined
   const file = formData.get("document")
   if (file instanceof File && file.size > 0) {
-    try {
-      const path = `lease-documents/${orgId}/${leaseId}/uploaded-lease.pdf`
-      const bytes = await file.arrayBuffer()
-      const { error: uploadError } = await db.storage
-        .from("lease-documents")
-        .upload(path, bytes, { contentType: "application/pdf", upsert: true })
-      if (!uploadError) {
-        await db.from("leases").update({ external_document_path: path }).eq("id", leaseId)
+    const path = `orgs/${orgId}/leases/${leaseId}/signed_original.pdf`
+    const { error: uploadError } = await db.storage
+      .from("documents")
+      .upload(path, await file.arrayBuffer(), { contentType: "application/pdf", upsert: true })
+    if (uploadError) {
+      console.error("createUploadedLease: document upload failed for lease", leaseId, uploadError.message)
+      documentError = "The lease was created, but the PDF did not upload. Upload it again from the lease page."
+    } else {
+      const { error: pathError } = await db.from("leases").update({ external_document_path: path })
+        .eq("id", leaseId).eq("org_id", orgId)
+      if (pathError) {
+        console.error("createUploadedLease: external_document_path write failed for lease", leaseId, pathError.message)
+        documentError = "The lease was created, but the PDF was not linked. Upload it again from the lease page."
       }
-    } catch { /* non-fatal — user can upload later */ }
+    }
   }
 
   await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "INSERT", actorId: userId, after: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents, template_source: "uploaded" } })
 
   revalidatePath("/leases")
-  return { leaseId }
+  return documentError ? { leaseId, documentError } : { leaseId }
 }
 
 export async function markAsSigned(leaseId: string) {

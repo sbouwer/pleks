@@ -21,9 +21,17 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { saTodayISO } from "@/lib/dates"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { UPLOAD_MAX_BYTES, UPLOAD_MAX_LABEL } from "@/lib/constants"
 
 type ImportSource = "upload" | "ofx" | "csv" | "qif" | "yodlee"
 
+
+const STATEMENT_CONTENT_TYPE = {
+  pdf: "application/pdf",
+  ofx: "application/x-ofx",
+  qif: "application/qif",
+  csv: "text/csv",
+} as const
 
 function detectFormat(filename: string, mime: string): "pdf" | "ofx" | "qif" | "csv" | null {
   const ext = filename.split(".").pop()?.toLowerCase()
@@ -186,7 +194,7 @@ export async function createBankImport(formData: FormData): Promise<{
   const format = detectFormat(file.name, file.type)
   if (!format) return { error: "Unsupported file format. Use PDF, OFX, QIF, or CSV." }
 
-  if (file.size > 20 * 1024 * 1024) return { error: "File too large (max 20MB)" }
+  if (file.size > UPLOAD_MAX_BYTES) return { error: `File too large (max ${UPLOAD_MAX_LABEL})` }
 
   const safeFilename = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, "_")
   const storagePath = `${orgId}/${bankAccountId}/${Date.now()}-${safeFilename}`
@@ -194,7 +202,9 @@ export async function createBankImport(formData: FormData): Promise<{
 
   const { error: uploadError } = await db.storage
     .from("bank-statements")
-    .upload(storagePath, buffer, { contentType: file.type || "application/octet-stream" })
+    // Content type from the DETECTED format, not the browser's guess: a CSV arrives as `application/vnd.ms-excel` on
+    // Windows and an OFX/QIF often as "", and the bucket accepts only the four types below (011 §29).
+    .upload(storagePath, buffer, { contentType: STATEMENT_CONTENT_TYPE[format] })
 
   if (uploadError) return { error: uploadError.message }
 
