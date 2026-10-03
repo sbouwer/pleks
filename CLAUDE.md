@@ -42,6 +42,15 @@ The build session interrupts only for (a) live legal/security exposure, (b) a sc
 names, (c) a two-sided product question — always with a default — and records every other call
 under `## Decided in build` in the PR body. Specs freeze for the arc; the queue is `brief/build/ARCS.md`.
 
+**One PR open at a time** (Stéan, 2026-10-03, off canon's `2026-10-03-pleks-pr-flow` handover).
+`main` requires a PR to be up to date before merge, so every merge put each other open PR behind and
+cost it a fresh CI run: four open PRs cost ten runs. Open the PR, walk it, then
+`gh pr merge <n> --auto --squash`, and branch the next step from `main` after it merges. **A PR
+carrying migration SQL is NOT armed** — Stéan applies its DDL, so he merges it. A PR is one arc step:
+docs, register and outbox edits ride in the next code PR, never alone; a migration, a security fix
+that must be live today, and a kit adoption each stay their own PR. Commit per phase, not per file.
+Measured as E19 in `docs/EXPERIMENTS.md`.
+
 **Session state:** `brief/CURRENT.md` — what step is active, what was just done, the next
 action, mid-build decisions. Read it before asking; it survives compaction because it is on disk.
 **And WRITE it — after every meaningful step, before committing:** move finished items to "just

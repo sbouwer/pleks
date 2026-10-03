@@ -873,6 +873,18 @@ has a week of timings. Three things in it that would be portable:
 - "inert" as an explicit list (`**/*.md`, `docs/**`), not "unmatched". Otherwise "unmatched → full"
   and "docs-only → universal" contradict each other, as the brief's §2 and §5 do read literally.
 
+**PR flow, canon handover `2026-10-03-pleks-pr-flow.md` (`53aec5d`) — ruled 2026-10-03 (Stéan).**
+- **Adopted, §2 items 1–3:** one PR open at a time, armed with `gh pr merge <n> --auto --squash` after its
+  walk; one PR per arc step (docs, register and outbox edits ride in the next code PR; a migration, a
+  same-day security fix and a kit adoption stay separate); commit per phase. Written into `CLAUDE.md` §1
+  beside the arcs line.
+- **One local narrowing:** a PR carrying migration SQL is NOT armed, because Stéan applies its DDL through
+  the gate and so merges it himself. Auto-merge on such a PR would land code ahead of its schema.
+- **Item 4 (pre-push vs CI)** stays deferred to E18's review on 2026-10-09. **Item 5** (`strict` off) not
+  taken; whether a merge queue exists on this plan is unchecked.
+- **Arc 1's numbers** go to E19 in `docs/EXPERIMENTS.md` and are reported here at arc end. First PR under
+  the rule: #340.
+
 ---
 
 ## Filed
