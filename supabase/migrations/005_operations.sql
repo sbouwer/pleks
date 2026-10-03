@@ -3989,3 +3989,16 @@ DROP TRIGGER IF EXISTS trg_co_applicant_party_set ON application_co_applicants;
 CREATE TRIGGER trg_co_applicant_party_set
   BEFORE DELETE ON application_co_applicants
   FOR EACH ROW EXECUTE FUNCTION co_applicant_party_set_guard();
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14W §0b: one clock — the lead's own stage-2 invite time  (2026-10-03)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- Every party's screening window runs from its own stage-2 invite (14W §9 row 40). A co party carries
+-- application_co_applicants.stage2_invited_at (R8b-2, above); the lead had none. Written by sendShortlistInvitation in
+-- the same update that sets stage2_status 'invited'. Recorded now, read later: no code reads it yet (the lead has no
+-- deadline of its own in §0b); it is the T0 the spec names, kept so a later lead clock has a fact to read.
+-- No backfill: prod held 0 applications when this was written (2026-10-03).
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage2_invited_at timestamptz;
+COMMENT ON COLUMN applications.stage2_invited_at IS
+  'ADDENDUM_14W §0b: when the lead party was sent the stage-2 (screening consent + pay) invite, at shortlist. T0 of the lead''s screening window. NULL = not yet invited to stage 2.';

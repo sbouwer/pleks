@@ -6,6 +6,8 @@
  *         working /apply/co-applicant link, and a held surety was emailed (R3). Probed both ways: a director is
  *         rotated + sent director copy; a residential party is re-sent joint-rental copy on the SAME token. Since the
  *         2026-10-03 A/B/C release a non-director juristic surety is rotated + sent the generic (A) role sentence.
+ *         14W §0b: a surety resend is refused before its stage-2 invite, and the rotated link expires at the party's
+ *         OWN window end (stage2_invited_at + window), never now + window — a resend cannot buy a second window.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -19,7 +21,8 @@ vi.mock("@/lib/applications/verifyApplicantToken", () => ({ verifyApplicantToken
 vi.mock("@/lib/applications/emails", () => ({ sendCoApplicantInvited: (...a: unknown[]) => sendCoApplicantInvited(...(a as [])) }))
 vi.mock("@/lib/applications/directorInvite", () => ({
   sendDirectorInvite: (...a: unknown[]) => sendDirectorInvite(...(a as [])),
-  directorTokenExpiry: () => "EXPIRY-14D",
+  // Echoes its anchor, so a test can see WHICH instant the window was measured from.
+  directorTokenExpiry: (from = Date.now()) => new Date(from + 14 * 86_400_000).toISOString(),
 }))
 vi.mock("@/lib/applications/buildEmailContext", () => ({
   buildEmailContext: async () => ({ appSummary: { firstName: "Lead", lastName: "Person" }, listingSummary: {}, orgContext: {} }),
@@ -45,7 +48,10 @@ import { resendDirectorInvite } from "../commercial"
 
 const JURISTIC = { entity_type: "organisation", applicant_type: null, company_info: { companyType: "pty_ltd" } }
 const RESIDENTIAL = { entity_type: "individual", applicant_type: null, company_info: null }
-const baseParty = { applicant_email: "pat@test", first_name: "Pat", access_token: "old-tok", is_surety_director: false }
+// Invited 10 days ago: inside the window, 4 days left (rounded up).
+const INVITED_AT = new Date(Date.now() - 10 * 86_400_000 - 60_000).toISOString()
+const WINDOW_END = new Date(Date.parse(INVITED_AT) + 14 * 86_400_000).toISOString()
+const baseParty = { applicant_email: "pat@test", first_name: "Pat", access_token: "old-tok", is_surety_director: false, stage2_invited_at: INVITED_AT }
 
 beforeEach(() => {
   sendCoApplicantInvited.mockClear()
@@ -54,11 +60,11 @@ beforeEach(() => {
 })
 
 describe("co-parties Resend (walker F2)", () => {
-  it("a juristic director surety: token rotated to a 14-day link, director copy sent", async () => {
+  it("a juristic director surety: token rotated to a link ending at its OWN window end, director copy sent", async () => {
     application = JURISTIC
     party = { ...baseParty, role: "guarantor", declared_director: true }
     expect(await resendDirectorInvite("co-1", "app-1", "lead-tok")).toEqual({ ok: true })
-    expect(updates).toEqual([expect.objectContaining({ access_token_expires: "EXPIRY-14D" })])
+    expect(updates).toEqual([expect.objectContaining({ access_token_expires: WINDOW_END })])
     expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ role: "director" }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
   })
@@ -81,7 +87,31 @@ describe("co-parties Resend (walker F2)", () => {
     expect(await resendDirectorInvite("co-1", "app-1", "lead-tok")).toEqual({ ok: true })
     expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ role: "generic" }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
-    expect(updates).toEqual([expect.objectContaining({ access_token_expires: "EXPIRY-14D" })])
+    expect(updates).toEqual([expect.objectContaining({ access_token_expires: WINDOW_END })])
+  })
+
+  it("14W §0b: a surety not yet invited to stage 2 is refused — nothing rotated, nothing sent", async () => {
+    application = JURISTIC
+    party = { ...baseParty, role: "guarantor", declared_director: true, stage2_invited_at: null }
+    expect((await resendDirectorInvite("co-1", "app-1", "lead-tok")).ok).toBe(false)
+    expect(updates).toEqual([])
+    expect(sendDirectorInvite).not.toHaveBeenCalled()
+  })
+
+  it("KNOWN-GOOD twin: the same surety once invited is resent, its copy stating the days LEFT (walker F4)", async () => {
+    application = JURISTIC
+    party = { ...baseParty, role: "guarantor", declared_director: true }
+    expect((await resendDirectorInvite("co-1", "app-1", "lead-tok")).ok).toBe(true)
+    expect(updates).toEqual([expect.objectContaining({ access_token_expires: WINDOW_END })])
+    expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ ttlDays: 4 }))
+  })
+
+  it("PLANTED (walker F4): past the window a resend is refused — no dead link rotated or mailed", async () => {
+    application = JURISTIC
+    party = { ...baseParty, role: "guarantor", declared_director: true, stage2_invited_at: new Date(Date.now() - 15 * 86_400_000).toISOString() }
+    expect((await resendDirectorInvite("co-1", "app-1", "lead-tok")).ok).toBe(false)
+    expect(updates).toEqual([])
+    expect(sendDirectorInvite).not.toHaveBeenCalled()
   })
 
   it("a send that reports failure is reported as failure", async () => {

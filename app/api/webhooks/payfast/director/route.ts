@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
     const { data: coApp, error: coAppError } = await service
       .from("application_co_applicants")
-      .select("id, stage2_consent_given_at")
+      .select("id, stage2_consent_given_at, declined_at")
       .eq("id", coApplicantId)
       .eq("primary_application_id", applicationId)
       .eq("org_id", orgId)
@@ -147,6 +147,10 @@ export async function POST(req: Request) {
     // CONSENT BELT. The payment page builds no form before this party's consent, so a paid line without it is an
     // anomaly. The money is recorded; nothing runs — the line-runner takes only ready_to_run lines, which need consent.
     if (!coApp.stage2_consent_given_at) await flagMismatch("paid_pending_consent", expectedCents, rowId)
+    // DECLINE BELT (14W §0b walker F3). The deadline decline re-reads the line and the pay page closes at the window
+    // end, but an ITN can still land after a form opened in time was paid late. The money is recorded — it was taken —
+    // and nothing runs: the view drops declined parties. §0 has no automatic refund for it, so a person decides.
+    if (coApp.declined_at) await flagMismatch("paid_after_decline", expectedCents, rowId)
 
     // Audit log — record_id is the payment row, not the co-applicant
     await recordAudit(service, {

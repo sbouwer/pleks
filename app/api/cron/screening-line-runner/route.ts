@@ -9,7 +9,8 @@
  *         or 'failed'. Idempotent: optimistic claim via UPDATE ... WHERE status IN (...) RETURNING id
  *         — 0 rows means another runner already owns the line and we skip.
  *         Max 50 lines per invocation to stay within 15-minute windows.
- *         Phase C: after all subjects for an application are complete, triggers runFitScoreOrchestrator.
+ *         Phase C: after all subjects for an application are complete, triggers runFitScoreOrchestrator
+ *         (lib/screening/maybeRunOrchestrator.ts — shared with the deadline decline, 14W §0b).
  *
  *         Every invocation first SWEEPS claims that were taken and never finished (M-111). A claim is
  *         a lock; a process killed mid-run — OOM, deploy, platform timeout — reaches no catch block by
@@ -24,11 +25,10 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { runStandardBundle } from "@/lib/screening/bundle-runner"
 import { isApplicationSubject, type ScreeningSubjectType } from "@/lib/screening/consentGuard"
-import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
+import { maybeRunOrchestrator } from "@/lib/screening/maybeRunOrchestrator"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { withCronRun } from "@/lib/cron/withCronRun"
 import { sweepStrandedClaims } from "@/lib/screening/sweepStrandedClaims"
-import { optionalEnv } from "@/lib/env"
 import { recordAudit } from "@/lib/audit/recordAudit"
 
 const BATCH_SIZE = 50
@@ -161,7 +161,7 @@ async function processLine(
   })
 
   await markLineComplete(service, line, now)
-  await maybeRunOrchestrator(service, line.application_id)
+  await maybeRunOrchestrator(service, line.org_id, line.application_id)
 }
 
 async function markLineComplete(
@@ -182,42 +182,4 @@ async function markLineComplete(
 
   // Audit trail
   await recordAudit(service, { orgId: line.org_id, table, recordId: rowId, action: "UPDATE", after: { searchworx_check_status: "complete", searchworx_checked_at: now } })
-}
-
-// Runs after every subject completion. If ALL subjects for the application are now
-// complete, triggers the FitScore orchestrator. Gated on FITSCORE_V1_ENABLED.
-async function maybeRunOrchestrator(
-  service: Awaited<ReturnType<typeof createServiceClient>>,
-  applicationId: string,
-): Promise<void> {
-  if (!optionalEnv("FITSCORE_V1_ENABLED")) return
-
-  // Primary applicant must be complete
-  const { data: app, error: appErr } = await service
-    .from("applications")
-    .select("searchworx_check_status")
-    .eq("id", applicationId)
-    .single()
-  if (appErr || !app || app.searchworx_check_status !== "complete") return
-
-  // All LIVE co-applicants must be complete. A declined party has left the set (the view drops it too), so it never
-  // completes — counting it held FitScore back for good once residential lines reached this runner (walker F8).
-  const { data: coApps, error: coErr } = await service
-    .from("application_co_applicants")
-    .select("searchworx_check_status")
-    .eq("primary_application_id", applicationId)
-    .is("declined_at", null)
-  if (coErr) return
-  if ((coApps ?? []).some(c => c.searchworx_check_status !== "complete")) return
-
-  // All subjects complete — run the FitScore engine
-  console.log(`[screening-line-runner] all subjects complete for ${applicationId} — running FitScore orchestrator`)
-  const orchResult = await runFitScoreOrchestrator(applicationId, service)
-  if (!orchResult.ok) {
-    console.error(`[screening-line-runner] FitScore orchestrator failed for ${applicationId}:`, orchResult.reason)
-    Sentry.captureMessage("FitScore orchestrator failed", {
-      level: "error",
-      extra: { application_id: applicationId, reason: orchResult.reason },
-    })
-  }
 }
