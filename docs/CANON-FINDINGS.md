@@ -845,17 +845,20 @@ session started after #318 merged, so agent-brief-gate v2 and the batch-2 spines
   (`.handoff/auth-user-triggers-1003/01-db-inspector.md`, L2/T2 DISCONNECTED); the screening arc's
   db-inspector rows come when Arc 1 is walked.
 
-**FINDING (2026-10-03) — the `agent-write-scope` probe reads the LIVE manifest.** OBSERVED: a pre-push
-was refused by two probes — "implementer editing source with NO manifest is ASKED" got `deny` — because
-a caller's own, legitimate `.handoff/write-manifest.json` from a finished implementer run was still on
-disk. COMMAND: `git push -u origin fix/screening-s0a:fix/screening-s0a` → `✗ must ask — implementer
-editing source with NO manifest is ASKED, not waved through / got: deny` (×2), `❌ 2 probe(s) wrong`;
-passed once the manifest was removed. WHY IT IS CANON'S: the probe's "no manifest" cases resolve the
-manifest at the hook's real path, so their result depends on working-tree state — true in any repo that
-adopts the row, whatever its stack. A probe whose verdict depends on a file the caller is told to write
-blocks the gate on correct use, and teaches deleting the manifest to get green. SMALLEST FIX: point the
-probe's hook invocations at a temporary cwd/manifest path (or an env override read only under probe), so
-"no manifest" is constructed, not assumed; must not weaken the real hook's resolution of the real path.
+**WITHDRAWN (2026-10-03) — "the `agent-write-scope` probe reads the LIVE manifest" was pleks's defect, not
+canon's.** The two failing cases are in pleks's own `scripts/check-agent-write-scope.mjs`, which builds its
+payloads with `cwd: process.cwd()`, so a leftover `.handoff/write-manifest.json` flipped its two no-manifest
+cases from ask to deny. Canon's v6 kit probe (`.claude/hooks/agent-write-scope.probe.mjs`, installed here)
+builds every manifest case in a temp directory and never had the bug. Canon classified this in its pleks
+handover §5 (`e66a014`) and left pleks the choice: retire the local script, or give it temp directories.
+**Chose the temp directory** for those two cases. The local script keeps cases the kit probe does not carry:
+- the `.claude/handoff` move regression;
+- crawler-doctrine's scope;
+- the commit denial naming its alternative;
+- `.handoff/` being gitignored.
+
+Probed in both directions with a valid manifest planted: the old script failed 2 cases and the new one passes.
+Nothing here is for canon to lift.
 
 **KIT CANDIDATE (not a finding) — scoped commit gate, built 2026-10-02 from canon's handover
 `docs/handovers/2026-10-02-pleks.md` (`88de00a`).** `scripts/check-scope.mjs` plus `pre-commit` →

@@ -14,10 +14,17 @@
  * to exist at all is E8's. Both carry a re-run trigger on CLI major upgrade.
  */
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 const HOOK = ".claude/hooks/agent-write-scope.js"
 const CWD = process.cwd()
+// The NO-MANIFEST cases must not read this checkout's `.handoff/write-manifest.json`: the hook resolves the manifest
+// against the payload's cwd, so a manifest left over from a real implementer run flipped them "ask" → "deny" and
+// blocked a push (2026-10-03). They run against an empty directory instead — the shape canon's v6 kit probe uses
+// for every manifest case.
+const NO_MANIFEST_CWD = mkdtempSync(join(tmpdir(), "aws-probe-"))
 
 if (!existsSync(HOOK)) {
   console.log(`❌ ${HOOK} is missing — the gate this probe exists to verify is not installed`)
@@ -40,10 +47,10 @@ function decide(payload) {
 }
 
 /** A subagent write. Omit `agentType` to model the main session, which carries no identity fields. */
-const write = (agentType, filePath, tool = "Write") =>
+const write = (agentType, filePath, tool = "Write", cwd = CWD) =>
   JSON.stringify({
     session_id: "s",
-    cwd: CWD,
+    cwd,
     hook_event_name: "PreToolUse",
     tool_name: tool,
     tool_input: { file_path: filePath, content: "x" },
@@ -139,8 +146,8 @@ const CASES = [
   // rather than silent. That is M-117 closing: CLAUDE.md §5/§7 describe this scope as "UNBOUNDED
   // today", which is now stale prose and is corrected in the same commit.
   ["crawler-doctrine may NOT write its findings file — it emits to stdout and a wrapper writes", write("crawler-doctrine", ".claude/crawlers/FINDINGS.json", "Edit"), "deny"],
-  ["implementer editing source with NO manifest is ASKED, not waved through", write("implementer", "lib/constants.ts", "Edit"), "ask"],
-  ["implementer writing a new file with NO manifest is likewise asked", write("implementer", "lib/screening/newThing.ts"), "ask"],
+  ["implementer editing source with NO manifest is ASKED, not waved through", write("implementer", "lib/constants.ts", "Edit", NO_MANIFEST_CWD), "ask"],
+  ["implementer writing a new file with NO manifest is likewise asked", write("implementer", "lib/screening/newThing.ts", "Write", NO_MANIFEST_CWD), "ask"],
 
   // --- THE MAIN SESSION MUST BE UNTOUCHED. This gate is about subagents; if it ever starts
   //     deciding main-session writes it will be turned off, and rightly. ---
@@ -180,6 +187,8 @@ const ignored = spawnSync("git", ["check-ignore", "-q", ".handoff/x/01-grounder.
 const isIgnored = ignored.status === 0
 console.log(`  ${isIgnored ? "✓" : "✗"} must ignore — .handoff/ is gitignored`)
 if (!isIgnored) failed++
+
+rmSync(NO_MANIFEST_CWD, { recursive: true, force: true })
 
 console.log(
   failed
