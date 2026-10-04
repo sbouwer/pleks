@@ -2860,3 +2860,22 @@ The author identified the hazard, and defended the single field in front of them
   run collected 3 `.handoff` files before, 0 after; a named scratch probe runs 2/2.
 - **Provenance:** #327 CI failure on `cb510ccb`, 2026-10-02.
 - **Covering spec:** none — gate defect found by CI, not by a verification row
+
+### M-142 — `require-org-scope-on-service-write` counts a function as scoped if ANY write in it carries the org filter
+
+- **Rule:** every service-client `.update()` / `.upsert()` carries its own `.eq("org_id", orgId)` (CLAUDE.md §4,
+  `eslint:pleks/require-org-scope-on-service-write`).
+- **Where it lives (the instance):** `eslint-rules/require-org-scope-on-service-write.mjs`, as at `99bcdaef`. By
+  design (header lines 5–15, the `ORG_AWARE` text test at line 35), a write whose own chain lacks `org_id` passes
+  when its enclosing function contains ANY `.eq("org_id", …)` or `org_id ===/!==` compare. That design is right
+  for validate-then-act, but it cannot tell a proving read from an unrelated scoped write. A function holding two
+  writes, one scoped and one not, passes on the first one's filter. That is the cross-org IDOR class in
+  CLAUDE.md §6, masked by its own control. The injectable-core exemption at line 150 (the client is a parameter)
+  is a separate, wider pass, and is noted here so that it is not mistaken for this one.
+- **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** function-level awareness counts only a scoped READ or an ownership COMPARE, never another
+  write's filter. Probes in both directions: a function holding one scoped and one unscoped `.update()` FAILS on the
+  unscoped one, and validate-then-act (a scoped `.select()` then an id-only `.update()`) still passes. The baseline is re-read after the
+  change, because sites that pass today only through masking will surface.
+- **Provenance:** noticed while writing 14W §0b's runner changes, 2026-10-03; queued in `brief/CURRENT.md`.
+- **Covering spec:** none — a control defect found in passing, not by a verification row

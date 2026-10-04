@@ -43,7 +43,8 @@ export const COMBINED_RESULT_SUMMARIES = {
   success_full:    "Multi-bureau credit profile retrieved (all bureaus online)",
   success_partial: "Multi-bureau credit profile retrieved (some bureaus offline — see report)",
   no_data:         "No credit record found across any bureau for the supplied ID number",
-  failed:          "Multi-bureau credit profile request failed — refunded",
+  // No "— refunded" (14W §0c): see the same line in vccbIncomeEstimator.ts.
+  failed:          "Multi-bureau credit profile request failed",
 } as const
 
 export const COMBINED_DATA_CONTROLLERS = [

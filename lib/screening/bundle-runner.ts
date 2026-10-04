@@ -19,6 +19,7 @@ import { randomUUID }                             from "node:crypto"
 import * as Sentry                                from "@sentry/nextjs"
 import { createServiceClient }                    from "@/lib/supabase/server"
 import { decrypt }                                from "@/lib/crypto/encryption"
+import { SearchworxError } from "@/lib/searchworx/client"
 import { runCombinedConsumerCreditReport, COMBINED_PRODUCT_KEY } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_RESULT_SUMMARIES } from "@/lib/searchworx/products/vccbIncomeEstimator"
 import { extractBureauScores } from "@/lib/screening/searchworxBureauAdapter"
@@ -36,6 +37,11 @@ export interface BundleArgs {
   subjectId:     string
   orgId:         string
   screeningRunId?: string
+  /**
+   * Products already delivered in this run, not called again on a retry (14W §0c). A retry resumes the SAME run, so
+   * the subject's report is one run, and a delivered product is never bought twice.
+   */
+  skipProducts?: readonly string[]
 }
 
 export interface BundleResult {
@@ -101,15 +107,65 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   // The VCCB gate now follows bundle MEMBERSHIP rather than a second reading of id_type, so the
   // rate-card rule ("VCCB is SA-citizens only") is stated once, in the file that owns it.
   const runsVccb = bundle.some((c) => c.check_code === VCCB_PRODUCT_KEY)
+  const skip = new Set(args.skipProducts ?? [])
 
-  // ── Run Combined Consumer Credit Report (always) ────────────────────────────
+  // ── Combined Consumer Credit Report (always, unless a retry already has it) ──
+  const combinedResult = skip.has(COMBINED_PRODUCT_KEY)
+    ? null
+    : await runCombinedStep({ service, orgId, applicationId, subjectType, subjectId, subjectTable, subjectRowId, screeningRunId, idNumber, cost: costOf(COMBINED_PRODUCT_KEY) })
+
+  // ── VCCB Income Estimator (SA citizens only) ────────────────────────────────
+  const { vccbOk, vccbSummary } = skip.has(VCCB_PRODUCT_KEY)
+    ? { vccbOk: true, vccbSummary: "delivered" }
+    : await runVccbStep({
+        service, orgId, applicationId, subjectType, subjectId,
+        subjectTable, subjectRowId, screeningRunId, idNumber,
+        runsVccb, vccbCost: costOf(VCCB_PRODUCT_KEY),
+      })
+
+  // ── Update applications.current_screening_run_id (the application's own subject only) ──
+  if (isApplicationSubject(subjectType)) {
+    const { error } = await service
+      .from("applications")
+      .update({ current_screening_run_id: screeningRunId })
+      .eq("id", applicationId)
+      .eq("org_id", orgId) // org-scope guard (caller-ID census)
+    if (error) console.error("[bundle-runner] current_screening_run_id update failed:", error.message)
+  }
+
+  return {
+    screeningRunId,
+    combinedOk: combinedResult?.ok ?? true,
+    vccbOk,
+    combinedSummary: combinedResult?.summary ?? "delivered",
+    vccbSummary,
+  }
+}
+
+// ─── Combined step ────────────────────────────────────────────────────────────
+
+interface CombinedStepArgs {
+  service:        Awaited<ReturnType<typeof createServiceClient>>
+  orgId:          string
+  applicationId:  string
+  subjectType:    ScreeningSubjectType
+  subjectId:      string
+  subjectTable:   "applications" | "application_co_applicants"
+  subjectRowId:   string
+  screeningRunId: string
+  idNumber:       string
+  cost:           LineCost
+}
+
+async function runCombinedStep(a: CombinedStepArgs): Promise<{ ok: boolean; summary: string }> {
+  const { service, orgId, applicationId, subjectType, subjectId, subjectTable, subjectRowId, screeningRunId, idNumber } = a
   const combinedLineId = randomUUID()
   const combinedResult = await runCombinedConsumerCreditReport({
     orgId,
     applicationId,
     reference: combinedLineId,
     idNumber,
-  })
+  }).catch((e: unknown) => transportFailure(e, COMBINED_PRODUCT_KEY, applicationId))
 
   const combinedSummary = combinedResult.ok ? combinedResult.resultSummaryKey : "failed"
 
@@ -122,7 +178,7 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     screeningRunId,
     productKey:     COMBINED_PRODUCT_KEY,
     status:         combinedResult.ok ? "completed" : "failed",
-    ...costOf(COMBINED_PRODUCT_KEY),
+    ...a.cost,
     pdfStoragePath: combinedResult.ok ? combinedResult.pdfStoragePath : null,
     resultSummary:  combinedSummary,
     searchToken:    combinedResult.ok ? combinedResult.parsed.searchToken : null,
@@ -134,24 +190,7 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     await mergeExtractedData(service, subjectTable, subjectRowId, { fitscore_bureau_scores: bureauScores })
   }
 
-  // ── VCCB Income Estimator (SA citizens only) ────────────────────────────────
-  const { vccbOk, vccbSummary } = await runVccbStep({
-    service, orgId, applicationId, subjectType, subjectId,
-    subjectTable, subjectRowId, screeningRunId, idNumber,
-    runsVccb, vccbCost: costOf(VCCB_PRODUCT_KEY),
-  })
-
-  // ── Update applications.current_screening_run_id (the application's own subject only) ──
-  if (isApplicationSubject(subjectType)) {
-    const { error } = await service
-      .from("applications")
-      .update({ current_screening_run_id: screeningRunId })
-      .eq("id", applicationId)
-      .eq("org_id", orgId) // org-scope guard (caller-ID census)
-    if (error) console.error("[bundle-runner] current_screening_run_id update failed:", error.message)
-  }
-
-  return { screeningRunId, combinedOk: combinedResult.ok, vccbOk, combinedSummary, vccbSummary }
+  return { ok: combinedResult.ok, summary: combinedSummary }
 }
 
 // ─── VCCB step (extracted to reduce cognitive complexity) ─────────────────────
@@ -197,7 +236,7 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
     applicationId: a.applicationId,
     reference:     vccbLineId,
     idNumber:      a.idNumber,
-  })
+  }).catch((e: unknown) => transportFailure(e, VCCB_PRODUCT_KEY, a.applicationId))
 
   const vccbSummary = vccbResult.ok ? vccbResult.resultSummaryKey : "failed"
 
@@ -224,6 +263,18 @@ async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skippe
   }
 
   return { vccbOk: vccbResult.ok, vccbSummary }
+}
+
+/**
+ * A product call that THREW — timeout, non-2xx, network, token mint (searchworxCall) — is a failed attempt like any
+ * other, recorded as a `failed` line so the bounded retry counts it (14W §0c, walker 14w-s0c F1). Left to propagate,
+ * a bureau outage — the exact case the retry exists for — marked the subject `failed` for good, with no retry and no
+ * refund. Data defects (no ID number, no consent) still throw: they are raised before any call, outside this wrapper.
+ */
+function transportFailure(e: unknown, productKey: string, applicationId: string): { ok: false; error: SearchworxError; envelope?: undefined } {
+  Sentry.captureException(e, { tags: { area: "screening-product-call", product_key: productKey }, extra: { applicationId } })
+  const message = e instanceof Error ? e.message : "unknown transport error"
+  return { ok: false, error: new SearchworxError(`Searchworx transport: ${message}`, "vendor_unavailable", message) }
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -347,5 +398,8 @@ async function upsertScreeningLine(
       started_at:              now,
       completed_at:            now,
     })
-  if (error) console.error(`[bundle-runner] upsert screening_line ${p.productKey}:`, error.message)
+  // THROWS (walker 14w-s0c F2). The lines ARE the retry's attempt counter: a swallowed insert leaves the count
+  // unchanged, so the run plans `retry` every tick forever, re-billing the product — or re-buying one that was
+  // delivered but whose `completed` row was lost. A throw fails the subject terminally instead: bounded, and loud.
+  if (error) throw new Error(`screening line insert failed (${p.productKey}): ${error.message}`)
 }

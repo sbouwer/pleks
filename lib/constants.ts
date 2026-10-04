@@ -109,6 +109,15 @@ export const MAX_SCREENING_ITERATIONS = 2
  * sentence that is false for someone. `window.test.ts` holds each reader to it.
  */
 export const SCREENING_WINDOW_DAYS = 14
+/**
+ * How many times one screening PRODUCT is attempted for one subject before its failure is terminal (ADDENDUM_14W §9
+ * row 55; counsel's Q6 sentence promises "reasonable retries" before the one refund). The line runner fires every 15
+ * minutes, so four attempts ride out ~45 minutes of a bureau outage. Only a product that exhausts this is terminal, and
+ * a terminal product is the single refund trigger. Counted from the failed product lines themselves (every attempt
+ * inserts its own line, because the line id is the Searchworx Reference), so no column carries the count.
+ * NOT `MAX_SCREENING_ITERATIONS` above, which caps the applicant's pre-screen adjustments.
+ */
+export const SCREENING_PRODUCT_MAX_ATTEMPTS = 4
 
 /**
  * The largest file an agent can upload through a server action or route handler: 4 MB. Vercel refuses a request body
