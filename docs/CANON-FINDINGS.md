@@ -536,6 +536,74 @@ It also needs the `seams` region filled with the five `PLEKS_*` variables, other
 `.env`, `supabase db push|reset` and `apply-prod.mjs` asks go in `PROJECT_ASK`. Detail is in
 `.handoff/bash-gate-v7/01-scout.md`, which is untracked; the numbers that matter are copied here.
 
+**CLOSED 2026-10-04 by canon v9 (`aa901cc`), re-measured here before acting.** `oom.mjs` at 100 KB and
+500 KB: decision printed, exit 0, 110 ms on v9 at 500 KB (held: 204 ms). A 977 KB chain of `rm x` decides
+in ~160 ms. Over the budget, v9 **asks** (`OVER_BUDGET`). When pleks adopts v9, its own 500 KB ratchet in
+`scripts/check-bash-gate.mjs` must accept `ask` as well as `allow`. It must still fail on `deny` or on a
+superlinear time. One observation, not a finding: the budget asks from about 5 KB on a single segment of
+1,000 `rm` words. A 500 KB commit body sent to a sink heredoc is still `allow`, at 57–85 ms.
+**pleks still holds bash-gate, now on CF-18 below, not on CF-17.**
+
+### CF-18 · `bash-gate` v9 masks text as data without asking where the data goes, and some of it goes into a shell
+
+```
+OBSERVED   2026-10-04, pleks: canon bash-gate v9 (aa901cc), configured with pleks's KIT:CONFIG
+           policy, compared with pleks's held gate (98d8a9a0). `--against` exits 0: 216 cases,
+           19 looser, all 19 declared. An adversarial walk outside that corpus found about 25
+           EXECUTABLE shapes that go from deny or ask to allow. bash ran the pipe and here-string
+           forms; that was checked.
+
+COMMAND    PreToolUse JSON piped into both gates (.handoff/bash-gate-v9/scratch/walk/payloads.mjs)
+           held → v9
+           echo 'rm -rf ~' | bash                          deny → allow
+           echo 'git reset --hard' | sh                    deny → allow
+           printf 'git push -f origin x' | bash            deny → allow
+           echo 'git clean -fdx' | sh                      ask  → allow
+           sh <<< 'rm -rf ~'                               deny → allow
+           bash <<< 'git push -f origin x'                 deny → allow
+           rm -rf $(echo ~)        (also `echo ~` in backticks, $(cd ~; pwd), $(echo /))
+                                                           deny → allow
+           pwsh -c "git push -f origin x"                  deny → allow
+           cmd.exe /c "git push -f origin x"               deny → allow   (cmd /c git push -f: deny)
+           python -c "import os; os.system('git reset --hard')"   deny → allow
+           node - <<'EOF' running git reset --hard          deny → allow
+           sed -n '1e git push -f origin x'                deny → allow
+           sed -f - x.txt <<'EOF' / 1e git push -f … / EOF deny → allow   (HEREDOC_SINKS has sed)
+           awk -f - <<'EOF' / BEGIN{system("git push -f …")} / EOF   ask → allow  (HEREDOC_SINKS has awk)
+           perl -e / ruby -e / awk 'BEGIN{system(…)}' running a gated act   ask → allow
+           Full table: .handoff/bash-gate-v9/02-walker.md F1–F4.
+
+WHY IT IS  v9 decides that quoted text, echo/printf arguments and heredoc bodies are PROSE from
+CANON'S    the token that holds them, never from what consumes them. A pipe stage, `<<<`, a `-c`/
+           `-e`/`/c`/`-Command` flag, or a sink that is secretly an interpreter (`sed e`,
+           `awk system`, `sed -f -`, `awk -f -`) turns that prose into code. The heredoc case was
+           guarded (`cat <<EOF | bash` still denies). The pipe, here-string and inline-interpreter
+           spellings of the same act were not. `isDestructiveRm` composed with `segments` reads a
+           `$(…)` target as a new segment, so the rm sees no target at all. None of this depends
+           on pleks's stack: these shells and interpreters exist on any dev machine.
+           The second half is the method. `--against` is a differential OVER THE PROBE CORPUS, so
+           a mechanism that frees a class the corpus never holds shows green: an L-01 shape. A
+           loosened entry's reason ("a gated command named in echo's arguments") is broader than
+           its case once the next pipe stage runs it.
+
+SMALLEST   (1) Prose-masking is conditional on the consumer: a segment whose stdout feeds an
+FIX        interpreter stage (sh, bash, zsh, pwsh, powershell, cmd, python, node, perl, ruby, or
+           `xargs` with one of them), or that is `<<<`-fed to one, is read unmasked. (2) The runner
+           table gains the quoted `-c`/`-e`/`/c`/`-Command` forms of the interpreters it already
+           knows unquoted. (3) Drop `awk`/`sed` from HEREDOC_SINKS, or treat them as sinks only
+           without `-f -` / `e` / `system(`. (4) An `rm -r` whose target is a `$(…)` or backtick
+           substitution denies: the target is unknowable, so it cannot be shown safe. (5) Add every
+           row above to the probe's cases. Must not break: the 14 prose cases pleks would declare
+           loosened (commit messages, `grep "…"`, `gh --body "…"`, echo with no pipe onward).
+```
+
+Also from the walk, not regressions (held allows these too), offered as probe cases:
+- Seam assignments the held gate also misses: `eval X=1 git commit`, `sh -c 'X=1 git commit'`,
+  `if true; then X=1 git commit`, `declare -x`, `X+=1`, `env -u Y X=1`, `cross-env`.
+- v9 imports `./bash-gate.config.mjs`. Without that file the hook exits 1 with a stack trace,
+  leaving the settings twins as the only floor. `isDestructiveRm`, `isNoVerify` and the seams have
+  no twin there. What the harness does on exit 1 was not measured.
+
 ## 2 · Lesson answers
 
 From `node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks`. Read the entry from its
@@ -792,7 +860,71 @@ session started after #318 merged, so agent-brief-gate v2 and the batch-2 spines
   is no KIT:CONFIG region in the diff. It was copied by hand, not applied, because `apply-kit`
   refuses a pinned row and this session does not write canon's ledger.
 
-- **⚠ HELD — row `bash-gate` (+ `bash-gate.config`, `bash-gate-probe`), at pleks's v4-lineage gate
+- **⚠ HELD at v9, 2026-10-04, on CF-18. Canon: do NOT record `kitAdopted`. Pin `bash-gate`,
+  `bash-gate-config` and `bash-gate-probe` at pleks's held gate (`98d8a9a0`) against v9
+  (`aa901cc`), reason CF-18, review when canon ships CF-18's fix or 2026-10-18, whichever comes
+  first.**
+  Handover: `docs/handovers/2026-10-04-pleks-bash-gate-v9.md`. Every byte was read with
+  `git -C <canon> show aa901cc:kit/project-kit/hooks/<file>`.
+  - **How far it got.** The configured candidate below was built, committed and walked on
+    `chore/bash-gate-v9`. The walk refuted the "(c) none" line further down: about 25 executable
+    shapes go deny/ask → allow outside the probe corpus (CF-18).
+  - **Why hold, not backstop locally.** The handover's own rule says a looser verdict nobody can
+    argue for is "a reason not to adopt yet". The defect is in canon's masking mechanism, not in
+    pleks policy, and the handover says a better mechanism goes back as a finding: "don't fork it
+    locally".
+  - **Cost of holding is nil.** The held gate decides 500 KB in 204 ms, so CF-17 never affected
+    pleks.
+  - **What is kept.** The commit was undone before push. The candidate (hook, config, probe) is
+    kept at `.handoff/bash-gate-v9/scratch/candidate/` as the starting point for re-adoption, which
+    is a copy and a re-run, not a re-derivation.
+  - **Re-adoption also carries:**
+    - the three `check-bash-gate.mjs` corrections listed below;
+    - the probe in `npm run check` and `check-scope.mjs`;
+    - CLAUDE.md §3's hook-ask list gaining `gh pr merge`, which v9 asks on. §1's routine
+      `gh pr merge --auto` will then prompt every time.
+
+  **The measured candidate (for the record; the "(c) none" line is REFUTED by CF-18):**
+  - **Hook bytes are canon's outside KIT:CONFIG.** All five hook regions are marked; the drift
+    check's "0 of 5 config regions marked" would be answered.
+  - **`seams`:** the five `PLEKS_*` variables (M-096).
+  - **`deny`:** hard reset, and `--force-with-lease` treated as force. pleks's
+    `check-bash-gate.mjs` asserts the latter, so it is closed by config, not declared looser.
+  - **`ask`:** every push. Push detection uses a subcommand finder, so `git stash push` stays
+    allowed and `git -C x push` asks. Also `.env`, `supabase db push|reset`, and `apply-prod.mjs`.
+  - **`fallbacks`:** 15 rules, 8 twinned and 7 with a reason. `check-hook-registration` passes.
+  - **Probe:** canon's bytes, with 30 tightened `verdicts` and 14 `loosened` entries, each with its
+    reason.
+  - **Measured, pleks `b41b189b` + this PR:**
+    - plain v9 gives 203 pass;
+    - configured: 216 pass;
+    - `--against` the held gate (`98d8a9a0`) gives **19 looser, all 19 declared, 29 stricter, exit 0**;
+    - unconfigured v9 against held gave 47 looser, 5 declared.
+  - **Class (c), a real regression on an executable shape: none — REFUTED, see CF-18.** This was
+    true only of the probe corpus. The 14 loosened entries are
+    prose or data the held gate false-denied:
+    - quoted strings;
+    - commit-message text;
+    - sink-heredoc bodies;
+    - `echo` / `grep` / `gh --body` arguments;
+    - a comment;
+    - single-quoted `$(…)`.
+
+    Interpreter-fed heredocs still deny: `bash <<X` and `cat <<X | bash`. On adoption, pleks asserts
+    both in `check-bash-gate.mjs`, beside the flipped heredoc case.
+  - **Two pleks assertions to correct on adoption, not loosen.** `git push -n` is `--dry-run`
+    (`git push -h`), so it asks rather than denies (canon's declared CF-10 case). And the
+    heredoc-line seam case is now `allow`, because v9 masks sink bodies only.
+  - **The 15 CF-9 walk payloads:** none looser on the configured gate beyond those two.
+  - **Observation:** commit messages that mention `.env` or `supabase db push` used to ask and now
+    allow, because a project RegExp sees masked text. That fixes a held false-ask. It is outside the
+    probe corpus, so no entry was needed.
+  - **M-KIT-28 does not hold this row:** `npm run check`, lint included, is green on v9's bytes.
+  - **L-64:** the hook takes effect at the next session start. The adopting session verifies it
+    after a restart.
+  - Detail: `.handoff/bash-gate-v9/01-scout.md` and `02-walker.md` (untracked).
+
+- **⚠ (SUPERSEDED 2026-10-04 by the v9 hold above) HELD — row `bash-gate` (+ `bash-gate.config`, `bash-gate-probe`), at pleks's v4-lineage gate
   (`98d8a9a0`), against canon v7. Reason: CF-9 — v6 allowed 15 payloads the held gate denies or
   asks. Canon's v7 (`98f9636`) answers CF-9 and ships CF-10's differential as
   `bash-gate-probe --against <previous gate>`. Canon measured v7 against this held gate as
