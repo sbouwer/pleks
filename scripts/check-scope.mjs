@@ -89,6 +89,8 @@ export const MAP = {
   "node scripts/check-subscription-single-reads.mjs --selftest": ["app/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
   "node scripts/check-invariant-has-callers.mjs": ["{app,lib,components}/**/*.{ts,tsx}"],
   "node scripts/check-invariant-has-callers.mjs --selftest": ["{app,lib,components}/**/*.{ts,tsx}"],
+  "node scripts/check-refund-writers.mjs": ["{app,lib,components}/**/*.{ts,tsx}"],
+  "node scripts/check-refund-writers.mjs --selftest": ["{app,lib,components}/**/*.{ts,tsx}"],
   "node scripts/transcript-metrics.mjs --selftest": "full",
   "node scripts/check-migration-forward-refs.mjs": ["supabase/migrations/**"],
   "node scripts/check-migration-integrity.mjs": ["supabase/migrations/**", ".claude/rules/identity-scoped-tables.md"],

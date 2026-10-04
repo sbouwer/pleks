@@ -5,7 +5,9 @@
  * Notes:  THE one end-to-end probe P1-R8b names, in the §0 order (consent → pay → run, per person): the lead consents and
  *         is payable AT ONCE for ONE person, never waiting on the co → the application ITN marks the lead's `applicant`
  *         row paid and writes no `co_applicant` row → the co consents on its own link → the payment page stamps the co's
- *         own line → the director ITN marks it paid → both lines `ready_to_run` → the runner picks both up.
+ *         own line → the director ITN marks it paid → both lines `ready_to_run` → the runner picks both up → the co's
+ *         Combined report fails on every attempt, so the runner resumes the same run for that product alone until the bound
+ *         makes it terminal and records the co's refund as owed on the co's own payment row (14W §0c).
  *         Real: the shortlist action's writes, invite-consent, the co screening-consent route, the billing route and
  *         its 14W gate, both ITN handlers, stampLineFee, the view, the line-runner's claim and completion, and every trigger.
  *         Stubbed, and only these: the agent session (requireAgentWriteAccess → the service client for this org),
@@ -22,7 +24,25 @@ import { svc, seedLedgerCase, teardownOrg } from "@/test/db/tier"
 const db = svc()
 let orgId = ""
 
-const runStandardBundle = vi.fn(async (_args: { applicationId: string; subjectType: string; subjectId: string; orgId: string }) => undefined)
+type BundleCall = { applicationId: string; subjectType: string; subjectId: string; orgId: string; screeningRunId?: string; skipProducts?: readonly string[] }
+const COMBINED = "combined_consumer_credit_report"
+const VCCB = "vccb_income_estimator"
+/** Subjects whose Combined report fails on every attempt — a bureau outage that outlasts the retry bound (14W §0c). */
+const combinedDown = new Set<string>()
+// Writes the lines the real bundle would, so the runner's plan reads real rows: one line per product called.
+const runStandardBundle = vi.fn(async (a: BundleCall) => {
+  const runId = a.screeningRunId ?? randomUUID()
+  const skip = new Set(a.skipProducts ?? [])
+  for (const product of [COMBINED, VCCB].filter((p) => !skip.has(p))) {
+    const status = product === COMBINED && combinedDown.has(a.subjectId) ? "failed" : "completed"
+    const { error } = await db.from("application_screening_lines").insert({
+      org_id: a.orgId, application_id: a.applicationId, subject_type: a.subjectType, subject_id: a.subjectId,
+      screening_run_id: runId, product_key: product, status, result_summary: status,
+    })
+    if (error) throw new Error(`mock bundle line: ${error.message}`)
+  }
+  return { screeningRunId: runId, combinedOk: true, vccbOk: true, combinedSummary: "", vccbSummary: "" }
+})
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }))
@@ -200,11 +220,66 @@ describe("ADDENDUM_14W §0 — a residential joint application, every person pay
     expect(await lineStates()).toEqual({ [`applicant:${appId}`]: "ready_to_run", [`co_applicant:${coId}`]: "ready_to_run" })
   }, 60_000)
 
-  it("7 · the runner picks BOTH up — the lead as an `applicant`, never a `company` — and completes them", async () => {
+  it("7 · the runner picks BOTH up — the lead as an `applicant`, never a `company` — completes the lead, and sends the co's failed product back to retry", async () => {
+    combinedDown.add(coId)
     const res = await lineRunner(new NextRequest("http://localhost/api/cron/screening-line-runner"))
     expect((await res.json()).ok).toBe(true)
     const ours = runStandardBundle.mock.calls.map(([a]) => a).filter((a) => a.applicationId === appId)
     expect(ours.map((a) => `${a.subjectType}:${a.subjectId}`).sort()).toEqual([`applicant:${appId}`, `co_applicant:${coId}`].sort())
+    expect(await lineStates()).toEqual({ [`applicant:${appId}`]: "complete", [`co_applicant:${coId}`]: "ready_to_run" })
+    const co = (await paymentRows()).find((r) => r.subject_type === "co_applicant")
+    expect(co, "a retry records no refund").toBeDefined()
+    const { data: owed, error } = await db.from("application_screening_payments").select("refund_amount_cents")
+      .eq("org_id", orgId).eq("application_id", appId).eq("subject_type", "co_applicant").single()
+    expect(error).toBeNull()
+    expect(owed!.refund_amount_cents).toBeNull()
+  }, 60_000)
+
+  it("8 · each retry RESUMES the same run for the undelivered product only; the bound makes it terminal, and the refund is recorded as owed", async () => {
+    for (let tick = 2; tick <= 4; tick++) {
+      const res = await lineRunner(new NextRequest("http://localhost/api/cron/screening-line-runner"))
+      expect((await res.json()).ok).toBe(true)
+    }
+    const coCalls = runStandardBundle.mock.calls.map(([a]) => a).filter((a) => a.subjectId === coId)
+    expect(coCalls).toHaveLength(4)
+    const firstRun = coCalls[0].screeningRunId
+    expect(firstRun, "the first attempt mints its own run").toBeUndefined()
+    const runIds = new Set(coCalls.slice(1).map((a) => a.screeningRunId))
+    expect(runIds.size, "every retry resumes ONE run").toBe(1)
+    for (const c of coCalls.slice(1)) expect(c.skipProducts, "a delivered product is never bought twice").toEqual([VCCB])
+
     expect(await lineStates()).toEqual({ [`applicant:${appId}`]: "complete", [`co_applicant:${coId}`]: "complete" })
+
+    const { data: pay, error } = await db.from("application_screening_payments").select("id, fee_cents, refund_amount_cents, refunded_at")
+      .eq("org_id", orgId).eq("application_id", appId).eq("subject_type", "co_applicant").single()
+    expect(error).toBeNull()
+    // Combined's rate share of the co's own fee, rounded up — the rates are the two fixed rows mocked above.
+    expect(pay!.refund_amount_cents).toBe(Math.ceil((pay!.fee_cents * 19410) / (19410 + 715)))
+    expect(pay!.refunded_at, "owed, not executed — an admin executes it").toBeNull()
+    const { data: lead, error: leadErr } = await db.from("application_screening_payments").select("refund_amount_cents")
+      .eq("org_id", orgId).eq("application_id", appId).eq("subject_type", "applicant").single()
+    expect(leadErr).toBeNull()
+    expect(lead!.refund_amount_cents, "the lead's own check delivered — nothing owed to the lead").toBeNull()
+
+    const { data: audit, error: aErr } = await db.from("audit_log").select("record_id").eq("org_id", orgId)
+      .eq("table_name", "application_screening_payments").eq("record_id", pay!.id)
+    expect(aErr).toBeNull()
+    expect(audit!.length).toBeGreaterThan(0)
+  }, 120_000)
+
+  it("9 · a settled subject is not re-run, and the owed refund is written once", async () => {
+    const ourCalls = () => runStandardBundle.mock.calls.filter(([a]) => a.applicationId === appId).length
+    const owed = async () => {
+      const { data, error } = await db.from("application_screening_payments").select("refund_amount_cents")
+        .eq("org_id", orgId).eq("application_id", appId).eq("subject_type", "co_applicant").single()
+      if (error) throw new Error(`read owed: ${error.message}`)
+      return data.refund_amount_cents as number | null
+    }
+    const callsBefore = ourCalls()
+    const owedBefore = await owed()
+    const res = await lineRunner(new NextRequest("http://localhost/api/cron/screening-line-runner"))
+    expect((await res.json()).ok).toBe(true)
+    expect(ourCalls()).toBe(callsBefore)
+    expect(await owed()).toBe(owedBefore)
   }, 60_000)
 })
