@@ -33,7 +33,9 @@ export const VCCB_RESULT_SUMMARIES = {
   success:                "Gross income estimate retrieved",
   no_data:                "No income estimate available for this ID number",
   foreign_national_skip:  "Skipped — VCCB does not support foreign-national identification",
-  failed:                 "Income estimate request failed — refunded",
+  // No "— refunded" (14W §0c): one failed attempt is retried, and only a terminal failure records a refund as OWED,
+  // which an admin then executes. A line cannot know it was refunded, so its summary must not say so.
+  failed:                 "Income estimate request failed",
 } as const
 
 // ─── Input / output types ─────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ export const LEGAL_VERSIONS = {
   cookiePolicy:      "v1.4.0",
   creditCheckPolicy: "v1.5.0",
   paiaManual:        "v1.2.0",
-  popiaRegister:     "v2.4.1",
+  popiaRegister:     "v2.4.2",
   privacy:           "v4.7.0",
   terms:             "v3.6.0",
 } as const
