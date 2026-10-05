@@ -11,6 +11,8 @@
  *         The invite email is best-effort, and WHICH invite is `inviteRoute`'s (walker F1, 2026-10-01): a juristic
  *         surety gets director_invited — but only once stage 2 is open; before that the shortlist invites it (14W §0b)
  *         — a held surety gets NOTHING, everyone else co_applicant_invited (their stage-1 detail invite).
+ *         Once stage 2 is open the invite starts the party's window, so it is the party's 14X N1 and is written to
+ *         screening_notification_events (one row per attempt).
  */
 /* Was a file-level `eslint-disable pleks/require-org-scope-on-service-write`; every write below now carries
    `.eq("org_id", …)` (14W §0b), so the rule has nothing to suppress. The reasoning stands as a note: ⚠ THE WEAKEST OF THE EIGHT APPLY-FLOW ROUTES, and recorded as such rather than waved through with its siblings. The other seven verify a token bound to THIS application id before writing; this one has no token at all — the header states the design outright, "the application id in the path is the capability", so possession of the UUID IS the credential. That is a deliberate, pre-existing decision (public apply flow, rate-limited per IP, org_id read server-side and never trusted from the client) and not something to change in a lint-alignment commit. It is also one letter away from the class that produced the 2026-08-22 consent IDOR, where a caller-supplied id with no ownership proof was the whole defect. Flagged for CD; org scoping is not the fix here, a capability token would be. */
@@ -23,6 +25,9 @@ import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { idNumberColumns } from "@/lib/crypto/idNumber"
 import { inviteRoute, suretyInviteRole } from "@/lib/applications/juristicParties"
 import { sendDirectorInvite, directorTokenExpiry } from "@/lib/applications/directorInvite"
+import type { SendEmailResult } from "@/lib/comms/send-email"
+import { deadlineAsStated } from "@/lib/screening/notificationSchedule"
+import { recordTrail } from "@/lib/screening/notificationTrail"
 
 /** Stage 2 is running — a party added now is invited to it by this add (14W §0b). Under §0 each party pays its own
  *  line, so the LEAD's payment (→ screening_in_progress) no longer closes the round; it was the pooled model's "not yet
@@ -109,13 +114,21 @@ export async function POST(
   }).eq("id", applicationId).eq("org_id", application.org_id) // org read server-side above, never from the client
 
   // Send the invitation inviteRoute names — or none, for a held surety (the agent page shows the hold).
-  let sent = false
+  // T0 is fixed before the send, so the D its N1 row records is the D the stamp below starts (as the shortlist does).
+  const invitedAt = new Date()
+  let attempt: InviteAttempt = null
   try {
-    sent = await sendInvite(route, suretyRole, stage2Open, {
+    attempt = await sendInvite(route, suretyRole, stage2Open, {
       orgId: application.org_id, applicationId, coApplicantId: coApplicant.id, token: coApplicant.access_token,
       email: body.email, firstName: body.first_name,
     })
   } catch (e) { console.error("co-applicant invite failed:", e) }
+  const sent = !!attempt?.sent?.success
+
+  // ADDENDUM_14X §3: once stage 2 is open this invite IS the party's N1 — the only other place a window starts besides
+  // the shortlist (walker 14x F4). One row per attempt, sent or failed. Best-effort like the send itself: the party is
+  // already added, so a trail failure is reported, never turned into a failed add.
+  if (stage2Open && attempt) await trailN1(supabase, application.org_id, applicationId, coApplicant.id, invitedAt, attempt)
 
   // BUILD_72 P1-R8b-2 + 14W §0b: a party added AFTER the stage-2 invite went out (sendShortlistInvitation, which sets
   // stage2_status 'invited' — NOT the stage-1 triage mark, which invites nobody) is invited to stage 2 by this very
@@ -123,7 +136,6 @@ export async function POST(
   // its own T0 (§9 row 10). Stamped only after the send SUCCEEDED, as the shortlist does (walker 14w-s0b F5): a clock
   // started on a failed send runs down a window the party was never told about.
   if (stage2Open && sent) {
-    const invitedAt = new Date()
     const { error: stampError } = await supabase.from("application_co_applicants").update({
       stage2_invited_at: invitedAt.toISOString(),
       ...(route === "surety" ? { access_token_expires: directorTokenExpiry(invitedAt.getTime()) } : {}),
@@ -134,27 +146,44 @@ export async function POST(
   return NextResponse.json({ ok: true, coApplicantId: coApplicant.id, invite: route })
 }
 
-/** The one invite inviteRoute names, awaited. True = sent. A surety is sent nothing before stage 2 opens (the shortlist
- *  invites it); a co party's invite is its stage-1 detail invite whenever it is added. */
+/** An invite that was attempted: the key it went out on and the send's result (null = the sender could not read the
+ *  application, a failed attempt). Null overall = nothing was attempted. */
+type InviteAttempt = { templateKey: string; sent: SendEmailResult | null } | null
+
+async function trailN1(
+  db: Awaited<ReturnType<typeof createServiceClient>>, orgId: string, applicationId: string, coApplicantId: string,
+  invitedAt: Date, attempt: NonNullable<InviteAttempt>,
+): Promise<void> {
+  try {
+    await recordTrail(db, {
+      orgId, applicationId, subject: { subjectType: "co_applicant", subjectId: coApplicantId },
+      milestone: "N1", templateKey: attempt.templateKey, deadlineAsStated: deadlineAsStated(invitedAt.toISOString()),
+      sent: attempt.sent,
+    })
+  } catch (e) { console.error("co-applicant N1 trail failed:", e instanceof Error ? e.message : e) }
+}
+
+/** The one invite inviteRoute names, awaited. A surety is sent nothing before stage 2 opens (the shortlist invites
+ *  it); a co party's invite is its stage-1 detail invite whenever it is added. */
 async function sendInvite(
   route: ReturnType<typeof inviteRoute>, suretyRole: ReturnType<typeof suretyInviteRole>, stage2Open: boolean,
   p: { orgId: string; applicationId: string; coApplicantId: string; token: string; email: string; firstName: string },
-): Promise<boolean> {
+): Promise<InviteAttempt> {
   if (route === "surety") {
-    if (!suretyRole || !stage2Open) return false
-    const r = await sendDirectorInvite({
+    if (!suretyRole || !stage2Open) return null
+    const sent = await sendDirectorInvite({
       orgId: p.orgId, applicationId: p.applicationId, coApplicantId: p.coApplicantId, token: p.token,
       directorEmail: p.email, directorFirstName: p.firstName || "there", role: suretyRole,
     })
-    return !!r?.success
+    return { templateKey: "application.director_invited", sent }
   }
-  if (route !== "co_applicant") return false
+  if (route !== "co_applicant") return null
   const ctx = await buildEmailContext(p.applicationId)
-  if (!ctx) return false
+  if (!ctx) return { templateKey: "application.co_applicant_invited", sent: null }
   const primaryName = [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" ")
-  const r = await sendCoApplicantInvited(
+  const sent = await sendCoApplicantInvited(
     { firstName: p.firstName, email: p.email }, ctx.listingSummary, ctx.orgContext,
     { accessToken: p.token, primaryApplicantName: primaryName },
   )
-  return r.success
+  return { templateKey: "application.co_applicant_invited", sent }
 }
