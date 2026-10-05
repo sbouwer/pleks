@@ -3881,8 +3881,10 @@ COMMENT ON COLUMN organisations.product_line IS
 -- Widen the org type CHECK to admit hoa_manager. Postgres names the inline CHECK from 001
 -- organisations_type_check by convention; drop-first then re-add keeps it idempotent.
 ALTER TABLE organisations DROP CONSTRAINT IF EXISTS organisations_type_check;
+-- 'platform' is admitted here too although §50 adds it: on a re-run against a DB that already holds the system
+-- org, this narrower CHECK aborted the file at this line (23514), leaving every later section unapplied (2026-10-05).
 ALTER TABLE organisations ADD CONSTRAINT organisations_type_check
-  CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager'));
+  CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager', 'platform'));
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §  SECURITY 2026-07-07: AI-route rate limiting (denial-of-wallet)
