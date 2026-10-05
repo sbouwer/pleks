@@ -130,3 +130,37 @@ describe("screening_notification_events — append-only, enforced (14X §3)", ()
     expect(await trailCount(app)).toBe(1)
   })
 })
+
+describe("purge_org_cascade still completes over a trail (walker F3)", () => {
+  it("KNOWN-GOOD: an org with trail rows and the delivery row they pin purges whole", async () => {
+    const s = await seedLedgerCase(db, { invoices: [] })
+    const purgeOrg = s.orgId
+    try {
+      const { data: listing, error: lErr } = await db.from("listings")
+        .insert({ org_id: purgeOrg, unit_id: s.unitId, property_id: s.propertyId, asking_rent_cents: 1_000_000 }).select("id").single()
+      if (lErr) throw new Error(`seed listing: ${lErr.message}`)
+      const { data: app, error: aErr } = await db.from("applications")
+        .insert({ org_id: purgeOrg, listing_id: listing.id, unit_id: s.unitId, entity_type: "individual", applicant_type: "individual",
+          first_name: "Lead", last_name: "Applicant", applicant_email: `lead-${randomUUID()}@example.test` })
+        .select("id").single()
+      if (aErr) throw new Error(`seed application: ${aErr.message}`)
+      const { data: log, error: cErr } = await db.from("communication_log")
+        .insert({ org_id: purgeOrg, channel: "email", direction: "outbound", subject: "invite" }).select("id").single()
+      if (cErr) throw new Error(`seed communication_log: ${cErr.message}`)
+      const { error: tErr } = await db.from("screening_notification_events")
+        .insert({ org_id: purgeOrg, application_id: app.id, subject_type: "applicant", subject_id: app.id, milestone: "N1",
+          template_key: "application.co_applicant_invited", template_version: 1, channel: "email", send_ok: true,
+          communication_log_id: log.id })
+      if (tErr) throw new Error(`trail insert: ${tErr.message}`)
+
+      const { error } = await db.rpc("purge_org_cascade", { p_org_id: purgeOrg, p_reason: "14x trail probe" })
+      expect(error).toBeNull()
+      const { count, error: rErr } = await db.from("screening_notification_events")
+        .select("id", { count: "exact", head: true }).eq("org_id", purgeOrg)
+      expect(rErr).toBeNull()
+      expect(count).toBe(0)
+    } finally {
+      teardownOrg(purgeOrg)
+    }
+  }, 120_000)
+})

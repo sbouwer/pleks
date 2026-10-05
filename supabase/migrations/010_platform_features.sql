@@ -1649,10 +1649,15 @@ BEGIN
   UPDATE auth_events                  SET org_id = v_sentinel WHERE org_id = p_org_id;
   UPDATE tos_acceptances              SET org_id = v_sentinel WHERE org_id = p_org_id;
 
-  -- Step 2: Auto-discover all remaining public tables with org_id
+  -- Step 2: Auto-discover all remaining public tables with org_id.
+  -- BASE TABLEs only: information_schema.columns lists views too, and a DELETE on a non-updatable view
+  -- (contractor_view) raises 55000, which the loop below does not catch — every org purge aborted on it.
+  -- Found 2026-10-05 by the 14X trail probe; prod then carried four org_id views and no org awaiting purge.
   SELECT array_agg(c.table_name ORDER BY c.table_name)
   INTO   v_tables
   FROM   information_schema.columns c
+  JOIN   information_schema.tables t
+    ON   t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
   WHERE  c.table_schema = 'public'
     AND  c.column_name  = 'org_id'
     AND  c.table_name  NOT IN (
@@ -1691,10 +1696,14 @@ BEGIN
      SET name               = '[purged]',
          email              = NULL,
          phone              = NULL,
-         address_line1      = NULL,
-         city               = NULL,
+         -- address/addr_city/brand_logo_path: this step named address_line1, city and brand_logo_url, which no
+         -- replay or prod (read 2026-10-05) has ever carried, so every purge that reached it raised 42703.
+         -- The row still keeps other personal fields (id_number, names, mobile, addr_*, lease_*, emergency_*):
+         -- which of them a purge must clear is an open POPIA ruling, not settled here.
+         address            = NULL,
+         addr_city          = NULL,
          settings           = '{}'::jsonb,
-         brand_logo_url     = NULL,
+         brand_logo_path    = NULL,
          brand_accent_color = NULL,
          deleted_at         = now()   -- idempotent: claim_purge_slot may have set this already
    WHERE id = p_org_id;
@@ -1704,9 +1713,10 @@ BEGIN
   VALUES (
     v_sentinel,
     'organisations',
-    p_org_id::text,
-    'PURGE',
+    p_org_id,      -- record_id is uuid; this was p_org_id::text, and 'PURGE' is not in audit_log's action CHECK
+    'DELETE',      -- (both found 2026-10-05: no purge had ever reached this step). The event is named below.
     jsonb_build_object(
+      'event',           'org_purge',
       'original_org_id', p_org_id,
       'reason',          p_reason,
       'purged_at',       now()
