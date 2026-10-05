@@ -45,6 +45,15 @@ describe("assembleReportData — co rows join the snapshot by id", () => {
     ])
   })
 
+  it("carries the snapshot's N-of-M stamp to the report, and null for a snapshot without one (14X row 36)", () => {
+    const stamped = app([snap("app", 3_000_000, 60), snap("co-live", 2_000_000, 40)]) as unknown as Record<string, unknown>
+    stamped.fitscore_component_snapshot = {
+      ...(stamped.fitscore_component_snapshot as object), assessedWith: { n: 2, m: 3, completedSubjectIds: ["app", "co-live"] },
+    }
+    expect(assembleReportData(stamped as unknown as App, cos, "Org")?.assessedWith).toEqual({ n: 2, m: 3 })
+    expect(assembleReportData(app([snap("app", 3_000_000, 100)]), cos, "Org")?.assessedWith).toBeNull()
+  })
+
   it("keeps the positional pairing for a snapshot written without ids", () => {
     const out = assembleReportData(app([snap(undefined, 3_000_000, 60), snap(undefined, 1_000_000, 20), snap(undefined, 1_000_000, 20)]), cos, "Org")
     expect(rows(out).map((r) => r[1])).toEqual([expect.any(String), "Declined Party", "Live Party"])

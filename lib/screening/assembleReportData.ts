@@ -14,6 +14,7 @@ import { isForeignNational, getPreferredThresholds } from "@/lib/screening/fitSc
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import type { MaterialFlag, FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
+import { readAssessedWith } from "@/lib/screening/assessedWith"
 import type { FitScoreReportData, FitScoreApplicantEntry } from "@/lib/reports/screening/_primitives/theme"
 
 // ─── Nationality label map ────────────────────────────────────────────────────
@@ -63,6 +64,12 @@ function pairCosWithSnapshot<T extends { id: string }>(cos: T[], snaps: AppSnap[
   if (!coSnaps.some(s => typeof s.id === 'string')) return cos.map((co, idx) => ({ co, snap: coSnaps[idx] }))
   const byId = new Map(coSnaps.map(s => [s.id, s]))
   return cos.filter(co => byId.has(co.id)).map(co => ({ co, snap: byId.get(co.id) }))
+}
+
+/** The counts only: the scored parties are already the report's applicant list, paired by the same ids. */
+function assessedCounts(snapshot: unknown): { n: number; m: number } | null {
+  const stamp = readAssessedWith(snapshot)
+  return stamp ? { n: stamp.n, m: stamp.m } : null
 }
 
 function filterBureaus(snap: AppSnap | undefined): string[] {
@@ -218,6 +225,7 @@ export function assembleReportData(
     primaryApplicantName: primaryEntry.fullName,
     coApplicantCount:     coEntries.length,
     applicants:           allApplicants,
+    assessedWith:         assessedCounts(app.fitscore_component_snapshot),
     leaseIntent: {
       termMonths:       12,
       monthlyRentCents: listing?.asking_rent_cents ?? 0,

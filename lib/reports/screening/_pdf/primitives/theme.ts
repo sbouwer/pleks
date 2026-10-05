@@ -20,6 +20,7 @@ export {
   BAND_LABELS,
   GRADE_LABELS,
   DOCTRINE_DISCLAIMER,
+  assessedWithLine,
   sp,
   fmtZAR,
   fmtDate,
