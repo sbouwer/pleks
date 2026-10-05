@@ -410,7 +410,6 @@
       "prescreened_at",
       "not_shortlisted_reason",
       "stage2_status",
-      "stage2_invited_at",
       "stage2_consent_given",
       "stage2_consent_given_at",
       "stage2_consent_ip",
@@ -536,7 +535,8 @@
       "pricing_policy_version",
       "cost_excl_vat_cents",
       "priced_party_count",
-      "priced_entity"
+      "priced_entity",
+      "stage2_invited_at"
     ],
     "arrears_actions": [
       "id",
@@ -3197,6 +3197,21 @@
       "finished_at",
       "updated_at"
     ],
+    "screening_notification_events": [
+      "id",
+      "org_id",
+      "application_id",
+      "subject_type",
+      "subject_id",
+      "milestone",
+      "template_key",
+      "template_version",
+      "channel",
+      "deadline_as_stated",
+      "send_ok",
+      "communication_log_id",
+      "created_at"
+    ],
     "screening_policies": [
       "id",
       "org_id",
@@ -3999,6 +4014,9 @@
     "is_landlord_membership_active": [
       "row_data"
     ],
+    "is_lead_report_object": [
+      "p_name"
+    ],
     "is_mfa_fresh": [
       "window_minutes"
     ],
@@ -4065,6 +4083,7 @@
     "refresh_arrears_interest_total": [
       "p_case_id"
     ],
+    "screening_notification_events_immutable": [],
     "screening_party_kind": [
       "caa",
       "app"
@@ -5379,6 +5398,18 @@
     "screening_jobs_status_check": {
       "table": "screening_jobs",
       "def": "CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'done'::text, 'failed'::text])))"
+    },
+    "screening_notification_events_channel_check": {
+      "table": "screening_notification_events",
+      "def": "CHECK ((channel = ANY (ARRAY['email'::text, 'sms'::text, 'whatsapp'::text])))"
+    },
+    "screening_notification_events_milestone_check": {
+      "table": "screening_notification_events",
+      "def": "CHECK ((milestone = ANY (ARRAY['N1'::text, 'N2'::text, 'N3'::text, 'N4'::text, 'N5'::text, 'N6'::text, 'N6_absent'::text])))"
+    },
+    "screening_notification_events_subject_type_check": {
+      "table": "screening_notification_events",
+      "def": "CHECK ((subject_type = ANY (ARRAY['applicant'::text, 'company'::text, 'co_applicant'::text, 'guarantor'::text])))"
     },
     "searchworx_rate_holds_held_cents_check": {
       "table": "searchworx_rate_holds",

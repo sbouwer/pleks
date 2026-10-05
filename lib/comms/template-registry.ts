@@ -19,6 +19,9 @@ export interface TemplateEntry {
   description: string
   tone_profile?: ToneProfile
   allowed_channels?: Array<"whatsapp" | "sms" | "email">
+  /** The copy's version, recorded on every 14X trail row (ADDENDUM_14X §3: "the registry version, not a body hash").
+   *  Absent = 1. Bump it in the same change as any edit to the template's approved wording. */
+  version?: number
 }
 
 const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
@@ -545,4 +548,9 @@ export function getTemplate(key: string): TemplateEntry {
   const entry = TEMPLATE_REGISTRY[key]
   if (!entry) throw new Error(`Unknown template key: ${key}`)
   return entry
+}
+
+/** The registered copy version for a key (absent = 1). Throws on an unknown key, like getTemplate. */
+export function templateVersion(key: string): number {
+  return getTemplate(key).version ?? 1
 }

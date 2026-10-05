@@ -7,6 +7,7 @@
  *         window expiry its copy states. Since the 2026-10-03 release every juristic surety is sent, with its role sentence.
  *         14W §0b: a surety's invite IS its stage-2 invite, so it is sent here only once stage 2 is open (a party added
  *         after the shortlist); before that the shortlist sends it. Probed both ways below.
+ *         14X (walker 14x F4): once stage 2 is open that invite is the party's N1, so one trail row per attempt.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -15,6 +16,7 @@ const sendDirectorInvite = vi.fn(async () => ({ success: true }))
 let application: Record<string, unknown> = {}
 const inserts: Record<string, unknown>[] = []
 const updates: Record<string, unknown>[] = []
+const trailRows: Record<string, unknown>[] = []
 
 vi.mock("@/lib/security/rateLimit", () => ({ rateLimit: () => true, getClientIp: () => "ip" }))
 vi.mock("@/lib/crypto/idNumber", () => ({ idNumberColumns: () => ({}) }))
@@ -22,6 +24,9 @@ vi.mock("@/lib/applications/emails", () => ({ sendCoApplicantInvited: (...a: unk
 vi.mock("@/lib/applications/directorInvite", () => ({
   sendDirectorInvite: (...a: unknown[]) => sendDirectorInvite(...(a as [])),
   directorTokenExpiry: () => "EXPIRY-14D",
+}))
+vi.mock("@/lib/screening/notificationTrail", () => ({
+  recordTrail: async (_db: unknown, row: Record<string, unknown>) => { trailRows.push(row) },
 }))
 vi.mock("@/lib/applications/buildEmailContext", () => ({
   buildEmailContext: async () => ({ appSummary: { firstName: "Lead", lastName: "Person" }, listingSummary: {}, orgContext: {} }),
@@ -62,6 +67,7 @@ beforeEach(() => {
   sendDirectorInvite.mockClear()
   inserts.length = 0
   updates.length = 0
+  trailRows.length = 0
 })
 
 describe("the roster's first invite (walker F1)", () => {
@@ -137,5 +143,38 @@ describe("a trustee's and a CC member's 'yes' get their own sentence, never the 
     expect(await add({ role: "guarantor", declared_director: true })).toMatchObject({ ok: true, invite: "surety" })
     expect(sendDirectorInvite).toHaveBeenCalledWith(expect.objectContaining({ role }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+  })
+})
+
+describe("14X: a party added after the shortlist gets its N1 on the trail (walker 14x F4)", () => {
+  it("a late surety: one N1 row on director_invited, with the D its clock starts", async () => {
+    application = JURISTIC
+    await add({ role: "guarantor", declared_director: true })
+    expect(trailRows).toEqual([expect.objectContaining({
+      orgId: "org-1", applicationId: "app-1", subject: { subjectType: "co_applicant", subjectId: "co-1" },
+      milestone: "N1", templateKey: "application.director_invited", sent: { success: true },
+    })])
+    expect(trailRows[0].deadlineAsStated).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it("a late co-applicant: one N1 row on co_applicant_invited", async () => {
+    application = JURISTIC
+    await add({ role: "co_applicant" })
+    expect(trailRows).toEqual([expect.objectContaining({ milestone: "N1", templateKey: "application.co_applicant_invited" })])
+  })
+
+  it("a failed late invite is still on the trail, as a failure — and starts no clock", async () => {
+    application = JURISTIC
+    sendDirectorInvite.mockResolvedValueOnce({ success: false })
+    await add({ role: "guarantor", declared_director: true })
+    expect(trailRows).toEqual([expect.objectContaining({ milestone: "N1", sent: { success: false } })])
+    expect(updates).not.toContainEqual(expect.objectContaining({ stage2_invited_at: expect.anything() }))
+  })
+
+  it("KNOWN-GOOD: a stage-1 detail invite is not N1 — nothing on the trail", async () => {
+    application = JURISTIC_STAGE1
+    await add({ role: "co_applicant" })
+    expect(sendCoApplicantInvited).toHaveBeenCalledTimes(1)
+    expect(trailRows).toEqual([])
   })
 })

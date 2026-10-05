@@ -1,23 +1,29 @@
 /**
- * app/api/cron/screening-portal-reminders/route.ts — Daily reminder cron for commercial portal completion
+ * app/api/cron/screening-portal-reminders/route.ts — daily 14X reminder schedule (N2/N4) for every party, plus the deadline
  *
  * Route:  GET /api/cron/screening-portal-reminders
  * Auth:   x-cron-secret header
- * Notes:  Called from /api/cron/daily orchestrator. Processes T+3 / T+7 / T+10 milestones and the T+14 deadline
- *         for co-party lines, routed by the view's `party_kind` (BUILD_72 P1-R1 commit 3). ONE CLOCK (14W §0b):
- *         every party's window runs SCREENING_WINDOW_DAYS from its own `stage2_invited_at`, written at shortlist for
- *         every party, sureties included; an uninvited party is skipped. At the deadline every unfinished party is
- *         declined by one writer (`declineLine`) — whoever completed counts — and the FitScore orchestrator is
- *         offered the application. Nothing here refunds: a paid line is never declined (§0).
- *         · surety whose inviteRoute is "surety" → the role-neutral surety reminder + director-portal link; primary
- *           contact notified at T+7 and T+10 (informational only); expiry notice at the deadline.
+ * Notes:  Called from /api/cron/daily orchestrator. ADDENDUM_14X §2: each party is reminded at N2 and N4, computed from
+ *         its OWN stage-2 invite (lib/screening/notificationSchedule.ts — the offsets derive from SCREENING_WINDOW_DAYS),
+ *         and every attempt, sent or failed, writes one row to the append-only trail (lib/screening/notificationTrail.ts).
+ *         A milestone counts as sent only with a successful row, so a failed send is retried on the next run; only the
+ *         latest due milestone is ever sent (a missed run sends the missed milestone, never two). The trail replaced the
+ *         reminder_milestones_sent jsonb, which has no writer any more; until its DROP it is still READ (withLegacySent),
+ *         so a party mid-window at deploy is not reminded twice.
+ *         THE LEAD (14X §7, row 32): reminded at N2/N4 with the shortlist email resent verbatim on its live invite token —
+ *         the 3-day nudge application-reminders used to send retired into this. Not declined here at the deadline: the
+ *         lead's outcome at D is N6/N6′ (14X P4).
+ *         CO PARTIES, routed by the view's `party_kind` (BUILD_72 P1-R1). ONE CLOCK (14W §0b): every party's window runs
+ *         from its own `stage2_invited_at`, written at shortlist for every party, sureties included; an uninvited party is
+ *         skipped. At the deadline every unfinished co party is declined by one writer (`declineLine`) — whoever completed
+ *         counts — and the FitScore orchestrator is offered the application. Nothing here refunds (§0).
+ *         · surety whose inviteRoute is "surety" → the role-neutral surety reminder (the t3 copy at N2, t7 at N4) +
+ *           director-portal link; primary contact told at N4 (informational only); expiry notice at the deadline.
  *         · a surety inviteHold still holds (none today: no approved role sentence fits it) → HELD: no send, no expiry.
  *         · co_applicant, or guarantor (a surety on a NON-juristic application, P1-R3a) →
  *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); no notice at the deadline.
- *         · consented, unpaid → no reminder (no approved pay prompt exists), declined at the deadline like anyone.
+ *         · consented, unpaid (lead or co) → no reminder (no approved pay prompt exists); a co is declined at the deadline.
  *         · anything else (null/unknown party_kind) → skipped. No email beats a wrong one.
- *         Milestone tracking: reminder_milestones_sent jsonb on application_co_applicants prevents
- *         re-sending if the daily cron misses a run — each key (t3/t7/t10) is marked once sent.
  */
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -25,11 +31,15 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { buildDirectorReminderElement } from "@/lib/applications/commercial-emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
-import { sendCoApplicantInvited } from "@/lib/applications/emails"
+import { sendCoApplicantInvited, sendShortlistInvitation } from "@/lib/applications/emails"
 import { inviteRoute } from "@/lib/applications/juristicParties"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { maybeRunOrchestrator } from "@/lib/screening/maybeRunOrchestrator"
 import { readLine } from "@/lib/screening/lineFee"
+import {
+  daysRemaining, deadlineAsStated, dueReminder, isPastDeadline, windowOpenSince, type ReminderMilestone,
+} from "@/lib/screening/notificationSchedule"
+import { leadSubject, milestonesSentOk, recordTrail, type TrailSubject } from "@/lib/screening/notificationTrail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 
@@ -38,8 +48,10 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
 const DAY_MS = 86_400_000
-/** The stage-2 consent window (14W), from stage2_invited_at — THE screening window. */
-const STAGE2_WINDOW_MS = SCREENING_WINDOW_DAYS * DAY_MS
+/** The states in which a party still owes something (the view's), and is therefore still on the schedule. */
+const OWING = ["pending_both", "paid_pending_consent", "consented_pending_payment", "expired_no_consent"]
+/** The surety reminder's approved copy is staged: the gentle t3 wording at N2, the t7 wording at N4. */
+const SURETY_COPY: Record<ReminderMilestone, "t3" | "t7"> = { N2: "t3", N4: "t7" }
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -57,7 +69,7 @@ export async function GET(req: NextRequest) {
       .from("v_application_screening_lines")
       .select("application_id, subject_id, subject_name, org_id, paid_at, expires_at, state, party_kind")
       .eq("subject_type", "co_applicant")
-      .in("state", ["pending_both", "paid_pending_consent", "consented_pending_payment", "expired_no_consent"])
+      .in("state", OWING)
       .limit(500)
 
     if (error) {
@@ -75,6 +87,36 @@ export async function GET(req: NextRequest) {
         Sentry.captureException(err, {
           tags: { cron_job: "screening_portal_reminders" },
           extra: { subject_id: line.subject_id },
+        })
+      }
+    }
+
+    // The leads: every application whose stage-2 invite is out and not yet acted on (14X §7 — the shortlist nudge
+    // application-reminders sent retired into N2/N4 here).
+    // Shortlisted, live, and still inside the window (walker 14x F1/F3): a lead declined after its invite (a withdrawn
+    // listing declines every applicant) keeps stage2_status 'invited', and nothing moves a lead off it at D yet, so
+    // without the stage-1 and window bounds the scan would remind the declined and fill its 500 with the expired.
+    const { data: leads, error: leadsError } = await service
+      .from("applications")
+      .select("id, org_id, entity_type, stage2_invited_at, stage2_reminder_sent_at")
+      .eq("stage2_status", "invited")
+      .eq("stage1_status", "shortlisted")
+      .is("deleted_at", null)
+      .not("stage2_invited_at", "is", null)
+      .gt("stage2_invited_at", windowOpenSince().toISOString())
+      .order("stage2_invited_at", { ascending: true })
+      .limit(500)
+    if (leadsError) {
+      console.error("[screening-portal-reminders] lead query failed:", leadsError.message)
+      return NextResponse.json({ error: leadsError.message }, { status: 500 })
+    }
+    for (const lead of leads ?? []) {
+      try {
+        if ((await processLeadLine(service, lead as LeadApp)) === "reminded") reminders++
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { cron_job: "screening_portal_reminders" },
+          extra: { application_id: lead.id },
         })
       }
     }
@@ -108,7 +150,23 @@ type CoAppRow = {
   stage2_invited_at: string | null
   primary_application_id: string
   access_token: string
-  reminder_milestones_sent: Record<string, boolean> | null
+}
+
+type LeadApp = { id: string; org_id: string; entity_type: string | null; stage2_invited_at: string; stage2_reminder_sent_at: string | null }
+
+/**
+ * TRANSITIONAL (walker 14x F5): what the pre-trail stamps already sent, read as trail milestones so a party mid-window
+ * at deploy is not sent its reminder twice — t3 was N2's day, t7 N4's (t10 sat past N4, so it counts as N4), and the
+ * lead's retired 3-day nudge was its N2. Delete with the reminder_milestones_sent / stage2_reminder_sent_at DROP, one
+ * window after deploy: by then every party on the schedule was invited under the trail.
+ */
+function withLegacySent(sentOk: Set<string>, legacy: { milestones?: unknown; leadNudgedAt?: string | null }): Set<string> {
+  const m = (legacy.milestones ?? {}) as Record<string, unknown>
+  const out = new Set(sentOk)
+  if (m.t3) out.add("N2")
+  if (m.t7 || m.t10) out.add("N4")
+  if (legacy.leadNudgedAt) out.add("N2")
+  return out
 }
 
 function resolveListingLabel(listings: unknown): { slug: string; propertyLabel: string } {
@@ -123,24 +181,73 @@ function resolveListingLabel(listings: unknown): { slug: string; propertyLabel: 
   }
 }
 
-function dueStage(daysElapsed: number, sent: Record<string, boolean>): "t3" | "t7" | "t10" | null {
-  if (daysElapsed >= 10 && !sent.t10) return "t10"
-  if (daysElapsed >= 7  && !sent.t7)  return "t7"
-  if (daysElapsed >= 3  && !sent.t3)  return "t3"
-  return null
+/** The lead's N2/N4: the shortlist email resent verbatim on the live invite token (the nudge it replaced did the same). */
+async function processLeadLine(service: Svc, lead: LeadApp): Promise<LineOutcome> {
+  const subject = leadSubject(lead)
+  const { data: own, error: ownError } = await service
+    .from("v_application_screening_lines")
+    .select("state")
+    .eq("org_id", lead.org_id)
+    .eq("application_id", lead.id)
+    .eq("subject_type", subject.subjectType)
+    .eq("subject_id", subject.subjectId)
+    .maybeSingle()
+  if (ownError) throw new Error(`read lead line: ${ownError.message}`)
+  // Consented-but-unpaid is not chased (no approved pay prompt, as for a co party); a lead with no owing line is done.
+  if (!own || !OWING.includes(own.state as string) || own.state === "consented_pending_payment") return "skipped"
+
+  const sentOk = withLegacySent(await milestonesSentOk(service, lead.org_id, lead.id, subject), { leadNudgedAt: lead.stage2_reminder_sent_at })
+  const due = dueReminder(lead.stage2_invited_at, sentOk)
+  if (!due) return "skipped"
+
+  // Reuse the live shortlist token — minting one is the shortlist action's job. It lives the whole window, so its
+  // absence inside the window is an anomaly worth a person's eye rather than a silent skip.
+  const { data: tok, error: tokError } = await service
+    .from("application_tokens")
+    .select("token")
+    .eq("application_id", lead.id)
+    .eq("token_type", "shortlist_invite")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (tokError) throw new Error(`read shortlist token: ${tokError.message}`)
+  if (!tok) {
+    Sentry.captureMessage("Lead reminder due but no live shortlist token", {
+      level: "warning", tags: { cron_job: "screening_portal_reminders" }, extra: { application_id: lead.id, milestone: due },
+    })
+    return "skipped"
+  }
+  const ctx = await buildEmailContext(lead.id)
+  if (!ctx) return "skipped"
+  // The approved wording, with the days actually left: "expires in 14 days" on day 3 would promise a later deadline
+  // than the one in force (walker 14x F2), as resendDirectorInvite already avoids.
+  const sent = await sendShortlistInvitation(ctx.appSummary, ctx.listingSummary, ctx.orgContext, {
+    inviteToken: tok.token as string, expiresInDays: daysRemaining(lead.stage2_invited_at),
+  })
+  await trail(service, lead.org_id, lead.id, subject, due, "application.shortlisted", lead.stage2_invited_at, sent)
+  if (!sent.success) throw new Error(`lead reminder ${due} not sent: ${sent.error ?? "unknown"}`)
+  return "reminded"
+}
+
+/** One trail row for one attempt (14X §3) — written before the outcome is acted on, so a failure row always stays. */
+async function trail(
+  service: Svc, orgId: string, applicationId: string, subject: TrailSubject, milestone: ReminderMilestone,
+  templateKey: string, t0: string, sent: Awaited<ReturnType<typeof sendEmail>> | null,
+): Promise<void> {
+  await recordTrail(service, { orgId, applicationId, subject, milestone, templateKey, deadlineAsStated: deadlineAsStated(t0), sent })
 }
 
 async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("applicant_email, first_name, created_at, stage2_invited_at, primary_application_id, access_token, reminder_milestones_sent, role, is_surety_director, declared_director")
+    .select("applicant_email, first_name, created_at, stage2_invited_at, primary_application_id, access_token, role, is_surety_director, declared_director, reminder_milestones_sent")
     .eq("id", line.subject_id)
     .is("declined_at", null)
     .single()
 
   if (coErr || !coApp) return "skipped"
-  const row = coApp as CoAppRow & { is_surety_director: boolean | null; declared_director: boolean | null }
-  const sent = (row.reminder_milestones_sent ?? {}) as Record<string, boolean>
+  const row = coApp as CoAppRow & { is_surety_director: boolean | null; declared_director: boolean | null; reminder_milestones_sent: unknown }
 
   if (line.party_kind !== "co_applicant" && line.party_kind !== "guarantor" && line.party_kind !== "surety") return "skipped"
 
@@ -148,9 +255,8 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   // written at shortlist — sureties included, since they are invited there now. Never `created_at`, never the payment
   // row's expires_at (a settlement field). A party nobody has invited is not chased, or expired, for it.
   if (!row.stage2_invited_at) return "skipped"
-  const invitedAt = new Date(row.stage2_invited_at).getTime()
-  const daysElapsed = Math.floor((Date.now() - invitedAt) / DAY_MS)
-  const pastDeadline = Date.now() >= invitedAt + STAGE2_WINDOW_MS
+  const t0 = row.stage2_invited_at
+  const pastDeadline = isPastDeadline(t0)
 
   // HELD (P1-R3): a surety no approved role sentence fits is not reminded, and not expired either — declining someone
   // for not completing an invite we withheld would record their failure for ours. Since the 2026-10-03 A/B/C release
@@ -187,44 +293,33 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   // party's own link shows the pay step. A pay reminder needs copy first (14W §0b, Decided in build).
   if (line.state === "consented_pending_payment") return "skipped"
 
-  if (line.party_kind === "surety") {
-    const stage = dueStage(daysElapsed, sent)
-    if (!stage) return "skipped"
-    return sendMilestoneReminder(service, line, row, stage, daysElapsed, sent)
-  }
-  return processCoApplicantLine(service, line, row, daysElapsed, sent)
+  const subject: TrailSubject = { subjectType: "co_applicant", subjectId: line.subject_id }
+  const sentOk = withLegacySent(await milestonesSentOk(service, line.org_id, line.application_id, subject), { milestones: row.reminder_milestones_sent })
+  const due = dueReminder(t0, sentOk)
+  if (!due) return "skipped"
+  if (line.party_kind === "surety") return sendMilestoneReminder(service, line, row, due, t0)
+  return processCoApplicantLine(service, line, row, due, t0)
 }
 
 /** Residential joint co-applicant or guarantor (P1-R5). The reminder is the invite, verbatim; no new copy. */
 async function processCoApplicantLine(
-  service: Svc, line: PendingLine, coApp: CoAppRow, daysElapsed: number, sent: Record<string, boolean>,
+  service: Svc, line: PendingLine, coApp: CoAppRow, due: ReminderMilestone, t0: string,
 ): Promise<LineOutcome> {
-  const stage = dueStage(daysElapsed, sent)
-  if (!stage) return "skipped"
   const ctx = await buildEmailContext(line.application_id)
   if (!ctx) return "skipped"
   const primaryName = [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" ")
-  // sendEmail reports failure by RETURN, not by throwing (walker F4). Throw instead: the per-line catch reports it
-  // to Sentry, and the milestone stays unstamped so the next run retries it rather than skipping it for good.
+  // sendEmail reports failure by RETURN, not by throwing (walker F4). The attempt is recorded either way; then a
+  // failure throws, the per-line catch reports it to Sentry, and with no send_ok row the next run retries it.
   const sendResult = await sendCoApplicantInvited(
     { firstName: coApp.first_name ?? "", email: coApp.applicant_email },
     ctx.listingSummary, ctx.orgContext,
     { accessToken: coApp.access_token, primaryApplicantName: primaryName,
       resend: { coApplicantId: line.subject_id, triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id } },
   )
-  if (!sendResult.success) throw new Error(`co-applicant reminder ${stage} not sent: ${sendResult.error ?? "unknown"}`)
-  await stampMilestone(service, line, sent, stage)
+  await trail(service, line.org_id, line.application_id, { subjectType: "co_applicant", subjectId: line.subject_id }, due,
+    "application.co_applicant_invited", t0, sendResult)
+  if (!sendResult.success) throw new Error(`co-applicant reminder ${due} not sent: ${sendResult.error ?? "unknown"}`)
   return "reminded"
-}
-
-/** Records a milestone as sent. Called only after a send that reported success (walker F4). */
-async function stampMilestone(service: Svc, line: PendingLine, sent: Record<string, boolean>, stage: "t3" | "t7" | "t10"): Promise<void> {
-  const { error } = await service
-    .from("application_co_applicants")
-    .update({ reminder_milestones_sent: { ...sent, [stage]: true } })
-    .eq("id", line.subject_id)
-    .eq("org_id", line.org_id)
-  if (error) throw new Error(`stamp reminder milestone ${stage}: ${error.message}`)
 }
 
 /** THE deadline decline, for every party kind (14W §0b — the surety branch's own writer folded in). A declined line
@@ -296,10 +391,11 @@ async function sendMilestoneReminder(
   service: Svc,
   line: PendingLine,
   coApp: CoAppRow,
-  stage: "t3" | "t7" | "t10",
-  daysElapsed: number,
-  sent: Record<string, boolean>,
+  due: ReminderMilestone,
+  t0: string,
 ): Promise<LineOutcome> {
+  const stage = SURETY_COPY[due]
+  const daysElapsed = Math.floor((Date.now() - new Date(t0).getTime()) / DAY_MS)
   const { data: app, error: appError } = await service
     .from("applications")
     .select("first_name, last_name, applicant_email, listings(public_slug, units(unit_number, properties(name)))")
@@ -318,9 +414,10 @@ async function sendMilestoneReminder(
 
   const branding = buildBranding(await fetchOrgSettings(line.org_id))
 
+  const templateKey = `application.director_reminder_${stage}`
   const sendResult = await sendEmail({
     orgId: line.org_id,
-    templateKey: `application.director_reminder_${stage}`,
+    templateKey,
     to: { email: coApp.applicant_email, name: coApp.first_name ?? "" },
     subject: `Reminder: your portion is still outstanding — ${propertyLabel}`,
     emailElement: buildDirectorReminderElement({
@@ -334,11 +431,13 @@ async function sendMilestoneReminder(
     triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
   })
 
-  if (!sendResult.success) throw new Error(`director reminder ${stage} not sent: ${sendResult.error ?? "unknown"}`)
-  await stampMilestone(service, line, sent, stage)
+  await trail(service, line.org_id, line.application_id, { subjectType: "co_applicant", subjectId: line.subject_id }, due,
+    templateKey, t0, sendResult)
+  if (!sendResult.success) throw new Error(`director reminder ${due} not sent: ${sendResult.error ?? "unknown"}`)
 
-  if (stage === "t7" || stage === "t10") {
-    await notifyPrimaryContact(service, line, { primaryContactName, propertyLabel, directorName: line.subject_name, stage })
+  // The lead is told at N4 only (it was told at t7 and t10; t10 retired with the 14X schedule).
+  if (due === "N4") {
+    await notifyPrimaryContact(service, line, { primaryContactName, propertyLabel, directorName: line.subject_name })
   }
 
   return "reminded"
@@ -347,7 +446,7 @@ async function sendMilestoneReminder(
 async function notifyPrimaryContact(
   service: Awaited<ReturnType<typeof createServiceClient>>,
   line: PendingLine,
-  ctx: { primaryContactName: string; propertyLabel: string; directorName: string; stage: "t7" | "t10" },
+  ctx: { primaryContactName: string; propertyLabel: string; directorName: string },
 ): Promise<void> {
   const { data: app, error: appError } = await service
     .from("applications")
@@ -358,12 +457,11 @@ async function notifyPrimaryContact(
 
   if (!app?.applicant_email) return
 
-  const urgency = ctx.stage === "t10" ? "Final reminder: " : ""
   // A FRAGMENT — sendEmail wraps it in the central EmailLayout and injects the org's branding. This used
   // to hand-roll a bare <!DOCTYPE> document, so the email went to applicants unbranded.
   const html = `
 <p>Hi ${ctx.primaryContactName},</p>
-<p>${urgency}<strong>${ctx.directorName}</strong> has not yet completed their portion of the application for <strong>${ctx.propertyLabel}</strong>.</p>
+<p><strong>${ctx.directorName}</strong> has not yet completed their portion of the application for <strong>${ctx.propertyLabel}</strong>.</p>
 <p>If ${ctx.directorName} is unable to proceed, you can replace them from your application portal.</p>`
 
   await sendEmail({

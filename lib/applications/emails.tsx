@@ -322,7 +322,8 @@ export async function sendShortlistInvitation(
   app: ApplicationSummary,
   listing: ListingSummary,
   org: OrgContext,
-  opts: { inviteToken: string }
+  /** expiresInDays: on a reminder resend, the days actually left (14X N2/N4); the first invite states the full window. */
+  opts: { inviteToken: string; expiresInDays?: number }
 ) {
   const inviteLink = absoluteUrl(`/apply/invite/${opts.inviteToken}`)
   const feeLine = await screeningFeeDisplay()
@@ -342,7 +343,7 @@ export async function sendShortlistInvitation(
         <p style={S.body}>2. {feeLine}</p>
         <p style={S.body}>The screening is conducted by Searchworx, an independent credit bureau. Results are shared with {org.orgName} only.</p>
         <EmailButton href={inviteLink} accentColor={org.branding.accentColor}>Continue to screening →</EmailButton>
-        <p style={S.footer}>This link expires in {SCREENING_WINDOW_DAYS} days.{org.orgPhone ? ` Contact: ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>
+        <p style={S.footer}>This link expires in {opts.expiresInDays ?? SCREENING_WINDOW_DAYS} days.{org.orgPhone ? ` Contact: ${org.orgPhone}` : ""}{org.orgEmail ? ` · ${org.orgEmail}` : ""}</p>
         <ApplicantLegalFooter />
       </EmailLayout>
     ),
