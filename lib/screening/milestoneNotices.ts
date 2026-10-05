@@ -3,12 +3,12 @@
  *
  * Data:   applications + application_co_applicants (the roster, org-scoped) via the caller's service client;
  *         sends through sendEmail; every attempt or held gap goes to the trail (lib/screening/notificationTrail.ts).
- * Notes:  ADDENDUM_14X §2/§4. Each template here is HELD until counsel's row reads ready (registry `heldFor`, the draft is
- *         brief/legal/COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05.md). While held, sendMilestoneNotice sends nothing and
- *         records the gap once per party per milestone ("the trail records the gap"); lifting the hold is a registry
- *         change in the PR that ships the approved copy, and the wording below must match the approved text then.
- *         NAMES (§4): N3 names the completing party and the outstanding ones — the motivation, while the window is open.
- *         It never says what an outstanding party has not done (no payment, consent or amount). N6′ names nobody.
+ * Notes:  ADDENDUM_14X §2/§4; counsel reviewed the pack 2026-10-05 (brief/legal/COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05.md
+ *         §5). N5, N6′ and the N6 copy are APPROVED and their consequence sentences below are counsel's, verbatim — edit
+ *         them only with a new counsel row. N3 and the lead's chaser N5 are HELD (registry `heldFor`): while held,
+ *         sendMilestoneNotice sends nothing and records the gap once per party per milestone.
+ *         NAMES (counsel Q1/Q3): a notice names who HAS completed and counts the rest. Which party has not completed is
+ *         never named while the window is open, nor ever after; never "failed / refused / not paid". N6′ names nobody.
  *         Every name is applicant-typed, so every interpolation is HTML-escaped.
  *         THE LEAD has variants of N5 and N6′: under §0 the FitScore runs only once the lead's own line is complete, so
  *         "the application will be assessed without you" is false for the lead. The variant says what is true.
@@ -17,12 +17,15 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import * as Sentry from "@sentry/nextjs"
 import { sendEmail } from "@/lib/comms/send-email"
 import { heldFor } from "@/lib/comms/template-registry"
+import { ASSESSMENT_CLOSING_SENTENCE } from "@/lib/screening/assessmentWording"
 import { fmtDateLongZA } from "@/lib/dates"
-import { deadlineAsStated, deadlineAt, isPastDeadline } from "@/lib/screening/notificationSchedule"
+import { deadlineAsStated, deadlineAt, finalNoticeAt, isPastDeadline } from "@/lib/screening/notificationSchedule"
 import { leadSubject, recordGap, recordTrail, type TrailMilestone, type TrailSubject } from "@/lib/screening/notificationTrail"
 
 export const PROGRESS_KEY = "application.screening_progress"
 export const FINAL_NOTICE_KEY = "application.screening_final_notice"
+export const FINAL_NOTICE_OTHERS_KEY = "application.screening_final_notice_others"
+export const OUTCOME_KEY = "application.screening_outcome"
 export const OUTCOME_ABSENT_KEY = "application.screening_outcome_absent"
 
 export type NoticeOutcome = "sent" | "held" | "failed"
@@ -39,34 +42,69 @@ function nameList(names: string[]): string {
 
 // ─── Copy (draft — the counsel file's §§1–3 carry the same words) ────────────────────────────────────────────────
 
-export function progressCopy(p: { firstName: string; completedName: string; outstanding: string[]; propertyLabel: string }) {
+/** N3 (HELD). Counts the rest, never names them: 14X §2 as amended on counsel's Q1. */
+export function progressCopy(p: { firstName: string; completedName: string; completed: number; total: number; propertyLabel: string }) {
   return {
     subject: `Update on your application — ${p.propertyLabel}`,
     html: `
 <p>Hi ${esc(p.firstName)},</p>
-<p>${esc(p.completedName)} has completed their part of the application for <strong>${esc(p.propertyLabel)}</strong>.</p>
-<p>We are waiting on: ${esc(nameList(p.outstanding))}.</p>`,
+<p>${esc(p.completedName)} has completed their part of the application for <strong>${esc(p.propertyLabel)}</strong>.
+${p.completed} of ${p.total} parties have now completed.</p>`,
   }
 }
 
+/** N5 (APPROVED). The consequence sentence is counsel's, verbatim; the lead's says what is true for the lead. */
 export function finalNoticeCopy(p: { firstName: string; deadline: string; propertyLabel: string; lead: boolean }) {
   const consequence = p.lead
-    ? "If your part is not complete by then, the application cannot be assessed."
-    : "If your part is not complete by then, the application will be assessed without you."
+    ? `If you do not complete your part by ${esc(p.deadline)}, the application cannot be assessed.`
+    : `If you do not complete your part by ${esc(p.deadline)}, the application will be assessed without your screening information.`
   return {
     subject: `Final notice: your deadline is ${p.deadline} — ${p.propertyLabel}`,
     html: `
 <p>Hi ${esc(p.firstName)},</p>
 <p>Your deadline to complete your part of the application for <strong>${esc(p.propertyLabel)}</strong> is
-<strong>${esc(p.deadline)}</strong>. ${consequence}</p>
+<strong>${esc(p.deadline)}</strong>.</p>
+<p>${consequence}</p>
 <p>To complete your part, use the link in your invitation email.</p>`,
   }
 }
 
+/** N5 to a lead whose own part is complete while another party's final 24 hours run (HELD — new copy). A count, no
+ *  names and no date: each party runs on its own clock, so no one date is true of all of them. */
+export function finalNoticeOthersCopy(p: { firstName: string; propertyLabel: string; completed: number; total: number }) {
+  return {
+    subject: `Final day for the other parties — ${p.propertyLabel}`,
+    html: `
+<p>Hi ${esc(p.firstName)},</p>
+<p>Another party to the application for <strong>${esc(p.propertyLabel)}</strong> has less than 24 hours left to complete
+their part. ${p.completed} of ${p.total} parties have completed so far.</p>
+<p>A party who does not complete their part by their deadline is not included: the application will be assessed without
+that party's screening information.</p>`,
+  }
+}
+
+/** N6 (copy APPROVED). Names only the completed parties; the count discloses no name (counsel Q3). The link is passed
+ *  only where the recipient may have it (14X §2: group paragraph shown, policy live) — otherwise the copy stands alone. */
+export function outcomeCopy(p: {
+  firstName: string; propertyLabel: string; completedNames: string[]; completed: number; total: number; link: string | null
+}) {
+  const link = p.link ? `\n<p><a href="${esc(p.link)}">View the assessment →</a></p>` : ""
+  return {
+    subject: `The assessment for your application is ready — ${p.propertyLabel}`,
+    html: `
+<p>Hi ${esc(p.firstName)},</p>
+<p>The assessment for <strong>${esc(p.propertyLabel)}</strong> has been generated based on the parts that were completed:
+${esc(nameList(p.completedNames))}.</p>
+<p>Assessed with ${p.completed} of ${p.total} parties.</p>${link}
+<p>${esc(ASSESSMENT_CLOSING_SENTENCE)}</p>`,
+  }
+}
+
+/** N6′ (APPROVED). The co-party consequence is counsel's, verbatim; "will be" because at D the run has not happened. */
 export function outcomeAbsentCopy(p: { firstName: string; propertyLabel: string; lead: boolean }) {
   const consequence = p.lead
     ? "Without your part, the application could not be assessed."
-    : "The application will be assessed without you."
+    : "The application will be assessed without your screening information."
   return {
     subject: `The deadline for your part has passed — ${p.propertyLabel}`,
     html: `
@@ -200,6 +238,7 @@ export async function notifyProgress(db: SupabaseClient, p: { orgId: string; app
   if (!completer) return
   const outstanding = roster.parties.filter((x) => !x.complete && !same(x.subject, p.completed))
   if (outstanding.length === 0) return
+  const completed = roster.parties.filter((x) => x.complete || same(x.subject, p.completed)).length
 
   const recipients = roster.parties.filter((x) =>
     !same(x.subject, p.completed) && !!x.email && (x.isLead || (!x.complete && !!x.invitedAt)))
@@ -211,7 +250,7 @@ export async function notifyProgress(db: SupabaseClient, p: { orgId: string; app
         to: { email: r.email as string, name: r.firstName },
         copy: progressCopy({
           firstName: r.firstName, completedName: completer.name, propertyLabel: roster.propertyLabel,
-          outstanding: outstanding.map((x) => x.name),
+          completed, total: roster.parties.length,
         }),
         triggerEventType: "screening:party_completed",
       })
@@ -224,6 +263,34 @@ export async function notifyProgress(db: SupabaseClient, p: { orgId: string; app
       Sentry.captureException(err, { tags: { milestone: "N3" }, extra: { application_id: p.applicationId } })
     }
   }
+}
+
+/**
+ * The lead's N5 when the lead's own part is complete (14X §2: N5 goes to "each party not yet complete, and the lead").
+ * Due while any other live party is inside its own final 24 hours; the caller sends it once (the lead's N5 trail row).
+ * Returns null when it is not due — a lead with its own part outstanding gets its own N5 from its own clock instead.
+ */
+export async function leadFinalNoticeForOthers(db: SupabaseClient, p: {
+  orgId: string; applicationId: string; now?: Date
+}): Promise<{ outcome: NoticeOutcome; error?: string } | null> {
+  const now = p.now ?? new Date()
+  const roster = await readRoster(db, p.orgId, p.applicationId)
+  if (!roster) return null
+  const lead = roster.parties.find((x) => x.isLead)
+  if (!lead?.email || !lead.complete) return null
+  const inFinalDay = roster.parties.some((x) =>
+    !x.isLead && !x.complete && !!x.invitedAt && now >= finalNoticeAt(x.invitedAt) && !isPastDeadline(x.invitedAt, now))
+  if (!inFinalDay) return null
+  return sendMilestoneNotice(db, {
+    orgId: p.orgId, applicationId: p.applicationId, subject: lead.subject, milestone: "N5", templateKey: FINAL_NOTICE_OTHERS_KEY,
+    deadlineAsStated: lead.invitedAt ? deadlineAsStated(lead.invitedAt) : null,
+    to: { email: lead.email, name: lead.firstName },
+    copy: finalNoticeOthersCopy({
+      firstName: lead.firstName, propertyLabel: roster.propertyLabel,
+      completed: roster.parties.filter((x) => x.complete).length, total: roster.parties.length,
+    }),
+    triggerEventType: "cron:screening_portal_reminders",
+  })
 }
 
 /** The deadline as a party reads it in copy: fmtDateLongZA of D (§4 "one date, stated the same way everywhere"). */

@@ -50,6 +50,12 @@ let leadLine: Record<string, unknown> | null = null
 let liveToken: Record<string, unknown> | null = { token: "lead-tok" }
 // 14X N6′: the leads whose own D has passed (the scan bounded by .lte), and every held gap the cron recorded.
 let lapsedLeads: unknown[] = []
+// 14X N5 to a lead whose own part is complete: the paid-lead scan (.in on stage2_status) and the lib decision's answer.
+let chaserLeads: unknown[] = []
+let chaserResult: { outcome: string; error?: string } | null = null
+const leadFinalNoticeForOthers = vi.fn(async () => chaserResult)
+// Counsel released N5/N6′ on 2026-10-05; a test re-holds a key here to keep the held path (gap, F2) pinned.
+const heldKeys = new Set<string>()
 const gapRows: Array<Record<string, unknown>> = []
 let trailThrows = false
 // Every filter the cron applied, so a scan's bounds are asserted rather than ignored by the stand-in (walker 14x F6).
@@ -84,14 +90,23 @@ vi.mock("@/lib/applications/peerCompletion", () => ({ maybeFireAllGreen: (...a: 
 vi.mock("@/lib/screening/lineFee", () => ({ readLine: async () => ({ ok: true, row: { id: "line-1", paid_at: freshPaidAt } }) }))
 vi.mock("@/lib/screening/maybeRunOrchestrator",() => ({ maybeRunOrchestrator: (...a: unknown[]) => maybeRunOrchestrator(...a) }))
 vi.mock("@/lib/audit/recordAudit", () => ({ recordAudit: vi.fn() }))
+vi.mock("@/lib/comms/template-registry", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/comms/template-registry")>()
+  return { ...real, heldFor: (key: string) => (heldKeys.has(key) ? "test hold" : real.heldFor(key)) }
+})
+vi.mock("@/lib/screening/milestoneNotices", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/screening/milestoneNotices")>()),
+  leadFinalNoticeForOthers: (...a: unknown[]) => leadFinalNoticeForOthers(...(a as [])),
+}))
 vi.mock("@/lib/routing/absoluteUrl", () => ({ absoluteUrl: (p: string) => `https://app.test${p}` }))
 
 // `leadsQuery`: the cron's lead scan is the only applications read that calls .not(); `one`: a single-row read.
-function rowsFor(table: string, leadsQuery: boolean, one: boolean, lapsedQuery = false): unknown {
+function rowsFor(table: string, leadsQuery: boolean, one: boolean, lapsedQuery = false, chaserQuery = false): unknown {
   if (table === "v_application_screening_lines") return one ? leadLine : [line]
   if (table === "application_co_applicants") return coApp
   if (table === "application_tokens") return liveToken
   if (table === "applications" && lapsedQuery) return lapsedLeads
+  if (table === "applications" && chaserQuery) return chaserLeads
   if (table === "applications") return leadsQuery ? leads : { first_name: "Primary", last_name: "Contact", applicant_email: "p@test", listings: null,
     entity_type: "organisation", applicant_type: null, company_info: { companyType } }
   return null
@@ -102,9 +117,15 @@ function rowsFor(table: string, leadsQuery: boolean, one: boolean, lapsedQuery =
 function builder(table: string) {
   let leadsQuery = false
   let lapsedQuery = false
-  const result = (one: boolean) => () => Promise.resolve({ data: rowsFor(table, leadsQuery, one, lapsedQuery), error: null })
+  let chaserQuery = false
+  const result = (one: boolean) => () => Promise.resolve({ data: rowsFor(table, leadsQuery, one, lapsedQuery, chaserQuery), error: null })
   const b: Record<string, unknown> = {}
-  for (const m of ["select", "eq", "in", "is", "limit", "gt", "order"]) b[m] = (...args: unknown[]) => { calls.push({ table, m, args }); return b }
+  for (const m of ["select", "eq", "is", "limit", "gt", "order"]) b[m] = (...args: unknown[]) => { calls.push({ table, m, args }); return b }
+  b.in = (...args: unknown[]) => {
+    if (table === "applications" && args[0] === "stage2_status") chaserQuery = true
+    calls.push({ table, m: "in", args })
+    return b
+  }
   b.not = (...args: unknown[]) => { leadsQuery = true; calls.push({ table, m: "not", args }); return b }
   b.lte = (...args: unknown[]) => { lapsedQuery = true; calls.push({ table, m: "lte", args }); return b }
   b.single = result(true)
@@ -151,6 +172,10 @@ beforeEach(() => {
   leadLine = null
   liveToken = { token: "lead-tok" }
   lapsedLeads = []
+  chaserLeads = []
+  chaserResult = null
+  heldKeys.clear()
+  leadFinalNoticeForOthers.mockClear()
   gapRows.length = 0
   trailThrows = false
   sendShortlistInvitation.mockClear()
@@ -187,11 +212,12 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(sendCoApplicantInvited).toHaveBeenCalledTimes(1)
   })
 
-  it("a residential co-applicant 14 days past its stage-2 invite is declined, with no email and no refund flag (R6)", async () => {
+  it("a residential co-applicant 14 days past its stage-2 invite is declined, told only its N6′, no refund flag (R6)", async () => {
     line = { ...baseLine, party_kind: "co_applicant" }
     coApp = { ...baseCo, created_at: daysAgo(20), stage2_invited_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
-    expect(sendEmail).not.toHaveBeenCalled()
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: "application.screening_outcome_absent" }))
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
     expect(updates.map((u) => u.table)).toEqual(["application_co_applicants"])
     expect(updates[0].patch).toMatchObject({ decline_reason: "expired_no_completion" })
@@ -382,11 +408,11 @@ describe("the residential clock runs from the stage-2 invite, never created_at (
     expect(updates).toEqual([])
   })
 
-  it("KNOWN-GOOD: invited 13 days ago is still inside the window — not declined (its N5 is due, and held)", async () => {
+  it("KNOWN-GOOD: invited 13 days ago is still inside the window — not declined (its N5 is due, and sent)", async () => {
     line = { ...baseLine, party_kind: "co_applicant" }
     coApp = { ...baseCo, stage2_invited_at: daysAgo(13), role: "co_applicant", is_surety_director: false }
     sentOk = new Set(["N2", "N4"])
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
     expect(updates).toEqual([])
   })
 })
@@ -530,7 +556,7 @@ describe("14X §7 row 32: the lead is reminded at N2/N4 on its live shortlist to
   })
 })
 
-describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counsel approves it (the trail records the gap)", () => {
+describe("14X P4: N5 at D − 24h and N6′ at D — counsel-approved 2026-10-05; a held key records the gap instead", () => {
   const FINAL = "application.screening_final_notice"
   const ABSENT = "application.screening_outcome_absent"
   const lead = (over: Record<string, unknown> = {}) => ({
@@ -538,7 +564,22 @@ describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counse
     stage2_invited_at: daysAgo(13.5), ...over,
   })
 
-  it("PLANTED: a co party inside its last 24 hours gets NO email — one N5 gap, at its own deadline", async () => {
+  it("a co party inside its last 24 hours gets N5 — counsel's sentence, trailed at its own deadline", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
+    sentOk = new Set(["N2", "N4"])
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      templateKey: FINAL, contentHtml: expect.stringContaining("the application will be assessed without your screening information."),
+    }))
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+    expect(trailRows).toEqual([expect.objectContaining({ milestone: "N5", templateKey: FINAL })])
+    expect(trailRows[0].deadlineAsStated).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(gapRows).toEqual([])
+  })
+
+  it("PLANTED: while N5 is HELD, the party gets NO email — one N5 gap, at its own deadline", async () => {
+    heldKeys.add(FINAL)
     line = { ...baseLine, party_kind: "co_applicant" }
     coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
     sentOk = new Set(["N2", "N4"])
@@ -555,17 +596,17 @@ describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counse
     line = { ...baseLine, party_kind: "co_applicant", state: "consented_pending_payment" }
     coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
     sentOk = new Set(["N2", "N4"])
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
-    expect(gapRows.map((g) => g.milestone)).toEqual(["N5"])
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(trailRows.map((g) => g.milestone)).toEqual(["N5"])
   })
 
   it("a surety's N5 is the same notice (no director copy exists for it)", async () => {
     line = { ...baseLine, party_kind: "surety" }
     coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "guarantor", is_surety_director: true }
     sentOk = new Set(["N2", "N4"])
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
-    expect(sendEmail).not.toHaveBeenCalled()
-    expect(gapRows.map((g) => g.templateKey)).toEqual([FINAL])
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: FINAL }))
   })
 
   it("KNOWN-GOOD twin: N5 already on the trail → nothing more before D", async () => {
@@ -576,12 +617,24 @@ describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counse
     expect(gapRows).toEqual([])
   })
 
-  it("a co_applicant declined at D gets its N6′ — held, so a gap and no email; the decline stands", async () => {
+  it("a co_applicant declined at D gets its N6′ — counsel's sentence, no link; the decline stands", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      templateKey: ABSENT, contentHtml: expect.stringContaining("The application will be assessed without your screening information."),
+    }))
+    expect(sendEmail).not.toHaveBeenCalledWith(expect.objectContaining({ contentHtml: expect.stringMatching(/href/) }))
+    expect(updates[0].patch).toMatchObject({ decline_reason: "expired_no_completion" })
+    expect(trailRows).toEqual([expect.objectContaining({ milestone: "N6_absent", templateKey: ABSENT })])
+  })
+
+  it("while N6′ is HELD, a declined co party gets a gap and no email; the decline stands", async () => {
+    heldKeys.add(ABSENT)
     line = { ...baseLine, party_kind: "co_applicant" }
     coApp = { ...baseCo, stage2_invited_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
     expect(sendEmail).not.toHaveBeenCalled()
-    expect(updates[0].patch).toMatchObject({ decline_reason: "expired_no_completion" })
     expect(gapRows).toEqual([expect.objectContaining({ milestone: "N6_absent", templateKey: ABSENT })])
   })
 
@@ -594,6 +647,7 @@ describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counse
   })
 
   it("PLANTED (walker 14x-p4 F2): while N5 is held, an N4 still owed in the last 24h is SENT — the gap is recorded too", async () => {
+    heldKeys.add(FINAL)
     line = { ...baseLine, party_kind: "co_applicant" }
     coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
     sentOk = new Set(["N2"])
@@ -622,15 +676,44 @@ describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counse
     expect(gapRows).toEqual([])
   })
 
-  it("the lead in its last 24 hours: N5 held, as the lead's own subject", async () => {
+  it("the lead in its last 24 hours: N5 sent as the lead's own subject, in the lead's variant", async () => {
     line = { ...baseLine, party_kind: null }
     coApp = { ...baseCo, role: "co_applicant", is_surety_director: false }
     leads = [lead()]
     leadLine = { state: "consented_pending_payment" }
     sentOk = new Set(["N2", "N4"])
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
     expect(sendShortlistInvitation).not.toHaveBeenCalled()
-    expect(gapRows).toEqual([expect.objectContaining({ subject: { subjectType: "applicant", subjectId: "app-L" }, milestone: "N5" })])
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      templateKey: FINAL, to: expect.objectContaining({ email: "lee@test" }),
+      contentHtml: expect.stringContaining("the application cannot be assessed."),
+    }))
+    expect(trailRows).toEqual([expect.objectContaining({ subject: { subjectType: "applicant", subjectId: "app-L" }, milestone: "N5" })])
+  })
+
+  it("a lead whose own part is complete: the chaser N5 from its own scan, held → counted as held", async () => {
+    chaserLeads = [lead()]
+    chaserResult = { outcome: "held" }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(calls).toContainEqual({ table: "applications", m: "in", args: ["stage2_status", ["screening_in_progress", "screening_complete"]] })
+    expect(leadFinalNoticeForOthers).toHaveBeenCalledWith(expect.anything(), { orgId: "org-1", applicationId: "app-L" })
+  })
+
+  it("KNOWN-GOOD twins: the chaser is skipped once the lead's N5 is on the trail, and nothing counts when none is due", async () => {
+    chaserLeads = [lead()]
+    chaserResult = { outcome: "sent" }
+    sentOk = new Set(["N5"])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(leadFinalNoticeForOthers).not.toHaveBeenCalled()
+    sentOk = new Set()
+    chaserResult = null
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+  })
+
+  it("a failed chaser is reported and the run still answers ok", async () => {
+    chaserLeads = [lead()]
+    chaserResult = { outcome: "failed", error: "provider down" }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
   })
 
   it("PLANTED: the lapsed-lead scan is bounded — past its own D, within the grace, shortlisted and live", async () => {
@@ -648,12 +731,15 @@ describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counse
     expect(calls).toContainEqual({ table: "applications", m: "order", args: ["stage2_invited_at", { ascending: false }] })
   })
 
-  it("a lead past its D with its part incomplete gets N6′ — held, the gap recorded as the lead", async () => {
+  it("a lead past its D with its part incomplete gets N6′ in the lead's variant, trailed as the lead", async () => {
     line = { ...baseLine, party_kind: null }
     lapsedLeads = [lead({ stage2_invited_at: daysAgo(15) })]
     leadLine = { state: "pending_both" }
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
-    expect(gapRows).toEqual([expect.objectContaining({
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      templateKey: ABSENT, contentHtml: expect.stringContaining("Without your part, the application could not be assessed."),
+    }))
+    expect(trailRows).toEqual([expect.objectContaining({
       subject: { subjectType: "applicant", subjectId: "app-L" }, milestone: "N6_absent", templateKey: ABSENT,
     })])
     expect(updates).toEqual([])

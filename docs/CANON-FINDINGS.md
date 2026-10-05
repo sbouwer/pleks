@@ -632,6 +632,28 @@ package.json. An adopter whose root has no `"type"` field, as pleks does, runs t
 node's ESM syntax detection, which is on by default only from 22.7. So the probe never exercises the
 registered shape. pleks's other hooks already carry the same exposure, and `.nvmrc` pins 22.
 
+### CF-20 · `check-handoff-contract` v8 drops a cross-task input that shares the artefact's own filename
+
+```
+OBSERVED   A grounder at `.handoff/14x-p4b/01-grounder.md` that consumed the previous task's
+           `.handoff/14x-p4/01-grounder.md` fails "`## Inputs` names no artefact and does not say
+           `none`", although its Inputs section names that artefact in full.
+COMMAND    (pleks, 2026-10-05, feat/screening-14x-p4b) node scripts/check-handoff-contract.mjs
+             ❌ handoff-contract: 1 finding(s) across 68 artefact(s)
+                .handoff/14x-p4b/01-grounder.md: `## Inputs` names no artefact and does not say `none` …
+           Cause, as read at kit v8 `check-handoff-contract.mjs:610-613`: `inputsOf(section).filter((i) =>
+           i.file !== self)` removes self-references by BASENAME only, discarding the parsed `slug`, so
+           every `NN-agent.md` input from another task directory with the same NN-agent is dropped.
+WHY IT IS  Every pipeline whose step 1 is the same agent as the previous task's step 1 hits it: grounder
+CANON'S    after grounder is the normal shape of a phased build. Nothing in it is stack-specific. The
+           workaround (state "none" for this task's directory) is honest, but it teaches adopters to
+           type the word the regex wants.
+SMALLEST   Treat an input as self only when its slug is null or equals the artefact's own directory:
+FIX        `.filter((i) => !(i.file === self && (i.slug === null || i.slug === ownSlug)))`. Must not
+           break: a bare same-name self-mention still filtered; a cross-slug input then flows to the
+           existing "input in another task directory" handling, which decides whether that is allowed.
+```
+
 ## 2 · Lesson answers
 
 From `node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks`. Read the entry from its

@@ -1,12 +1,12 @@
 /**
- * lib/screening/__tests__/milestoneNotices.test.ts — 14X N3/N5/N6′: held copy records the gap once and sends nothing
+ * lib/screening/__tests__/milestoneNotices.test.ts — 14X N3/N5/N6/N6′: held copy records a gap; released copy is counsel's
  *
- * Notes:  ADDENDUM_14X §4/§5, probed both directions. HELD (the live state until counsel's rows read ready): no email
- *         leaves, and the trail gets ONE gap row per party per milestone however many runs see it due. RELEASED (the
- *         registry hold lifted, simulated): the email is sent and trailed. N3: the completer is never told about
- *         themselves, a declined party is neither told nor listed, the lead is always told, and nobody outstanding
- *         fires nothing. N6′ never carries a link (§5) and names nobody; the lead's variants never promise an
- *         assessment the lead's absence prevents. Every applicant-typed name is escaped.
+ * Notes:  ADDENDUM_14X §4/§5, probed both directions. HELD (N3 and the lead's chaser N5, until counsel's rows read ready):
+ *         no email leaves, and the trail gets ONE gap row per party per milestone however many runs see it due.
+ *         RELEASED (N5/N6/N6′ since counsel 2026-10-05; N3 simulated): the email is sent and trailed. N3 counts the
+ *         others and never names who is outstanding (counsel Q1); the completer is never told about themselves; a
+ *         declined or lapsed party is neither told nor counted. N6′ never carries a link (§5) and names nobody; N6 names
+ *         only the completed and closes on the one approved sentence. Every applicant-typed name is escaped.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -23,10 +23,12 @@ vi.mock("@/lib/comms/template-registry", async (importOriginal) => {
 vi.mock("@sentry/nextjs", () => ({ captureException: () => undefined, captureMessage: () => undefined }))
 
 import {
-  FINAL_NOTICE_KEY, OUTCOME_ABSENT_KEY, PROGRESS_KEY, finalNoticeCopy, notifyProgress, outcomeAbsentCopy, progressCopy,
+  FINAL_NOTICE_KEY, FINAL_NOTICE_OTHERS_KEY, OUTCOME_ABSENT_KEY, OUTCOME_KEY, PROGRESS_KEY, finalNoticeCopy,
+  finalNoticeOthersCopy, leadFinalNoticeForOthers, notifyProgress, outcomeAbsentCopy, outcomeCopy, progressCopy,
   sendMilestoneNotice,
 } from "../milestoneNotices"
 import { heldFor } from "@/lib/comms/template-registry"
+import { ASSESSMENT_CLOSING_SENTENCE } from "../assessmentWording"
 
 type Row = Record<string, unknown>
 const DAY_MS = 86_400_000
@@ -87,39 +89,39 @@ const co = (id: string, over: Row = {}): Row => ({
   searchworx_check_status: "pending", declined_at: null, ...over,
 })
 
-const n5 = (db: SupabaseClient) => sendMilestoneNotice(db, {
-  orgId: "org-A", applicationId: "app-1", subject: { subjectType: "co_applicant", subjectId: "co-1" }, milestone: "N5",
-  templateKey: FINAL_NOTICE_KEY, deadlineAsStated: "2026-10-15", to: { email: "co-1@example.test", name: "C" },
+const n3 = (db: SupabaseClient) => sendMilestoneNotice(db, {
+  orgId: "org-A", applicationId: "app-1", subject: { subjectType: "co_applicant", subjectId: "co-1" }, milestone: "N3",
+  templateKey: PROGRESS_KEY, deadlineAsStated: "2026-10-15", to: { email: "co-1@example.test", name: "C" },
   copy: { subject: "s", html: "h" }, triggerEventType: "test",
 })
 
 beforeEach(() => { sent.length = 0; released = false })
 
-describe("the copy is held until counsel approves it", () => {
-  it("every new 14X template is registered AND held", () => {
-    for (const key of [PROGRESS_KEY, FINAL_NOTICE_KEY, OUTCOME_ABSENT_KEY, "application.screening_outcome"]) {
-      expect(heldFor(key)).toMatch(/COUNSEL_DRAFT_14X/)
-    }
+describe("counsel 2026-10-05: what is held and what is released", () => {
+  it("N3 and the lead's chaser N5 are held; N5, N6 and N6′ are released", () => {
+    expect(heldFor(PROGRESS_KEY)).toMatch(/COUNSEL_DRAFT_14X/)
+    expect(heldFor(FINAL_NOTICE_OTHERS_KEY)).toMatch(/COUNSEL_DRAFT_14X/)
+    for (const key of [FINAL_NOTICE_KEY, OUTCOME_KEY, OUTCOME_ABSENT_KEY]) expect(heldFor(key)).toBeNull()
   })
 
   it("PLANTED: a held milestone sends nothing and records ONE gap row, however many runs see it due", async () => {
     const { db, trail } = fakeDb()
-    expect(await n5(db)).toEqual({ outcome: "held" })
-    expect(await n5(db)).toEqual({ outcome: "held" })
+    expect(await n3(db)).toEqual({ outcome: "held" })
+    expect(await n3(db)).toEqual({ outcome: "held" })
     expect(sent).toEqual([])
     expect(trail).toHaveLength(1)
     expect(trail[0]).toMatchObject({
-      milestone: "N5", template_key: FINAL_NOTICE_KEY, send_ok: false, communication_log_id: null, deadline_as_stated: "2026-10-15",
+      milestone: "N3", template_key: PROGRESS_KEY, send_ok: false, communication_log_id: null, deadline_as_stated: "2026-10-15",
     })
   })
 
   it("KNOWN-GOOD: released, the notice is sent and its attempt trailed with the delivery row", async () => {
     released = true
     const { db, trail } = fakeDb()
-    expect(await n5(db)).toEqual({ outcome: "sent" })
+    expect(await n3(db)).toEqual({ outcome: "sent" })
     expect(sent).toHaveLength(1)
-    expect(sent[0]).toMatchObject({ templateKey: FINAL_NOTICE_KEY, entityType: "application_co_applicant", entityId: "co-1" })
-    expect(trail).toEqual([expect.objectContaining({ milestone: "N5", send_ok: true, communication_log_id: "log-1" })])
+    expect(sent[0]).toMatchObject({ templateKey: PROGRESS_KEY, entityType: "application_co_applicant", entityId: "co-1" })
+    expect(trail).toEqual([expect.objectContaining({ milestone: "N3", send_ok: true, communication_log_id: "log-1" })])
   })
 })
 
@@ -134,31 +136,42 @@ describe("N3 — on a completion", () => {
     expect(recipients()).toEqual(["co-2@example.test", "lead@example.test"])
     for (const s of sent) {
       expect(s.contentHtml).toContain("CO-1 Co has completed their part")
-      expect(s.contentHtml).toContain("We are waiting on: Lead Party and CO-2 Co.")
+      expect(s.contentHtml).toContain("1 of 3 parties have now completed.")
       expect(s.contentHtml).not.toContain("CO-3")
     }
   })
 
-  it("an already-complete co party is listed nowhere and told nothing; the lead is still told", async () => {
+  it("PLANTED (counsel Q1): N3 never names a party who has not completed — it counts them", async () => {
+    const { db } = fakeDb({}, [co("co-1"), co("co-2")])
+    await notifyProgress(db, { orgId: "org-A", applicationId: "app-1", completed: { subjectType: "co_applicant", subjectId: "co-1" } })
+    expect(sent.length).toBeGreaterThan(0)
+    for (const s of sent) {
+      // The greeting is the recipient's own name; everything after it may name only the completer.
+      const body = String(s.contentHtml).replace(/^\s*<p>Hi [^<]*<\/p>/, "")
+      expect(body).not.toMatch(/CO-2|Lead|waiting on/i)
+      expect(body).not.toMatch(/failed|refused|not consented|not paid/i)
+    }
+  })
+
+  it("an already-complete co party is counted and told nothing; the lead is still told", async () => {
     const { db } = fakeDb({}, [co("co-1"), co("co-2", { searchworx_check_status: "complete" })])
     await notifyProgress(db, { orgId: "org-A", applicationId: "app-1", completed: { subjectType: "co_applicant", subjectId: "co-1" } })
     expect(recipients()).toEqual(["lead@example.test"])
-    expect(sent[0].contentHtml).toContain("We are waiting on: Lead Party.")
+    expect(sent[0].contentHtml).toContain("2 of 3 parties have now completed.")
   })
 
-  it("an uninvited co party is waited on but not told (it has no link to act on)", async () => {
+  it("an uninvited co party is outstanding but not told (it has no link to act on)", async () => {
     const { db } = fakeDb({ searchworx_check_status: "complete" }, [co("co-1"), co("co-2", { stage2_invited_at: null })])
     await notifyProgress(db, { orgId: "org-A", applicationId: "app-1", completed: { subjectType: "co_applicant", subjectId: "co-1" } })
     expect(recipients()).toEqual(["lead@example.test"])
-    expect(sent[0].contentHtml).toContain("We are waiting on: CO-2 Co.")
+    expect(sent[0].contentHtml).toContain("2 of 3 parties have now completed.")
   })
 
-  it("PLANTED (walker 14x-p4 F3): a party past its own D, unpaid and not yet declined, is neither named nor told", async () => {
+  it("PLANTED (walker 14x-p4 F3): a party past its own D, unpaid and not yet declined, is neither counted nor told", async () => {
     const { db } = fakeDb({ stage2_invited_at: LAPSED }, [co("co-1"), co("co-2", { stage2_invited_at: LAPSED }), co("co-3")])
     await notifyProgress(db, { orgId: "org-A", applicationId: "app-1", completed: { subjectType: "co_applicant", subjectId: "co-1" } })
     expect(recipients()).toEqual(["co-3@example.test"])
-    expect(sent[0].contentHtml).toContain("We are waiting on: CO-3 Co.")
-    expect(sent[0].contentHtml).not.toMatch(/CO-2|Lead Party/)
+    expect(sent[0].contentHtml).toContain("1 of 2 parties have now completed.")
   })
 
   it("KNOWN-GOOD twin: a COMPLETE lead invited long ago is still told — only an incomplete party lapses", async () => {
@@ -174,7 +187,7 @@ describe("N3 — on a completion", () => {
     )
     await notifyProgress(db, { orgId: "org-A", applicationId: "app-1", completed: { subjectType: "co_applicant", subjectId: "co-1" } })
     expect(recipients()).toEqual(["lead@example.test"])
-    expect(sent[0].contentHtml).toContain("We are waiting on: Lead Party.")
+    expect(sent[0].contentHtml).toContain("1 of 2 parties have now completed.")
   })
 
   it("twin: the same lead past its D UNPAID has lapsed — only the co party paid", async () => {
@@ -206,10 +219,35 @@ describe("N3 — on a completion", () => {
 
 describe("copy", () => {
   it("escapes applicant-typed names", () => {
-    const { html } = progressCopy({ firstName: "<b>", completedName: "A & B", outstanding: ["<script>x</script>"], propertyLabel: "P" })
+    const { html } = progressCopy({ firstName: "<b>", completedName: "A & B", completed: 1, total: 2, propertyLabel: "<script>x</script>" })
     expect(html).not.toContain("<script>")
     expect(html).toContain("A &amp; B")
     expect(html).toContain("&lt;b&gt;")
+    const n6 = outcomeCopy({ firstName: "F", propertyLabel: "P", completedNames: ["<i>x</i>"], completed: 1, total: 2, link: null })
+    expect(n6.html).not.toContain("<i>")
+  })
+
+  it("N5 carries counsel's consequence sentence verbatim; the lead's says the application cannot be assessed", () => {
+    expect(finalNoticeCopy({ firstName: "C", deadline: "15 October 2026", propertyLabel: "P", lead: false }).html).toContain(
+      "If you do not complete your part by 15 October 2026, the application will be assessed without your screening information.")
+    expect(finalNoticeCopy({ firstName: "L", deadline: "15 October 2026", propertyLabel: "P", lead: true }).html).toContain(
+      "If you do not complete your part by 15 October 2026, the application cannot be assessed.")
+  })
+
+  it("N6 names only the completed, states the count, and closes on THE approved sentence; the link only when given", () => {
+    const base = { firstName: "F", propertyLabel: "P", completedNames: ["Ann A", "Bo B"], completed: 2, total: 3 }
+    const off = outcomeCopy({ ...base, link: null }).html
+    expect(off).toContain("based on the parts that were completed:\nAnn A and Bo B.")
+    expect(off).toContain("Assessed with 2 of 3 parties.")
+    expect(off).toContain(ASSESSMENT_CLOSING_SENTENCE.replace("'", "&#39;"))
+    expect(off).not.toMatch(/href/)
+    expect(outcomeCopy({ ...base, link: "https://app.test/r/x" }).html).toContain('href="https://app.test/r/x"')
+  })
+
+  it("the lead's chaser N5 names nobody and states no date", () => {
+    const { html } = finalNoticeOthersCopy({ firstName: "L", propertyLabel: "P", completed: 2, total: 3 })
+    expect(html).toContain("2 of 3 parties have completed so far.")
+    expect(html).not.toMatch(/\d{1,2} [A-Z][a-z]+ \d{4}/)
   })
 
   it("N6′ never carries a link and names nobody but the recipient", () => {
@@ -225,6 +263,40 @@ describe("copy", () => {
       .not.toMatch(/assessed without you/)
     expect(outcomeAbsentCopy({ firstName: "L", propertyLabel: "P", lead: true }).html).not.toMatch(/assessed without you/)
     expect(finalNoticeCopy({ firstName: "C", deadline: "15 October 2026", propertyLabel: "P", lead: false }).html)
-      .toMatch(/assessed without you/)
+      .toMatch(/assessed without your screening information/)
+  })
+})
+
+describe("N5 to a lead whose own part is complete (14X §2) — held new copy", () => {
+  const NOW = new Date()
+  const finalDay = new Date(NOW.getTime() - 13.5 * DAY_MS).toISOString()
+
+  it("due while another party is in its final 24 hours: held, the gap recorded once as the lead's N5", async () => {
+    const { db, trail } = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: finalDay }, [co("co-1", { stage2_invited_at: finalDay })])
+    expect(await leadFinalNoticeForOthers(db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toEqual({ outcome: "held" })
+    expect(sent).toEqual([])
+    expect(trail).toEqual([expect.objectContaining({ milestone: "N5", template_key: FINAL_NOTICE_OTHERS_KEY, subject_type: "applicant" })])
+  })
+
+  it("released (simulated): the lead is sent the count, no names", async () => {
+    released = true
+    const { db } = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: finalDay }, [co("co-1", { stage2_invited_at: finalDay })])
+    expect(await leadFinalNoticeForOthers(db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toEqual({ outcome: "sent" })
+    expect(sent[0]).toMatchObject({ templateKey: FINAL_NOTICE_OTHERS_KEY, to: { email: "lead@example.test", name: "Lead" } })
+    expect(sent[0].contentHtml).toContain("1 of 2 parties have completed so far.")
+    expect(sent[0].contentHtml).not.toContain("CO-1")
+  })
+
+  it("KNOWN-GOOD twins: not due when the lead's own part is open, when no other party is in its final day, or for another org", async () => {
+    const early = new Date(NOW.getTime() - 5 * DAY_MS).toISOString()
+    const open = fakeDb({ stage2_invited_at: finalDay }, [co("co-1", { stage2_invited_at: finalDay })])
+    expect(await leadFinalNoticeForOthers(open.db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toBeNull()
+    const notYet = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: early }, [co("co-1", { stage2_invited_at: early })])
+    expect(await leadFinalNoticeForOthers(notYet.db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toBeNull()
+    const allDone = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: finalDay }, [co("co-1", { stage2_invited_at: finalDay, searchworx_check_status: "complete" })])
+    expect(await leadFinalNoticeForOthers(allDone.db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toBeNull()
+    const other = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: finalDay }, [co("co-1", { stage2_invited_at: finalDay })])
+    expect(await leadFinalNoticeForOthers(other.db, { orgId: "org-B", applicationId: "app-1", now: NOW })).toBeNull()
+    expect(sent).toEqual([])
   })
 })

@@ -68,15 +68,18 @@ describe("application email template keys are all in TEMPLATE_REGISTRY (14X P4, 
 })
 
 describe("a held template is registered but never sent", () => {
-  it("the 14X new-copy keys are held; the approved invite is not", () => {
-    expect(heldFor("application.screening_final_notice")).toMatch(/COUNSEL_DRAFT_14X/)
-    expect(heldFor("application.co_applicant_invited")).toBeNull()
+  it("counsel 2026-10-05: N3 and the lead's chaser N5 stay held; N5, N6 and N6′ are released; the invite never was held", () => {
+    expect(heldFor("application.screening_progress")).toMatch(/COUNSEL_DRAFT_14X.*row 1/)
+    expect(heldFor("application.screening_final_notice_others")).toMatch(/COUNSEL_DRAFT_14X.*row 2b/)
+    for (const key of ["application.screening_final_notice", "application.screening_outcome", "application.screening_outcome_absent", "application.co_applicant_invited"]) {
+      expect(heldFor(key)).toBeNull()
+    }
   })
 
   it("sendEmail refuses a held key before anything else runs — no preference read, no provider, no log row", async () => {
     const { sendEmail } = await import("../send-email")
     const out = await sendEmail({
-      orgId: "org-A", templateKey: "application.screening_final_notice", to: { email: "x@example.test", name: "X" },
+      orgId: "org-A", templateKey: "application.screening_progress", to: { email: "x@example.test", name: "X" },
       subject: "s", contentHtml: "<p>h</p>",
     })
     expect(out).toEqual({ success: false, error: expect.stringMatching(/^Held: COUNSEL_DRAFT_14X/) })

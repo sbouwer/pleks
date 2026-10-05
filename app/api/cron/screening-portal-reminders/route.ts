@@ -46,7 +46,8 @@ import {
 } from "@/lib/screening/notificationSchedule"
 import { leadSubject, milestonesSentOk, recordTrail, type TrailMilestone, type TrailSubject } from "@/lib/screening/notificationTrail"
 import {
-  FINAL_NOTICE_KEY, OUTCOME_ABSENT_KEY, deadlineForCopy, finalNoticeCopy, outcomeAbsentCopy, sendMilestoneNotice,
+  FINAL_NOTICE_KEY, OUTCOME_ABSENT_KEY, deadlineForCopy, finalNoticeCopy, leadFinalNoticeForOthers, outcomeAbsentCopy,
+  sendMilestoneNotice,
 } from "@/lib/screening/milestoneNotices"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
@@ -137,6 +138,11 @@ export async function GET(req: NextRequest) {
     if ("error" in lapsed) return NextResponse.json({ error: lapsed.error }, { status: 500 })
     reminders += lapsed.reminders
     held += lapsed.held
+
+    const chasers = await runLeadChasers(service)
+    if ("error" in chasers) return NextResponse.json({ error: chasers.error }, { status: 500 })
+    reminders += chasers.reminders
+    held += chasers.held
   } catch (err) {
     Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders" } })
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
@@ -179,6 +185,43 @@ async function runLapsedLeads(service: Svc): Promise<{ reminders: number; held: 
       if (result === "held") held++
     } catch (err) {
       Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders" }, extra: { application_id: lead.id } })
+    }
+  }
+  return { reminders, held }
+}
+
+/**
+ * The lead whose own part is complete still gets N5 while another party's final 24 hours run (14X §2: N5 to "each party
+ * not yet complete, and the lead"). Such a lead has left the 'invited' scan above — paying moves stage2_status on — so
+ * it has its own. Bounded like the lapsed scan: a co party's clock starts at or after the lead's, so one window past
+ * the lead's D covers every co party's final day. Once per lead: its N5 trail row (sent, or the held gap) ends it.
+ */
+async function runLeadChasers(service: Svc): Promise<{ reminders: number; held: number } | { error: string }> {
+  const { data: leads, error } = await service
+    .from("applications")
+    .select(LEAD_COLUMNS)
+    .in("stage2_status", ["screening_in_progress", "screening_complete"])
+    .eq("stage1_status", "shortlisted")
+    .is("deleted_at", null)
+    .gt("stage2_invited_at", windowOpenSince(windowOpenSince()).toISOString())
+    .order("stage2_invited_at", { ascending: false })
+    .limit(500)
+  if (error) {
+    console.error("[screening-portal-reminders] lead-chaser query failed:", error.message)
+    return { error: error.message }
+  }
+  let reminders = 0
+  let held = 0
+  for (const lead of (leads ?? []) as LeadApp[]) {
+    try {
+      if ((await milestonesSentOk(service, lead.org_id, lead.id, leadSubject(lead))).has("N5")) continue
+      const result = await leadFinalNoticeForOthers(service, { orgId: lead.org_id, applicationId: lead.id })
+      if (!result) continue
+      if (result.outcome === "failed") throw new Error(`lead N5 (others) not sent: ${result.error}`)
+      if (result.outcome === "held") held++
+      else reminders++
+    } catch (err) {
+      Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders", milestone: "N5" }, extra: { application_id: lead.id } })
     }
   }
   return { reminders, held }
