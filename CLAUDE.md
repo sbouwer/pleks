@@ -92,10 +92,13 @@ can see a write to a sibling checkout, so this is a claim about the world and it
 
 Read it freely: the playbooks, the standards, the kit, `ledgers/LESSONS.md`. Write nothing — not the
 kit, not `tools/`, not a MANIFEST version, not `ledgers/projects.json`, not `kitAdopted`. **One
-`apply-kit --write` is allowed, and only this spelling** (Stéan, 2026-10-05, with canon-inbox's
-adoption): `node ../dev-standards/tools/apply-kit.mjs pleks --carry-only --write`, run from this
-checkout, for a plain kit upgrade — it writes into THIS tree, never canon's. Any other `--write` is
-still forbidden; the dry run remains the way to read the plan.
+`apply-kit --write` is allowed** (Stéan, 2026-10-05, with canon-inbox's adoption), for a plain kit
+upgrade: `apply-kit.mjs pleks --carry-only --write` and **no other flags**, run from this checkout's
+root, whatever path prefix reaches canon's `tools/` (the canon-inbox line prints an absolute one).
+As read at canon `b96db8b`, `--carry-only` refuses a cwd that is not the project root and returns
+before its `ledgers/projects.json` write, so it writes into this tree only. That is canon's code, not
+a pleks control, so re-read `run()` if canon's `tools/apply-kit.mjs` changes. Any other `--write` is
+still forbidden, and the dry run is still the way to read the plan. Prose only: no hook matches `apply-kit`.
 
 **The incident, 2026-09-09.** Two project sessions adopting kit rows fixed real defects *inside
 canon* while the dev-standards session ran its gate. That gate read a `MANIFEST.json` which changed

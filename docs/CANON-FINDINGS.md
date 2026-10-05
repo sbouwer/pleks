@@ -604,6 +604,34 @@ Also from the walk, not regressions (held allows these too), offered as probe ca
   leaving the settings twins as the only floor. `isDestructiveRm`, `isNoVerify` and the seams have
   no twin there. What the harness does on exit 1 was not measured.
 
+### CF-19 · canon-inbox-probe's live case makes a project's commit gate read canon's working tree
+
+```
+OBSERVED   `canon-inbox.probe.mjs` case 7 reads `ledgers/projects.json`, the kit MANIFEST and
+           `tools/inbox.mjs` from the sibling `../dev-standards` WORKING TREE, inside the project's
+           `npm run check`. With no sibling it prints SKIPPED, the probe exits 0 and the banner says
+           "every case holds"; with one, the project's gate verdict depends on canon's uncommitted state.
+COMMAND    (pleks walker, 2026-10-05, PR #346) hook + probe copied to a directory with no canon beside it:
+             ⊘ live: no canon at … — SKIPPED, not passed
+             ✅ canon-inbox: every case holds — one line or silence, and NOT MEASURED wherever it could not look
+             exit 0
+           And on this machine, canon at `ff2314d (uncommitted)` was what the live case measured.
+WHY IT IS  This is the 2026-09-09 "unattributable" incident from the project side. A canon mid-edit that
+CANON'S    breaks `inbox.mjs` fails every adopter's commits, and a green result names no committed
+           state of canon. CLAUDE.md §1's reason for keeping `check-lessons` out of any gate ("a gate
+           that depends on a sibling checkout's path") covers this case too. That holds for any
+           adopter on any stack.
+SMALLEST   Keep the live case, but take it off the gate's exit path. Either gate it behind a flag the
+FIX        gate does not pass (`--live`), or report it advisory-only with the canon SHA it read. Also
+           make the banner say "N cases hold, 1 skipped" rather than "every case holds" when the
+           live case did not run. Must not break: cases 1–6, which need no canon, keep failing the gate.
+```
+
+Also from the walk (F3, not a regression): the probe plants each hook under a `{"type":"module"}`
+package.json. An adopter whose root has no `"type"` field, as pleks does, runs the `.js` hook through
+node's ESM syntax detection, which is on by default only from 22.7. So the probe never exercises the
+registered shape. pleks's other hooks already carry the same exposure, and `.nvmrc` pins 22.
+
 ## 2 · Lesson answers
 
 From `node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks`. Read the entry from its
