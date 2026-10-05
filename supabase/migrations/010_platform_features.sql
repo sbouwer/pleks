@@ -1636,6 +1636,11 @@ BEGIN
     RAISE EXCEPTION 'purge_org_cascade: refusing to purge the platform system org %', p_org_id;
   END IF;
 
+  -- Step 0 (ADDENDUM_14X §3): append-only tables that must still leave with a purged org read this
+  -- TRANSACTION-LOCAL flag (screening_notification_events_immutable in 005). Not organisations.deleted_at: an org
+  -- owner can set that through org_owners_update, and claim_purge_slot commits it before this function runs.
+  PERFORM set_config('pleks.purging_org', p_org_id::text, true);
+
   -- Step 1: Repoint retention-protected rows to sentinel
   UPDATE audit_log                    SET org_id = v_sentinel WHERE org_id = p_org_id;
   UPDATE trust_transactions           SET org_id = v_sentinel WHERE org_id = p_org_id;
