@@ -4,11 +4,14 @@
  * Notes:  ADDENDUM_14X §2/§5. The offsets are asserted as a function of SCREENING_WINDOW_DAYS, not as 3 and 7, so a
  *         changed window moves the schedule; the 14-day reading is asserted once as the KNOWN-GOOD twin (day 3 and day 7,
  *         the days t3/t7 went out on before). Catch-up sends only the latest due milestone, and never an earlier one
- *         after it; a failed attempt (absent from sentOk) is retried.
+ *         after it; a failed attempt (absent from sentOk) is retried. N5 (the final notice) is due at D − 24h and
+ *         follows the same catch-up rule.
  */
 import { describe, expect, it } from "vitest"
 import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
-import { REMINDER_OFFSET_DAYS, deadlineAsStated, deadlineAt, dueReminder, isPastDeadline } from "../notificationSchedule"
+import {
+  REMINDER_OFFSET_DAYS, deadlineAsStated, deadlineAt, dueReminder, finalNoticeAt, isPastDeadline,
+} from "../notificationSchedule"
 
 const DAY_MS = 86_400_000
 const T0 = "2026-10-01T08:00:00.000Z"
@@ -55,6 +58,31 @@ describe("dueReminder", () => {
 
   it("a failed attempt is not in sentOk, so it is retried on the next run", () => {
     expect(dueReminder(T0, none, at(N2 + 1))).toBe("N2")
+  })
+
+  it("N5 falls due exactly 24 hours before D, not a millisecond earlier", () => {
+    const n5 = finalNoticeAt(T0).getTime()
+    expect(n5).toBe(deadlineAt(T0).getTime() - 24 * 3_600_000)
+    expect(dueReminder(T0, new Set(["N2", "N4"]), new Date(n5 - 1))).toBeNull()
+    expect(dueReminder(T0, new Set(["N2", "N4"]), new Date(n5))).toBe("N5")
+  })
+
+  it("CATCH-UP: a missed N4 inside the last 24 hours sends N5, never N4", () => {
+    expect(dueReminder(T0, new Set(["N2"]), finalNoticeAt(T0))).toBe("N5")
+  })
+
+  it("PLANTED: N5 sent → N4 is NOT sent after it, and nothing more before D", () => {
+    expect(dueReminder(T0, new Set(["N5"]), at(SCREENING_WINDOW_DAYS, -1))).toBeNull()
+  })
+
+  it("PLANTED (walker 14x-p4 F2): a HELD N5 is off the schedule, so an N4 still owed in the last 24h is sent", () => {
+    const held = new Set(["N5"] as const)
+    expect(dueReminder(T0, new Set(["N2"]), finalNoticeAt(T0), held)).toBe("N4")
+    expect(dueReminder(T0, new Set(["N2", "N4"]), finalNoticeAt(T0), held)).toBeNull()
+  })
+
+  it("N5 sits after N4 in a 14-day window: day 13", () => {
+    expect(finalNoticeAt(T0).getTime()).toBeGreaterThan(at(REMINDER_OFFSET_DAYS.N4).getTime())
   })
 
   it("past the deadline nothing is due, whatever was sent", () => {

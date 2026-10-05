@@ -11,6 +11,9 @@
  *         Max 50 lines per invocation to stay within 15-minute windows.
  *         Phase C: after all subjects for an application are complete, triggers runFitScoreOrchestrator
  *         (lib/screening/maybeRunOrchestrator.ts — shared with the deadline decline, 14W §0b).
+ *         ADDENDUM_14X N3: the transition to complete (and only it — completeSubject is guarded) tells the other
+ *         outstanding parties and the lead who is still outstanding (lib/screening/milestoneNotices.ts; held until
+ *         counsel approves the copy, when it records the gap instead).
  *
  *         Every invocation first SWEEPS claims that were taken and never finished (M-111). A claim is
  *         a lock; a process killed mid-run — OOM, deploy, platform timeout — reaches no catch block by
@@ -43,6 +46,7 @@ import { sweepStrandedClaims } from "@/lib/screening/sweepStrandedClaims"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { planRun, type RunPlan } from "@/lib/screening/retryPlan"
 import { recordOwedRefund } from "@/lib/screening/refundOwed"
+import { completeSubject } from "@/lib/screening/completeSubject"
 
 const BATCH_SIZE = 50
 
@@ -215,7 +219,8 @@ async function processLine(
       orgId: line.org_id, applicationId: line.application_id, subjectType: line.subject_type, subjectId: line.subject_id,
     }, run.plan.terminal, run.plan.completed)
   }
-  await markLineComplete(service, line, now)
+  // Marks complete once and, on that transition only, sends 14X N3 to the others (lib/screening/completeSubject.ts).
+  await completeSubject(service, line, now)
   await maybeRunOrchestrator(service, line.org_id, line.application_id)
 }
 
@@ -270,24 +275,4 @@ async function releaseForRetry(
     orgId: line.org_id, table, recordId: rowId, action: "UPDATE",
     after: { searchworx_check_status: "pending", reason, screening_run_id: runId, retrying },
   })
-}
-
-async function markLineComplete(
-  service: Awaited<ReturnType<typeof createServiceClient>>,
-  line: ScreeningLine,
-  now: string,
-): Promise<void> {
-  const table = isApplicationSubject(line.subject_type) ? "applications" : "application_co_applicants"
-  const rowId = isApplicationSubject(line.subject_type) ? line.application_id : line.subject_id
-
-  // searchworx_run_started_at is cleared, not left behind: it is the sweep's input, and a completed
-  // row that still carries a claim timestamp is a row the next schema change could re-strand.
-  await service
-    .from(table)
-    .update({ searchworx_check_status: "complete", searchworx_checked_at: now, searchworx_run_started_at: null })
-    .eq("id", rowId)
-    .eq("org_id", line.org_id)
-
-  // Audit trail
-  await recordAudit(service, { orgId: line.org_id, table, recordId: rowId, action: "UPDATE", after: { searchworx_check_status: "complete", searchworx_checked_at: now } })
 }

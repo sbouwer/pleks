@@ -7,12 +7,12 @@
  *         trigger_event fields, attempt_number, first_attempt_log_id for audit trail.
  *
  * Pipeline:
- *  1. Validate template key
+ *  1. Validate template key; a HELD key (registry `heldFor`, copy awaiting counsel) returns failure here, unsent and unlogged
  *  2. Check communication_preferences (skipped for mandatory templates)
  *  3. Fetch org branding
  *  4. Render React Email template with variables + branding
  *  5. Send via Resend
- *  6. Log to communication_log (always — even on failure)
+ *  6. Log to communication_log (always — even on failure — once a send was attempted)
  *  7. Return { success, logId }
  */
 
@@ -262,6 +262,10 @@ async function resolveSendHtml(
 
 export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
   const template = getTemplate(params.templateKey)  // throws on unknown key
+
+  // 0. Held copy (registry `heldFor`) never leaves the building — not even as a failed delivery row, since nothing was
+  //    attempted. The 14X milestone senders check this first and record the gap; this is the backstop for any other caller.
+  if (template.heldFor) return { success: false, error: `Held: ${template.heldFor}` }
 
   // 1. Preference check (mandatory templates always pass)
   const preference = await canSend({

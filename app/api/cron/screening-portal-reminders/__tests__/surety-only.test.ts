@@ -19,6 +19,10 @@
  *         a party that consented but has not paid its own line is declined at the deadline like anyone, never chased;
  *         a PAID line without consent is never declined (flagged instead); and every decline offers the application to
  *         the FitScore orchestrator, since the set it leaves may now be complete.
+ *         14X P4: N5 at D − 24h (every party kind, consented-unpaid included) and N6′ at D (a declined co party; a
+ *         surety's is the approved expiry notice, now trailed; a lapsed lead's from its own scan) are new copy, HELD
+ *         until counsel approves it — so no email, and one gap row each (recordGap is mocked; its once-only guard is
+ *         probed in lib/screening/__tests__/milestoneNotices.test.ts).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { NextRequest } from "next/server"
@@ -44,6 +48,10 @@ const trailRows: Array<Record<string, unknown>> = []
 let leads: unknown[] = []
 let leadLine: Record<string, unknown> | null = null
 let liveToken: Record<string, unknown> | null = { token: "lead-tok" }
+// 14X N6′: the leads whose own D has passed (the scan bounded by .lte), and every held gap the cron recorded.
+let lapsedLeads: unknown[] = []
+const gapRows: Array<Record<string, unknown>> = []
+let trailThrows = false
 // Every filter the cron applied, so a scan's bounds are asserted rather than ignored by the stand-in (walker 14x F6).
 const calls: Array<{ table: string; m: string; args: unknown[] }> = []
 const sendShortlistInvitation = vi.fn(async (): Promise<{ success: boolean; error?: string; logId?: string }> => ({ success: true, logId: "log-1" }))
@@ -63,7 +71,11 @@ vi.mock("@/lib/applications/emails", () => ({
 vi.mock("@/lib/screening/notificationTrail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/screening/notificationTrail")>()),
   milestonesSentOk: async () => sentOk,
-  recordTrail: async (_db: unknown, row: Record<string, unknown>) => { trailRows.push(row) },
+  recordTrail: async (_db: unknown, row: Record<string, unknown>) => {
+    if (trailThrows) throw new Error("trail write failed")
+    trailRows.push(row)
+  },
+  recordGap: async (_db: unknown, row: Record<string, unknown>) => { gapRows.push(row); return true },
 }))
 vi.mock("@/lib/applications/buildEmailContext", () => ({
   buildEmailContext: async () => ({ appSummary: { firstName: "Primary", lastName: "Contact" }, listingSummary: {}, orgContext: {} }),
@@ -75,10 +87,11 @@ vi.mock("@/lib/audit/recordAudit", () => ({ recordAudit: vi.fn() }))
 vi.mock("@/lib/routing/absoluteUrl", () => ({ absoluteUrl: (p: string) => `https://app.test${p}` }))
 
 // `leadsQuery`: the cron's lead scan is the only applications read that calls .not(); `one`: a single-row read.
-function rowsFor(table: string, leadsQuery: boolean, one: boolean): unknown {
+function rowsFor(table: string, leadsQuery: boolean, one: boolean, lapsedQuery = false): unknown {
   if (table === "v_application_screening_lines") return one ? leadLine : [line]
   if (table === "application_co_applicants") return coApp
   if (table === "application_tokens") return liveToken
+  if (table === "applications" && lapsedQuery) return lapsedLeads
   if (table === "applications") return leadsQuery ? leads : { first_name: "Primary", last_name: "Contact", applicant_email: "p@test", listings: null,
     entity_type: "organisation", applicant_type: null, company_info: { companyType } }
   return null
@@ -88,10 +101,12 @@ function rowsFor(table: string, leadsQuery: boolean, one: boolean): unknown {
 // single/maybeSingle, resolves to the table's canned rows. update() records the patch.
 function builder(table: string) {
   let leadsQuery = false
-  const result = (one: boolean) => () => Promise.resolve({ data: rowsFor(table, leadsQuery, one), error: null })
+  let lapsedQuery = false
+  const result = (one: boolean) => () => Promise.resolve({ data: rowsFor(table, leadsQuery, one, lapsedQuery), error: null })
   const b: Record<string, unknown> = {}
   for (const m of ["select", "eq", "in", "is", "limit", "gt", "order"]) b[m] = (...args: unknown[]) => { calls.push({ table, m, args }); return b }
   b.not = (...args: unknown[]) => { leadsQuery = true; calls.push({ table, m: "not", args }); return b }
+  b.lte = (...args: unknown[]) => { lapsedQuery = true; calls.push({ table, m: "lte", args }); return b }
   b.single = result(true)
   b.maybeSingle = result(true)
   b.then = (ok: (v: unknown) => unknown, bad: (e: unknown) => unknown) => result(false)().then(ok, bad)
@@ -135,6 +150,9 @@ beforeEach(() => {
   leads = []
   leadLine = null
   liveToken = { token: "lead-tok" }
+  lapsedLeads = []
+  gapRows.length = 0
+  trailThrows = false
   sendShortlistInvitation.mockClear()
   sendEmail.mockImplementation(async () => ({ success: true }))
   sendCoApplicantInvited.mockImplementation(async () => ({ success: true }))
@@ -364,11 +382,11 @@ describe("the residential clock runs from the stage-2 invite, never created_at (
     expect(updates).toEqual([])
   })
 
-  it("KNOWN-GOOD: invited 13 days ago is still inside the window", async () => {
+  it("KNOWN-GOOD: invited 13 days ago is still inside the window — not declined (its N5 is due, and held)", async () => {
     line = { ...baseLine, party_kind: "co_applicant" }
     coApp = { ...baseCo, stage2_invited_at: daysAgo(13), role: "co_applicant", is_surety_director: false }
     sentOk = new Set(["N2", "N4"])
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
     expect(updates).toEqual([])
   })
 })
@@ -509,5 +527,146 @@ describe("14X §7 row 32: the lead is reminded at N2/N4 on its live shortlist to
     leads = [lead({ stage2_invited_at: daysAgo(15) })]
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
     expect(sendShortlistInvitation).not.toHaveBeenCalled()
+  })
+})
+
+describe("14X P4: N5 at D − 24h and N6′ at D — new copy, HELD until counsel approves it (the trail records the gap)", () => {
+  const FINAL = "application.screening_final_notice"
+  const ABSENT = "application.screening_outcome_absent"
+  const lead = (over: Record<string, unknown> = {}) => ({
+    id: "app-L", org_id: "org-1", entity_type: "individual", first_name: "Lee", applicant_email: "lee@test",
+    stage2_invited_at: daysAgo(13.5), ...over,
+  })
+
+  it("PLANTED: a co party inside its last 24 hours gets NO email — one N5 gap, at its own deadline", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
+    sentOk = new Set(["N2", "N4"])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+    expect(gapRows).toEqual([expect.objectContaining({
+      applicationId: "app-1", subject: { subjectType: "co_applicant", subjectId: "co-1" }, milestone: "N5", templateKey: FINAL,
+    })])
+    expect(gapRows[0].deadlineAsStated).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it("N5 reaches a consented-but-unpaid party too (neutral copy), where N2/N4 do not", async () => {
+    line = { ...baseLine, party_kind: "co_applicant", state: "consented_pending_payment" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
+    sentOk = new Set(["N2", "N4"])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(gapRows.map((g) => g.milestone)).toEqual(["N5"])
+  })
+
+  it("a surety's N5 is the same notice (no director copy exists for it)", async () => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "guarantor", is_surety_director: true }
+    sentOk = new Set(["N2", "N4"])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(gapRows.map((g) => g.templateKey)).toEqual([FINAL])
+  })
+
+  it("KNOWN-GOOD twin: N5 already on the trail → nothing more before D", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
+    sentOk = new Set(["N2", "N4", "N5"])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(gapRows).toEqual([])
+  })
+
+  it("a co_applicant declined at D gets its N6′ — held, so a gap and no email; the decline stands", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(updates[0].patch).toMatchObject({ decline_reason: "expired_no_completion" })
+    expect(gapRows).toEqual([expect.objectContaining({ milestone: "N6_absent", templateKey: ABSENT })])
+  })
+
+  it("an overlapping run that already declined it records no second N6′ (walker F6)", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(15), role: "co_applicant", is_surety_director: false }
+    declinedRows = []
+    await run()
+    expect(gapRows).toEqual([])
+  })
+
+  it("PLANTED (walker 14x-p4 F2): while N5 is held, an N4 still owed in the last 24h is SENT — the gap is recorded too", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(13.5), role: "co_applicant", is_surety_director: false }
+    sentOk = new Set(["N2"])
+    expect(await run()).toEqual({ ok: true, reminders: 1, expirations: 0, held: 0 })
+    expect(sendCoApplicantInvited).toHaveBeenCalledTimes(1)
+    expect(trailRows).toEqual([expect.objectContaining({ milestone: "N4" })])
+    expect(gapRows.map((g) => g.milestone)).toEqual(["N5"])
+  })
+
+  it("PLANTED (walker 14x-p4 F1): a surety notice whose trail write fails still leaves the fan-out and the orchestrator to run", async () => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(15), role: "guarantor", is_surety_director: true }
+    trailThrows = true
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    expect(maybeFireAllGreen).toHaveBeenCalledWith(expect.anything(), "app-1")
+    expect(maybeRunOrchestrator).toHaveBeenCalledWith(expect.anything(), "org-1", "app-1")
+  })
+
+  it("a surety's N6′ is the APPROVED expiry notice, sent and now on the trail", async () => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = { ...baseCo, stage2_invited_at: daysAgo(15), role: "guarantor", is_surety_director: true }
+    sendEmail.mockResolvedValueOnce({ success: true })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ templateKey: "application.director_expired_refund" }))
+    expect(trailRows).toEqual([expect.objectContaining({ milestone: "N6_absent", templateKey: "application.director_expired_refund" })])
+    expect(gapRows).toEqual([])
+  })
+
+  it("the lead in its last 24 hours: N5 held, as the lead's own subject", async () => {
+    line = { ...baseLine, party_kind: null }
+    coApp = { ...baseCo, role: "co_applicant", is_surety_director: false }
+    leads = [lead()]
+    leadLine = { state: "consented_pending_payment" }
+    sentOk = new Set(["N2", "N4"])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(sendShortlistInvitation).not.toHaveBeenCalled()
+    expect(gapRows).toEqual([expect.objectContaining({ subject: { subjectType: "applicant", subjectId: "app-L" }, milestone: "N5" })])
+  })
+
+  it("PLANTED: the lapsed-lead scan is bounded — past its own D, within the grace, shortlisted and live", async () => {
+    await run()
+    const scan = calls.filter((c) => c.table === "applications")
+    const upper = scan.find((c) => c.m === "lte" && c.args[0] === "stage2_invited_at")
+    expect(upper).toBeDefined()
+    expect(Math.abs(Date.parse(upper!.args[1] as string) - Date.parse(daysAgo(14)))).toBeLessThan(60_000)
+    const lowers = scan.filter((c) => c.m === "gt" && c.args[0] === "stage2_invited_at").map((c) => Date.parse(c.args[1] as string))
+    expect(lowers.some((t) => Math.abs(t - Date.parse(daysAgo(28))) < 60_000)).toBe(true)
+  })
+
+  it("the lapsed-lead scan reads newest first, so a full page is the leads still owed N6′ (walker 14x-p4 F7)", async () => {
+    await run()
+    expect(calls).toContainEqual({ table: "applications", m: "order", args: ["stage2_invited_at", { ascending: false }] })
+  })
+
+  it("a lead past its D with its part incomplete gets N6′ — held, the gap recorded as the lead", async () => {
+    line = { ...baseLine, party_kind: null }
+    lapsedLeads = [lead({ stage2_invited_at: daysAgo(15) })]
+    leadLine = { state: "pending_both" }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 1 })
+    expect(gapRows).toEqual([expect.objectContaining({
+      subject: { subjectType: "applicant", subjectId: "app-L" }, milestone: "N6_absent", templateKey: ABSENT,
+    })])
+    expect(updates).toEqual([])
+  })
+
+  it("KNOWN-GOOD twins: a lead past D whose part is complete, or whose N6′ is already sent, is told nothing", async () => {
+    line = { ...baseLine, party_kind: null }
+    lapsedLeads = [lead({ stage2_invited_at: daysAgo(15) })]
+    leadLine = { state: "complete" }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    leadLine = { state: "pending_both" }
+    sentOk = new Set(["N6_absent"])
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(gapRows).toEqual([])
   })
 })

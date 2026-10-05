@@ -7,6 +7,8 @@
  *         from the window (CD lean: a = D/4, b = D/2, floored to whole days) so the schedule moves with the window rather
  *         than leaving a 3/7/10 stuck inside a different one. A 14-day window gives day 3 and day 7, the same days the
  *         t3/t7 reminders went out on before.
+ *         N5 is the final notice at D − 24h (§2) — clock-driven like N2/N4, but measured back from D in hours, not
+ *         forward from T0 in days, so it is always the last day whatever the window.
  *         CATCH-UP (§5 "a skipped cron day → the next run sends the missed milestone, never two"): only the LATEST due
  *         milestone is ever sent, and once it has a successful send, an earlier one is never sent after it.
  */
@@ -16,6 +18,10 @@ import { saDateISO } from "@/lib/dates"
 const DAY_MS = 86_400_000
 
 export type ReminderMilestone = "N2" | "N4"
+/** Every clock-driven milestone: the two reminders and the final notice. */
+export type ClockMilestone = ReminderMilestone | "N5"
+
+const FINAL_NOTICE_MS = 24 * 3_600_000
 
 /** Whole days after T0 at which each reminder falls due. */
 export const REMINDER_OFFSET_DAYS: Readonly<Record<ReminderMilestone, number>> = {
@@ -24,11 +30,16 @@ export const REMINDER_OFFSET_DAYS: Readonly<Record<ReminderMilestone, number>> =
 }
 
 /** Latest first: the order the catch-up rule reads them in. */
-const LATEST_FIRST: readonly ReminderMilestone[] = ["N4", "N2"]
+const LATEST_FIRST: readonly ClockMilestone[] = ["N5", "N4", "N2"]
 
 /** The instant the party's window closes. */
 export function deadlineAt(t0: string): Date {
   return new Date(new Date(t0).getTime() + SCREENING_WINDOW_DAYS * DAY_MS)
+}
+
+/** The instant N5 falls due: 24 hours before the party's deadline. */
+export function finalNoticeAt(t0: string): Date {
+  return new Date(deadlineAt(t0).getTime() - FINAL_NOTICE_MS)
 }
 
 /** D as the party is told it: the SA calendar date of the deadline (§4 "one date, stated the same way everywhere"). */
@@ -50,15 +61,25 @@ export function daysRemaining(t0: string, now: Date = new Date()): number {
   return Math.max(0, Math.ceil((deadlineAt(t0).getTime() - now.getTime()) / DAY_MS))
 }
 
+/** The instant each clock milestone falls due for a party invited at `t0`. */
+function milestoneDueAt(m: ClockMilestone, t0: string): Date {
+  if (m === "N5") return finalNoticeAt(t0)
+  return new Date(new Date(t0).getTime() + REMINDER_OFFSET_DAYS[m] * DAY_MS)
+}
+
 /**
- * The reminder to send now, or null. `sentOk` holds the milestones this party already has a SUCCESSFUL send for —
- * a failed attempt does not count, so it is retried on the next run (14X §3, walker F4).
+ * The milestone to send now, or null. `sentOk` holds the milestones this party already has a SUCCESSFUL send for —
+ * a failed attempt does not count, so it is retried on the next run (14X §3, walker F4). `offSchedule` names milestones
+ * that are not on the schedule at all — a HELD one (§4: "until then the schedule runs with N1, N2, N4 only"), so a
+ * held N5 cannot take the latest slot and shadow an N4 that is still owed (walker 14x-p4 F2).
  */
-export function dueReminder(t0: string, sentOk: ReadonlySet<string>, now: Date = new Date()): ReminderMilestone | null {
+export function dueReminder(
+  t0: string, sentOk: ReadonlySet<string>, now: Date = new Date(), offSchedule: ReadonlySet<ClockMilestone> = new Set(),
+): ClockMilestone | null {
   if (isPastDeadline(t0, now)) return null
-  const elapsedDays = Math.floor((now.getTime() - new Date(t0).getTime()) / DAY_MS)
   for (const m of LATEST_FIRST) {
-    if (elapsedDays >= REMINDER_OFFSET_DAYS[m]) return sentOk.has(m) ? null : m
+    if (offSchedule.has(m)) continue
+    if (now.getTime() >= milestoneDueAt(m, t0).getTime()) return sentOk.has(m) ? null : m
   }
   return null
 }
