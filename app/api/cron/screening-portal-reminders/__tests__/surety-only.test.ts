@@ -54,6 +54,9 @@ let lapsedLeads: unknown[] = []
 let chaserLeads: unknown[] = []
 let chaserResult: { outcome: string; error?: string } | null = null
 const leadFinalNoticeForOthers = vi.fn(async () => chaserResult)
+// N6 retries: the trail's failed N6 rows, and the lib sender they are handed back to.
+let failedOutcomes: unknown[] = []
+const notifyOutcome = vi.fn(async () => undefined)
 // Counsel released N5/N6′ on 2026-10-05; a test re-holds a key here to keep the held path (gap, F2) pinned.
 const heldKeys = new Set<string>()
 const gapRows: Array<Record<string, unknown>> = []
@@ -97,6 +100,7 @@ vi.mock("@/lib/comms/template-registry", async (importOriginal) => {
 vi.mock("@/lib/screening/milestoneNotices", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/screening/milestoneNotices")>()),
   leadFinalNoticeForOthers: (...a: unknown[]) => leadFinalNoticeForOthers(...(a as [])),
+  notifyOutcome: (...a: unknown[]) => notifyOutcome(...(a as [])),
 }))
 vi.mock("@/lib/routing/absoluteUrl", () => ({ absoluteUrl: (p: string) => `https://app.test${p}` }))
 
@@ -105,6 +109,7 @@ function rowsFor(table: string, leadsQuery: boolean, one: boolean, lapsedQuery =
   if (table === "v_application_screening_lines") return one ? leadLine : [line]
   if (table === "application_co_applicants") return coApp
   if (table === "application_tokens") return liveToken
+  if (table === "screening_notification_events") return failedOutcomes
   if (table === "applications" && lapsedQuery) return lapsedLeads
   if (table === "applications" && chaserQuery) return chaserLeads
   if (table === "applications") return leadsQuery ? leads : { first_name: "Primary", last_name: "Contact", applicant_email: "p@test", listings: null,
@@ -176,6 +181,9 @@ beforeEach(() => {
   chaserResult = null
   heldKeys.clear()
   leadFinalNoticeForOthers.mockClear()
+  failedOutcomes = []
+  notifyOutcome.mockClear()
+  notifyOutcome.mockImplementation(async () => undefined)
   gapRows.length = 0
   trailThrows = false
   sendShortlistInvitation.mockClear()
@@ -708,6 +716,32 @@ describe("14X P4: N5 at D − 24h and N6′ at D — counsel-approved 2026-10-05
     sentOk = new Set()
     chaserResult = null
     expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+  })
+
+  it("N6 retry: each application with a failed N6 row inside one window is offered to notifyOutcome once", async () => {
+    failedOutcomes = [
+      { org_id: "org-1", application_id: "app-A" }, { org_id: "org-1", application_id: "app-A" },
+      { org_id: "org-2", application_id: "app-B" },
+    ]
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(notifyOutcome.mock.calls).toEqual([
+      [expect.anything(), { orgId: "org-1", applicationId: "app-A" }],
+      [expect.anything(), { orgId: "org-2", applicationId: "app-B" }],
+    ])
+    expect(calls).toContainEqual({ table: "screening_notification_events", m: "eq", args: ["send_ok", false] })
+    expect(calls).toContainEqual({ table: "screening_notification_events", m: "eq", args: ["milestone", "N6"] })
+    expect(calls.some((c) => c.table === "screening_notification_events" && c.m === "gt" && c.args[0] === "created_at")).toBe(true)
+  })
+
+  it("N6 retry: one application throwing does not stop the next, and nothing is offered with no failures", async () => {
+    notifyOutcome.mockImplementationOnce(async () => { throw new Error("roster read failed") })
+    failedOutcomes = [{ org_id: "org-1", application_id: "app-A" }, { org_id: "org-1", application_id: "app-C" }]
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(notifyOutcome).toHaveBeenCalledTimes(2)
+    notifyOutcome.mockClear()
+    failedOutcomes = []
+    await run()
+    expect(notifyOutcome).not.toHaveBeenCalled()
   })
 
   it("a failed chaser is reported and the run still answers ok", async () => {

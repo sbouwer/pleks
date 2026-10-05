@@ -235,11 +235,11 @@ describe("copy", () => {
     expect(n6.html).not.toContain("<i>")
   })
 
-  it("N5 carries counsel's consequence sentence verbatim; the lead's says the application cannot be assessed", () => {
+  it("N5 carries counsel's sentences verbatim: the co party's formulation and the lead variant left unchanged", () => {
     expect(finalNoticeCopy({ firstName: "C", deadline: "15 October 2026", propertyLabel: "P", lead: false }).html).toContain(
       "If you do not complete your part by 15 October 2026, the application will be assessed without your screening information.")
     expect(finalNoticeCopy({ firstName: "L", deadline: "15 October 2026", propertyLabel: "P", lead: true }).html).toContain(
-      "If you do not complete your part by 15 October 2026, the application cannot be assessed.")
+      "If your part is not complete by then, the application cannot be assessed.")
   })
 
   it("N6 names only the completed, states the count, and closes on THE approved sentence; the link only when given", () => {

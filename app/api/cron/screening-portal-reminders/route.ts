@@ -46,8 +46,8 @@ import {
 } from "@/lib/screening/notificationSchedule"
 import { leadSubject, milestonesSentOk, recordTrail, type TrailMilestone, type TrailSubject } from "@/lib/screening/notificationTrail"
 import {
-  FINAL_NOTICE_KEY, OUTCOME_ABSENT_KEY, deadlineForCopy, finalNoticeCopy, leadFinalNoticeForOthers, outcomeAbsentCopy,
-  sendMilestoneNotice,
+  FINAL_NOTICE_KEY, OUTCOME_ABSENT_KEY, deadlineForCopy, finalNoticeCopy, leadFinalNoticeForOthers, notifyOutcome,
+  outcomeAbsentCopy, sendMilestoneNotice,
 } from "@/lib/screening/milestoneNotices"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
@@ -143,6 +143,9 @@ export async function GET(req: NextRequest) {
     if ("error" in chasers) return NextResponse.json({ error: chasers.error }, { status: 500 })
     reminders += chasers.reminders
     held += chasers.held
+
+    const outcomes = await retryFailedOutcomes(service)
+    if ("error" in outcomes) return NextResponse.json({ error: outcomes.error }, { status: 500 })
   } catch (err) {
     Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders" } })
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
@@ -194,7 +197,8 @@ async function runLapsedLeads(service: Svc): Promise<{ reminders: number; held: 
  * The lead whose own part is complete still gets N5 while another party's final 24 hours run (14X §2: N5 to "each party
  * not yet complete, and the lead"). Such a lead has left the 'invited' scan above — paying moves stage2_status on — so
  * it has its own. Bounded like the lapsed scan: a co party's clock starts at or after the lead's, so one window past
- * the lead's D covers every co party's final day. Once per lead: its N5 trail row (sent, or the held gap) ends it.
+ * the lead's D covers every co party's final day. A SENT N5 ends it. While the key is held it is re-evaluated daily —
+ * recordGap writes the gap once, but the run's `held` count includes the lead each day it is still due (walker F4).
  */
 async function runLeadChasers(service: Svc): Promise<{ reminders: number; held: number } | { error: string }> {
   const { data: leads, error } = await service
@@ -225,6 +229,37 @@ async function runLeadChasers(service: Svc): Promise<{ reminders: number; held: 
     }
   }
   return { reminders, held }
+}
+
+/**
+ * N6 retries (walker 14x-p4b F1). N6 is sent after the orchestrator runs, and its callers fire once per transition, so
+ * a failed send has no next run of its own. Every application with a failed N6 row inside one window is offered again;
+ * notifyOutcome skips each recipient that already has a sent row, so this resends only what failed. Driven by the
+ * trail's failures, never by the snapshot, so an application scored before N6 existed is not sent one now.
+ */
+async function retryFailedOutcomes(service: Svc): Promise<{ retried: number } | { error: string }> {
+  const { data: failed, error } = await service
+    .from("screening_notification_events")
+    .select("org_id, application_id")
+    .eq("milestone", "N6")
+    .eq("send_ok", false)
+    .gt("created_at", windowOpenSince().toISOString())
+    .limit(500)
+  if (error) {
+    console.error("[screening-portal-reminders] N6 retry query failed:", error.message)
+    return { error: error.message }
+  }
+  const seen = new Set<string>()
+  for (const row of failed ?? []) {
+    if (seen.has(row.application_id)) continue
+    seen.add(row.application_id)
+    try {
+      await notifyOutcome(service, { orgId: row.org_id, applicationId: row.application_id })
+    } catch (err) {
+      Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders", milestone: "N6" }, extra: { application_id: row.application_id } })
+    }
+  }
+  return { retried: seen.size }
 }
 
 type PendingLine = {

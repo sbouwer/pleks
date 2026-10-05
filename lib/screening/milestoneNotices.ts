@@ -56,10 +56,13 @@ ${p.completed} of ${p.total} parties have now completed.</p>`,
   }
 }
 
-/** N5 (APPROVED). The consequence sentence is counsel's, verbatim; the lead's says what is true for the lead. */
+/**
+ * N5 (APPROVED). Both sentences are counsel's, verbatim (pack §5 row 2): the co party's is counsel's formulation, and
+ * the lead's is the drafted lead variant counsel left unchanged. Do not harmonise them — the lead's was approved as is.
+ */
 export function finalNoticeCopy(p: { firstName: string; deadline: string; propertyLabel: string; lead: boolean }) {
   const consequence = p.lead
-    ? `If you do not complete your part by ${esc(p.deadline)}, the application cannot be assessed.`
+    ? "If your part is not complete by then, the application cannot be assessed."
     : `If you do not complete your part by ${esc(p.deadline)}, the application will be assessed without your screening information.`
   return {
     subject: `Final notice: your deadline is ${p.deadline} — ${p.propertyLabel}`,
@@ -284,7 +287,10 @@ function outcomeLinkFor(): string | null {
  * a successful orchestrator run. The orchestrator re-runs on every settle and decline and reports success the same way
  * for a first run and a no-op, so ONCE comes from the trail: a recipient with N6 on it is skipped. A party declined
  * after N6 changes M; nobody is re-notified (the stamp they were told stays true of the run they were told about).
- * Never throws: a failure is reported, and the next orchestrator call retries a recipient with no send_ok N6 row.
+ * A failed send writes a send_ok=false N6 row. The orchestrator is NOT a retrier: its callers fire once per transition
+ * (a line completing, a party declined), so there is usually no "next run" (walker 14x-p4b F1). The reminders cron is
+ * the retrier — it re-offers every application with a failed N6 row inside one window, and this function skips
+ * whoever already has a sent one. A throw before any attempt (a read failing) leaves no row and is reported only.
  */
 export async function notifyOutcome(db: SupabaseClient, p: { orgId: string; applicationId: string }): Promise<void> {
   const { data: app, error } = await db
@@ -335,7 +341,8 @@ export async function notifyOutcome(db: SupabaseClient, p: { orgId: string; appl
 /**
  * The lead's N5 when the lead's own part is complete (14X §2: N5 goes to "each party not yet complete, and the lead").
  * Due while any other live party is inside its own final 24 hours; the caller sends it once (the lead's N5 trail row).
- * Returns null when it is not due — a lead with its own part outstanding gets its own N5 from its own clock instead.
+ * Returns null when it is not due. A lead that still owes something gets its own N5 on its own clock; a lead that has
+ * paid and consented but whose check is still running gets neither, since there is nothing left for it to do.
  */
 export async function leadFinalNoticeForOthers(db: SupabaseClient, p: {
   orgId: string; applicationId: string; now?: Date
