@@ -438,28 +438,32 @@ const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "application.primary_contact_director_pending", channel: "email", category: "applications", is_mandatory: false,
     description: "Primary contact notified that one or more directors have not yet completed their portions",
   },
-  // ADDENDUM_14X §2 — N3/N5/N6/N6′. New copy, held until counsel's row reads ready (the draft file names the rows).
+  // ADDENDUM_14X §2 — N3/N5/N6/N6′. Counsel reviewed the pack 2026-10-05 (COUNSEL_DRAFT_14X_MILESTONE_COPY §5): N5, N6
+  // and N6′ are ready and released; N3 and the lead's chaser N5 stay held. N6's LINK has its own gate (per recipient,
+  // group_clause_shown + policy v1.5.1) — releasing the copy does not release the link.
   // N5 and both N6 notices are evidence of being told, so a communication preference cannot suppress them; N3 is a
   // motivational nudge and respects one.
   "application.screening_progress": {
     key: "application.screening_progress", channel: "email", category: "applications", is_mandatory: false,
-    description: "14X N3 — a party completed; the others are told who the application is still waiting on",
-    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 1",
+    description: "14X N3 — a party completed; the others are told who completed and how many of the parties have",
+    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 1 — the completion-status consent sentence (§7) must be live for the recipient",
   },
   "application.screening_final_notice": {
     key: "application.screening_final_notice", channel: "email", category: "applications", is_mandatory: true,
     description: "14X N5 — final notice 24 hours before the party's screening deadline (a lead variant)",
-    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 2",
+  },
+  "application.screening_final_notice_others": {
+    key: "application.screening_final_notice_others", channel: "email", category: "applications", is_mandatory: true,
+    description: "14X N5 to a lead whose own part is complete — another party's final day; a count, no names",
+    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 2b — new copy, not yet sent to counsel",
   },
   "application.screening_outcome": {
     key: "application.screening_outcome", channel: "email", category: "applications", is_mandatory: true,
     description: "14X N6 — the assessment was generated on the completed parts; names only the completed parties",
-    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 3",
   },
   "application.screening_outcome_absent": {
     key: "application.screening_outcome_absent", channel: "email", category: "applications", is_mandatory: true,
     description: "14X N6′ — the party's deadline passed (a lead variant: the application cannot be assessed). No result, no list",
-    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 4",
   },
   "application.credit_report_delivered": {
     key: "application.credit_report_delivered", channel: "email", category: "applications", is_mandatory: false,
