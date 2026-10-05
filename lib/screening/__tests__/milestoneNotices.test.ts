@@ -80,8 +80,9 @@ function fakeDb(lead: Partial<Row> = {}, cos: Row[] = [], paid: string[] = []) {
       if (table === "v_application_screening_lines") {
         b.then = (resolve: (v: unknown) => void) => resolve({
           data: filters.org_id === "org-A" ? paid.map((key) => {
-            const [subject_type, subject_id] = key.split(":")
-            return { subject_type, subject_id, paid_at: "2026-10-01T00:00:00Z" }
+            // "type:id" is paid, consent still owed; "type:id:state" carries the view's state (e.g. running).
+            const [subject_type, subject_id, state = "paid_pending_consent"] = key.split(":")
+            return { subject_type, subject_id, paid_at: "2026-10-01T00:00:00Z", state }
           }) : [],
           error: null,
         })
@@ -293,6 +294,23 @@ describe("N5 to a lead whose own part is complete (14X §2) — held new copy", 
     expect(sent[0]).toMatchObject({ templateKey: FINAL_NOTICE_OTHERS_KEY, to: { email: "lead@example.test", name: "Lead" } })
     expect(sent[0].contentHtml).toContain("1 of 2 parties have completed so far.")
     expect(sent[0].contentHtml).not.toContain("CO-1")
+  })
+
+  it("paid-and-running counts as done (Stéan 2026-10-05, §0): a running lead is due; a running co party is not outstanding", async () => {
+    const runningLead = fakeDb({ stage2_invited_at: finalDay }, [co("co-1", { stage2_invited_at: finalDay })], ["applicant:app-1:running"])
+    expect(await leadFinalNoticeForOthers(runningLead.db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toEqual({ outcome: "held" })
+    const runningCo = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: finalDay },
+      [co("co-1", { stage2_invited_at: finalDay })], ["co_applicant:co-1:running"])
+    expect(await leadFinalNoticeForOthers(runningCo.db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toBeNull()
+  })
+
+  it("PLANTED: paid but consent still owed is NOT done — the co party is still outstanding, and counted as such", async () => {
+    released = true
+    const { db } = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: finalDay },
+      [co("co-1", { stage2_invited_at: finalDay }), co("co-2", { stage2_invited_at: finalDay })],
+      ["co_applicant:co-1", "co_applicant:co-2:running"])
+    expect(await leadFinalNoticeForOthers(db, { orgId: "org-A", applicationId: "app-1", now: NOW })).toEqual({ outcome: "sent" })
+    expect(sent[0].contentHtml).toContain("2 of 3 parties have completed so far.")
   })
 
   it("KNOWN-GOOD twins: not due when the lead's own part is open, when no other party is in its final day, or for another org", async () => {

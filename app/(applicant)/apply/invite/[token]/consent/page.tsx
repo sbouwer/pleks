@@ -1,67 +1,50 @@
-"use client"
-
 /**
- * app/(applicant)/apply/invite/[token]/consent/page.tsx — Stage 2 POPIA credit-check consent
+ * app/(applicant)/apply/invite/[token]/consent/page.tsx — Stage 2 POPIA credit-check consent: decides the group block
  *
  * Route:  /apply/invite/[token]/consent
- * Auth:   application_tokens.token lookup (validated server-side by API routes)
- * Data:   /api/consent/send-code → /api/consent/verify-code → /api/applications/invite-consent
- * Notes:  ADDENDUM_14F: two-step flow — tick consent, then verify via SMS code.
- *         BUILD_72 P1-R8b-3: the consent text and flow live in components/consent/ScreeningConsentForm.tsx, which a
- *         residential co-applicant's own link renders too — this page adds only the lead's withdraw path.
- *         Decline path keeps the existing anon Supabase write (stage2_status = withdrawn).
+ * Auth:   application_tokens.token (the invite token; the API routes re-validate it before anything is recorded)
+ * Data:   application_tokens → applications.org_id → isGroupApplication (lib/screening/screeningConsent.ts)
+ * Notes:  14X P5. The group block renders only for an application with more than one party, which only the server can
+ *         know, so this page is a server wrapper around the client flow (Stage2Consent.tsx). An unknown or expired
+ *         token renders the single-party text: the record route rejects that token anyway, and a group block not shown
+ *         can only withhold a result link, never grant one (the route re-derives the flag before recording it).
  */
-import { useState } from "react"
-import { useRouter, useParams } from "next/navigation"
-import { ScreeningConsentForm } from "@/components/consent/ScreeningConsentForm"
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
-import { createClient } from "@/lib/supabase/client"
+import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { isGroupApplication } from "@/lib/screening/screeningConsent"
+import { Stage2Consent } from "./Stage2Consent"
 
-export default function Stage2ConsentPage() {
-  const router = useRouter()
-  const params = useParams()
-  const token = params.token as string
+interface Props { params: Promise<{ token: string }> }
 
-  const [confirmDecline, setConfirmDecline] = useState(false)
-
-  async function doDecline() {
-    setConfirmDecline(false)
-    const supabase = createClient()
-    const { data: tokenData, error: tokenDataError } = await supabase
-      .from("application_tokens")
-      .select("application_id")
-      .eq("token", token)
-      .single()
-    logQueryError("handleDecline application_tokens", tokenDataError)
-
-    if (tokenData) {
-      await supabase.from("applications").update({
-        stage2_status: "withdrawn",
-      }).eq("id", tokenData.application_id)
-    }
-
-    router.push(`/apply/invite/${token}`)
+async function groupClauseFor(token: string): Promise<boolean> {
+  const service = await createServiceClient()
+  // The invite token is the ownership proof; the application and its org are derived from this row.
+  const { data: tokenRow, error: tokenErr } = await service
+    .from("application_tokens")
+    // org scope (a [token] path, outside the scope rules' aperture): bounded by the invite token; org is derived from this row
+    .select("application_id")
+    .eq("token", token)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle()
+  logQueryError("consent page application_tokens", tokenErr)
+  if (!tokenRow) return false
+  const { data: app, error: appErr } = await service
+    .from("applications")
+    // org scope (a [token] path, outside the scope rules' aperture): bounded by the application the token above proves
+    .select("org_id")
+    .eq("id", tokenRow.application_id as string)
+    .maybeSingle()
+  logQueryError("consent page applications", appErr)
+  if (!app) return false
+  try {
+    return await isGroupApplication(service, app.org_id as string, tokenRow.application_id as string)
+  } catch (err) {
+    console.error("[consent page] group application read failed:", err instanceof Error ? err.message : err)
+    return false
   }
+}
 
-  return (
-    <>
-      <ScreeningConsentForm
-        token={token}
-        consentType="standard_bundle"
-        recordUrl="/api/applications/invite-consent"
-        onRecorded={() => router.push(`/apply/invite/${token}/payment`)}
-        onDecline={() => setConfirmDecline(true)}
-      />
-      <ConfirmDialog
-        open={confirmDecline}
-        onOpenChange={(o) => { if (!o) setConfirmDecline(false) }}
-        title="Withdraw application?"
-        description="Are you sure you want to withdraw your application?"
-        variant="destructive"
-        confirmLabel="Withdraw"
-        onConfirm={doDecline}
-      />
-    </>
-  )
+export default async function Stage2ConsentPage({ params }: Props) {
+  const { token } = await params
+  return <Stage2Consent groupClause={await groupClauseFor(token)} />
 }

@@ -10,6 +10,11 @@
  *         "1.0") is deliberately NOT routed through this until counsel rules on its copy.
  *         Bumping SCREENING_CONSENT_VERSION is a counsel event (70H), never an engineering one: the version is
  *         the evidence of WHICH text the subject agreed to.
+ *         14X P5: the group block (lib/screening/consentWording.ts) is recorded as `group_clause_shown` in metadata —
+ *         the gate for that subject's N6 result link. Same version (approved-comms §4: "same consent version for every
+ *         party"); the flag says which text the subject saw. It is TRUE only when the form says it showed the block AND
+ *         the application is a group one when the consent is written — recomputed here, never taken from the client
+ *         alone, so a stale or forged claim can only under-record, which withholds the link (fails closed).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -29,6 +34,23 @@ export interface ScreeningConsentLogInput {
   userAgent: string | null
   /** A verified SMS round already bound to this subject by the caller, or null when there is no phone on file. */
   verificationId: string | null
+  /** What the form reports it rendered: the group block (paragraph + completion-status sentence). */
+  groupClauseShown: boolean
+}
+
+/**
+ * Whether the application has more than one party now: the lead plus at least one co party not declined (14X P5, D4).
+ * A declined party has left the set, as it has for the roster and the orchestrator.
+ */
+export async function isGroupApplication(db: SupabaseClient, orgId: string, applicationId: string): Promise<boolean> {
+  const { count, error } = await db
+    .from("application_co_applicants")
+    .select("id", { count: "exact", head: true })
+    .eq("primary_application_id", applicationId)
+    .eq("org_id", orgId)
+    .is("declined_at", null)
+  if (error) throw new Error(`group application: count co parties: ${error.message}`)
+  return (count ?? 0) > 0
 }
 
 /** Write the POPIA s11(1)(a) consent_log row for one subject's screening consent. Returns its id. */
@@ -36,6 +58,12 @@ export async function insertScreeningConsentLog(
   db: SupabaseClient,
   input: ScreeningConsentLogInput,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  let group: boolean
+  try {
+    group = input.groupClauseShown && await isGroupApplication(db, input.orgId, input.applicationId)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
   const { data, error } = await db
     .from("consent_log")
     .insert({
@@ -55,6 +83,7 @@ export async function insertScreeningConsentLog(
         bureau:         "searchworx",
         check_types:    [...SCREENING_CONSENT_CHECK_TYPES],
         stage:          2,
+        group_clause_shown: group,
       },
     })
     .select("id")

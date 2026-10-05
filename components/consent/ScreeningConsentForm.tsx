@@ -12,12 +12,19 @@
  *         moves with it. The surety-director consent is a different text and does not use this.
  *         No phone on file → consent is recorded without an SMS round, exactly as the lead page always did.
  *         `onDecline` is the lead's withdraw path; a co party has none, so the decline buttons render only with it.
+ *         14X P5: `groupClause` renders the group block (the consolidation paragraph and the completion-status sentence)
+ *         after the checks and switches the checkbox to the group sentence, and the record call reports it as
+ *         `groupClauseShown` — the route re-derives whether the application is a group one before recording it. The
+ *         words live in lib/screening/consentWording.ts, never here.
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
 import { ShieldCheck } from "lucide-react"
 import { ConsentCodeEntry } from "@/components/consent/ConsentCodeEntry"
+import {
+  CONSENT_CHECKBOX_GROUP, CONSENT_CHECKBOX_SINGLE, GROUP_COMPLETION_STATUS_SENTENCE, GROUP_CONSOLIDATION_PARAGRAPH,
+} from "@/lib/screening/consentWording"
 
 type Step = "consent" | "verify"
 
@@ -39,9 +46,11 @@ export interface ScreeningConsentFormProps {
   onRecorded: () => void
   /** The lead's withdraw path. Omitted → no decline buttons. */
   onDecline?: () => void
+  /** The application has more than one party (decided server-side by the page): render the group block. */
+  groupClause: boolean
 }
 
-export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded, onDecline }: Readonly<ScreeningConsentFormProps>) {
+export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded, onDecline, groupClause }: Readonly<ScreeningConsentFormProps>) {
   const [agreed, setAgreed] = useState(false)
   const [step, setStep] = useState<Step>("consent")
   const [submitting, setSubmitting] = useState(false)
@@ -83,7 +92,7 @@ export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded
     const res = await fetch(recordUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, verificationId }),
+      body: JSON.stringify({ token, verificationId, groupClauseShown: groupClause }),
     })
 
     if (res.ok) {
@@ -176,6 +185,13 @@ export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded
             </li>
           </ul>
 
+          {groupClause && (
+            <div className="space-y-2" data-testid="group-clause">
+              <p>{GROUP_CONSOLIDATION_PARAGRAPH}</p>
+              <p>{GROUP_COMPLETION_STATUS_SENTENCE}</p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <p className="font-medium text-foreground">Your rights:</p>
             <ul className="list-disc pl-5 space-y-1">
@@ -197,9 +213,7 @@ export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded
           onChange={(e) => setAgreed(e.target.checked)}
           className="mt-0.5 h-5 w-5 rounded border-border accent-primary"
         />
-        <span className="text-sm">
-          I consent to the credit and background check as described above.
-        </span>
+        <span className="text-sm">{groupClause ? CONSENT_CHECKBOX_GROUP : CONSENT_CHECKBOX_SINGLE}</span>
       </label>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

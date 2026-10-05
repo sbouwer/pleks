@@ -171,8 +171,17 @@ type Party = {
   complete: boolean
   /** Paid for its own line — its part is done even while the check is still in flight. */
   paid: boolean
+  /**
+   * Owes nothing more: paid AND consented, whatever the check is doing (Stéan 2026-10-05: paid-and-running = complete,
+   * 14W §0). The view's states past both acts. Used by the lead chaser; N3 still counts line completion (it is held, and
+   * its trigger is a line completing — aligning it is part of releasing it).
+   */
+  settled: boolean
   isLead: boolean
 }
+
+/** The view's states in which a party has paid and consented: nothing is left for that party to do. */
+const SETTLED_STATES: ReadonlySet<string> = new Set(["ready_to_run", "running", "failed", "complete"])
 
 /** The live roster: the lead plus every co row not declined and not lapsed (past its own deadline, incomplete and
  *  unpaid). A party that has left the set is told nothing and named to nobody. */
@@ -195,12 +204,14 @@ async function readRoster(db: SupabaseClient, orgId: string, applicationId: stri
   if (coError) throw new Error(`progress: read co parties: ${coError.message}`)
   const { data: lines, error: lineError } = await db
     .from("v_application_screening_lines")
-    .select("subject_type, subject_id, paid_at")
+    .select("subject_type, subject_id, paid_at, state")
     .eq("application_id", applicationId)
     .eq("org_id", orgId)
   if (lineError) throw new Error(`progress: read lines: ${lineError.message}`)
   const paidKeys = new Set((lines ?? []).filter((l) => l.paid_at).map((l) => `${l.subject_type}:${l.subject_id}`))
   const isPaid = (s: TrailSubject) => paidKeys.has(`${s.subjectType}:${s.subjectId}`)
+  const settledKeys = new Set((lines ?? []).filter((l) => SETTLED_STATES.has(l.state as string)).map((l) => `${l.subject_type}:${l.subject_id}`))
+  const isSettled = (s: TrailSubject) => settledKeys.has(`${s.subjectType}:${s.subjectId}`)
 
   const fullName = (r: { first_name: unknown; last_name: unknown }) =>
     [r.first_name, r.last_name].filter(Boolean).join(" ") || "A party to the application"
@@ -208,7 +219,8 @@ async function readRoster(db: SupabaseClient, orgId: string, applicationId: stri
   const lead: Party = {
     subject: leadSubj, name: fullName(app), firstName: (app.first_name as string | null) ?? "there",
     email: (app.applicant_email as string | null) ?? null, invitedAt: (app.stage2_invited_at as string | null) ?? null,
-    complete: app.searchworx_check_status === "complete", paid: isPaid(leadSubj), isLead: true,
+    complete: app.searchworx_check_status === "complete", paid: isPaid(leadSubj),
+    settled: app.searchworx_check_status === "complete" || isSettled(leadSubj), isLead: true,
   }
   const coParties: Party[] = (cos ?? []).map((c) => {
     const subject: TrailSubject = { subjectType: "co_applicant", subjectId: c.id as string }
@@ -216,7 +228,7 @@ async function readRoster(db: SupabaseClient, orgId: string, applicationId: stri
       subject, name: fullName(c),
       firstName: (c.first_name as string | null) ?? "there", email: (c.applicant_email as string | null) ?? null,
       invitedAt: (c.stage2_invited_at as string | null) ?? null, complete: c.searchworx_check_status === "complete",
-      paid: isPaid(subject), isLead: false,
+      paid: isPaid(subject), settled: c.searchworx_check_status === "complete" || isSettled(subject), isLead: false,
     }
   })
   const listing = app.listings as { units?: { unit_number?: string; properties?: { name?: string } } } | null
@@ -340,9 +352,10 @@ export async function notifyOutcome(db: SupabaseClient, p: { orgId: string; appl
 
 /**
  * The lead's N5 when the lead's own part is complete (14X §2: N5 goes to "each party not yet complete, and the lead").
- * Due while any other live party is inside its own final 24 hours; the caller sends it once (the lead's N5 trail row).
- * Returns null when it is not due. A lead that still owes something gets its own N5 on its own clock; a lead that has
- * paid and consented but whose check is still running gets neither, since there is nothing left for it to do.
+ * Due while any other live party that still OWES something is inside its own final 24 hours; the caller sends it once
+ * (the lead's N5 trail row). "Done" is `settled` — paid and consented, the check running or not (Stéan 2026-10-05,
+ * 14W §0) — for the lead, for the party in its final day, and for the count. A lead that still owes something gets its
+ * own N5 on its own clock instead. Returns null when it is not due.
  */
 export async function leadFinalNoticeForOthers(db: SupabaseClient, p: {
   orgId: string; applicationId: string; now?: Date
@@ -351,9 +364,9 @@ export async function leadFinalNoticeForOthers(db: SupabaseClient, p: {
   const roster = await readRoster(db, p.orgId, p.applicationId)
   if (!roster) return null
   const lead = roster.parties.find((x) => x.isLead)
-  if (!lead?.email || !lead.complete) return null
+  if (!lead?.email || !lead.settled) return null
   const inFinalDay = roster.parties.some((x) =>
-    !x.isLead && !x.complete && !!x.invitedAt && now >= finalNoticeAt(x.invitedAt) && !isPastDeadline(x.invitedAt, now))
+    !x.isLead && !x.settled && !!x.invitedAt && now >= finalNoticeAt(x.invitedAt) && !isPastDeadline(x.invitedAt, now))
   if (!inFinalDay) return null
   return sendMilestoneNotice(db, {
     orgId: p.orgId, applicationId: p.applicationId, subject: lead.subject, milestone: "N5", templateKey: FINAL_NOTICE_OTHERS_KEY,
@@ -361,7 +374,7 @@ export async function leadFinalNoticeForOthers(db: SupabaseClient, p: {
     to: { email: lead.email, name: lead.firstName },
     copy: finalNoticeOthersCopy({
       firstName: lead.firstName, propertyLabel: roster.propertyLabel,
-      completed: roster.parties.filter((x) => x.complete).length, total: roster.parties.length,
+      completed: roster.parties.filter((x) => x.settled).length, total: roster.parties.length,
     }),
     triggerEventType: "cron:screening_portal_reminders",
   })
