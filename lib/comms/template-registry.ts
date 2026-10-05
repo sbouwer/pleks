@@ -22,6 +22,10 @@ export interface TemplateEntry {
   /** The copy's version, recorded on every 14X trail row (ADDENDUM_14X §3: "the registry version, not a body hash").
    *  Absent = 1. Bump it in the same change as any edit to the template's approved wording. */
   version?: number
+  /** Copy written but NOT approved to send: names the counsel row that must read `ready` first. sendEmail refuses a held
+   *  key outright, and a 14X milestone on one records the gap in the trail instead (ADDENDUM_14X §4: "until then the
+   *  schedule runs with N1, N2, N4 only and the trail records the gap"). Lift the hold in the change that ships the copy. */
+  heldFor?: string
 }
 
 const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
@@ -434,6 +438,29 @@ const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "application.primary_contact_director_pending", channel: "email", category: "applications", is_mandatory: false,
     description: "Primary contact notified that one or more directors have not yet completed their portions",
   },
+  // ADDENDUM_14X §2 — N3/N5/N6/N6′. New copy, held until counsel's row reads ready (the draft file names the rows).
+  // N5 and both N6 notices are evidence of being told, so a communication preference cannot suppress them; N3 is a
+  // motivational nudge and respects one.
+  "application.screening_progress": {
+    key: "application.screening_progress", channel: "email", category: "applications", is_mandatory: false,
+    description: "14X N3 — a party completed; the others are told who the application is still waiting on",
+    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 1",
+  },
+  "application.screening_final_notice": {
+    key: "application.screening_final_notice", channel: "email", category: "applications", is_mandatory: true,
+    description: "14X N5 — final notice 24 hours before the party's screening deadline (a lead variant)",
+    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 2",
+  },
+  "application.screening_outcome": {
+    key: "application.screening_outcome", channel: "email", category: "applications", is_mandatory: true,
+    description: "14X N6 — the assessment was generated on the completed parts; names only the completed parties",
+    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 3",
+  },
+  "application.screening_outcome_absent": {
+    key: "application.screening_outcome_absent", channel: "email", category: "applications", is_mandatory: true,
+    description: "14X N6′ — the party's deadline passed (a lead variant: the application cannot be assessed). No result, no list",
+    heldFor: "COUNSEL_DRAFT_14X_MILESTONE_COPY_2026-10-05 §5 row 4",
+  },
   "application.credit_report_delivered": {
     key: "application.credit_report_delivered", channel: "email", category: "applications", is_mandatory: false,
     description: "Applicant receives their FitScore and screening summary",
@@ -548,6 +575,11 @@ export function getTemplate(key: string): TemplateEntry {
   const entry = TEMPLATE_REGISTRY[key]
   if (!entry) throw new Error(`Unknown template key: ${key}`)
   return entry
+}
+
+/** Why a key may not be sent yet (the counsel row it waits on), or null when it may. Throws on an unknown key. */
+export function heldFor(key: string): string | null {
+  return getTemplate(key).heldFor ?? null
 }
 
 /** The registered copy version for a key (absent = 1). Throws on an unknown key, like getTemplate. */

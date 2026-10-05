@@ -1,12 +1,13 @@
 /**
- * lib/reports/screening/_web/primitives/__tests__/EditorialHeadline.test.tsx — "Assessed with N of M" is the first line
+ * lib/reports/screening/_web/__tests__/EditorialHeadline.test.tsx — "Assessed with N of M" is the first line
  *
  * Notes:  ADDENDUM_14X §4 (walker 14x-p3 F4): the agent sees the stamp FIRST, ahead of the eyebrow and the headline;
  *         amber when a party did not complete; and a score with no stamp (pre-P3) renders no line at all.
+ *         Lives OUTSIDE _web/primitives/: check-fitscore-parity treats every file there as a primitive needing a PDF twin.
  */
 import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
-import { EditorialHeadline } from "../EditorialHeadline"
+import { EditorialHeadline } from "../primitives/EditorialHeadline"
 import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
 
 const data = (assessedWith: FitScoreReportData["assessedWith"]) =>

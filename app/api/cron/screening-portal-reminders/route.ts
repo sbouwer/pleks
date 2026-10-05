@@ -1,5 +1,5 @@
 /**
- * app/api/cron/screening-portal-reminders/route.ts — daily 14X reminder schedule (N2/N4) for every party, plus the deadline
+ * app/api/cron/screening-portal-reminders/route.ts — daily 14X clock milestones (N2/N4/N5) for every party, and N6′ at D
  *
  * Route:  GET /api/cron/screening-portal-reminders
  * Auth:   x-cron-secret header
@@ -11,18 +11,23 @@
  *         reminder_milestones_sent jsonb, which has no writer any more; until its DROP it is still READ (withLegacySent),
  *         so a party mid-window at deploy is not reminded twice.
  *         THE LEAD (14X §7, row 32): reminded at N2/N4 with the shortlist email resent verbatim on its live invite token —
- *         the 3-day nudge application-reminders used to send retired into this. Not declined here at the deadline: the
- *         lead's outcome at D is N6/N6′ (14X P4).
+ *         the 3-day nudge application-reminders used to send retired into this. Never declined at the deadline: an
+ *         incomplete lead means no FitScore at all, so a lead past its own D with its part incomplete is only TOLD — N6′,
+ *         from its own bounded scan (one window past D), in a lead variant that does not promise an assessment.
+ *         N5 (D − 24h) and N6′ (at D) are NEW COPY, held until counsel approves it (registry `heldFor`): while held,
+ *         nothing is sent and the trail records the gap once per party (lib/screening/milestoneNotices.ts). N5 reaches
+ *         a consented-but-unpaid party too: unlike N2/N4 it is not consent copy. A surety's N6′ is its approved expiry
+ *         notice, now on the trail; every other co party's is the held N6′.
  *         CO PARTIES, routed by the view's `party_kind` (BUILD_72 P1-R1). ONE CLOCK (14W §0b): every party's window runs
  *         from its own `stage2_invited_at`, written at shortlist for every party, sureties included; an uninvited party is
  *         skipped. At the deadline every unfinished co party is declined by one writer (`declineLine`) — whoever completed
  *         counts — and the FitScore orchestrator is offered the application. Nothing here refunds (§0).
  *         · surety whose inviteRoute is "surety" → the role-neutral surety reminder (the t3 copy at N2, t7 at N4) +
- *           director-portal link; primary contact told at N4 (informational only); expiry notice at the deadline.
+ *           director-portal link; primary contact told at N4 (informational only); expiry notice at the deadline (N6′).
  *         · a surety inviteHold still holds (none today: no approved role sentence fits it) → HELD: no send, no expiry.
  *         · co_applicant, or guarantor (a surety on a NON-juristic application, P1-R3a) →
- *           `co_applicant_invited` resent verbatim at each milestone (P1-R5); no notice at the deadline.
- *         · consented, unpaid (lead or co) → no reminder (no approved pay prompt exists); a co is declined at the deadline.
+ *           `co_applicant_invited` resent verbatim at N2/N4 (P1-R5); the held N6′ at the deadline.
+ *         · consented, unpaid (lead or co) → no N2/N4 (no approved pay prompt exists), but N5; a co is declined at D.
  *         · anything else (null/unknown party_kind) → skipped. No email beats a wrong one.
  */
 import { NextRequest, NextResponse } from "next/server"
@@ -39,7 +44,10 @@ import { readLine } from "@/lib/screening/lineFee"
 import {
   daysRemaining, deadlineAsStated, dueReminder, isPastDeadline, windowOpenSince, type ReminderMilestone,
 } from "@/lib/screening/notificationSchedule"
-import { leadSubject, milestonesSentOk, recordTrail, type TrailSubject } from "@/lib/screening/notificationTrail"
+import { leadSubject, milestonesSentOk, recordTrail, type TrailMilestone, type TrailSubject } from "@/lib/screening/notificationTrail"
+import {
+  FINAL_NOTICE_KEY, OUTCOME_ABSENT_KEY, deadlineForCopy, finalNoticeCopy, outcomeAbsentCopy, sendMilestoneNotice,
+} from "@/lib/screening/milestoneNotices"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 
@@ -52,6 +60,8 @@ const DAY_MS = 86_400_000
 const OWING = ["pending_both", "paid_pending_consent", "consented_pending_payment", "expired_no_consent"]
 /** The surety reminder's approved copy is staged: the gentle t3 wording at N2, the t7 wording at N4. */
 const SURETY_COPY: Record<ReminderMilestone, "t3" | "t7"> = { N2: "t3", N4: "t7" }
+const TRIGGER = "cron:screening_portal_reminders"
+const N5_OFF_SCHEDULE: ReadonlySet<"N5"> = new Set(["N5"])
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -98,7 +108,7 @@ export async function GET(req: NextRequest) {
     // without the stage-1 and window bounds the scan would remind the declined and fill its 500 with the expired.
     const { data: leads, error: leadsError } = await service
       .from("applications")
-      .select("id, org_id, entity_type, stage2_invited_at, stage2_reminder_sent_at")
+      .select(LEAD_COLUMNS)
       .eq("stage2_status", "invited")
       .eq("stage1_status", "shortlisted")
       .is("deleted_at", null)
@@ -112,7 +122,9 @@ export async function GET(req: NextRequest) {
     }
     for (const lead of leads ?? []) {
       try {
-        if ((await processLeadLine(service, lead as LeadApp)) === "reminded") reminders++
+        const result = await processLeadLine(service, lead as LeadApp)
+        if (result === "reminded") reminders++
+        if (result === "held") held++
       } catch (err) {
         Sentry.captureException(err, {
           tags: { cron_job: "screening_portal_reminders" },
@@ -120,12 +132,56 @@ export async function GET(req: NextRequest) {
         })
       }
     }
+
+    const lapsed = await runLapsedLeads(service)
+    if ("error" in lapsed) return NextResponse.json({ error: lapsed.error }, { status: 500 })
+    reminders += lapsed.reminders
+    held += lapsed.held
   } catch (err) {
     Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders" } })
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true, reminders, expirations, held })
+}
+
+/**
+ * The leads whose own D has passed with their part incomplete get N6′ (14X §2). Nothing declines a lead at D — an
+ * incomplete lead means no FitScore at all (the orchestrator runs only on a complete lead) — so this pass only tells
+ * them. Bounded to one window after D; once sent (or its gap recorded), it is never repeated.
+ */
+async function runLapsedLeads(service: Svc): Promise<{ reminders: number; held: number } | { error: string }> {
+  // The grace is one more window after D (no second day-count beside the window): a failed N6′ is retried on each run
+  // inside it, and it bounds the scan, which would otherwise read every application ever shortlisted.
+  const graceStart = windowOpenSince(windowOpenSince())
+  const { data: lapsed, error } = await service
+    .from("applications")
+    .select(LEAD_COLUMNS)
+    .eq("stage2_status", "invited")
+    .eq("stage1_status", "shortlisted")
+    .is("deleted_at", null)
+    .lte("stage2_invited_at", windowOpenSince().toISOString())
+    .gt("stage2_invited_at", graceStart.toISOString())
+    // Newest first: the band never drains (a noticed lead stays 'invited'), and the newest-lapsed are the ones still
+    // owed their N6′, so a full page must not be the oldest, long-noticed ones (walker 14x-p4 F7).
+    .order("stage2_invited_at", { ascending: false })
+    .limit(500)
+  if (error) {
+    console.error("[screening-portal-reminders] lapsed-lead query failed:", error.message)
+    return { error: error.message }
+  }
+  let reminders = 0
+  let held = 0
+  for (const lead of lapsed ?? []) {
+    try {
+      const result = await processLapsedLead(service, lead as LeadApp)
+      if (result === "reminded") reminders++
+      if (result === "held") held++
+    } catch (err) {
+      Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders" }, extra: { application_id: lead.id } })
+    }
+  }
+  return { reminders, held }
 }
 
 type PendingLine = {
@@ -152,7 +208,11 @@ type CoAppRow = {
   access_token: string
 }
 
-type LeadApp = { id: string; org_id: string; entity_type: string | null; stage2_invited_at: string; stage2_reminder_sent_at: string | null }
+const LEAD_COLUMNS = "id, org_id, entity_type, first_name, applicant_email, stage2_invited_at, stage2_reminder_sent_at"
+type LeadApp = {
+  id: string; org_id: string; entity_type: string | null; first_name: string | null; applicant_email: string | null
+  stage2_invited_at: string; stage2_reminder_sent_at: string | null
+}
 
 /**
  * TRANSITIONAL (walker 14x F5): what the pre-trail stamps already sent, read as trail milestones so a party mid-window
@@ -184,21 +244,18 @@ function resolveListingLabel(listings: unknown): { slug: string; propertyLabel: 
 /** The lead's N2/N4: the shortlist email resent verbatim on the live invite token (the nudge it replaced did the same). */
 async function processLeadLine(service: Svc, lead: LeadApp): Promise<LineOutcome> {
   const subject = leadSubject(lead)
-  const { data: own, error: ownError } = await service
-    .from("v_application_screening_lines")
-    .select("state")
-    .eq("org_id", lead.org_id)
-    .eq("application_id", lead.id)
-    .eq("subject_type", subject.subjectType)
-    .eq("subject_id", subject.subjectId)
-    .maybeSingle()
-  if (ownError) throw new Error(`read lead line: ${ownError.message}`)
-  // Consented-but-unpaid is not chased (no approved pay prompt, as for a co party); a lead with no owing line is done.
-  if (!own || !OWING.includes(own.state as string) || own.state === "consented_pending_payment") return "skipped"
+  const state = await leadLineState(service, lead)
+  // A lead with no owing line is done.
+  if (!state || !OWING.includes(state)) return "skipped"
 
   const sentOk = withLegacySent(await milestonesSentOk(service, lead.org_id, lead.id, subject), { leadNudgedAt: lead.stage2_reminder_sent_at })
-  const due = dueReminder(lead.stage2_invited_at, sentOk)
-  if (!due) return "skipped"
+  const due = await clockStep(service, {
+    orgId: lead.org_id, applicationId: lead.id, subject, t0: lead.stage2_invited_at, sentOk,
+    to: lead.applicant_email, firstName: lead.first_name, lead: true,
+  })
+  if (!isReminder(due)) return due
+  // Consented-but-unpaid is not reminded (no approved pay prompt, as for a co party).
+  if (state === "consented_pending_payment") return "skipped"
 
   // Reuse the live shortlist token — minting one is the shortlist action's job. It lives the whole window, so its
   // absence inside the window is an anomaly worth a person's eye rather than a silent skip.
@@ -230,9 +287,88 @@ async function processLeadLine(service: Svc, lead: LeadApp): Promise<LineOutcome
   return "reminded"
 }
 
+const isReminder = (x: ReminderMilestone | LineOutcome): x is ReminderMilestone => x === "N2" || x === "N4"
+
+/**
+ * The clock step for one party: the reminder (N2/N4) the caller should send, or the outcome when there is none to send.
+ * N5, the final notice, is sent here — it is neutral copy (a date and its consequence), so every party kind and a
+ * consented-but-unpaid party get it. While N5 is HELD its gap is recorded and the schedule runs as if N5 did not exist
+ * (§4: "N1, N2, N4 only"), so an N4 still owed in the last 24 hours goes out instead (walker 14x-p4 F2).
+ */
+async function clockStep(service: Svc, p: {
+  orgId: string; applicationId: string; subject: TrailSubject; t0: string; sentOk: ReadonlySet<string>
+  to: string | null; firstName: string | null; lead: boolean
+}): Promise<ReminderMilestone | LineOutcome> {
+  const due = dueReminder(p.t0, p.sentOk)
+  if (due !== "N5") return due ?? "skipped"
+  const n5 = await notice(service, {
+    orgId: p.orgId, applicationId: p.applicationId, subject: p.subject, milestone: "N5", templateKey: FINAL_NOTICE_KEY,
+    t0: p.t0, to: p.to, firstName: p.firstName,
+    copy: (firstName, propertyLabel) => finalNoticeCopy({ firstName, propertyLabel, deadline: deadlineForCopy(p.t0), lead: p.lead }),
+  })
+  if (n5 !== "held") return n5
+  const owed = dueReminder(p.t0, p.sentOk, new Date(), N5_OFF_SCHEDULE)
+  return owed && owed !== "N5" ? owed : "held"
+}
+
+/** The lead's own line state in the view, or null when it has none. */
+async function leadLineState(service: Svc, lead: LeadApp): Promise<string | null> {
+  const subject = leadSubject(lead)
+  const { data: own, error: ownError } = await service
+    .from("v_application_screening_lines")
+    .select("state")
+    .eq("org_id", lead.org_id)
+    .eq("application_id", lead.id)
+    .eq("subject_type", subject.subjectType)
+    .eq("subject_id", subject.subjectId)
+    .maybeSingle()
+  if (ownError) throw new Error(`read lead line: ${ownError.message}`)
+  return (own?.state as string | undefined) ?? null
+}
+
+/** N6′ to a lead whose own D passed with the lead's part incomplete. Once: a successful send (or a held gap) ends it. */
+async function processLapsedLead(service: Svc, lead: LeadApp): Promise<LineOutcome> {
+  const state = await leadLineState(service, lead)
+  if (!state || !OWING.includes(state)) return "skipped"
+  const subject = leadSubject(lead)
+  if ((await milestonesSentOk(service, lead.org_id, lead.id, subject)).has("N6_absent")) return "skipped"
+  // A notice, not an expiry: nothing about the lead changes, so a sent one counts with the reminders.
+  return notice(service, {
+    orgId: lead.org_id, applicationId: lead.id, subject, milestone: "N6_absent", templateKey: OUTCOME_ABSENT_KEY,
+    t0: lead.stage2_invited_at, to: lead.applicant_email, firstName: lead.first_name,
+    copy: (firstName, propertyLabel) => outcomeAbsentCopy({ firstName, propertyLabel, lead: true }),
+  })
+}
+
+/**
+ * A new-copy milestone (N5, N6′) through sendMilestoneNotice: held → the gap is recorded once and nothing is sent;
+ * otherwise sent and trailed, and a failure THROWS so the per-line catch reports it (the next run retries, since no
+ * send_ok row exists).
+ */
+async function notice(service: Svc, p: {
+  orgId: string; applicationId: string; subject: TrailSubject; milestone: TrailMilestone; templateKey: string
+  t0: string; to: string | null; firstName: string | null
+  copy: (firstName: string, propertyLabel: string) => { subject: string; html: string }
+}): Promise<LineOutcome> {
+  if (!p.to) return "skipped"
+  const ctx = await buildEmailContext(p.applicationId)
+  const propertyLabel = ctx
+    ? [ctx.listingSummary.unitLabel, ctx.listingSummary.propertyName].filter(Boolean).join(", ") || "the property"
+    : "the property"
+  const firstName = p.firstName ?? "there"
+  const result = await sendMilestoneNotice(service, {
+    orgId: p.orgId, applicationId: p.applicationId, subject: p.subject, milestone: p.milestone, templateKey: p.templateKey,
+    deadlineAsStated: deadlineAsStated(p.t0), to: { email: p.to, name: firstName },
+    copy: p.copy(firstName, propertyLabel), triggerEventType: TRIGGER,
+  })
+  if (result.outcome === "held") return "held"
+  if (result.outcome === "failed") throw new Error(`${p.milestone} not sent: ${result.error}`)
+  return "reminded"
+}
+
 /** One trail row for one attempt (14X §3) — written before the outcome is acted on, so a failure row always stays. */
 async function trail(
-  service: Svc, orgId: string, applicationId: string, subject: TrailSubject, milestone: ReminderMilestone,
+  service: Svc, orgId: string, applicationId: string, subject: TrailSubject, milestone: TrailMilestone,
   templateKey: string, t0: string, sent: Awaited<ReturnType<typeof sendEmail>> | null,
 ): Promise<void> {
   await recordTrail(service, { orgId, applicationId, subject, milestone, templateKey, deadlineAsStated: deadlineAsStated(t0), sent })
@@ -288,15 +424,18 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   // the same clock as everyone else (walker 14w-s0a F2), and the set it leaves may now be complete.
   if (pastDeadline) return declineLine(service, line, row)
 
+  const subject: TrailSubject = { subjectType: "co_applicant", subjectId: line.subject_id }
+  const sentOk = withLegacySent(await milestonesSentOk(service, line.org_id, line.application_id, subject), { milestones: row.reminder_milestones_sent })
+  const due = await clockStep(service, {
+    orgId: line.org_id, applicationId: line.application_id, subject, t0, sentOk,
+    to: row.applicant_email, firstName: row.first_name, lead: false,
+  })
+  if (!isReminder(due)) return due
+
   // Consented, own line unpaid: no reminder. Every approved reminder is consent copy ("No credit check runs at this
   // stage"; "until the required consent is completed"), false for this party, and no approved pay prompt exists. The
   // party's own link shows the pay step. A pay reminder needs copy first (14W §0b, Decided in build).
   if (line.state === "consented_pending_payment") return "skipped"
-
-  const subject: TrailSubject = { subjectType: "co_applicant", subjectId: line.subject_id }
-  const sentOk = withLegacySent(await milestonesSentOk(service, line.org_id, line.application_id, subject), { milestones: row.reminder_milestones_sent })
-  const due = dueReminder(t0, sentOk)
-  if (!due) return "skipped"
   if (line.party_kind === "surety") return sendMilestoneReminder(service, line, row, due, t0)
   return processCoApplicantLine(service, line, row, due, t0)
 }
@@ -328,7 +467,8 @@ async function processCoApplicantLine(
  *  (1) the stage-1 "ready to submit" fan-out may fire, and (2) the remaining subjects may now all be complete, so the
  *  FitScore orchestrator is offered the application — before §0b only a line FINISHING did that, so an application
  *  whose last open party was declined never ran. A surety is told its portion expired (the approved notice, without
- *  the refund note it carried under the pooled model); a co party is sent nothing, as before. */
+ *  the refund note it carried under the pooled model) as its N6′; every other co party gets the 14X N6′, held until
+ *  counsel approves it (the gap is recorded). */
 async function declineLine(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<LineOutcome> {
   // The state was read once at the start of the run; the party may have paid since (walker 14w-s0b F3). Re-read its own
   // line immediately before declining, and never decline a paid one. The residual window (an ITN landing between this
@@ -349,11 +489,32 @@ async function declineLine(service: Svc, line: PendingLine, coApp: CoAppRow): Pr
   // An overlapping run already declined it: no second audit row, notice or fan-out (walker F6).
   if (!declined?.length) return "skipped"
   await recordAudit(service, { orgId: line.org_id, table: "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { declined_at: now, decline_reason: "expired_no_completion" } })
-  // The notice first: the line has left the view, so nothing after this point is retried (walker F6).
-  if (line.party_kind === "surety") await sendSuretyExpiry(service, line, coApp)
+  // N6′ first: the line has left the view, so nothing after this point is retried (walker F6). A surety's N6′ is the
+  // approved expiry notice, as its N2/N4 is the approved director reminder; every other party's is the new 14X copy,
+  // held until counsel approves it (the gap is recorded).
+  // Neither may throw past here: the decline is committed and the line has left the view, so a throw would skip the
+  // fan-out and the orchestrator below with nothing to retry them (walker 14x-p4 F1).
+  if (line.party_kind === "surety") {
+    await sendSuretyExpiry(service, line, coApp).catch((err: unknown) =>
+      Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders", milestone: "N6_absent" }, extra: { subject_id: line.subject_id } }))
+  } else await sendOutcomeAbsent(service, line, coApp)
   await maybeFireAllGreen(service, line.application_id)
   await maybeRunOrchestrator(service, line.org_id, line.application_id)
   return "expired"
+}
+
+/** N6′ for a co_applicant/guarantor at its deadline. Reported, never thrown: the decline above stands either way. */
+async function sendOutcomeAbsent(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<void> {
+  try {
+    await notice(service, {
+      orgId: line.org_id, applicationId: line.application_id, subject: { subjectType: "co_applicant", subjectId: line.subject_id },
+      milestone: "N6_absent", templateKey: OUTCOME_ABSENT_KEY, t0: coApp.stage2_invited_at as string,
+      to: coApp.applicant_email, firstName: coApp.first_name,
+      copy: (firstName, propertyLabel) => outcomeAbsentCopy({ firstName, propertyLabel, lead: false }),
+    })
+  } catch (err) {
+    Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders", milestone: "N6_absent" }, extra: { subject_id: line.subject_id } })
+  }
 }
 
 async function sendSuretyExpiry(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<void> {
@@ -378,6 +539,11 @@ async function sendSuretyExpiry(service: Svc, line: PendingLine, coApp: CoAppRow
     entityType: "application_co_applicant", entityId: line.subject_id,
     triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
   })
+  // The surety's N6′ (14X §2): trailed like every other milestone, so the evidence holds the outcome notice too.
+  if (coApp.stage2_invited_at) {
+    await trail(service, line.org_id, line.application_id, { subjectType: "co_applicant", subjectId: line.subject_id },
+      "N6_absent", "application.director_expired_refund", coApp.stage2_invited_at, sendResult)
+  }
   // The decline above stands either way; a failed notice is reported, not retried (the line has left the view).
   if (!sendResult.success) {
     Sentry.captureMessage("Surety expiry notice not sent", {
