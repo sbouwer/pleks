@@ -3,7 +3,9 @@
  *
  * Auth:   internal — called by app/api/cron/screening-line-runner after all subjects are complete
  * Data:   reads applications + application_co_applicants + listings; writes fitscore_* to applications
- * Notes:  Feature-flagged via FITSCORE_V1_ENABLED env var. Idempotent: same inputs hash skips DB write.
+ * Notes:  Feature-flagged via FITSCORE_V1_ENABLED env var. Idempotent: same inputs hash + same assessedWith skips DB write.
+ *         Scores the lead plus every live co party whose line completed; the snapshot carries `assessedWith`
+ *         (N of M, with the completed ids — ADDENDUM_14X §4, lib/screening/assessedWith.ts).
  *         Bureau scores and VCCB income read from searchworx_extracted_data JSONB (written by bundle-runner).
  *         Email 7 (application.screening_complete) fires after DB write — non-blocking (void).
  *         Narrative generation via Sonnet 4.6 (lib/screening/fitScoreNarrative.ts) runs between engine and write.
@@ -57,6 +59,7 @@ import type { createServiceClient } from "@/lib/supabase/server"
 import { getUserEmail } from "@/lib/auth/userEmail"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { assertScreeningConsent } from "@/lib/screening/consentGuard"
+import { readAssessedWith, sameAssessedWith, screeningRoster, stampAssessedWith } from "@/lib/screening/assessedWith"
 import { gitCommitSha, optionalEnv } from "@/lib/env"
 
 const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
@@ -228,7 +231,7 @@ export async function runFitScoreOrchestrator(
       income_evidence_tier, identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
       bank_account_ownership_status, pleks_network_history_status,
-      pleks_network_tenancy_count, fitscore_inputs_hash
+      pleks_network_tenancy_count, fitscore_inputs_hash, fitscore_component_snapshot
     `)
     .eq('id', applicationId)
     .single()
@@ -254,20 +257,26 @@ export async function runFitScoreOrchestrator(
   const proposedRentCents = listing.asking_rent_cents
 
   // ── Read co-applicants (sorted by index) ──────────────────────────────────
-  const { data: coApplicants, error: coErr } = await supabase
+  // EVERY co row, declined ones included: the score is computed on the completed parties only, but it is stamped
+  // "assessed with N of M", and a party who did not complete is one of the M (14X §4, rows 35–36 — assessedWith.ts).
+  const { data: coRows, error: coErr } = await supabase
     .from('application_co_applicants')
     .select(`
       id, id_type, gross_monthly_income_cents, bank_statement_extracted,
       searchworx_extracted_data, identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
       bank_account_ownership_status, pleks_network_history_status,
-      pleks_network_tenancy_count, co_applicant_index
+      pleks_network_tenancy_count, co_applicant_index,
+      declined_at, searchworx_check_status
     `)
     .eq('primary_application_id', applicationId)
-    .is('declined_at', null) // a declined party is out of the application (14W §0), as in billing, the ITN and the screen route
+    .eq('org_id', app.org_id as string)
     .order('co_applicant_index', { ascending: true })
 
   if (coErr) return { ok: false, reason: `co_applicants_query_failed: ${coErr.message}` }
+  // Scored: live AND completed — a declined party is out of the application (14W §0), and one whose line has not
+  // completed has nothing to score (row 35). The roster is what the score is OUT OF.
+  const { completed: coApplicants, counted: countedCos } = screeningRoster(coRows ?? [])
 
   // ── Build primary ApplicantInput ───────────────────────────────────────────
   // nationalityType: read the full 9-value enum from applications.applicant_nationality_type.
@@ -301,7 +310,7 @@ export async function runFitScoreOrchestrator(
   }
 
   // ── Build co-applicant ApplicantInputs ────────────────────────────────────
-  const coInputs: ApplicantInput[] = (coApplicants ?? []).map((co, idx) => ({
+  const coInputs: ApplicantInput[] = coApplicants.map((co, idx) => ({
     id: co.id,
     label: APPLICANT_LABELS[idx + 1] ?? `CO${idx + 1}`,
     nationalityType: nationalityFromIdType(co.id_type), // id_type proxy — see header note on F3-b
@@ -335,8 +344,21 @@ export async function runFitScoreOrchestrator(
     computedAt,
   })
 
-  // ── Idempotency guard: same inputs → skip write ───────────────────────────
+  // Stamped on the persisted snapshot, at scoring time, beside what was scored (row 36).
+  const assessedWith = stampAssessedWith(app.id as string, coApplicants.map(co => co.id as string), countedCos)
+
+  // ── Idempotency guard: same inputs → no rescore ───────────────────────────
+  // The inputs hash covers only what was scored. When it matches, the score, narrative, status and email all stand;
+  // only a stamp whose "of M" no longer holds (or a pre-P3 score with none) is patched — the snapshot column alone,
+  // never stage2_status, the narrative or Email 7, so a decided application is not reopened (walker 14x-p3 F1).
   if (app.fitscore_inputs_hash === result.inputsHash) {
+    if (sameAssessedWith(readAssessedWith(app.fitscore_component_snapshot), assessedWith)) return { ok: true, result }
+    const { error: stampErr } = await supabase
+      .from('applications')
+      .update({ fitscore_component_snapshot: { ...result.componentSnapshot, assessedWith } })
+      .eq('id', applicationId)
+      .eq('org_id', app.org_id as string)
+    if (stampErr) return { ok: false, reason: `fitscore_stamp_write_failed: ${stampErr.message}` }
     return { ok: true, result }
   }
 
@@ -373,7 +395,7 @@ export async function runFitScoreOrchestrator(
       fitscore_computed_at:              computedAt,
       fitscore_engine_version:           ENGINE_VERSION,
       fitscore_inputs_hash:              result.inputsHash,
-      fitscore_component_snapshot:       result.componentSnapshot,
+      fitscore_component_snapshot:       { ...result.componentSnapshot, assessedWith },
       fitscore_interpretation_version:       CURRENT_INTERPRETATION_VERSION,
       fitscore_narrative_prompt_version:     narrativePromptVersion,
       fitscore_synthesis_template_version:   SYNTHESIS_TEMPLATE_VERSION,

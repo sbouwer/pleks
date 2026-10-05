@@ -5,16 +5,29 @@
  * F1: H1 = static editorial thesis with amber highlight on "verification".
  * F2: Eyebrow = "FITSCORE · STREAM 2" | "evidence summary" (third token deferred E.6).
  * F3: Sub = DOCTRINE_DISCLAIMER constant.
+ * F4: First line = "Assessed with N of M" (ADDENDUM_14X §4), amber when a party did not complete; absent when the
+ *     score carries no stamp (computed before 14X P3).
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.2.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, D, FONTS, DOCTRINE_DISCLAIMER, sp, fmtDate } from "./theme"
+import { C, D, FONTS, DOCTRINE_DISCLAIMER, assessedWithLine, sp, fmtDate } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 const S = StyleSheet.create({
   wrap: {
     marginBottom: D.primitiveGap,
+  },
+  assessed: {
+    fontFamily:    FONTS.mono,
+    fontSize:      8.5,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color:         C.ink.mute,
+    marginBottom:  8,
+  },
+  assessedPartial: {
+    color: C.amber.ink,
   },
   eyebrow: {
     flexDirection:     'row',
@@ -83,9 +96,12 @@ interface EditorialHeadlineProps {
 export function EditorialHeadline({ data }: Readonly<EditorialHeadlineProps>) {
   const n = data.applicants.length
   const plural = n === 1 ? '' : 's'
+  const assessed = assessedWithLine(data)
+  const partial  = !!data.assessedWith && data.assessedWith.n < data.assessedWith.m
 
   return (
     <View style={S.wrap} wrap={false}>
+      {assessed && <Text style={partial ? [S.assessed, S.assessedPartial] : S.assessed}>{sp(assessed)}</Text>}
       <View style={S.eyebrow}>
         <Text style={S.eyebrowText}>FITSCORE · STREAM 2</Text>
         <View style={S.eyebrowSep} />

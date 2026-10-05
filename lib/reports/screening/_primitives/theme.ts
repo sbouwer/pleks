@@ -104,6 +104,9 @@ export interface FitScoreReportData {
   primaryApplicantName: string
   coApplicantCount: number
   applicants: FitScoreApplicantEntry[]
+  /** "Assessed with N of M" (ADDENDUM_14X §4): N parties scored out of M on the application. Null/absent for a score
+   *  computed before 14X P3, whose snapshot carries no stamp. The scored parties are `applicants`. */
+  assessedWith?: { n: number; m: number } | null
 
   // Lease details
   leaseIntent: {
@@ -328,6 +331,15 @@ export const GRADE_LABELS: Record<string, string> = {
 // style sheets, one unreferenced — removed 2026-08-21. The _pdf one is the live definition.
 
 // ─── Editorial constants ──────────────────────────────────────────────────────
+
+/** The first line of the assessment (ADDENDUM_14X §4) — one string for the web and the PDF. Null when the score
+ *  carries no stamp (computed before 14X P3), so nothing is claimed that was never recorded. */
+export function assessedWithLine(data: Pick<FitScoreReportData, 'assessedWith'>): string | null {
+  const a = data.assessedWith
+  if (!a) return null
+  // "parties", not "applicants": a surety is scored and counted too (walker 14x-p3 F3).
+  return `Assessed with ${a.n} of ${a.m} part${a.m === 1 ? 'y' : 'ies'}`
+}
 
 export const DOCTRINE_DISCLAIMER =
   'This is not an approval or rejection. It is a record of the evidence Pleks received, ' +
