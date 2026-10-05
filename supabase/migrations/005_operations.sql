@@ -4060,7 +4060,9 @@ CREATE POLICY "screening_notification_events_read_org" ON screening_notification
   USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
 CREATE OR REPLACE FUNCTION screening_notification_events_immutable()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+-- pg_temp named last: unnamed, it is searched FIRST for relations, and a caller's temp `applications` would answer the
+-- "application is gone" test below and open the DELETE hatch.
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
   IF TG_OP = 'TRUNCATE' THEN
     RAISE EXCEPTION 'screening_notification_events is append-only: TRUNCATE refused' USING ERRCODE = 'P0001';

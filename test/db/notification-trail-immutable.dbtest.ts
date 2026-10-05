@@ -56,14 +56,23 @@ beforeAll(async () => {
 afterAll(() => { if (orgId) teardownOrg(orgId) })
 
 describe("screening_notification_events — append-only, enforced (14X §3)", () => {
-  it("both triggers are attached and call the trail's own function", () => {
+  it("all three triggers are attached and call the trail's own function", () => {
     expect(() => psql(`DO $$ BEGIN
       IF (SELECT count(*) FROM pg_trigger WHERE tgrelid = 'public.screening_notification_events'::regclass
-            AND tgname IN ('trg_screening_notification_events_immutable_u','trg_screening_notification_events_immutable_d')
-            AND tgenabled <> 'D' AND tgfoid = 'public.screening_notification_events_immutable()'::regprocedure) <> 2 THEN
+            AND tgname IN ('trg_screening_notification_events_immutable_u','trg_screening_notification_events_immutable_d',
+                           'trg_screening_notification_events_immutable_t')
+            AND tgenabled <> 'D' AND tgfoid = 'public.screening_notification_events_immutable()'::regprocedure) <> 3 THEN
         RAISE EXCEPTION 'trail immutability triggers missing';
       END IF;
     END $$;`)).not.toThrow()
+  })
+
+  it("PLANTED: a caller's temp `applications` cannot answer the guard's \"application is gone\" test (walker 03 F2)", async () => {
+    const app = await seedApplication()
+    const id = await trailRow(app)
+    expect(() => psql(`CREATE TEMP TABLE applications (id uuid);
+      DELETE FROM screening_notification_events WHERE id = '${id}';`)).toThrow(/append-only/)
+    expect(await trailCount(app)).toBe(1)
   })
 
   it("KNOWN-GOOD: a send attempt writes a row, and a retry of the same milestone writes a SECOND row", async () => {
@@ -132,6 +141,15 @@ describe("screening_notification_events — append-only, enforced (14X §3)", ()
 })
 
 describe("purge_org_cascade still completes over a trail (walker F3)", () => {
+  it("carries its search_path in its own definition — CREATE OR REPLACE resets proconfig (walker 03 F1)", () => {
+    expect(() => psql(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE oid = 'public.purge_org_cascade(uuid, text)'::regprocedure
+            AND proconfig @> ARRAY['search_path=public, pg_temp']) THEN
+        RAISE EXCEPTION 'purge_org_cascade has a mutable search_path';
+      END IF;
+    END $$;`)).not.toThrow()
+  })
+
   it("KNOWN-GOOD: an org with trail rows and the delivery row they pin purges whole", async () => {
     const s = await seedLedgerCase(db, { invoices: [] })
     const purgeOrg = s.orgId

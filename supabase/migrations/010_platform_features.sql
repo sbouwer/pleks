@@ -1606,11 +1606,14 @@ GRANT EXECUTE ON FUNCTION claim_purge_slot(uuid) TO service_role;
 --            automatically without requiring a manually maintained cascade list)
 --         3. Marks subscription(s) purged
 --         4. Anonymises the org row (row is kept — subscriptions FK to it)
---         5. Inserts a PURGE audit entry on the sentinel org
+--         5. Inserts a DELETE audit entry (event 'org_purge') on the sentinel org
 CREATE OR REPLACE FUNCTION purge_org_cascade(p_org_id uuid, p_reason text)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+-- Carried here as well as in the hardening block below: CREATE OR REPLACE resets proconfig, so a
+-- body-only apply of this section would otherwise leave a SECURITY DEFINER purge on a mutable path.
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_sentinel  uuid    := '00000000-0000-0000-0000-000000000001';
