@@ -17,6 +17,7 @@ import { ScreeningResponseLetter } from '@/lib/reports/popia/screening_response'
 import type { ScreeningResponseData } from '@/lib/reports/popia/screening_response'
 import type { MaterialFlag } from '@/lib/screening/fitScoreEngine.v1'
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { BAND_LABELS as BAND_LABEL_MAP } from "@/lib/screening/bandLabels"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,15 +30,7 @@ export interface L2GenerationResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const BAND_LABELS: Record<string, string> = {
-  verified_stability:   'Verified Stability',
-  stable_profile:       'Stable Profile',
-  cautious_review:      'Cautious Review',
-  limited_confidence:   'Limited Confidence',
-  adverse_signals:      'Adverse Signals',
-  limited_data_profile: 'Limited Data Profile',
-  blocked:              'Blocked',
-}
+const BAND_LABELS: Record<string, string> = BAND_LABEL_MAP
 
 function identityVerifyResult(flags: MaterialFlag[]): ScreeningResponseData['identityVerificationResult'] {
   const deceased = flags.some(f => f.flag === 'deceased_status')

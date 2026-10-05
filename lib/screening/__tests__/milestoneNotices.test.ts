@@ -8,7 +8,8 @@
  *         declined or lapsed party is neither told nor counted. N6′ never carries a link (§5) and names nobody; N6 names
  *         only the completed and closes on the one approved sentence. Every applicant-typed name is escaped.
  *         N6 SENDING (notifyOutcome): once per recipient however often the orchestrator re-runs, only to the parties the
- *         stamp names, never with a link in this build (counsel row 3a/3b), and nothing for a stampless or foreign row.
+ *         stamp names, nothing for a stampless or foreign row; the result link only to a recipient whose own consent
+ *         recorded the group block (counsel row 3a, per recipient), and a link that cannot be decided never stops N6.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -33,6 +34,8 @@ import { heldFor } from "@/lib/comms/template-registry"
 import { ASSESSMENT_CLOSING_SENTENCE } from "../assessmentWording"
 
 type Row = Record<string, unknown>
+/** consent_log rows by id: their metadata, or "boom" for a read that fails. */
+const consents: Record<string, Row | "boom"> = {}
 const DAY_MS = 86_400_000
 // Relative to the clock, never a fixed date: the roster drops a party past its own D, so a fixed fixture would turn
 // every N3 test into a lapsed-party test the day its D passed (walker 14x-p4 N1).
@@ -63,6 +66,11 @@ function fakeDb(lead: Partial<Row> = {}, cos: Row[] = [], paid: string[] = []) {
         error: null,
       })
       b.maybeSingle = async () => {
+        if (table === "consent_log") {
+          const c = filters.org_id === "org-A" ? consents[filters.id as string] : undefined
+          if (c === "boom") return { data: null, error: { message: "read failed" } }
+          return { data: c ? { metadata: c } : null, error: null }
+        }
         if (table !== "applications" || filters.org_id !== "org-A") return { data: null, error: null }
         return { data: {
           id: "app-1", org_id: "org-A", entity_type: "individual", first_name: "Lead", last_name: "Party",
@@ -104,7 +112,11 @@ const n3 = (db: SupabaseClient) => sendMilestoneNotice(db, {
   copy: { subject: "s", html: "h" }, triggerEventType: "test",
 })
 
-beforeEach(() => { sent.length = 0; released = false })
+beforeEach(() => {
+  sent.length = 0; released = false
+  for (const k of Object.keys(consents)) delete consents[k]
+  process.env.CONSENT_HMAC_SECRET = "test-secret"
+})
 
 describe("counsel 2026-10-05: what is held and what is released", () => {
   it("N3 and the lead's chaser N5 are held; N5, N6 and N6′ are released", () => {
@@ -335,7 +347,7 @@ describe("N6 — sent after the run, once per recipient (notifyOutcome)", () => 
     [co("co-1", done), co("co-2", { declined_at: "2026-10-05T00:00:00Z" })],
   )
 
-  it("tells every party the score was computed on: the count, the closing sentence, no link", async () => {
+  it("tells every party the score was computed on: the count, the closing sentence — no link without the group block", async () => {
     const { db, trail } = scored()
     await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
     expect(sent.map((s) => (s.to as { email: string }).email)).toEqual(["lead@example.test", "co-1@example.test"])
@@ -364,6 +376,39 @@ describe("N6 — sent after the run, once per recipient (notifyOutcome)", () => 
     await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
     await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
     expect(sent).toHaveLength(2)
+  })
+
+  it("the link goes only to a recipient whose OWN consent recorded the group block", async () => {
+    consents["cl-lead"] = { group_clause_shown: true, application_id: "app-1" }
+    const { db } = fakeDb(
+      { ...done, stage2_consent_log_id: "cl-lead", fitscore_component_snapshot: stamp(["app-1", "co-1"], 2) },
+      [co("co-1", done)],
+    )
+    await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
+    const html = (email: string) => String(sent.find((s) => (s.to as { email: string }).email === email)?.contentHtml)
+    expect(html("lead@example.test")).toContain("/apply/result/")
+    expect(html("co-1@example.test")).not.toContain("href")
+  })
+
+  it("PLANTED: a consent recorded WITHOUT the block, or for another application, carries no link", async () => {
+    consents["cl-lead"] = { group_clause_shown: false, application_id: "app-1" }
+    consents["cl-other"] = { group_clause_shown: true, application_id: "app-9" }
+    for (const id of ["cl-lead", "cl-other"]) {
+      sent.length = 0
+      const { db } = fakeDb({ ...done, stage2_consent_log_id: id, fitscore_component_snapshot: stamp(["app-1"], 1) })
+      await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
+      expect(sent).toHaveLength(1)
+      expect(String(sent[0].contentHtml)).not.toContain("href")
+    }
+  })
+
+  it("a link that cannot be decided does not stop N6: it goes without one", async () => {
+    consents["cl-lead"] = "boom"
+    const { db, trail } = fakeDb({ ...done, stage2_consent_log_id: "cl-lead", fitscore_component_snapshot: stamp(["app-1"], 1) })
+    await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
+    expect(sent).toHaveLength(1)
+    expect(String(sent[0].contentHtml)).not.toContain("href")
+    expect(trail.filter((r) => r.milestone === "N6" && r.send_ok === true)).toHaveLength(1)
   })
 
   it("twins: no stamp, or another org's row, sends nothing", async () => {

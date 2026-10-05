@@ -20,6 +20,7 @@ import { heldFor } from "@/lib/comms/template-registry"
 import { ASSESSMENT_CLOSING_SENTENCE } from "@/lib/screening/assessmentWording"
 import { fmtDateLongZA } from "@/lib/dates"
 import { readAssessedWith } from "@/lib/screening/assessedWith"
+import { outcomeLinkFor } from "@/lib/screening/resultLink"
 import { deadlineAsStated, deadlineAt, finalNoticeAt, isPastDeadline } from "@/lib/screening/notificationSchedule"
 import {
   leadSubject, milestonesSentOk, recordGap, recordTrail, type TrailMilestone, type TrailSubject,
@@ -185,7 +186,7 @@ const SETTLED_STATES: ReadonlySet<string> = new Set(["ready_to_run", "running", 
 
 /** The live roster: the lead plus every co row not declined and not lapsed (past its own deadline, incomplete and
  *  unpaid). A party that has left the set is told nothing and named to nobody. */
-async function readRoster(db: SupabaseClient, orgId: string, applicationId: string): Promise<{ parties: Party[]; propertyLabel: string } | null> {
+export async function readRoster(db: SupabaseClient, orgId: string, applicationId: string): Promise<{ parties: Party[]; propertyLabel: string } | null> {
   const { data: app, error: appError } = await db
     .from("applications")
     .select("id, entity_type, first_name, last_name, applicant_email, stage2_invited_at, searchworx_check_status, listings(units(unit_number, properties(name)))")
@@ -284,13 +285,17 @@ export async function notifyProgress(db: SupabaseClient, p: { orgId: string; app
 }
 
 /**
- * The N6 result link for one recipient, or null. ALWAYS null in this build: counsel row 3 gates the link on (3a) the
- * group paragraph and the completion-status sentence being live with `group_clause_shown` on THIS recipient's consent
- * (14X P5) and (3b) policy §171 v1.5.1. Neither exists yet, so N6 goes without a link, which the approved copy allows.
- * The gate is per recipient, never a release date (14X §2), so when P5 lands it is decided here for each party.
+ * The N6 result link for one recipient, or null (counsel row 3: per recipient, on `group_clause_shown` — the gate lives
+ * in lib/screening/resultLink.ts). A failure to decide is NOT a reason to withhold N6: the notice is the mandatory
+ * evidence and is sent once, so it goes without a link (which the approved copy allows) and the failure is reported.
  */
-function outcomeLinkFor(): string | null {
-  return null
+async function linkOrNull(db: SupabaseClient, orgId: string, applicationId: string, subject: TrailSubject): Promise<string | null> {
+  try {
+    return await outcomeLinkFor(db, orgId, applicationId, subject)
+  } catch (e) {
+    Sentry.captureException(e, { tags: { milestone: "N6" }, extra: { application_id: applicationId } })
+    return null
+  }
 }
 
 /**
@@ -335,7 +340,7 @@ export async function notifyOutcome(db: SupabaseClient, p: { orgId: string; appl
         to: { email: r.email, name: r.firstName },
         copy: outcomeCopy({
           firstName: r.firstName, propertyLabel: roster.propertyLabel, completedNames,
-          completed: stamp.n, total: stamp.m, link: outcomeLinkFor(),
+          completed: stamp.n, total: stamp.m, link: await linkOrNull(db, p.orgId, p.applicationId, r.subject),
         }),
         triggerEventType: "screening:fitscore_run",
       })
