@@ -116,6 +116,7 @@ export const MAP = {
   "node scripts/check-agent-write-scope.mjs": [".claude/hooks/**", ".claude/settings.json"],
   "node .claude/hooks/agent-write-scope.probe.mjs": [".claude/hooks/**", ".claude/settings.json"],
   "node .claude/hooks/agent-brief-gate.probe.mjs": [".claude/hooks/**", ".claude/settings.json"],
+  "node .claude/hooks/canon-inbox.probe.mjs": [".claude/hooks/**", ".claude/settings.json"],
   "node scripts/check-handoff-contract.mjs": [".handoff/**", ".claude/agents/**"],
   "node scripts/check-handoff-contract.mjs --selftest": [".handoff/**", ".claude/agents/**"],
   "node scripts/check-commands.mjs --selftest": [".claude/commands/**", ".claude/agents/**"],

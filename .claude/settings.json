@@ -109,6 +109,17 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/canon-inbox.js\""
+          }
+        ]
+      }
     ]
   }
 }
