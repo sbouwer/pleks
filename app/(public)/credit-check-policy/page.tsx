@@ -4,6 +4,10 @@
  * Route:  /credit-check-policy
  * Auth:   public
  * Notes:  Referenced from the applicant consent screen during application flow.
+ *         v1.5.1 (14X P5, spec §2 (2)): §03's joint-applications bullet distinguishes each party's individual report
+ *         (never disclosed to another party) from the application's consolidated assessment (shown to every party who
+ *         completed). Its closing sentence is ASSESSMENT_CLOSING_SENTENCE — counsel 2026-10-05: identical here and in
+ *         the N6 email, so it is imported, never typed.
  */
 import type { Metadata } from "next"
 import Link from "next/link"
@@ -11,6 +15,7 @@ import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
 import { ExtLink } from "@/components/legal/ExtLink"
+import { ASSESSMENT_CLOSING_SENTENCE } from "@/lib/screening/assessmentWording"
 
 export const metadata: Metadata = {
   title: "Credit Check Policy — Pleks",
@@ -168,7 +173,10 @@ export default function CreditCheckPolicyPage() {
           <li>The screening service commences upon successful payment. The screening checks are then initiated and the resulting reports are generated as part of that service. Fees are not refundable merely because the applicant changes their mind after screening has commenced, subject to any rights or remedies that cannot lawfully be excluded.</li>
           <li>If a bureau or screening provider experiences a technical failure and, after reasonable retries, no screening report is generated, Pleks will refund the screening fee to the extent required by applicable law.</li>
           <li>The fee is paid directly by the applicant — the agency using Pleks does not pay for your check.</li>
-          <li>Joint applications (two applicants on one lease) are charged a higher bundled fee, also shown before payment. Each joint applicant must complete the consent process individually — one applicant cannot consent on behalf of the other. Credit checks for joint applicants are run separately; results are made available to the agency for evaluation but are not disclosed between applicants.</li>
+          {/* ⚠ COUNSEL-PENDING: this bullet is counsel's point 10 as revised by CC (stage-2 pack §6.1), approved in
+              direction 2026-10-03 with confirmation 4 owed (what the assessment is when a party did not complete). Its
+              closing sentence is counsel-APPROVED verbatim (2026-10-05) and comes from the shared constant. */}
+          <li>Where an application has more than one party, each party completes the consent process individually — one party cannot consent on behalf of another — and pays the screening fee for their own check, shown before payment. Each party&rsquo;s checks are run separately. Each party&rsquo;s individual screening report is made available to the agency for evaluation and is never disclosed to another party. The consolidated assessment for the application, based on the parts that were completed, is shown to every party who completed their part. {ASSESSMENT_CLOSING_SENTENCE}</li>
           <li>If your application is withdrawn before Stage 2, no fee is charged — credit checks are only triggered when you choose to proceed.</li>
         </ul>
       </section>
