@@ -91,8 +91,11 @@ not have it, and fails as *green* if the failure is swallowed. This is a session
 can see a write to a sibling checkout, so this is a claim about the world and it is held by you.
 
 Read it freely: the playbooks, the standards, the kit, `ledgers/LESSONS.md`. Write nothing — not the
-kit, not `tools/`, not a MANIFEST version, not `ledgers/projects.json`, not `kitAdopted`. Never run
-`apply-kit --write`; the dry run is read-only and is the right way to read the plan.
+kit, not `tools/`, not a MANIFEST version, not `ledgers/projects.json`, not `kitAdopted`. **One
+`apply-kit --write` is allowed, and only this spelling** (Stéan, 2026-10-05, with canon-inbox's
+adoption): `node ../dev-standards/tools/apply-kit.mjs pleks --carry-only --write`, run from this
+checkout, for a plain kit upgrade — it writes into THIS tree, never canon's. Any other `--write` is
+still forbidden; the dry run remains the way to read the plan.
 
 **The incident, 2026-09-09.** Two project sessions adopting kit rows fixed real defects *inside
 canon* while the dev-standards session ran its gate. That gate read a `MANIFEST.json` which changed

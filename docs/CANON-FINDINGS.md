@@ -669,6 +669,18 @@ Adoptions canon has to record in `kitAdopted`, and pins: a row deliberately behi
 row id, the version held, the reason, and a review date. A pin means *read and deliberately behind*,
 never *exempt*, so the reason has to argue it.
 
+**canon-inbox (M-KIT-32), canon `b96db8b` — adopted 2026-10-05 in pleks `4105f18b`** (branch
+`chore/kit-canon-inbox`; the squash onto `main` will carry a new SHA — the PR number is the stable name).
+- **Adopted:** `canon-inbox@1` · `canon-inbox-probe@1`, both byte-identical to `git show b96db8b:<path>`.
+  KIT:CONFIG left empty: canon is `../dev-standards`. Registered under `hooks.SessionStart`, matcher
+  `startup`. The probe runs in `npm run check` (and is in `scripts/check-scope.mjs`'s map, which the
+  gate requires of every step): 8/8, the live case naming `bash-gate v1→v9` in 144 ms.
+- **Run by hand once against the real canon:** it reported 2 handovers addressed to pleks
+  (`2026-10-03-pleks-pr-flow.md`, `2026-10-04-pleks-bash-gate-v9.md`) and canon `@ ff2314d (uncommitted)`.
+- Kit upgrades from here are `node ../dev-standards/tools/apply-kit.mjs pleks --carry-only --write`, run
+  from this checkout (Stéan, 2026-10-05) — which supersedes CLAUDE.md §1's "never run apply-kit --write"
+  for that one invocation; CLAUDE.md is corrected in the same PR.
+
 **Artefact-first agents, canon `a4ff0b5` — adopted 2026-09-30.** Canon's working tree was not clean
 at the time (`M playbooks/4-AGENT-PIPELINES.md`); every kit byte was read with `git show a4ff0b5:<path>`.
 - **Adopted:** `check-handoff-contract@6` (canon bytes; the only diff was scout joining its three sets) ·
