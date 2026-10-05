@@ -7,10 +7,15 @@
  *         finishing (the runner) and an unfinished line being declined at its deadline (the reminders cron). Before
  *         14W §0b only the first called this, so an application whose last open party was declined never ran.
  *         Gated on FITSCORE_V1_ENABLED. The lead is still required — the orchestrator asserts the lead's consent.
+ *         ADDENDUM_14X N6: after a successful run the completed parties are told (notifyOutcome). This is "at D, after
+ *         the run": the orchestrator runs only when no live party is outstanding — everyone completed, or the rest were
+ *         declined at their D — so N6 never reaches a party while another's window is still open. Once per recipient
+ *         comes from the trail, since a re-run returns ok exactly as a first run does.
  */
 import * as Sentry from "@sentry/nextjs"
 import type { createServiceClient } from "@/lib/supabase/server"
 import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
+import { notifyOutcome } from "@/lib/screening/milestoneNotices"
 import { optionalEnv } from "@/lib/env"
 
 export async function maybeRunOrchestrator(
@@ -61,5 +66,8 @@ export async function maybeRunOrchestrator(
       level: "error",
       extra: { application_id: applicationId, reason: orchResult.reason },
     })
+    return
   }
+  await notifyOutcome(service, { orgId, applicationId }).catch((err: unknown) =>
+    Sentry.captureException(err, { tags: { milestone: "N6" }, extra: { application_id: applicationId } }))
 }

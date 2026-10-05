@@ -7,6 +7,8 @@
  *         others and never names who is outstanding (counsel Q1); the completer is never told about themselves; a
  *         declined or lapsed party is neither told nor counted. N6′ never carries a link (§5) and names nobody; N6 names
  *         only the completed and closes on the one approved sentence. Every applicant-typed name is escaped.
+ *         N6 SENDING (notifyOutcome): once per recipient however often the orchestrator re-runs, only to the parties the
+ *         stamp names, never with a link in this build (counsel row 3a/3b), and nothing for a stampless or foreign row.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -24,8 +26,8 @@ vi.mock("@sentry/nextjs", () => ({ captureException: () => undefined, captureMes
 
 import {
   FINAL_NOTICE_KEY, FINAL_NOTICE_OTHERS_KEY, OUTCOME_ABSENT_KEY, OUTCOME_KEY, PROGRESS_KEY, finalNoticeCopy,
-  finalNoticeOthersCopy, leadFinalNoticeForOthers, notifyProgress, outcomeAbsentCopy, outcomeCopy, progressCopy,
-  sendMilestoneNotice,
+  finalNoticeOthersCopy, leadFinalNoticeForOthers, notifyOutcome, notifyProgress, outcomeAbsentCopy, outcomeCopy,
+  progressCopy, sendMilestoneNotice,
 } from "../milestoneNotices"
 import { heldFor } from "@/lib/comms/template-registry"
 import { ASSESSMENT_CLOSING_SENTENCE } from "../assessmentWording"
@@ -69,6 +71,12 @@ function fakeDb(lead: Partial<Row> = {}, cos: Row[] = [], paid: string[] = []) {
         }, error: null }
       }
       b.insert = async (row: Row) => { trail.push(row); return { error: null } }
+      if (table === "screening_notification_events") {
+        b.then = (resolve: (v: unknown) => void) => resolve({
+          data: trail.filter((r) => Object.entries(filters).every(([k, v]) => r[k] === v)).map((r) => ({ milestone: r.milestone })),
+          error: null,
+        })
+      }
       if (table === "v_application_screening_lines") {
         b.then = (resolve: (v: unknown) => void) => resolve({
           data: filters.org_id === "org-A" ? paid.map((key) => {
@@ -298,5 +306,53 @@ describe("N5 to a lead whose own part is complete (14X §2) — held new copy", 
     const other = fakeDb({ searchworx_check_status: "complete", stage2_invited_at: finalDay }, [co("co-1", { stage2_invited_at: finalDay })])
     expect(await leadFinalNoticeForOthers(other.db, { orgId: "org-B", applicationId: "app-1", now: NOW })).toBeNull()
     expect(sent).toEqual([])
+  })
+})
+
+describe("N6 — sent after the run, once per recipient (notifyOutcome)", () => {
+  const stamp = (ids: string[], m: number) => ({ assessedWith: { n: ids.length, m, completedSubjectIds: ids } })
+  const done = { searchworx_check_status: "complete" }
+  const scored = () => fakeDb(
+    { ...done, fitscore_component_snapshot: stamp(["app-1", "co-1"], 3) },
+    [co("co-1", done), co("co-2", { declined_at: "2026-10-05T00:00:00Z" })],
+  )
+
+  it("tells every party the score was computed on: the count, the closing sentence, no link", async () => {
+    const { db, trail } = scored()
+    await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
+    expect(sent.map((s) => (s.to as { email: string }).email)).toEqual(["lead@example.test", "co-1@example.test"])
+    for (const s of sent) {
+      const html = String(s.contentHtml)
+      expect(html).toContain("2 of 3")
+      expect(html).toContain(ASSESSMENT_CLOSING_SENTENCE.replace("'", "&#39;"))
+      expect(html).not.toContain("href")
+    }
+    expect(trail.filter((r) => r.milestone === "N6" && r.send_ok === true)).toHaveLength(2)
+  })
+
+  it("PLANTED: a live, complete party the stamp does not name is neither told nor named", async () => {
+    const { db } = fakeDb(
+      { ...done, fitscore_component_snapshot: stamp(["app-1", "co-1"], 3) },
+      [co("co-1", done), co("co-2", done)],
+    )
+    await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
+    expect(sent.map((s) => (s.to as { email: string }).email)).not.toContain("co-2@example.test")
+    expect(sent).toHaveLength(2)
+    for (const s of sent) expect(String(s.contentHtml)).not.toContain("CO-2")
+  })
+
+  it("a re-run of the orchestrator sends nothing twice", async () => {
+    const { db } = scored()
+    await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
+    await notifyOutcome(db, { orgId: "org-A", applicationId: "app-1" })
+    expect(sent).toHaveLength(2)
+  })
+
+  it("twins: no stamp, or another org's row, sends nothing", async () => {
+    const bare = fakeDb(done, [co("co-1", done)])
+    await notifyOutcome(bare.db, { orgId: "org-A", applicationId: "app-1" })
+    const foreign = scored()
+    await notifyOutcome(foreign.db, { orgId: "org-B", applicationId: "app-1" })
+    expect(sent).toHaveLength(0)
   })
 })

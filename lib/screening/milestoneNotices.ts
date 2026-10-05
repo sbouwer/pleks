@@ -19,8 +19,11 @@ import { sendEmail } from "@/lib/comms/send-email"
 import { heldFor } from "@/lib/comms/template-registry"
 import { ASSESSMENT_CLOSING_SENTENCE } from "@/lib/screening/assessmentWording"
 import { fmtDateLongZA } from "@/lib/dates"
+import { readAssessedWith } from "@/lib/screening/assessedWith"
 import { deadlineAsStated, deadlineAt, finalNoticeAt, isPastDeadline } from "@/lib/screening/notificationSchedule"
-import { leadSubject, recordGap, recordTrail, type TrailMilestone, type TrailSubject } from "@/lib/screening/notificationTrail"
+import {
+  leadSubject, milestonesSentOk, recordGap, recordTrail, type TrailMilestone, type TrailSubject,
+} from "@/lib/screening/notificationTrail"
 
 export const PROGRESS_KEY = "application.screening_progress"
 export const FINAL_NOTICE_KEY = "application.screening_final_notice"
@@ -261,6 +264,70 @@ export async function notifyProgress(db: SupabaseClient, p: { orgId: string; app
       }
     } catch (err) {
       Sentry.captureException(err, { tags: { milestone: "N3" }, extra: { application_id: p.applicationId } })
+    }
+  }
+}
+
+/**
+ * The N6 result link for one recipient, or null. ALWAYS null in this build: counsel row 3 gates the link on (3a) the
+ * group paragraph and the completion-status sentence being live with `group_clause_shown` on THIS recipient's consent
+ * (14X P5) and (3b) policy §171 v1.5.1. Neither exists yet, so N6 goes without a link, which the approved copy allows.
+ * The gate is per recipient, never a release date (14X §2), so when P5 lands it is decided here for each party.
+ */
+function outcomeLinkFor(): string | null {
+  return null
+}
+
+/**
+ * N6: the FitScore has run on the completed parts. Every party it was computed on (the stamp's completed ids — the lead
+ * among them) is told once; the email names only those parties and states the stamp's count (counsel Q3). Called after
+ * a successful orchestrator run. The orchestrator re-runs on every settle and decline and reports success the same way
+ * for a first run and a no-op, so ONCE comes from the trail: a recipient with N6 on it is skipped. A party declined
+ * after N6 changes M; nobody is re-notified (the stamp they were told stays true of the run they were told about).
+ * Never throws: a failure is reported, and the next orchestrator call retries a recipient with no send_ok N6 row.
+ */
+export async function notifyOutcome(db: SupabaseClient, p: { orgId: string; applicationId: string }): Promise<void> {
+  const { data: app, error } = await db
+    .from("applications")
+    .select("fitscore_component_snapshot")
+    .eq("id", p.applicationId)
+    .eq("org_id", p.orgId)
+    .maybeSingle()
+  if (error) throw new Error(`outcome: read application: ${error.message}`)
+  const stamp = readAssessedWith(app?.fitscore_component_snapshot ?? null)
+  if (!stamp) {
+    Sentry.captureMessage("14X N6 not sent: the FitScore snapshot carries no assessedWith stamp", {
+      level: "warning", tags: { milestone: "N6" }, extra: { application_id: p.applicationId },
+    })
+    return
+  }
+  const roster = await readRoster(db, p.orgId, p.applicationId)
+  if (!roster) return
+  const scored = new Set(stamp.completedSubjectIds)
+  const completedParties = roster.parties.filter((x) => scored.has(x.subject.subjectId) && x.complete)
+  const completedNames = completedParties.map((x) => x.name)
+
+  for (const r of completedParties) {
+    if (!r.email) continue
+    try {
+      if ((await milestonesSentOk(db, p.orgId, p.applicationId, r.subject)).has("N6")) continue
+      const result = await sendMilestoneNotice(db, {
+        orgId: p.orgId, applicationId: p.applicationId, subject: r.subject, milestone: "N6", templateKey: OUTCOME_KEY,
+        deadlineAsStated: r.invitedAt ? deadlineAsStated(r.invitedAt) : null,
+        to: { email: r.email, name: r.firstName },
+        copy: outcomeCopy({
+          firstName: r.firstName, propertyLabel: roster.propertyLabel, completedNames,
+          completed: stamp.n, total: stamp.m, link: outcomeLinkFor(),
+        }),
+        triggerEventType: "screening:fitscore_run",
+      })
+      if (result.outcome === "failed") {
+        Sentry.captureMessage("14X N6 outcome notice not sent", {
+          level: "warning", tags: { milestone: "N6" }, extra: { application_id: p.applicationId, error: result.error },
+        })
+      }
+    } catch (err) {
+      Sentry.captureException(err, { tags: { milestone: "N6" }, extra: { application_id: p.applicationId } })
     }
   }
 }
