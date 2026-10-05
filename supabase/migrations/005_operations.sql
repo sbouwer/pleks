@@ -4002,3 +4002,93 @@ CREATE TRIGGER trg_co_applicant_party_set
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS stage2_invited_at timestamptz;
 COMMENT ON COLUMN applications.stage2_invited_at IS
   'ADDENDUM_14W §0b: when the lead party was sent the stage-2 (screening consent + pay) invite, at shortlist. T0 of the lead''s screening window. NULL = not yet invited to stage 2.';
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ADDENDUM_14X §3: screening_notification_events — the notification trail  (2026-10-05)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- One row per ATTEMPTED send of a screening milestone (N1 invite … N6′ outcome-absent) to one party. This is the
+-- evidence that a party was told, reminded, warned and told the outcome; it is not the delivery log.
+-- communication_log stays the delivery log (provider webhooks UPDATE it in place: sent → delivered → opened), and
+-- this row points at the communication_log row its attempt produced. Recipient, provider result and delivery
+-- status live there; no recipient column here, because a hash of a value stored in plaintext one join away
+-- protects nothing.
+--
+-- A failed send is retried and the failure row STAYS, so there is no unique key on (party, milestone): each attempt
+-- is its own row, and send_ok records the attempt's outcome at the moment it was made. "Was N2 sent to this party" =
+-- a row for that milestone with send_ok. communication_log_id is NULL when the delivery-log insert itself failed.
+--
+-- subject_type/subject_id is the party, the same pair as application_screening_payments/_lines (R8b-1 above).
+-- template_version is the template registry's version for template_key at send time, not a hash of the body.
+-- deadline_as_stated is the D the message told the party, as a date.
+--
+-- APPEND-ONLY, ENFORCED, in two layers. (1) UPDATE, DELETE and TRUNCATE are REVOKEd from anon, authenticated and
+-- service_role, so app code cannot even attempt them. (2) Triggers hold for every role that keeps the grant: UPDATE
+-- and TRUNCATE always raise; a DELETE raises unless the parent application is already gone (POPIA erasure, the
+-- retention purge, an agent's own delete of an application all cascade through — RI actions run as the table owner)
+-- or purge_org_cascade (010) has flagged THIS org in its own transaction (pleks.purging_org, transaction-local; not
+-- organisations.deleted_at, which an org owner can set without any purge). The trail lives exactly as long as its
+-- application. What it cannot stop: a superuser session in session_replication_role = replica, which skips every
+-- trigger (the DB test teardown uses it). Its own function, not 010's prevent_policy_snapshot_mutation(): 005
+-- replays before 010, and that function's message names policy snapshots.
+-- communication_log_id is NO ACTION on purpose: evidence pins its delivery row, so a communication_log row cannot be
+-- deleted while a trail row points at it (ON DELETE SET NULL would be an UPDATE, which the trigger refuses). A future
+-- communications retention purge must delete the applications first.
+-- Read: org members, SELECT only. Written by the service client only.
+CREATE TABLE IF NOT EXISTS screening_notification_events (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id               uuid NOT NULL REFERENCES organisations(id),
+  application_id       uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  subject_type         text NOT NULL CHECK (subject_type IN ('applicant','company','co_applicant','guarantor')),
+  subject_id           uuid NOT NULL,
+  milestone            text NOT NULL CHECK (milestone IN ('N1','N2','N3','N4','N5','N6','N6_absent')),
+  template_key         text NOT NULL,
+  template_version     integer NOT NULL,
+  channel              text NOT NULL CHECK (channel IN ('email','sms','whatsapp')),
+  deadline_as_stated   date,
+  send_ok              boolean NOT NULL,
+  communication_log_id uuid REFERENCES communication_log(id),
+  created_at           timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_screening_notification_events_app
+  ON screening_notification_events(application_id, subject_type, subject_id, milestone);
+CREATE INDEX IF NOT EXISTS idx_screening_notification_events_org ON screening_notification_events(org_id);
+
+ALTER TABLE screening_notification_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "screening_notification_events_read_org" ON screening_notification_events;
+CREATE POLICY "screening_notification_events_read_org" ON screening_notification_events FOR SELECT
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+CREATE OR REPLACE FUNCTION screening_notification_events_immutable()
+-- pg_temp named last: unnamed, it is searched FIRST for relations, and a caller's temp `applications` would answer the
+-- "application is gone" test below and open the DELETE hatch.
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF TG_OP = 'TRUNCATE' THEN
+    RAISE EXCEPTION 'screening_notification_events is append-only: TRUNCATE refused' USING ERRCODE = 'P0001';
+  END IF;
+  IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM applications WHERE id = OLD.application_id) THEN
+    RETURN OLD;  -- the application is being deleted: the trail goes with it (ON DELETE CASCADE)
+  END IF;
+  -- purge_org_cascade (010) deletes every org_id table directly and catches only FK/restrict violations, so a
+  -- refusal here would abort a whole org purge. It sets this flag for its own transaction only.
+  IF TG_OP = 'DELETE' AND current_setting('pleks.purging_org', true) = OLD.org_id::text THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'screening_notification_events is append-only: % refused on %', TG_OP, OLD.id
+    USING ERRCODE = 'P0001';
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION screening_notification_events_immutable() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_screening_notification_events_immutable_u ON screening_notification_events;
+CREATE TRIGGER trg_screening_notification_events_immutable_u BEFORE UPDATE ON screening_notification_events
+  FOR EACH ROW EXECUTE FUNCTION screening_notification_events_immutable();
+DROP TRIGGER IF EXISTS trg_screening_notification_events_immutable_d ON screening_notification_events;
+CREATE TRIGGER trg_screening_notification_events_immutable_d BEFORE DELETE ON screening_notification_events
+  FOR EACH ROW EXECUTE FUNCTION screening_notification_events_immutable();
+DROP TRIGGER IF EXISTS trg_screening_notification_events_immutable_t ON screening_notification_events;
+CREATE TRIGGER trg_screening_notification_events_immutable_t BEFORE TRUNCATE ON screening_notification_events
+  FOR EACH STATEMENT EXECUTE FUNCTION screening_notification_events_immutable();
+REVOKE UPDATE, DELETE, TRUNCATE ON screening_notification_events FROM anon, authenticated, service_role;
+COMMENT ON TABLE screening_notification_events IS
+  'ADDENDUM_14X §3: append-only trail of every attempted screening milestone send (N1…N6_absent) per party. Delivery state lives on communication_log (FK). UPDATE refused; DELETE refused unless the application is gone or purge_org_cascade is purging the org; TRUNCATE refused; U/D/T revoked from app roles.';

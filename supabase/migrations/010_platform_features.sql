@@ -1606,11 +1606,14 @@ GRANT EXECUTE ON FUNCTION claim_purge_slot(uuid) TO service_role;
 --            automatically without requiring a manually maintained cascade list)
 --         3. Marks subscription(s) purged
 --         4. Anonymises the org row (row is kept — subscriptions FK to it)
---         5. Inserts a PURGE audit entry on the sentinel org
+--         5. Inserts a DELETE audit entry (event 'org_purge') on the sentinel org
 CREATE OR REPLACE FUNCTION purge_org_cascade(p_org_id uuid, p_reason text)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+-- Carried here as well as in the hardening block below: CREATE OR REPLACE resets proconfig, so a
+-- body-only apply of this section would otherwise leave a SECURITY DEFINER purge on a mutable path.
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_sentinel  uuid    := '00000000-0000-0000-0000-000000000001';
@@ -1636,6 +1639,11 @@ BEGIN
     RAISE EXCEPTION 'purge_org_cascade: refusing to purge the platform system org %', p_org_id;
   END IF;
 
+  -- Step 0 (ADDENDUM_14X §3): append-only tables that must still leave with a purged org read this
+  -- TRANSACTION-LOCAL flag (screening_notification_events_immutable in 005). Not organisations.deleted_at: an org
+  -- owner can set that through org_owners_update, and claim_purge_slot commits it before this function runs.
+  PERFORM set_config('pleks.purging_org', p_org_id::text, true);
+
   -- Step 1: Repoint retention-protected rows to sentinel
   UPDATE audit_log                    SET org_id = v_sentinel WHERE org_id = p_org_id;
   UPDATE trust_transactions           SET org_id = v_sentinel WHERE org_id = p_org_id;
@@ -1644,10 +1652,15 @@ BEGIN
   UPDATE auth_events                  SET org_id = v_sentinel WHERE org_id = p_org_id;
   UPDATE tos_acceptances              SET org_id = v_sentinel WHERE org_id = p_org_id;
 
-  -- Step 2: Auto-discover all remaining public tables with org_id
+  -- Step 2: Auto-discover all remaining public tables with org_id.
+  -- BASE TABLEs only: information_schema.columns lists views too, and a DELETE on a non-updatable view
+  -- (contractor_view) raises 55000, which the loop below does not catch — every org purge aborted on it.
+  -- Found 2026-10-05 by the 14X trail probe; prod then carried four org_id views and no org awaiting purge.
   SELECT array_agg(c.table_name ORDER BY c.table_name)
   INTO   v_tables
   FROM   information_schema.columns c
+  JOIN   information_schema.tables t
+    ON   t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
   WHERE  c.table_schema = 'public'
     AND  c.column_name  = 'org_id'
     AND  c.table_name  NOT IN (
@@ -1686,10 +1699,14 @@ BEGIN
      SET name               = '[purged]',
          email              = NULL,
          phone              = NULL,
-         address_line1      = NULL,
-         city               = NULL,
+         -- address/addr_city/brand_logo_path: this step named address_line1, city and brand_logo_url, which no
+         -- replay or prod (read 2026-10-05) has ever carried, so every purge that reached it raised 42703.
+         -- The row still keeps other personal fields (id_number, names, mobile, addr_*, lease_*, emergency_*):
+         -- which of them a purge must clear is an open POPIA ruling, not settled here.
+         address            = NULL,
+         addr_city          = NULL,
          settings           = '{}'::jsonb,
-         brand_logo_url     = NULL,
+         brand_logo_path    = NULL,
          brand_accent_color = NULL,
          deleted_at         = now()   -- idempotent: claim_purge_slot may have set this already
    WHERE id = p_org_id;
@@ -1699,9 +1716,10 @@ BEGIN
   VALUES (
     v_sentinel,
     'organisations',
-    p_org_id::text,
-    'PURGE',
+    p_org_id,      -- record_id is uuid; this was p_org_id::text, and 'PURGE' is not in audit_log's action CHECK
+    'DELETE',      -- (both found 2026-10-05: no purge had ever reached this step). The event is named below.
     jsonb_build_object(
+      'event',           'org_purge',
       'original_org_id', p_org_id,
       'reason',          p_reason,
       'purged_at',       now()
@@ -3863,8 +3881,10 @@ COMMENT ON COLUMN organisations.product_line IS
 -- Widen the org type CHECK to admit hoa_manager. Postgres names the inline CHECK from 001
 -- organisations_type_check by convention; drop-first then re-add keeps it idempotent.
 ALTER TABLE organisations DROP CONSTRAINT IF EXISTS organisations_type_check;
+-- 'platform' is admitted here too although §50 adds it: on a re-run against a DB that already holds the system
+-- org, this narrower CHECK aborted the file at this line (23514), leaving every later section unapplied (2026-10-05).
 ALTER TABLE organisations ADD CONSTRAINT organisations_type_check
-  CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager'));
+  CHECK (type IN ('agency', 'landlord', 'sole_prop', 'hoa_manager', 'platform'));
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §  SECURITY 2026-07-07: AI-route rate limiting (denial-of-wallet)
