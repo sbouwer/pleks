@@ -15,8 +15,9 @@ export const COMPARE_LIMIT = 8
 export const isComparable = (stage1Status: string | null) =>
   (COMPARABLE_STAGE1 as readonly string[]).includes(stage1Status ?? "")
 
-/** The compare link for a listing, or null when fewer than two applications are comparable. */
-export function compareHref(slug: string, listingId: string, stage1Statuses: (string | null)[]): string | null {
+/** The compare link for a listing, or null when fewer than two applications are comparable. The page resolves the
+ *  listing from the slug in the active org, exactly as the listing page does, so the link carries no id. */
+export function compareHref(slug: string, stage1Statuses: (string | null)[]): string | null {
   if (stage1Statuses.filter(isComparable).length < 2) return null
-  return `/listings/${encodeURIComponent(slug)}/compare?listing=${encodeURIComponent(listingId)}`
+  return `/listings/${encodeURIComponent(slug)}/compare`
 }
