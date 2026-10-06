@@ -193,8 +193,7 @@ export async function POST(req: Request) {
       const ctx = await buildEmailContext(applicationId)
       if (ctx) await sendPaymentReceived(ctx.appSummary, ctx.listingSummary, ctx.orgContext, {
         paymentRef: paymentRef || "",
-        slug: ctx.listingSlug ?? "",
-        accessToken: ctx.accessToken ?? "",
+        inviteToken: ctx.inviteToken,
         amountCents: paidCents,
         paidAt: now,
       })

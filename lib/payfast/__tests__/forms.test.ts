@@ -19,6 +19,7 @@ const BASE = {
   orgId:         "33333333-3333-3333-3333-333333333333",
   propertyName:  "Kirstenhof Court",
   unitName:      "201",
+  token:         "inv-tok-abc",
 }
 
 describe("buildApplicationFeeForm charges what the caller asked for", () => {
@@ -63,5 +64,21 @@ describe("buildApplicationFeeForm charges what the caller asked for", () => {
     expect(data.custom_str1).toBe(BASE.applicationId)
     expect(data.custom_str2).toBe(BASE.listingId)
     expect(data.custom_str3).toBe(BASE.orgId)
+  })
+})
+
+// A12: the payer returns to a page that can load their application. PLANTED: the old listing-id URL
+// (/apply/<listingId>/status, no ?token) fails both the path and the "carries the token" assertions.
+describe("buildApplicationFeeForm returns the payer to their own invite link", () => {
+  it("return_url is the stage-2 tracker on the invite token; cancel_url is its payment page", () => {
+    const { data } = buildApplicationFeeForm({ ...BASE, feeCents: 25000 })
+    expect(new URL(data.return_url).pathname).toBe("/apply/invite/inv-tok-abc/status")
+    expect(new URL(data.cancel_url).pathname).toBe("/apply/invite/inv-tok-abc/payment")
+    for (const u of [data.return_url, data.cancel_url]) expect(u).not.toContain(BASE.listingId)
+  })
+
+  it("the token is path-encoded, so it cannot break out of its segment", () => {
+    const { data } = buildApplicationFeeForm({ ...BASE, token: "a/b?c", feeCents: 25000 })
+    expect(new URL(data.return_url).pathname).toBe("/apply/invite/a%2Fb%3Fc/status")
   })
 })

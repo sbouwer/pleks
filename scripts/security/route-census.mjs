@@ -46,6 +46,7 @@ export const PUBLIC_ALLOWLIST = {
   "/api/applications/director-consent": "director access_token is the credential",
   "/api/applications/director-status/[token]": "director access_token is the credential",
   "/api/applications/invite-consent": "invite token is the credential",
+  "/api/applications/invite-status/[token]": "shortlist_invite token is the credential; read-only tracker fields (A12)",
   // Token-gated party actions — token possession is the credential (Cat-4 / Cat-12).
   "/api/approve/[token]": "landlord approval token is the credential",
   "/api/billing/screening": "application screening token is the credential (PayFast init)",

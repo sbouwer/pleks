@@ -68,6 +68,14 @@ interface ApplicationFeeFormData {
   propertyName: string
   unitName: string
   /**
+   * The payer's invite token. PayFast sends them back to the stage-2 tracker it opens
+   * (/apply/invite/[token]/status); a cancel returns them to the payment page on the same link.
+   * A12: both URLs were built from listingId, so return_url hit /apply/[slug]/status with no ?token
+   * and a listing id in the slug segment. It loaded nothing either way: it read RLS-gated tables through the
+   * browser client. The tracker now reads through /api/applications/invite-status/[token] (service client).
+   */
+  token: string
+  /**
    * The fee to actually charge, in cents — the application's stamped fee_amount_cents, quoted by
    * lib/screening/quote.ts via the billing route, NEVER a literal here. This was hardcoded "399.00" until 2026-08-14, so the
    * caller computed the correct fee, wrote it to applications.fee_amount_cents, and then charged a
@@ -83,13 +91,15 @@ export function buildApplicationFeeForm({
   orgId,
   propertyName,
   unitName,
+  token,
   feeCents,
 }: ApplicationFeeFormData) {
+  const link = `/apply/invite/${encodeURIComponent(token)}`
   const data: Record<string, string> = {
     merchant_id: PAYFAST_CONFIG.merchantId,
     merchant_key: PAYFAST_CONFIG.merchantKey,
-    return_url: absoluteUrl(`/apply/${listingId}/status`),
-    cancel_url: absoluteUrl(`/apply/${listingId}`),
+    return_url: absoluteUrl(`${link}/status`),
+    cancel_url: absoluteUrl(`${link}/payment`),
     notify_url: absoluteUrl("/api/webhooks/payfast/application"),
     amount: (feeCents / 100).toFixed(2),
     item_name: `Application Fee — ${propertyName} ${unitName}`,
