@@ -2,7 +2,7 @@
 /**
  * .claude/hooks/canon-inbox.probe.mjs — canon-inbox.js in both directions, run as Claude Code runs it.
  *
- * @kit canon-inbox-probe v2 — tracked. It has no config region: its cases are the hook's contract.
+ * @kit canon-inbox-probe v3 — tracked. It has no config region: its cases are the hook's contract.
  *
  * Run: `node .claude/hooks/canon-inbox.probe.mjs` — exit 0 only if every case holds.
  *
@@ -14,6 +14,14 @@
  *
  * ONE LIVE CASE, against the real canon, when one is reachable: a copy planted a version behind must
  * be named, inside the time a session start can afford. No reachable canon is SKIPPED, not passed.
+ *
+ * v3 (2026-10-06, pleks CF-19): THE LIVE CASE GATES ONLY CANON. Run from an adopter's tree it reads a
+ * SIBLING checkout's working tree, so the adopter's commit gate turned on canon's uncommitted state,
+ * and a green named no committed canon. That is the 2026-09-09 unattributable run seen from the
+ * project side. There it is ADVISORY: printed with the canon SHA it read and whether that tree was
+ * dirty, never counted. Run from canon's own `kit/project-kit/hooks/` it still gates, because there
+ * the tree it reads is the tree being gated. The banner counts what held, what was skipped and what
+ * was advisory; it no longer says "every case holds" over a case that did not run.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
@@ -26,8 +34,10 @@ const HOOK = readFileSync(join(HERE, "canon-inbox.js"), "utf8");
 const fwd = (p) => p.replace(/\\/g, "/");
 const work = mkdtempSync(join(tmpdir(), "canon-inbox-"));
 let failed = 0;
+let held = 0;
+const notCounted = [];
 const check = (label, ok, got = "") => {
-  if (!ok) failed++;
+  if (ok) held++; else failed++;
   console.log(`${ok ? "✓" : "✗"} ${label}${ok ? "" : ` — got ${JSON.stringify(got).slice(0, 300)}`}`);
 };
 
@@ -144,7 +154,13 @@ try {
     const candidates = [resolve(HERE, "..", "..", "..")];
     for (let at = resolve(HERE, "..", "..", ".."); dirname(at) !== at; at = dirname(at)) candidates.push(join(at, "dev-standards"));
     const canon = candidates.find((c) => existsSync(join(c, "tools", "inbox.mjs")) && existsSync(join(c, "kit", "project-kit", "MANIFEST.json")));
+    // Gated only when this probe IS canon's kit copy: then the tree it reads is the tree being gated.
+    const own = canon === candidates[0];
+    // The state canon was read at, in canon's own words: its quick line opens `canon @ <sha>` and adds
+    // `(uncommitted)` over a dirty tree. Spawning git here instead would be a PATH lookup from a hook.
+    const at = (r) => /canon @ (\S+(?: \(uncommitted\))?)/.exec(msg(r))?.[1] ?? "an unreported state";
     if (!canon) {
+      notCounted.push("1 skipped");
       console.log(`⊘ live: no canon at ${candidates.map(fwd).join(" or ")} — SKIPPED, not passed`);
     } else {
       const reg = JSON.parse(readFileSync(join(canon, "ledgers", "projects.json"), "utf8"));
@@ -152,14 +168,20 @@ try {
       const name = Object.keys(reg.kitAdopted ?? {}).find((n) => (reg.kitAdopted[n] ?? []).length);
       const row = rows.find((f) => f.mode === "tracked" && f.version > 1 && reg.kitAdopted[name].includes(f.id) && !reg.kitPins?.[name]?.[f.id]);
       if (!name || !row) {
+        notCounted.push("1 skipped");
         console.log("⊘ live: canon's register holds no adopted, unpinned row above v1 to plant behind — SKIPPED, not passed");
       } else {
         const proj = dir("live-proj");
         mkdirSync(dirname(join(proj, row.install)), { recursive: true });
         writeFileSync(join(proj, row.install), `// @kit ${row.id} v1\n`);
         const r = run(plant("live-hook", { canon, project: name }), proj);
-        check(`live: canon names ${row.id} v1→v${row.version} for ${name}, with the carry command, in ${r.ms} ms (bound 3000)`,
-          r.status === 0 && msg(r).includes(`${row.id} v1→v${row.version}`) && msg(r).includes("--carry-only") && r.ms < 3_000, r);
+        const label = `live: canon names ${row.id} v1→v${row.version} for ${name}, with the carry command, in ${r.ms} ms (bound 3000)`;
+        const ok = r.status === 0 && msg(r).includes(`${row.id} v1→v${row.version}`) && msg(r).includes("--carry-only") && r.ms < 3_000;
+        if (own) check(label, ok, r);
+        else {
+          notCounted.push("1 advisory");
+          console.log(`ⓘ ${ok ? "held" : "DID NOT HOLD"} (advisory, not gated — canon @ ${at(r)} is another checkout) ${label}${ok ? "" : ` — got ${JSON.stringify(r).slice(0, 300)}`}`);
+        }
       }
     }
   }
@@ -167,5 +189,8 @@ try {
   rmSync(work, { recursive: true, force: true });
 }
 
-console.log(failed ? `\n❌ canon-inbox: ${failed} case(s) FAILED` : "\n✅ canon-inbox: every case holds — one line or silence, and NOT MEASURED wherever it could not look");
+const tally = [`${held} held`, ...notCounted].join(", ");
+console.log(failed
+  ? `\n❌ canon-inbox: ${failed} case(s) FAILED (${tally})`
+  : `\n✅ canon-inbox: ${tally} — one line or silence, and NOT MEASURED wherever it could not look`);
 process.exit(failed ? 1 : 0);

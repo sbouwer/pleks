@@ -3,7 +3,7 @@
 // delivery-report — the project's position, for the person paying for it,
 // per standards/DELIVERY-STANDARD.md
 //
-// @kit delivery-report v2 — tracked. Edit it in dev-standards and re-adopt; a local change
+// @kit delivery-report v3 — tracked. Edit it in dev-standards and re-adopt; a local change
 // here is a fork, and `check-kit-drift.mjs` will say so.
 //
 //   node scripts/delivery-report.mjs [dir] --check              # the gate: the plan is well-formed
@@ -821,6 +821,11 @@ const GOOD = `# Release plan
 const EVIDENCE = "Contract signed 2026-08-01 for R300 000 (source: signed SOW).";
 
 if (process.argv.includes("--selftest")) {
+  // pleks CF-14: run from a git hook in a linked worktree, git exports an ABSOLUTE GIT_DIR, which
+  // beats `-C` — so the scratch repo's init, config and commits landed in the REAL repository
+  // (core.bare, user.email=probe, four commits on a branch mid-merge). A selftest's subject is its
+  // fixtures, never the repo the hook was called for, so nothing it or its children run inherits one.
+  for (const k of Object.keys(process.env)) if (k.startsWith("GIT_")) delete process.env[k];
   let failed = 0;
   const check = (label, ok, detail = "") => {
     if (!ok) failed++;
