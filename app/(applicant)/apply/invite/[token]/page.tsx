@@ -160,8 +160,9 @@ export default async function InvitePage({
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            This fee covers credit checks, ID verification, rental history
-            verification, and adverse listing checks.
+            {/* Consent v2: no rental-history check runs (TPN is out of the bundle), so the fee names none. */}
+            This fee covers credit checks, ID verification, and adverse listing
+            checks.
           </p>
         </CardContent>
       </Card>

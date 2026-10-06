@@ -16,6 +16,12 @@
  *         after the checks and switches the checkbox to the group sentence, and the record call reports it as
  *         `groupClauseShown` — the route re-derives whether the application is a group one before recording it. The
  *         words live in lib/screening/consentWording.ts, never here.
+ *         Consent v2 (counsel 2026-10-03): "consent to … performing"; counsel's withdrawal sentence verbatim (point 6);
+ *         TPN out (no TPN check runs) and "sequestrations, and blacklisting" struck (point 4: blacklisting is not a
+ *         category any provider returns, and whether the products return sequestrations is unverified — nothing parses
+ *         them — so the text does not ask consent to either). The
+ *         adverse line is a strike only: counsel approved no replacement wording, and v3 names the categories once
+ *         Searchworx confirms them.
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -156,8 +162,8 @@ export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <p>
-            By consenting below, you authorise Pleks and its screening partner{" "}
-            <strong className="text-foreground">Searchworx</strong> to perform
+            By consenting below, you consent to Pleks and its screening partner{" "}
+            <strong className="text-foreground">Searchworx</strong> performing
             the following checks:
           </p>
 
@@ -176,12 +182,8 @@ export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded
               Affairs records
             </li>
             <li>
-              <strong className="text-foreground">TPN rental profile</strong>{" "}
-              — rental payment history and previous landlord references
-            </li>
-            <li>
               <strong className="text-foreground">Adverse listings</strong>{" "}
-              — judgements, defaults, sequestrations, and blacklisting
+              — judgements and defaults
             </li>
           </ul>
 
@@ -198,8 +200,9 @@ export function ScreeningConsentForm({ token, consentType, recordUrl, onRecorded
               <li>You may request a copy of the screening report</li>
               <li>You may dispute any inaccurate information</li>
               <li>
-                You may withdraw consent at any time, though this will result in
-                your application being withdrawn
+                You may withdraw your consent at any time. If you withdraw consent
+                before screening is completed, your application cannot proceed
+                through the screening process.
               </li>
             </ul>
           </div>

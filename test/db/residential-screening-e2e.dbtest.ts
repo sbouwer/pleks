@@ -76,6 +76,7 @@ import { POST as directorItn } from "@/app/api/webhooks/payfast/director/route"
 import { GET as lineRunner } from "@/app/api/cron/screening-line-runner/route"
 import { stampLineFee } from "@/lib/screening/lineFee"
 import { quoteApplicationFee } from "@/lib/screening/quote"
+import { SCREENING_CONSENT_VERSION } from "@/lib/screening/screeningConsent"
 
 let caller = 0
 const json = (url: string, body: unknown) => {
@@ -191,7 +192,7 @@ describe("ADDENDUM_14W §0 — a residential joint application, every person pay
     const { data: logs, error: logErr } = await db.from("consent_log").select("id, consent_type, consent_version, metadata").eq("org_id", orgId).eq("consent_type", "credit_check")
     expect(logErr).toBeNull()
     expect(logs).toHaveLength(2)
-    expect(new Set(logs!.map((l) => l.consent_version))).toEqual(new Set(["1.0-searchworx-stage2"]))
+    expect(new Set(logs!.map((l) => l.consent_version))).toEqual(new Set([SCREENING_CONSENT_VERSION]))
     const coLog = logs!.find((l) => l.id === co!.stage2_consent_log_id)
     expect(coLog?.metadata).toMatchObject({ application_id: appId, application_co_applicant_id: coId, stage: 2 })
   }, 60_000)
