@@ -26,6 +26,8 @@ export interface ResolvedSubject {
   applicationIds: string[]
   /** The subject's own co-applicant rows — on applications someone ELSE leads (their `co_{id}/` documents too). */
   coApplicants: Array<{ id: string; applicationId: string }>
+  /** Rows matched by email alone whose ID number conflicts — neither erased nor exported; surfaced for a human. */
+  needsReview: Array<{ table: "applications" | "application_co_applicants"; id: string; reason: string }>
 }
 
 export interface AnonymiseSubjectInput {
@@ -84,10 +86,64 @@ async function appIdsByTenant(db: Db, orgId: string, tenantId: string): Promise<
   return (data ?? []).map((r) => r.id as string)
 }
 
-async function appsByEmail(db: Db, orgId: string, email: string): Promise<Array<{ id: string; tenantId: string | null }>> {
-  const { data, error } = await db.from("applications").select("id, tenant_id").eq("org_id", orgId).eq("applicant_email", email)
+/** A row matched by its stored email alone — a mailbox, not yet a person. */
+interface EmailMatch { table: "applications" | "application_co_applicants"; id: string; applicationId: string; tenantId: string | null; hash: string | null }
+
+async function appsByEmail(db: Db, orgId: string, email: string): Promise<EmailMatch[]> {
+  // Case-insensitive, like the co lookup: the apply form stores the address as typed, while a portal DSAR carries
+  // the lower-cased auth email — an exact match found no application for "Jane@…" (co DSAR walker, lead-side twin).
+  const f = emailFilter(email)
+  const q = db.from("applications").select("id, tenant_id, id_number_hash").eq("org_id", orgId)
+  const { data, error } = await (f.exact ? q.eq("applicant_email", f.value) : q.ilike("applicant_email", f.value))
   logQueryError("resolveSubject applications by email", error)
-  return (data ?? []).map((r) => ({ id: r.id as string, tenantId: (r.tenant_id as string | null) ?? null }))
+  return (data ?? []).map((r) => ({
+    table: "applications", id: r.id as string, applicationId: r.id as string,
+    tenantId: (r.tenant_id as string | null) ?? null, hash: (r.id_number_hash as string | null) ?? null,
+  }))
+}
+
+/** Identity hashes on the contact/tenant chain's rows — the contact and the applications keyed to its tenant. They
+ *  vouch for email matches only when the request's account anchored the chain (partitionEmailMatches); otherwise they
+ *  are one more witness, since a hash read off a shared mailbox's row may be anyone's (walker F2/R3). */
+async function linkedIdHashes(db: Db, orgId: string, applicationIds: string[], contactId: string | null): Promise<Set<string>> {
+  const out = new Set<string>()
+  if (applicationIds.length) {
+    const { data, error } = await db.from("applications").select("id_number_hash").eq("org_id", orgId).in("id", applicationIds)
+    logQueryError("resolveSubject linked applications id hash", error)
+    for (const r of data ?? []) if (r.id_number_hash) out.add(r.id_number_hash as string)
+  }
+  if (contactId) {
+    const { data, error } = await db.from("contacts").select("id_number_hash").eq("org_id", orgId).eq("id", contactId).maybeSingle()
+    logQueryError("resolveSubject contact id hash", error)
+    if (data?.id_number_hash) out.add(data.id_number_hash as string)
+  }
+  return out
+}
+
+/**
+ * Which email-only matches are the subject (Stéan ruling 2026-10-06, co DSAR follow-ups). An email is a mailbox, not
+ * a person: a lead may enter a spouse under the household address. Erase only what a link or ONE consistent ID ties to
+ * the subject; a conflict is never settled silently either way — not by erasing a third party in the subject's name,
+ * and not by dropping the subject's own row under a completed request (a re-typed ID reads exactly like a different
+ * person). Conflicting rows go to the Information Officer as manual review.
+ *  - ANCHORED (the request's user account reached the subject's records): `chain` holds the hashes on those records,
+ *    and a match is the subject only if it carries one of them. An unhashed match is evidence of nothing (walker R1).
+ *  - Not anchored: nothing vouches — a contact found by email is itself an email match (walker R3), so `chain` is only
+ *    a witness. The matches are the subject iff no two hashes among them and the chain differ, and each match carries
+ *    a hash or is the mailbox's ONLY row — counting the chain's rows too, which were filtered out of `matches` before
+ *    this call (walker N1: an unhashed spouse row beside a hashed chain is not "sole"). Otherwise all are review.
+ */
+function partitionEmailMatches(
+  matches: EmailMatch[], chain: { hashes: Set<string>; rows: number }, anchored: boolean,
+): { accept: EmailMatch[]; review: EmailMatch[] } {
+  if (anchored && chain.hashes.size > 0) {
+    const ok = (m: EmailMatch) => m.hash !== null && chain.hashes.has(m.hash)
+    return { accept: matches.filter(ok), review: matches.filter((m) => !ok(m)) }
+  }
+  const hashes = new Set([...chain.hashes, ...matches.map((m) => m.hash).filter((h): h is string => h !== null)])
+  const sole = matches.length + chain.rows <= 1
+  const consistent = hashes.size <= 1 && (sole || matches.every((m) => m.hash !== null))
+  return consistent ? { accept: matches, review: [] } : { accept: [], review: matches }
 }
 
 async function contactIdByTenant(db: Db, orgId: string, tenantId: string): Promise<string | null> {
@@ -110,6 +166,9 @@ export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Pr
     const l = await roleByUser(db, "landlords", orgId, userId)
     if (l) { landlordId = l.id; contactId = l.contactId ?? contactId }
   }
+  // The request's own account reached the subject — the one link no shared mailbox can forge. A contact found by
+  // email below is still resolved (pre-existing A/B strip) but never anchors: it is an email match (walker R3).
+  const anchored = tenantId !== null || landlordId !== null || contactId !== null
 
   if (!contactId && subject.email) contactId = await contactByEmail(db, orgId, subject.email)
   if (contactId && !tenantId) tenantId = await roleIdByContact(db, "tenants", orgId, contactId)
@@ -118,20 +177,48 @@ export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Pr
   const applicationIds: string[] = []
   if (tenantId) applicationIds.push(...(await appIdsByTenant(db, orgId, tenantId)))
 
-  // R-2: direct C-table fallback. A rejected applicant's PII is almost entirely in `applications`
-  // (the §7 danger zone) and may be reachable ONLY by applicant_email — no contacts.primary_email or
-  // tenant chain. Resolve applications by email directly + backfill tenant→contact so A/B strip too.
-  // (id_number_hash isn't carried on the request, so applicant_email is the available key.)
-  if (subject.email) {
-    for (const a of await appsByEmail(db, orgId, subject.email)) {
-      if (!applicationIds.includes(a.id)) applicationIds.push(a.id)
-      tenantId ??= a.tenantId
-    }
-    if (tenantId && !contactId) contactId = await contactIdByTenant(db, orgId, tenantId)
-  }
+  // Rows LINKED to the subject: applications by tenant, co rows by tenant_id (set when a co is promoted —
+  // createTenantFromCoApplicant) and contact_id (no writer today; kept so a future link is not silently missed).
+  const coLinked = await coRowsByLink(db, orgId, tenantId, contactId)
+  const chain = await linkedIdHashes(db, orgId, applicationIds, contactId)
+  for (const c of coLinked) if (c.hash) chain.add(c.hash)
 
-  const coApplicants = await coRowsBySubject(db, orgId, { tenantId, contactId, email: subject.email ?? null })
-  return { orgId, userId, contactId, tenantId, landlordId, applicationIds, coApplicants }
+  const out: ResolvedSubject = {
+    orgId, userId, contactId, tenantId, landlordId, applicationIds,
+    coApplicants: coLinked.map(({ id, applicationId }) => ({ id, applicationId })), needsReview: [],
+  }
+  const chainRows = (contactId ? 1 : 0) + applicationIds.length + coLinked.length
+  if (subject.email) await addEmailMatches(db, out, subject.email, { hashes: chain, rows: chainRows }, anchored)
+  return out
+}
+
+/** R-2: direct C-table fallback. A rejected applicant's PII is almost entirely in `applications` (the §7 danger zone)
+ *  and may be reachable ONLY by applicant_email; a co's only key is usually the email they were invited on. Both are
+ *  matched case-insensitively, then held to partitionEmailMatches before any of them counts as the subject. */
+async function addEmailMatches(
+  db: Db, out: ResolvedSubject, email: string, chain: { hashes: Set<string>; rows: number }, anchored: boolean,
+): Promise<void> {
+  const known = new Set([...out.applicationIds, ...out.coApplicants.map((c) => c.id)])
+  const matches = [...await appsByEmail(db, out.orgId, email), ...await coRowsByEmail(db, out.orgId, email)]
+    .filter((m) => !known.has(m.id))
+  const { accept, review } = partitionEmailMatches(matches, chain, anchored)
+  const inReview = new Set(review.map((m) => m.id))
+  const hadTenant = out.tenantId !== null
+  for (const m of accept) {
+    if (m.table === "applications") { out.applicationIds.push(m.id); out.tenantId ??= m.tenantId }
+    else out.coApplicants.push({ id: m.id, applicationId: m.applicationId })
+  }
+  for (const m of review) {
+    out.needsReview.push({ table: m.table, id: m.id, reason: "matched by email only, and no ID number ties it to the subject (conflicting or missing) — confirm whose row it is before erasing" })
+  }
+  if (out.tenantId && !out.contactId) out.contactId = await contactIdByTenant(db, out.orgId, out.tenantId)
+  // An accepted application can carry the tenant link the subject had no other way to reach: its co rows are linked.
+  if (hadTenant || !out.tenantId) return
+  // A row already sent to review stays there: the link was found through an email match, so it cannot overrule (R4).
+  for (const c of await coRowsByLink(db, out.orgId, out.tenantId, null)) {
+    if (inReview.has(c.id) || out.coApplicants.some((x) => x.id === c.id)) continue
+    out.coApplicants.push({ id: c.id, applicationId: c.applicationId })
+  }
 }
 
 /** An ILIKE pattern that matches `s` literally, case-insensitively: %, _ and \ are escaped. */
@@ -139,29 +226,40 @@ export function ilikeLiteral(s: string): string {
   return s.replace(/[\\%_]/g, (c) => `\\${c}`)
 }
 
-/** The subject's own co-applicant rows, by every live key: tenant_id (set when a co is promoted to a tenant —
- *  createTenantFromCoApplicant), contact_id (no writer today; kept so a future link is not silently missed), and
- *  the email the row was invited on, matched CASE-INSENSITIVELY — the invite route stores the address as typed,
- *  while a portal DSAR carries the lower-cased auth email (co DSAR walker F1). One query per key, so an email is
- *  never spliced into an `.or()` filter string. */
-async function coRowsBySubject(
-  db: Db, orgId: string, keys: { tenantId: string | null; contactId: string | null; email: string | null },
-): Promise<Array<{ id: string; applicationId: string }>> {
-  const out = new Map<string, string>()
-  const lookups: Array<[string, (q: ReturnType<typeof coSelect>) => ReturnType<typeof coSelect>]> = []
-  if (keys.tenantId) lookups.push(["tenant", (q) => q.eq("tenant_id", keys.tenantId as string)])
-  if (keys.contactId) lookups.push(["contact", (q) => q.eq("contact_id", keys.contactId as string)])
-  if (keys.email) lookups.push(["email", (q) => q.ilike("applicant_email", ilikeLiteral(keys.email as string))])
-  for (const [label, narrow] of lookups) {
-    const { data, error } = await narrow(coSelect(db, orgId))
-    logQueryError(`resolveSubject co rows by ${label}`, error)
-    for (const r of data ?? []) out.set(r.id as string, r.primary_application_id as string)
+/** Match an email column case-insensitively and literally. PostgREST rewrites `*` to `%` inside like/ilike operands
+ *  (walker F4), and `*` is legal in an email's local part, so such an address falls back to an exact match — narrower
+ *  is the safe direction for a key that drives erasure. */
+function emailFilter(email: string): { exact: boolean; value: string } {
+  return email.includes("*") ? { exact: true, value: email } : { exact: false, value: ilikeLiteral(email) }
+}
+
+async function coRowsByLink(db: Db, orgId: string, tenantId: string | null, contactId: string | null) {
+  const out = new Map<string, { id: string; applicationId: string; hash: string | null }>()
+  const links: Array<[string, string | null]> = [["tenant_id", tenantId], ["contact_id", contactId]]
+  for (const [column, value] of links) {
+    if (!value) continue
+    const { data, error } = await coSelect(db, orgId).eq(column, value)
+    logQueryError(`resolveSubject co rows by ${column}`, error)
+    for (const r of data ?? []) out.set(r.id as string, coRow(r))
   }
-  return [...out].map(([id, applicationId]) => ({ id, applicationId }))
+  return [...out.values()]
+}
+
+/** One query per key, so an email is never spliced into an `.or()` filter string. */
+async function coRowsByEmail(db: Db, orgId: string, email: string): Promise<EmailMatch[]> {
+  const f = emailFilter(email)
+  const q = coSelect(db, orgId)
+  const { data, error } = await (f.exact ? q.eq("applicant_email", f.value) : q.ilike("applicant_email", f.value))
+  logQueryError("resolveSubject co rows by email", error)
+  return (data ?? []).map((r) => ({ table: "application_co_applicants", tenantId: null, ...coRow(r) }))
+}
+
+function coRow(r: Record<string, unknown>): { id: string; applicationId: string; hash: string | null } {
+  return { id: r.id as string, applicationId: r.primary_application_id as string, hash: (r.id_number_hash as string | null) ?? null }
 }
 
 function coSelect(db: Db, orgId: string) {
-  return db.from("application_co_applicants").select("id, primary_application_id").eq("org_id", orgId)
+  return db.from("application_co_applicants").select("id, primary_application_id, id_number_hash").eq("org_id", orgId)
 }
 
 /**

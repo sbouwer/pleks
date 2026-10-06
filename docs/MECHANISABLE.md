@@ -2898,3 +2898,19 @@ The author identified the hazard, and defended the single field in front of them
   file (RLS applies) stays out of scope.
 - **Provenance:** A18 walker, 2026-10-06.
 - **Covering spec:** none — a control defect found in passing, not by a verification row
+
+### M-144 — the schema-contract scan cannot see a column list held in a constant
+
+- **Rule:** every column a query names exists in the schema (`scripts/schema-contract-scan.mjs`, in `npm run check`).
+- **Where it lives (the instance):** `scripts/schema-contract-scan.mjs`, as at `c8f05705`. It reads `.select("…")`
+  string literals only. A hoisted `const FIELDS = "…"` passed as `.select(FIELDS)` is neither checked nor counted
+  among the dynamic calls it reports skipping. Found by the co DSAR follow-ups walker (`.handoff/dsar-followups/01-walker.md`
+  F1): `lib/popia/export.ts` selected a non-existent `stage` on `application_co_applicants`, PostgREST would return
+  42703, `logQueryError` would swallow it, and a POPIA s23 export would report no co data under a completed request.
+  The scan was green. Fixed at the site in the same PR; the control is what remains.
+- **Rung:** check · **Blast:** data-boundary
+- **Satisfied when:** `.select(IDENT)` resolves IDENT to a same-file `const` string literal and checks it like an
+  inline one; an unresolvable identifier is counted among the skipped dynamic calls. Probes both directions: a planted
+  bad column in a hoisted constant FAILS; the current tree passes.
+- **Provenance:** co DSAR follow-ups walker, 2026-10-06.
+- **Covering spec:** none — a control defect found in passing, not by a verification row

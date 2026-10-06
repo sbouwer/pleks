@@ -40,6 +40,23 @@ export async function retireApplicationDocument(db: SupabaseClient, args: Readon
   logQueryError("retireApplicationDocument update", error)
 }
 
+/** A DSAR erasure has removed one subject's files from an application: retire their live rows and redact the path on
+ *  every row, live or already retired. The path carries the uploaded filename, which can hold a name or an ID number
+ *  (A18's embedded-id hygiene signal), so a soft-delete alone would keep it. Returns false on a failed write. */
+export async function eraseSubjectDocumentRows(db: SupabaseClient, args: Readonly<{
+  orgId: string; applicationId: string; subjectRef: string; redacted: string
+}>): Promise<boolean> {
+  const rows = () => db.from("application_documents")
+  const { error: delErr } = await rows().update({ deleted_at: new Date().toISOString() })
+    .eq("org_id", args.orgId).eq("application_id", args.applicationId).eq("subject_ref", args.subjectRef)
+    .is("deleted_at", null)
+  logQueryError("eraseSubjectDocumentRows retire", delErr)
+  const { error: pathErr } = await rows().update({ storage_path: args.redacted })
+    .eq("org_id", args.orgId).eq("application_id", args.applicationId).eq("subject_ref", args.subjectRef)
+  logQueryError("eraseSubjectDocumentRows redact", pathErr)
+  return !delErr && !pathErr
+}
+
 /** storage_path → subject_ref for an application's LIVE registry rows — the loader's attribution source. */
 export async function getApplicationDocumentSubjects(db: SupabaseClient, applicationId: string): Promise<Map<string, string>> {
   const { data, error } = await db
