@@ -25,6 +25,8 @@ import {
 } from "./anonymiseIdentity"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { eraseCoDocs, eraseLeadDocs } from "@/lib/applications/purgeDocs"
+import { eraseSubjectDocumentRows } from "@/lib/applications/documentRegistry"
+import { REDACTED } from "./anonymisePlan"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,7 +138,12 @@ export async function executeErasure(
 
   // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: request object comes from the gated approve/reject route which validates user_orgs membership in request.org_id (or platform-admin) before invoking; org-filtering unsafe (platform requests have org_id NULL)
   await db.from("data_subject_requests").update({
-    erasure_records_affected: { categories: result, identity_groups: identity.groups, manual_review: MANUAL_REVIEW_TARGETS },
+    erasure_records_affected: {
+      categories: result, identity_groups: identity.groups, manual_review: MANUAL_REVIEW_TARGETS,
+      // Email-only matches whose ID numbers conflict: not erased, not silently kept — the Information Officer decides
+      // whose they are (Stéan ruling 2026-10-06). Row ids only; the table names where to look.
+      ambiguous_matches: resolved.needsReview,
+    },
   }).eq("id", request.id)
 
   return { by_category: result, total_affected, audit_entries }
@@ -258,6 +265,7 @@ async function purgeSubjectScreeningStorage(
   if (failed.length) {
     throw new Error(`[popia/erasure] application-docs purge failed for ${failed.length} application(s) — erasure aborted before the identity strip`)
   }
+  await eraseDocumentRows(db, resolved.orgId, purged.map((applicationId) => ({ applicationId, subjectRef: "primary" })))
 
   const { data: lines, error: linesErr } = await db
     .from("application_screening_lines")
@@ -292,7 +300,21 @@ async function eraseSubjectCoDocs(db: DbClient, resolved: ResolvedSubject, reque
   if (failed.length) {
     throw new Error(`[popia/erasure] application-docs purge failed for ${failed.length} co-applicant folder(s) — erasure aborted before the identity strip`)
   }
+  await eraseDocumentRows(db, resolved.orgId, resolved.coApplicants
+    .filter((c) => purged.includes(c.id))
+    .map((c) => ({ applicationId: c.applicationId, subjectRef: `co_${c.id}` })))
   await purgeCoBureauPdfs(db, resolved, requestId, actor_user_id)
+}
+
+/** The registry rows of files just purged (co DSAR walker F5): retired, and their paths — which carry the uploaded
+ *  filename — redacted. Keyed by application + subject_ref, which the strip leaves intact, so a throw here is safe to
+ *  re-run; it throws rather than complete a request over rows still naming the subject's files. */
+async function eraseDocumentRows(db: DbClient, orgId: string, targets: Array<{ applicationId: string; subjectRef: string }>): Promise<void> {
+  let failed = 0
+  for (const t of targets) {
+    if (!(await eraseSubjectDocumentRows(db, { orgId, ...t, redacted: REDACTED }))) failed++
+  }
+  if (failed) throw new Error(`[popia/erasure] application_documents redaction failed for ${failed} subject folder(s) — erasure aborted before the identity strip`)
 }
 
 /** The co's bureau report PDFs (co DSAR walker F2): their screening lines (subject_id = co id) and the artefacts

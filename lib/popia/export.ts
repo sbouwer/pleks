@@ -2,7 +2,8 @@
  * lib/popia/export.ts — POPIA export bundle generation (access / portability / nuke-pre-delivery)
  *
  * Auth:   Service-role only — never import in client components
- * Data:   popia_exports, popia-exports bucket, data_subject_requests
+ * Data:   popia_exports, popia-exports bucket, data_subject_requests; reads the subject's leases, inspections,
+ *         consent_log, applications (lead + co) and application_documents (type/date only)
  * Notes:  D-POPIA-11: PDF + JSON + ZIP, SHA-256 manifest-hash tamper evidence.
  *         D-POPIA-12: never mutates existing exports — regenerate appends a new row.
  *         AI narrative (generateAccessNarrative) is optional; Firm-tier default on.
@@ -11,7 +12,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { generateBundle, signedDownloadUrl } from "@/lib/exports/bundle"
 import type { DataSubjectRequest } from "./requests"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { resolveSubject, subjectLeaseIds } from "./anonymiseIdentity"
+import { resolveSubject, subjectLeaseIds, type ResolvedSubject } from "./anonymiseIdentity"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,14 @@ export interface SubjectDataBundle {
   inspections: unknown[]
   payments: unknown[]
   consent_entries: unknown[]
+  /** Applications the subject led, and their rows as a co-applicant on someone else's (co DSAR follow-up). */
+  applications: unknown[]
+  co_applications: unknown[]
+  /** The documents held for them — type and upload date per file, never the path (it carries the filename). */
+  documents: unknown[]
+  /** Rows that match the subject's email but carry conflicting ID numbers: withheld (they may be a third party's) and
+   *  counted, so the bundle says so rather than implying nothing is held (walker R2). */
+  pending_review: number
 }
 
 // ─── Generate ─────────────────────────────────────────────────────────────────
@@ -222,6 +231,8 @@ Data held:
 - Inspections: ${bundle.inspections.length} records
 - Payment records: ${bundle.payments.length} entries
 - Consent log entries: ${bundle.consent_entries.length} records
+- Rental applications: ${bundle.applications.length} as the main applicant, ${bundle.co_applications.length} as a co-applicant
+- Uploaded documents: ${bundle.documents.length}
 
 Write 2–3 paragraphs summarising what the agency holds, when the relationship began (if determinable), and the data categories. Do not include specific identifying values like addresses or amounts. Keep the tone factual and professional — no legal jargon. Start with "Your data held by ${bundle.org_name} through Pleks includes the following:"`
 
@@ -291,6 +302,8 @@ async function gatherSubjectData(
     .order("created_at", { ascending: false })
     logQueryError("gatherSubjectData consent_log", consent_entriesError)
 
+  const held = await gatherApplicationData(db, request.org_id, resolvedSubject)
+
   return {
     subject_email: request.subject_email,
     subject_name: request.subject_full_name,
@@ -300,7 +313,41 @@ async function gatherSubjectData(
     inspections: inspections ?? [],
     payments: [],  // Payment data gathered separately in Phase 7 when PDF is built
     consent_entries: consent_entries ?? [],
+    ...held,
   }
+}
+
+// What the subject gave in an application, as lead or co. Identity numbers are encrypted at rest and stay out —
+// the subject knows their own, and an export file is a copy that leaves the platform.
+const APPLICATION_FIELDS = "id, created_at, first_name, last_name, applicant_email, applicant_phone, employer_name, employment_type, gross_monthly_income_cents, stage1_status, stage2_status"
+const CO_APPLICATION_FIELDS = "id, primary_application_id, created_at, first_name, last_name, applicant_email, applicant_phone, employer_name, employment_type, gross_monthly_income_cents, marital_status, current_address, decision_stage, decided_at"
+
+async function gatherApplicationData(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  orgId: string,
+  resolved: ResolvedSubject,
+): Promise<Pick<SubjectDataBundle, "applications" | "co_applications" | "documents" | "pending_review">> {
+  const coIds = resolved.coApplicants.map((c) => c.id)
+  const { data: applications, error: appErr } = await db.from("applications")
+    .select(APPLICATION_FIELDS).eq("org_id", orgId).in("id", resolved.applicationIds)
+  logQueryError("gatherSubjectData applications", appErr)
+  const { data: coApplications, error: coErr } = await db.from("application_co_applicants")
+    .select(CO_APPLICATION_FIELDS).eq("org_id", orgId).in("id", coIds)
+  logQueryError("gatherSubjectData co applications", coErr)
+
+  const documents: unknown[] = []
+  const owned = [
+    ...resolved.applicationIds.map((applicationId) => ({ applicationId, subjectRef: "primary" })),
+    ...resolved.coApplicants.map((c) => ({ applicationId: c.applicationId, subjectRef: `co_${c.id}` })),
+  ]
+  for (const o of owned) {
+    const { data, error } = await db.from("application_documents")
+      .select("application_id, document_type, uploaded_at")
+      .eq("org_id", orgId).eq("application_id", o.applicationId).eq("subject_ref", o.subjectRef).is("deleted_at", null)
+    logQueryError("gatherSubjectData application_documents", error)
+    documents.push(...(data ?? []))
+  }
+  return { applications: applications ?? [], co_applications: coApplications ?? [], documents, pending_review: resolved.needsReview.length }
 }
 
 async function buildPdfArtefact(
@@ -325,6 +372,13 @@ async function buildPdfArtefact(
     `Communications: ${bundle.communications_count}`,
     `Inspections: ${bundle.inspections.length}`,
     `Consent log entries: ${bundle.consent_entries.length}`,
+    `Applications: ${bundle.applications.length}`,
+    `Co-applications: ${bundle.co_applications.length}`,
+    `Documents: ${bundle.documents.length}`,
+    ...(bundle.pending_review > 0
+      ? [`Further records: ${bundle.pending_review} matched your email address but could not be confirmed as yours.`,
+        "The agency's Information Officer will review them and respond separately."]
+      : []),
     "",
     "Full structured data is available in the accompanying data.json file.",
     "",

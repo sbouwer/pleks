@@ -4,7 +4,8 @@
  * Route:  /settings/privacy/data-subject-requests/:id
  * Auth:   gatewaySSR() — org member; request must belong to org
  * Data:   data_subject_requests (SELECT *); previewIdentityAnonymise — the §7 strip dry-run shown
- *         before approval (R-1: the human gate must see the ACTUAL erasure scope, not nothing).
+ *         before approval (R-1: the human gate must see the ACTUAL erasure scope, not nothing); resolveSubject's
+ *         needsReview — email-only matches withheld from erasure and export, shown for every request type.
  * Notes:  D-POPIA-10: MFA-fresh for approve. D-POPIA-04: status state machine.
  *         Approval executes action inline — handled via separate POST routes.
  */
@@ -88,11 +89,14 @@ export default async function DataSubjectRequestDetailPage({
   const subjectType = isDestructive ? subjectTypeFromRole(r.subject_role_context) : null
   const willHandleManually = isDestructive && (subjectType === "supplier" || subjectType === null)
   let preview: Awaited<ReturnType<typeof previewIdentityAnonymise>> | null = null
+  const svc = await db
+  const resolved = await resolveSubject(svc, { org_id: orgId, user_id: r.subject_user_id, email: r.subject_email })
   if (subjectType === "tenant" || subjectType === "landlord" || subjectType === "applicant") {
-    const svc = await db
-    const resolved = await resolveSubject(svc, { org_id: orgId, user_id: r.subject_user_id, email: r.subject_email })
     preview = await previewIdentityAnonymise(svc, resolved, subjectType)
   }
+  // Email-only matches no ID ties to the subject — withheld from erasure AND from an access export, so every request
+  // type shows them: this page is where the Information Officer learns they are owed a decision (walker N2).
+  const ambiguous = resolved.needsReview
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -255,6 +259,30 @@ export default async function DataSubjectRequestDetailPage({
                 No identifiable rows resolved for this subject — verify the subject email/role before approving.
               </p>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Email-only matches no ID ties to the subject — every request type (Stéan ruling 2026-10-06) */}
+      {ambiguous.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-1">
+              <AlertTriangle className="size-3 shrink-0" />
+              Needs your decision — {ambiguous.length} unconfirmed record(s)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p className="text-muted-foreground text-xs">
+              These match the subject&apos;s email, but no ID number ties them to the subject — the IDs conflict or one
+              is missing, so they may belong to someone sharing the address. They are NOT erased and NOT included in an
+              export. Confirm whose each one is and action it by hand.
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-0.5">
+              {ambiguous.map((m) => (
+                <li key={m.id}><span className="font-mono">{m.table} {m.id}</span></li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
