@@ -23,6 +23,7 @@ function getServiceClient() {
 
 const STUCK_MS = 5 * 60 * 1000   // a 'running' job older than this = a died invocation → reclaim
 const BATCH = 20
+const JOB_MAX_ATTEMPTS_DEFAULT = 3   // screening_jobs.max_attempts DEFAULT (005_operations); no writer overrides it
 
 export const GET = withCronRun("screening_jobs", handler)
 
@@ -35,9 +36,12 @@ async function handler(req: NextRequest): Promise<Response> {
     .update({ status: "failed", error: "stuck (invocation timed out)", updated_at: nowIso })
     .eq("status", "running").lt("started_at", new Date(Date.now() - STUCK_MS).toISOString())
 
+  // Exhausted jobs stay `failed` forever, so the batch must exclude them in the QUERY: filtered only in the loop,
+  // twenty of them fill every batch and the sweep fires nothing while reporting ok (A18 walker N3). PostgREST
+  // cannot compare two columns, so the bound is the column default — no writer sets max_attempts.
   const { data: jobs, error: jobsErr } = await db.from("screening_jobs")
-    .select("id, application_id, attempts, max_attempts")
-    .in("status", ["pending", "failed"])
+    .select("id, org_id, application_id, attempts, max_attempts")
+    .in("status", ["pending", "failed"]).lt("attempts", JOB_MAX_ATTEMPTS_DEFAULT)
     .order("created_at", { ascending: true }).limit(BATCH)
   logQueryError("screening-jobs cron select", jobsErr)
 
@@ -48,7 +52,15 @@ async function handler(req: NextRequest): Promise<Response> {
       .select("token").eq("application_id", job.application_id)
       .gt("expires_at", nowIso).order("created_at", { ascending: false }).limit(1).maybeSingle()
     logQueryError("screening-jobs cron token", tokErr)
-    if (!tok) continue
+    if (tokErr) continue
+    if (!tok) {
+      // No live token means nothing can ever fire this job again: retire it, or it holds a batch slot forever.
+      const { error: retireErr } = await db.from("screening_jobs")
+        .update({ status: "failed", attempts: job.max_attempts, error: "no live application token", updated_at: nowIso })
+        .eq("id", job.id).eq("org_id", job.org_id)
+      logQueryError("screening-jobs cron retire", retireErr)
+      continue
+    }
     try {
       await fetch(`${req.nextUrl.origin}/api/applications/${job.application_id}/screen`, {
         method: "POST", headers: { "Content-Type": "application/json" },

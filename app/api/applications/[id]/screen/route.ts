@@ -1,11 +1,12 @@
 /**
  * app/api/applications/[id]/screen/route.ts — async pre-screen pass (ADDENDUM_14M; production-wires 14L).
  *
- * Route:  POST /api/applications/[id]/screen  (run one screening pass) · GET ?token= (poll status)
+ * Route:  POST /api/applications/[id]/screen  (run one screening pass; `recheck: true` queues the applicant's
+ *         re-check first) · GET ?token= (poll status — the applicant's to-dos, never the ruling)
  * Auth:   PUBLIC / UNAUTHENTICATED by design — the apply flow has no session. The application_tokens row
  *         (bound to THIS [id] — IDOR guard) is the capability. Rate-limited per IP. org_id is read from the
- *         application server-side. Consent (applications.stage1_consent_given, recorded at submit) is a hard
- *         precondition — we never read financial documents without it.
+ *         application server-side. Consent (applications.stage1_consent_given, recorded at the section sign-off
+ *         via save-draft) is a hard precondition — we never read financial documents without it.
  * Data:   downloads application-docs from Storage → runPipeline (14L, gated on the org's ai_full tier) →
  *         deterministic 14M evaluateRuling → a versioned application_screening_evaluations row; drives a
  *         durable screening_jobs row (immediate fire + cron retry). input_snapshot is PII-SAFE (amounts /
@@ -13,7 +14,7 @@
  * Notes:  heavy (10–60s of AI) — must NOT run inside the submit request; fired async + swept by cron.
  */
 /* eslint-disable pleks/require-org-scope-on-service-write -- gated by application_tokens .eq("token", token).eq("application_id", id) — the IDOR guard is explicit and bound to THIS id; public apply flow, so there is no caller org to scope to */
-import { NextResponse } from "next/server"
+import { NextResponse, after } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { runPipeline } from "@/lib/extraction/pipeline"
@@ -31,6 +32,7 @@ import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
 import { SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
+import { enqueueScreening, fireScreening, screenStatusView, STAGE1_DECIDED_IN } from "@/lib/applications/screeningJobs"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -101,12 +103,14 @@ function buildDeclared(app: AppRow, appliedRentCents: number): DeclaredContext {
   }
 }
 
-/** Atomically claim the newest pending/failed job (fix #5: conditional UPDATE, not SELECT-then-UPDATE). */
+/** Atomically claim the OLDEST pending/failed job (fix #5: conditional UPDATE, not SELECT-then-UPDATE). Oldest,
+ *  because enqueueScreening's race dedupe keeps the oldest live job and deletes the rest while still pending — a
+ *  claimer taking the newest would run the row the dedupe is about to give up on (A18 walker N4). */
 async function claimJob(db: Db, appId: string): Promise<{ id: string; attempts: number } | null> {
   const { data: job, error: jobErr } = await db.from("screening_jobs")
     .select("id, attempts, max_attempts")
     .eq("application_id", appId).in("status", ["pending", "failed"])
-    .order("created_at", { ascending: false }).limit(1).maybeSingle()
+    .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1).maybeSingle()
   logQueryError("screen claimJob select", jobErr)
   if (!job) return null
   if (job.attempts >= job.max_attempts) {
@@ -129,12 +133,30 @@ async function tokenAppId(db: Db, token: string, id: string): Promise<boolean> {
   return !!data
 }
 
+/** A18 — the applicant's "check again" (after updating documents) queues its own pass; null lets the POST go on to
+ *  claim it. enqueueScreening refuses while a job is live and at MAX_SCREENING_ITERATIONS, so a re-check cannot
+ *  stack AI runs. Refused once submitted: the application is read-only from then on, and a late pass would
+ *  replace the evaluation the agent is reading. */
+async function queueRecheck(db: Db, args: { orgId: string; applicationId: string; submittedAt: string | null }): Promise<NextResponse | null> {
+  if (args.submittedAt) return NextResponse.json({ error: "Already submitted" }, { status: 409 })
+  const queued = await enqueueScreening(db, { orgId: args.orgId, applicationId: args.applicationId, force: true })
+  return queued === "cap" ? NextResponse.json({ ok: true, status: "cap-reached" }) : null
+}
+
+/** A18 walker N1 — documents uploaded WHILE this pass ran (the card says "you can submit now") are not in the
+ *  evaluation just written. A trigger arriving mid-pass saw a live job and queued nothing, so this pass queues its
+ *  own follow-up: enqueueScreening anchors "changed" on this job's started_at and still honours the cap. */
+async function requeueIfDocsChanged(db: Db, orgId: string, applicationId: string): Promise<void> {
+  const queued = await enqueueScreening(db, { orgId, applicationId })
+  if (queued === "queued") after(() => fireScreening(db, { applicationId }))
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!rateLimit(`screen:${getClientIp(req)}`, { limit: 10, windowMs: 60_000 })) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 })
   }
   const { id } = await params
-  const body = await req.json().catch(() => ({})) as { token?: string }
+  const body = await req.json().catch(() => ({})) as { token?: string; recheck?: boolean }
   const db = await createServiceClient()
 
   if (!body.token || !(await tokenAppId(db, body.token, id))) {
@@ -143,13 +165,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: app, error: appErr } = await db
     .from("applications")
-    .select("org_id, listing_id, co_applicants_count, dependents_count, dependent_adults_count, dependent_minors_count, school_fees_cents, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, applicant_type, company_info, free_assessment, listings(asking_rent_cents, units(properties(type)))")
+    .select("org_id, listing_id, co_applicants_count, dependents_count, dependent_adults_count, dependent_minors_count, school_fees_cents, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, employment_start_date, income_sources, stage1_consent_given, submitted_at, applicant_type, company_info, free_assessment, listings(asking_rent_cents, units(properties(type)))")
     .eq("id", id).single()
   logQueryError("screen applications", appErr)
   if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   // Consent is a hard precondition — never read financial documents without it (fix #3).
   if (app.stage1_consent_given !== true) return NextResponse.json({ error: "Consent not recorded" }, { status: 403 })
+
+  if (body.recheck === true) {
+    const refused = await queueRecheck(db, { orgId: app.org_id, applicationId: id, submittedAt: app.submitted_at })
+    if (refused) return refused
+  }
 
   const claim = await claimJob(db, id)
   if (!claim) return NextResponse.json({ ok: true, status: "already-claimed" })   // idempotent vs double-fire/cron
@@ -232,8 +259,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     const iteration = await persistEvaluation(db, { orgId: app.org_id, appId: id, ruling, reconciliation, fraudSignals, declared, unitType, applicantCount, docCount: docs.length })
-    await db.from("applications").update({ stage1_status: "pre_screen_complete" }).eq("id", id)
+    // Never demote an agent decision: a pass that lands after shortlisting leaves stage1_status alone (A18).
+    await db.from("applications").update({ stage1_status: "pre_screen_complete" }).eq("id", id).not("stage1_status", "in", STAGE1_DECIDED_IN)
     await db.from("screening_jobs").update({ status: "done", iteration_number: iteration, finished_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", claim.id)
+    await requeueIfDocsChanged(db, app.org_id, id)
 
     return NextResponse.json({ ok: true, status: "done" })
   } catch (err) {
@@ -285,16 +314,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!token || !(await tokenAppId(db, token, id))) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
   }
-  const { data: evalRow, error: evalErr } = await db.from("application_screening_evaluations")
-    .select("iteration_number, ruling_tier, affordability_tier, affordability_ratio_pct, affordability_corroborated_ratio_pct, corroborated_income_cents, demonstrated_housing_cents, confidence_tier, flags, generated_at")
-    .eq("application_id", id).order("iteration_number", { ascending: false }).limit(1).maybeSingle()
-  logQueryError("screen GET evaluation", evalErr)
-  if (evalRow) return NextResponse.json({ status: "done", evaluation: evalRow })
-
+  // The newest job decides "processing": a re-check queued after an evaluation must read as processing, not as
+  // the previous evaluation's "done".
   const { data: job, error: jobErr } = await db.from("screening_jobs")
     .select("status, attempts, max_attempts").eq("application_id", id)
     .order("created_at", { ascending: false }).limit(1).maybeSingle()
   logQueryError("screen GET job", jobErr)
-  const failed = job?.status === "failed" && (job?.attempts ?? 0) >= (job?.max_attempts ?? 0)
-  return NextResponse.json({ status: failed ? "failed" : "processing" })
+  if (jobErr) return NextResponse.json({ status: "unavailable" }, { status: 503 })
+
+  // Applicant-facing: the to-dos ONLY. The tier, ratio and confidence never leave the server on this token
+  // (Stéan ruling 2026-10-06, verify-14m row 15) — the ruling is the agent's.
+  const { data: evalRow, error: evalErr } = await db.from("application_screening_evaluations")
+    .select("iteration_number, flags, fraud_signals")
+    .eq("application_id", id).order("iteration_number", { ascending: false }).limit(1).maybeSingle()
+  logQueryError("screen GET evaluation", evalErr)
+  if (evalErr) return NextResponse.json({ status: "unavailable" }, { status: 503 })
+
+  return NextResponse.json(screenStatusView({ job, evaluation: evalRow, maxIterations: MAX_SCREENING_ITERATIONS }))
 }

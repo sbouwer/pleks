@@ -32,7 +32,9 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { revalidatePath } from "next/cache"
+import { after } from "next/server"
 import { addDays } from "date-fns"
+import { enqueueScreening, fireScreening } from "@/lib/applications/screeningJobs"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited, sendShortlistInvitation as sendShortlistEmail } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -146,6 +148,11 @@ export async function sendShortlistInvitation(applicationId: string): Promise<Sh
 
   // Audit log
   await recordAudit(db, { orgId: orgId, table: "applications", recordId: applicationId, action: "UPDATE", actorId: userId, after: { stage1_status: "shortlisted", stage2_status: "invited" } })
+
+  // A18 — this is a shortlist too, so it enqueues the 14M deep scan exactly as shortlistStage1Action does
+  // (verify-14m row 39): only when there is no evaluation yet or the documents changed after the latest one.
+  const queued = await enqueueScreening(db, { orgId, applicationId })
+  if (queued === "queued") after(() => fireScreening(db, { applicationId }))
 
   revalidatePath("/listings")
   return { success: true }

@@ -16,6 +16,8 @@ import { gateway } from "@/lib/supabase/gateway"
 import { hasCapability } from "@/lib/auth/can"
 import { recordAudit, recordAuditReturningId } from "@/lib/audit/recordAudit"
 import { revalidatePath } from "next/cache"
+import { after } from "next/server"
+import { enqueueScreening, fireScreening } from "./screeningJobs"
 import { INCOME_AFFORDABILITY_THRESHOLD } from "@/lib/constants"
 import { resolveActiveScreeningPolicy } from "@/lib/screening/screeningPolicy"
 import {
@@ -85,7 +87,8 @@ export async function declineStage1Action(
  * Stage-1 triage SHORTLIST — the green-tick "pre-approve" from the listing list. A lightweight selection mark:
  * advances stage1_status to 'shortlisted' (+ prescreen stamps + audit), but does NOT send any email or start
  * Stage 2. The actual paid Stage-2 invitation stays the explicit detail-page step (sendShortlistInvitation),
- * so triaging 200 applicants never fires 200 invites/credit checks.
+ * so triaging 200 applicants never fires 200 invites/credit checks. It does queue the 14M deep scan when the
+ * application has none yet (A18) — no applicant-facing effect, and no bureau check.
  */
 export async function shortlistStage1Action(applicationId: string) {
   const gw = await gateway()
@@ -114,6 +117,13 @@ export async function shortlistStage1Action(applicationId: string) {
     .eq("org_id", orgId)
 
   if (error) return { error: error.message }
+
+  // A18 — shortlisting enqueues the 14M deep scan (verify-14m row 39) when the agent would otherwise rule on a
+  // stale read: no evaluation yet (submitted before A18, or a run that never landed), or documents changed after
+  // the latest one. A second identical pass on unchanged documents would be pure AI cost, so that is all it does.
+  const queued = await enqueueScreening(db, { orgId, applicationId })
+  if (queued === "queued") after(() => fireScreening(db, { applicationId }))
+
   revalidatePath(`/listings`)
   return { ok: true }
 }

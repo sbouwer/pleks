@@ -4,15 +4,17 @@
  *
  * Route:  POST /api/applications/[id]/submit-to-agent
  * Auth:   application token (the capability) — public/unauthenticated applicant flow.
- * Data:   applications (set submitted_at), then fires the submission emails (lib/applications/submissionEmails).
+ * Data:   applications (set submitted_at), then fires the submission emails (lib/applications/submissionEmails),
+ *         and queues the 14M pre-screen when the documents changed since the last pass (A18, screeningJobs).
  * Notes:  Distinct from /submit, which runs the Step-1 free assessment (consent + declared affordability +
  *         readiness) and does NOT mark the application submitted. Agent visibility, dedup and retention all key
  *         off submitted_at — so viewing the assessment never counts as submitting. Idempotent: a second call on
  *         an already-submitted row is a no-op. Gated by the J1 rule: all co-applicants must be complete first.
  */
 /* eslint-disable pleks/require-org-scope-on-service-write -- accepts a lead application_tokens token or a co-applicant access_token, each matched .eq(...id) against THIS application before any write; public apply flow, no caller org */
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { enqueueScreening, fireScreening } from "@/lib/applications/screeningJobs"
 import { sendSubmissionNotifications } from "@/lib/applications/submissionEmails"
 import { notifyAllSubmitted } from "@/lib/applications/peerEmails"
 import { incompleteApplicantCount } from "@/lib/applications/submitGate"
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest, { params }: Props) {
 
   const { data: app, error: appErr } = await service
     .from("applications")
-    .select("submitted_at, stage1_consent_given, listings(status, closes_at)")
+    .select("org_id, submitted_at, stage1_consent_given, listings(status, closes_at)")
     .eq("id", id).single()
   logQueryError("submit-to-agent applications", appErr)
   if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -85,6 +87,12 @@ export async function POST(req: NextRequest, { params }: Props) {
   const { error: updErr } = await service.from("applications").update({ submitted_at: now }).eq("id", id)
   logQueryError("submit-to-agent update", updErr)
   if (updErr) return NextResponse.json({ error: "Could not submit your application." }, { status: 500 })
+
+  // A18 — the agent reads the 14M evaluation from here on, so it must describe the documents actually submitted:
+  // queue a pass when none exists or the documents changed after the latest one (an unchanged application is
+  // not re-scanned). The all-green gate above already proved the lead's stage-1 consent.
+  const queued = await enqueueScreening(service, { orgId: app.org_id as string, applicationId: id })
+  if (queued === "queued") after(() => fireScreening(service, { applicationId: id }))
 
   // The submission notification carries a RESUME link for the LEAD applicant — always use the lead's token (a co
   // may have submitted with their own access token, which must never land in the lead's email).
