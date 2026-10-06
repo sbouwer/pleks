@@ -2,7 +2,7 @@
 /**
  * .claude/hooks/canon-inbox.probe.mjs — canon-inbox.js in both directions, run as Claude Code runs it.
  *
- * @kit canon-inbox-probe v1 — tracked. It has no config region: its cases are the hook's contract.
+ * @kit canon-inbox-probe v2 — tracked. It has no config region: its cases are the hook's contract.
  *
  * Run: `node .claude/hooks/canon-inbox.probe.mjs` — exit 0 only if every case holds.
  *
@@ -77,12 +77,23 @@ try {
   check("the config region ships both values null — a path here is a path on the adopter's machine",
     HOOK.includes("const CANON_DIR = null;") && HOOK.includes("const PROJECT = null;"));
 
-  // 1 · No canon beside the project: NOT MEASURED, naming where it looked.
+  // 1 · No canon beside the project or above it: NOT MEASURED, naming where it looked from.
   {
     const proj = dir("lone", "myproj");
     const r = run(plant("lone-hook"), proj);
-    check("no canon: one NOT MEASURED line naming the sibling path it looked at, and exit 0",
-      r.status === 0 && msg(r).includes("NOT MEASURED") && msg(r).includes(fwd(join(work, "lone", "dev-standards"))), r);
+    check("no canon: one NOT MEASURED line naming the project it searched up from, and exit 0",
+      r.status === 0 && msg(r).includes("NOT MEASURED") && msg(r).includes(fwd(proj)) && msg(r).includes("any folder above it"), r);
+  }
+
+  // 1b · A CLIENT FOLDER: `<dev>/<client>/<project>` finds `<dev>/dev-standards`. v1 looked only
+  //      beside the project, so every session in a client's project was NOT MEASURED.
+  {
+    const proj = dir("estate", "acme", "website");
+    fakeCanon(join("estate", "dev-standards"), "console.log(JSON.stringify(process.argv.slice(2)));\n");
+    const r = run(plant("nest-hook"), proj);
+    const args = (() => { try { return JSON.parse(msg(r)); } catch { return null; } })();
+    check("client folder: canon two levels up is found, and asked about this tree",
+      Array.isArray(args) && args[0] === "website" && args[2] === "--tree" && resolve(args[3]) === resolve(proj), r);
   }
 
   // 2 · The default: canon is the dev-standards BESIDE the project, and the project is its folder name.
@@ -129,7 +140,9 @@ try {
 
   // 7 · LIVE: the real canon names a copy planted a version behind, inside a session start's budget.
   {
-    const candidates = [resolve(HERE, "..", "..", ".."), resolve(HERE, "..", "..", "..", "dev-standards")];
+    // Canon's own checkout (kit/project-kit/hooks), then the nearest `dev-standards` above a project.
+    const candidates = [resolve(HERE, "..", "..", "..")];
+    for (let at = resolve(HERE, "..", "..", ".."); dirname(at) !== at; at = dirname(at)) candidates.push(join(at, "dev-standards"));
     const canon = candidates.find((c) => existsSync(join(c, "tools", "inbox.mjs")) && existsSync(join(c, "kit", "project-kit", "MANIFEST.json")));
     if (!canon) {
       console.log(`⊘ live: no canon at ${candidates.map(fwd).join(" or ")} — SKIPPED, not passed`);
