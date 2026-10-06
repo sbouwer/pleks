@@ -639,7 +639,7 @@ export async function sendCreditReportDelivered(
           </>
         )}
         <EmailSectionHeading>What was checked</EmailSectionHeading>
-        <p style={S.body}>Credit score · Income-to-rent ratio · Rental payment history (TPN) · Employment · Judgements · Identity verification</p>
+        <p style={S.body}>Credit score · Income-to-rent ratio · Employment · Judgements · Identity verification</p>
         <EmailSectionHeading>Your rights</EmailSectionHeading>
         <p style={S.body}>
           Under the National Credit Act, you may request a full copy of your credit report

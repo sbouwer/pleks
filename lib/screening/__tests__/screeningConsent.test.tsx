@@ -6,11 +6,14 @@
  *         or a block not shown, records false (withholds the N6 link — fails closed). An unreadable party count records
  *         nothing at all. RENDERED: the group block and the group checkbox appear together or not at all, in the
  *         approved words from lib/screening/consentWording.ts.
+ *         CONSENT v2 (counsel 2026-10-03): the text consents to checks the bundle runs and to nothing else (no TPN, no
+ *         sequestrations, no blacklisting), carries counsel's withdrawal sentence, and the record says v2 and logs no
+ *         check the text does not name.
  */
 import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { insertScreeningConsentLog, isGroupApplication } from "../screeningConsent"
+import { SCREENING_CONSENT_VERSION, insertScreeningConsentLog, isGroupApplication } from "../screeningConsent"
 import {
   CONSENT_CHECKBOX_GROUP, CONSENT_CHECKBOX_SINGLE, GROUP_COMPLETION_STATUS_SENTENCE, GROUP_CONSOLIDATION_PARAGRAPH,
 } from "../consentWording"
@@ -105,5 +108,42 @@ describe("the consent form renders the group block as one", () => {
     expect(html).not.toContain(GROUP_COMPLETION_STATUS_SENTENCE)
     expect(html).not.toContain(CONSENT_CHECKBOX_GROUP)
     expect(html).toContain(CONSENT_CHECKBOX_SINGLE)
+  })
+})
+
+describe("consent v2 — the text names only what runs, and the record says so", () => {
+  const html = renderToStaticMarkup(
+    <ScreeningConsentForm token="t" consentType="standard_bundle" recordUrl="/r" onRecorded={() => undefined} groupClause={false} />,
+  ).replaceAll("&#x27;", "'").replaceAll("&#39;", "'").replaceAll(/<!-- -->/g, "").replaceAll(/\s+/g, " ")
+
+  it("consents TO the checks, with counsel's withdrawal sentence", () => {
+    expect(html).toContain("you consent to Pleks and its screening partner")
+    expect(html).toContain(
+      "You may withdraw your consent at any time. If you withdraw consent before screening is completed, your application cannot proceed through the screening process.",
+    )
+  })
+
+  it("PLANTED: no check the bundle never runs, and not the v1 wording", () => {
+    for (const gone of ["TPN", "blacklist", "sequestration", "you authorise", "will result in your application being withdrawn"]) {
+      expect(html.toLowerCase()).not.toContain(gone.toLowerCase())
+    }
+  })
+
+  it("PLANTED: the invite page's fee line names no rental-history check either", async () => {
+    const { readFile } = await import("node:fs/promises")
+    const page = await readFile("app/(applicant)/apply/invite/[token]/page.tsx", "utf8")
+    // The rendered fee sentence, not the comment beside it: read the <p> that states what the fee covers.
+    const start = page.indexOf("This fee covers")
+    const fee = page.slice(start, page.indexOf("</p>", start))
+    expect(fee).toContain("credit checks")
+    expect(fee.toLowerCase()).not.toMatch(/rental\s+history|tpn/)
+  })
+
+  it("the record is v2 and logs no TPN check", async () => {
+    const { db, inserts } = fakeDb(0)
+    await insertScreeningConsentLog(db, input(false))
+    expect(SCREENING_CONSENT_VERSION).toBe("2.0-searchworx-stage2")
+    expect(inserts[0].consent_version).toBe(SCREENING_CONSENT_VERSION)
+    expect((inserts[0].metadata as Row).check_types).not.toContain("tpn_adverse")
   })
 })

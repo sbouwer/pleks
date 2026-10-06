@@ -18,11 +18,17 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-/** The version string of the applicant screening consent text. Unchanged from the inline value it replaced. */
-const SCREENING_CONSENT_VERSION = "1.0-searchworx-stage2"
+/**
+ * The version string of the applicant screening consent text (components/consent/ScreeningConsentForm.tsx).
+ * v2 (counsel 2026-10-03, stage-2 pack "Versioning and merge order"): "consent to" wording, counsel's withdrawal
+ * sentence, and no check the bundle never runs — TPN, sequestrations and blacklisting are out. A v1 row stays the
+ * evidence of the v1 text; nothing re-consents on a bump (no reader keys on this string).
+ */
+export const SCREENING_CONSENT_VERSION = "2.0-searchworx-stage2"
 
-/** The checks that text authorises, as logged. Order and values unchanged from the inline literal. */
-const SCREENING_CONSENT_CHECK_TYPES = ["transunion", "xds", "csi_id", "csi_id_photo", "tpn_adverse"] as const
+/** The checks that text names, as logged. v2 drops "tpn_adverse": the text no longer names a TPN check, and the bundle
+ *  never ran one, so logging it would record consent to a check nobody was asked about. */
+const SCREENING_CONSENT_CHECK_TYPES = ["transunion", "xds", "csi_id", "csi_id_photo"] as const
 
 export interface ScreeningConsentLogInput {
   orgId: string
