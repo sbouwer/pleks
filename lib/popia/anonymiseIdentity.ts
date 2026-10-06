@@ -24,6 +24,8 @@ export interface ResolvedSubject {
   tenantId: string | null
   landlordId: string | null
   applicationIds: string[]
+  /** The subject's own co-applicant rows — on applications someone ELSE leads (their `co_{id}/` documents too). */
+  coApplicants: Array<{ id: string; applicationId: string }>
 }
 
 export interface AnonymiseSubjectInput {
@@ -128,7 +130,38 @@ export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Pr
     if (tenantId && !contactId) contactId = await contactIdByTenant(db, orgId, tenantId)
   }
 
-  return { orgId, userId, contactId, tenantId, landlordId, applicationIds }
+  const coApplicants = await coRowsBySubject(db, orgId, { tenantId, contactId, email: subject.email ?? null })
+  return { orgId, userId, contactId, tenantId, landlordId, applicationIds, coApplicants }
+}
+
+/** An ILIKE pattern that matches `s` literally, case-insensitively: %, _ and \ are escaped. */
+export function ilikeLiteral(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => `\\${c}`)
+}
+
+/** The subject's own co-applicant rows, by every live key: tenant_id (set when a co is promoted to a tenant —
+ *  createTenantFromCoApplicant), contact_id (no writer today; kept so a future link is not silently missed), and
+ *  the email the row was invited on, matched CASE-INSENSITIVELY — the invite route stores the address as typed,
+ *  while a portal DSAR carries the lower-cased auth email (co DSAR walker F1). One query per key, so an email is
+ *  never spliced into an `.or()` filter string. */
+async function coRowsBySubject(
+  db: Db, orgId: string, keys: { tenantId: string | null; contactId: string | null; email: string | null },
+): Promise<Array<{ id: string; applicationId: string }>> {
+  const out = new Map<string, string>()
+  const lookups: Array<[string, (q: ReturnType<typeof coSelect>) => ReturnType<typeof coSelect>]> = []
+  if (keys.tenantId) lookups.push(["tenant", (q) => q.eq("tenant_id", keys.tenantId as string)])
+  if (keys.contactId) lookups.push(["contact", (q) => q.eq("contact_id", keys.contactId as string)])
+  if (keys.email) lookups.push(["email", (q) => q.ilike("applicant_email", ilikeLiteral(keys.email as string))])
+  for (const [label, narrow] of lookups) {
+    const { data, error } = await narrow(coSelect(db, orgId))
+    logQueryError(`resolveSubject co rows by ${label}`, error)
+    for (const r of data ?? []) out.set(r.id as string, r.primary_application_id as string)
+  }
+  return [...out].map(([id, applicationId]) => ({ id, applicationId }))
+}
+
+function coSelect(db: Db, orgId: string) {
+  return db.from("application_co_applicants").select("id, primary_application_id").eq("org_id", orgId)
 }
 
 /**
@@ -159,6 +192,7 @@ function idsForGroup(resolved: ResolvedSubject, keyFrom: KeyFrom): { single: str
     case "landlordId":    return { single: resolved.landlordId, list: [] }
     case "userId":        return { single: resolved.userId, list: [] }
     case "applicationId": return { single: null, list: resolved.applicationIds }
+    case "coApplicantId": return { single: null, list: resolved.coApplicants.map((c) => c.id) }
   }
 }
 

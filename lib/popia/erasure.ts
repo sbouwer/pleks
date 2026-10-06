@@ -24,7 +24,7 @@ import {
   type ResolvedSubject,
 } from "./anonymiseIdentity"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { eraseLeadDocs } from "@/lib/applications/purgeDocs"
+import { eraseCoDocs, eraseLeadDocs } from "@/lib/applications/purgeDocs"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -231,6 +231,8 @@ async function purgeSubjectScreeningStorage(
   requestId: string,
   actor_user_id: string,
 ): Promise<void> {
+  // A co-only subject leads nothing but still has documents: their own co_{id}/ folders (arc 1, co DSAR).
+  await eraseSubjectCoDocs(db, resolved, requestId, actor_user_id)
   if (resolved.applicationIds.length === 0) return
 
   const remove = async (bucket: string, table: string, paths: Array<string | null>): Promise<void> => {
@@ -275,6 +277,47 @@ async function purgeSubjectScreeningStorage(
   logQueryError("purgeSubjectScreeningStorage screening_artifacts", artErr)
   await remove("screening-reports", "screening_artifacts",
     (artefacts ?? []).map((r) => r.storage_path as string | null))
+}
+
+/** The subject's documents as a CO-applicant on applications someone else leads — each co_{id}/ folder, never the
+ *  lead's root. Until arc 1 erasure resolved only applications the subject LEADS, so a co's own DSAR deleted none of
+ *  their documents. Fails closed for the same reason as the lead purge: the strip that follows redacts the co row's
+ *  applicant_email, the key these rows were found by, and would orphan the files under a "completed" request. */
+async function eraseSubjectCoDocs(db: DbClient, resolved: ResolvedSubject, requestId: string, actor_user_id: string): Promise<void> {
+  if (resolved.coApplicants.length === 0) return
+  const { purged, failed } = await eraseCoDocs(db, resolved.orgId, resolved.coApplicants)
+  for (const coId of purged) {
+    await logAudit(db, resolved.orgId, actor_user_id, "popia_erasure", "application_co_applicants", coId, requestId)
+  }
+  if (failed.length) {
+    throw new Error(`[popia/erasure] application-docs purge failed for ${failed.length} co-applicant folder(s) — erasure aborted before the identity strip`)
+  }
+  await purgeCoBureauPdfs(db, resolved, requestId, actor_user_id)
+}
+
+/** The co's bureau report PDFs (co DSAR walker F2): their screening lines (subject_id = co id) and the artefacts
+ *  sent to them (recipient_co_applicant_id). The strip then nulls pdf_storage_path, so — like the documents — a
+ *  failed remove throws rather than orphan the most sensitive file under a completed request. */
+async function purgeCoBureauPdfs(db: DbClient, resolved: ResolvedSubject, requestId: string, actor_user_id: string): Promise<void> {
+  const coIds = resolved.coApplicants.map((c) => c.id)
+  const { data: lines, error: linesErr } = await db.from("application_screening_lines")
+    .select("pdf_storage_path").eq("org_id", resolved.orgId).in("subject_id", coIds)
+  logQueryError("purgeCoBureauPdfs application_screening_lines", linesErr)
+  const { data: artefacts, error: artErr } = await db.from("screening_artifacts")
+    .select("storage_path").eq("org_id", resolved.orgId).in("recipient_co_applicant_id", coIds)
+  logQueryError("purgeCoBureauPdfs screening_artifacts", artErr)
+  if (linesErr || artErr) throw new Error("[popia/erasure] co bureau PDF lookup failed — erasure aborted before the identity strip")
+
+  const paths = [...new Set([
+    ...(lines ?? []).map((r) => r.pdf_storage_path as string | null),
+    ...(artefacts ?? []).map((r) => r.storage_path as string | null),
+  ].filter((p): p is string => !!p))]
+  if (paths.length === 0) return
+  const { error } = await db.storage.from("screening-reports").remove(paths)
+  if (error) throw new Error(`[popia/erasure] co bureau PDF purge failed (${error.message}) — erasure aborted before the identity strip`)
+  for (const coId of coIds) {
+    await logAudit(db, resolved.orgId, actor_user_id, "popia_erasure", "application_screening_lines", coId, requestId)
+  }
 }
 
 async function logAudit(

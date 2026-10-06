@@ -23,6 +23,7 @@ describe("anonymisePlan — §7 (D-5) identity strip-set", () => {
       ["B.tenant_bank_accounts", "bank_name"],
       ["C.applications", "applicant_email"],
       ["C.application_co_applicants", "applicant_email"],
+      ["C.application_co_applicants.self", "applicant_email"],
       ["C.application_directors", "first_name"],
       ["C.application_directors", "last_name"],
       ["C.application_guarantors", "first_name"],
@@ -59,6 +60,15 @@ describe("anonymisePlan — §7 (D-5) identity strip-set", () => {
     expect(ids).toContain("C.applications")
     expect(ids).toContain("D.communication_log")
     expect(ids).not.toContain("E.properties")
+  })
+
+  it("a co-applicant subject's own co row is stripped by its id, with the same fields as the lead's co rows", () => {
+    const self = ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")
+    const viaLead = ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants")
+    expect(self?.keyColumn).toBe("id")
+    expect(self?.keyFrom).toBe("coApplicantId")
+    expect(self?.fields).toEqual(viaLead?.fields)
+    expect(planForSubject("applicant").map((g) => g.id)).toContain("C.application_co_applicants.self")
   })
 
   it("the F protect-set + G dead columns are NOT in the plan (accountability retained, §7 F/G)", () => {

@@ -97,6 +97,21 @@ export async function eraseLeadDocs(
   return { purged, failed }
 }
 
+/** A DSAR subject's own documents as a CO-applicant: each `co_{id}/` folder, never the lead's root or another co's. */
+export async function eraseCoDocs(
+  db: SupabaseClient,
+  orgId: string,
+  coApplicants: Array<{ id: string; applicationId: string }>,
+): Promise<{ purged: string[]; failed: string[] }> {
+  const purged: string[] = []
+  const failed: string[] = []
+  for (const co of coApplicants) {
+    if (await purgeSubjectDocs(db, orgId, co.applicationId, { kind: "co", coId: co.id })) purged.push(co.id)
+    else failed.push(co.id)
+  }
+  return { purged, failed }
+}
+
 /** Every application document an org holds, including those of applications whose rows are already gone. */
 export async function purgeOrgApplicationDocs(db: SupabaseClient, orgId: string): Promise<boolean> {
   return purgeStoragePrefix(db, "application-docs", `applications/${orgId}`)

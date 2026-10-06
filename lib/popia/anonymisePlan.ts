@@ -35,10 +35,23 @@ export type KeyFrom =
   | "landlordId"     // landlords.id; properties.landlord_id (owner_* denormalisation)
   | "userId"         // auth.users id (communication_log.user_id, user_profiles.id, …)
   | "applicationId"  // applications.id and application child tables keyed by application_id
+  | "coApplicantId"  // application_co_applicants.id — the subject's OWN co rows, on applications someone else leads
 
 /** REDACTED token for NOT-NULL text columns (nullable columns use null instead). De-identifies
  *  without violating the constraint. Distinct, greppable, obviously-not-real. */
 export const REDACTED = "[erased]"
+
+/** A co-applicant row's PII — one set, stripped whether the row is reached as the lead's co or as the subject's own. */
+const CO_APPLICANT_FIELDS: Record<string, string | null> = {
+  first_name: null, last_name: null, id_number: null, id_number_hash: null, id_type: null, date_of_birth: null,
+  employer_name: null, gross_monthly_income_cents: null, verified_monthly_income_cents: null, applicant_email: REDACTED, applicant_phone: null,
+  bank_statement_path: null, bank_statement_extracted: null, searchworx_extracted_data: null,
+  // co DSAR walker F3 — free-form and declared PII on the row, a spouse's PII (spouse_info), the consent IPs, and
+  // the access link: access_token is nullable UNIQUE and every lookup is an equality match, so null revokes it.
+  current_address: null, spouse_info: null, section_data: null, marital_status: null, matrimonial_regime: null,
+  declared_monthly_obligations_cents: null, applicant_motivation: null, motivation_doc_path: null,
+  identity_match_reference: null, stage1_consent_ip: null, stage2_consent_ip: null, access_token: null,
+}
 
 export interface AnonymiseGroup {
   /** stable id for audit + tests */
@@ -127,9 +140,11 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
   // keyColumn is primary_application_id (NOT application_id — that column does not exist on this table; the
   // prior plan value 42703'd → co-applicant PII silently survived erasure. Caught by the 70H F3 review.)
   { id: "C.application_co_applicants", table: "application_co_applicants", keyColumn: "primary_application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
-    fields: { first_name: null, last_name: null, id_number: null, id_number_hash: null, id_type: null, date_of_birth: null,
-      employer_name: null, gross_monthly_income_cents: null, verified_monthly_income_cents: null, applicant_email: REDACTED, applicant_phone: null,
-      bank_statement_path: null, bank_statement_extracted: null, searchworx_extracted_data: null } }, // 70H F3 add — co-applicants carry their own statement + bureau payload
+    fields: CO_APPLICANT_FIELDS }, // 70H F3 add — co-applicants carry their own statement + bureau payload
+  // Arc 1 (co DSAR): the subject as a CO-applicant. The group above keys on applications the subject LEADS, so a
+  // co's own row on someone else's application was never reached and their PII survived their own erasure.
+  { id: "C.application_co_applicants.self", table: "application_co_applicants", keyColumn: "id", keyFrom: "coApplicantId", appliesTo: ["applicant", "tenant"],
+    fields: CO_APPLICANT_FIELDS },
   { id: "C.application_directors", table: "application_directors", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { first_name: REDACTED, last_name: REDACTED, id_number: null, id_number_hash: null, email: null, phone: null } },
   { id: "C.application_guarantors", table: "application_guarantors", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
@@ -146,6 +161,17 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
     fields: { bank_statement_doc_path: REDACTED, payee_signature: REDACTED, payee_description_example: REDACTED } },  // all NOT NULL → REDACTED; no writer sets doc_path — the statement is an application-docs upload, purged by prefix
   { id: "C1.application_screening_lines", table: "application_screening_lines", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { pdf_storage_path: null, result_summary: null, searchworx_search_token: null, searchworx_envelope_meta: null } },                       // nullable; pdf file purged in erasure.ts
+  // co DSAR walker F2/F4 — the same rows keyed to the subject as a CO-applicant on someone else's application. The
+  // groups above key on applications the subject LEADS, so a co's bureau result, statement classifications,
+  // surety-director identity and payment email survived their own erasure.
+  { id: "C1.application_screening_lines.co", table: "application_screening_lines", keyColumn: "subject_id", keyFrom: "coApplicantId", appliesTo: ["applicant", "tenant"],
+    fields: { pdf_storage_path: null, result_summary: null, searchworx_search_token: null, searchworx_envelope_meta: null } },
+  { id: "C1.bank_statement_classifications.co", table: "application_bank_statement_classifications", keyColumn: "co_applicant_id", keyFrom: "coApplicantId", appliesTo: ["applicant", "tenant"],
+    fields: { bank_statement_doc_path: REDACTED, payee_signature: REDACTED, payee_description_example: REDACTED } },
+  { id: "C.application_directors.co", table: "application_directors", keyColumn: "co_applicant_id", keyFrom: "coApplicantId", appliesTo: ["applicant", "tenant"],
+    fields: { first_name: REDACTED, last_name: REDACTED, id_number: null, id_number_hash: null, email: null, phone: null } },
+  { id: "C.application_screening_payments.co", table: "application_screening_payments", keyColumn: "subject_id", keyFrom: "coApplicantId", appliesTo: ["applicant", "tenant"],
+    fields: { paid_by_email: null } },
 
   // ── §7 D — communications & ancillary (delivery metadata retained; keys verified vs live schema) ──
   // communication_log is keyed by contact_id (NO user_id; the old stub's user_id+content were phantom).
