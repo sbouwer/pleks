@@ -4,18 +4,21 @@
  * app/(applicant)/apply/invite/[token]/status/page.tsx — live application/screening status tracker
  *
  * Route:  /apply/invite/[token]/status
- * Auth:   Public — invite token resolves the application; no session
- * Data:   application_tokens, applications (browser supabase client + realtime channel)
- * Notes:  Client page. Subscribes to postgres_changes on the applications row to advance the
- *         step tracker live as stage2_status / fee_status change.
+ * Auth:   Public — invite token; the server validates it inside /api/applications/invite-status/[token]
+ * Data:   GET /api/applications/invite-status/[token], polled every 10s until a decision
+ * Notes:  Client page, and PayFast's return_url for the lead's screening fee (lib/payfast/forms.ts).
+ *         A12: this page read application_tokens and applications through the browser client and subscribed to
+ *         realtime on applications. Both tables are org-member-only under RLS, so an applicant with no session got
+ *         no rows and the page fell back to its defaults — "Screening fee paid" — for any token, valid or not. It
+ *         now polls a service-client route, the director tracker's pattern, and shows "not found" when the token
+ *         does not resolve. "Paid" is shown only once the ITN has stamped the line; PayFast can return the payer
+ *         before the ITN lands, so until then the page says the payment is being confirmed.
  */
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, Clock, Circle, Loader2 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 import { formatZAR } from "@/lib/constants"
-import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEPS = [
   { key: "submitted", label: "Application submitted" },
@@ -26,92 +29,73 @@ const STEPS = [
   { key: "decision", label: "Decision" },
 ]
 
-function statusToStep(stage2Status: string | null, feeStatus: string | null): number {
+const POLL_INTERVAL_MS = 10_000
+
+interface InviteStatus {
+  reference: string
+  stage2Status: string | null
+  feePaid: boolean
+  // The fee ACTUALLY charged, read from the application row — not the single-applicant constant, which
+  // quoted R250 to a joint applicant who paid R470.
+  feeCents: number | null
+}
+
+function statusToStep(stage2Status: string | null, feePaid: boolean): number {
   if (stage2Status === "approved" || stage2Status === "declined") return 5
   if (stage2Status === "screening_complete") return 5
   if (stage2Status === "screening_in_progress") return 4
-  if (feeStatus === "paid") return 3
-  if (stage2Status === "pending_payment") return 2
-  if (stage2Status === "invited") return 2
-  return 1
+  if (feePaid) return 3
+  return 2
+}
+
+const isFinal = (s: string | null) => s === "approved" || s === "declined"
+
+function feeLine(status: InviteStatus): string {
+  if (!status.feePaid) return "We're confirming your payment — this page updates on its own."
+  return status.feeCents == null ? "Screening fee paid" : `Screening fee: ${formatZAR(status.feeCents)} paid`
 }
 
 export default function Stage2StatusPage() {
   const params = useParams()
   const token = params.token as string
 
-  const [currentStep, setCurrentStep] = useState(3)
-  const [applicationId, setApplicationId] = useState<string | null>(null)
-  const [stage2Status, setStage2Status] = useState<string | null>(null)
-  // The fee ACTUALLY charged, read from the application row — not the single-applicant constant, which
-  // quoted R250 to a joint applicant who paid R470.
-  const [feeCents, setFeeCents] = useState<number | null>(null)
+  const [status, setStatus] = useState<InviteStatus | null>(null)
+  const [missing, setMissing] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const supabase = createClient()
-    let channelRef: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+    let timer: ReturnType<typeof setInterval> | null = null
+    const stop = () => {
+      if (timer) clearInterval(timer)
+      timer = null
+    }
 
     async function load() {
-      const { data: tokenData, error: tokenDataError } = await supabase
-        .from("application_tokens")
-        .select("application_id")
-        .eq("token", token)
-        .single()
-        logQueryError("load application_tokens", tokenDataError)
-
-      if (!tokenData) {
-        setLoading(false)
-        return
+      try {
+        const res = await fetch(`/api/applications/invite-status/${encodeURIComponent(token)}`)
+        if (cancelled) return
+        if (res.status === 404 || res.status === 410 || res.status === 400) {
+          setMissing(true)
+          stop()
+        } else if (res.ok) {
+          const next = await res.json() as InviteStatus
+          if (cancelled) return
+          setStatus(next)
+          if (isFinal(next.stage2Status)) stop()
+        }
+        // Any other failure keeps the last good state and tries again on the next tick.
+      } catch {
+        // Network blip — the next tick retries.
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-
-      setApplicationId(tokenData.application_id)
-
-      const { data: app, error: appError } = await supabase
-        .from("applications")
-        .select("stage2_status, fee_status, fee_amount_cents")
-        .eq("id", tokenData.application_id)
-        .single()
-        logQueryError("load applications", appError)
-
-      if (app) {
-        setStage2Status(app.stage2_status)
-        setCurrentStep(statusToStep(app.stage2_status, app.fee_status))
-        setFeeCents(app.fee_amount_cents ?? null)
-      }
-      setLoading(false)
-
-      channelRef = supabase
-        .channel(`stage2-${tokenData.application_id}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "applications",
-            filter: `id=eq.${tokenData.application_id}`,
-          },
-          (payload) => {
-            const updated = payload.new as Record<string, unknown>
-            setStage2Status(updated.stage2_status as string)
-            setCurrentStep(statusToStep(
-              updated.stage2_status as string,
-              updated.fee_status as string
-            ))
-          }
-        )
-        .subscribe()
     }
-    load()
 
-    return () => { if (channelRef) supabase.removeChannel(channelRef) }
+    void load()
+    timer = setInterval(() => { void load() }, POLL_INTERVAL_MS)
+    return () => { cancelled = true; stop() }
   }, [token])
-
-  function stepIcon(index: number) {
-    if (index < currentStep) return <CheckCircle2 className="size-5 text-green-500" />
-    if (index === currentStep) return <Clock className="size-5 text-yellow-500 animate-pulse" />
-    return <Circle className="size-5 text-muted-foreground" />
-  }
 
   if (loading) {
     return (
@@ -121,13 +105,31 @@ export default function Stage2StatusPage() {
     )
   }
 
+  if (missing || !status) {
+    return (
+      <div className="space-y-2">
+        <h1 className="text-xl font-semibold">Application not found</h1>
+        <p className="text-sm text-muted-foreground">
+          This link is invalid or has expired. Contact the agent managing this listing for help.
+        </p>
+      </div>
+    )
+  }
+
+  const { stage2Status, reference } = status
+  const currentStep = statusToStep(stage2Status, status.feePaid)
+
+  function stepIcon(index: number) {
+    if (index < currentStep) return <CheckCircle2 className="size-5 text-green-500" />
+    if (index === currentStep) return <Clock className="size-5 text-yellow-500 animate-pulse" />
+    return <Circle className="size-5 text-muted-foreground" />
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Application status</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {feeCents == null ? "Screening fee paid" : `Screening fee: ${formatZAR(feeCents)} paid`}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{feeLine(status)}</p>
       </div>
 
       {stage2Status === "approved" && (
@@ -183,11 +185,9 @@ export default function Stage2StatusPage() {
           <p className="text-sm text-muted-foreground">
             Have questions? Contact the agent managing this listing.
           </p>
-          {applicationId && (
-            <p className="text-sm mt-2 text-muted-foreground">
-              Reference: <span className="font-mono text-foreground">{applicationId}</span>
-            </p>
-          )}
+          <p className="text-sm mt-2 text-muted-foreground">
+            Reference: <span className="font-mono text-foreground">{reference}</span>
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -71,8 +71,8 @@ interface ApplicationFeeFormData {
    * The payer's invite token. PayFast sends them back to the stage-2 tracker it opens
    * (/apply/invite/[token]/status); a cancel returns them to the payment page on the same link.
    * A12: both URLs were built from listingId, so return_url hit /apply/[slug]/status with no ?token
-   * (it reads the token from the query and loads nothing without one) and a listing id in the slug
-   * segment. The payer landed on an empty page straight after paying.
+   * and a listing id in the slug segment. It loaded nothing either way: it read RLS-gated tables through the
+   * browser client. The tracker now reads through /api/applications/invite-status/[token] (service client).
    */
   token: string
   /**
