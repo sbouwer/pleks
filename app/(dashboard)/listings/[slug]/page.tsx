@@ -17,6 +17,7 @@ import { quoteApplicationFee } from "@/lib/screening/quote"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { ApplicationTriageList, type TriageApp } from "./ApplicationTriageList"
 import { ListingQuickbar } from "./ListingQuickbar"
+import { compareHref } from "./compare/comparable"
 import { fmtDateZA } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
@@ -134,6 +135,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
         <ListingQuickbar
           listingId={listing.id}
           publicUrl={applyUrl}
+          compareHref={compareHref(slug, triage.map((t) => t.stage1Status))}
           submittedCount={triage.length}
           initial={{
             asking_rent_cents: listing.asking_rent_cents,
