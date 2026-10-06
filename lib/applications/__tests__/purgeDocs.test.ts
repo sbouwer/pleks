@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import {
-  purgeApplicationDocs, purgeSubjectDocs, purgeOrgApplicationDocs, purgeStoragePrefix, eraseLeadDocs,
+  purgeApplicationDocs, purgeSubjectDocs, purgeOrgApplicationDocs, purgeStoragePrefix, eraseLeadDocs, eraseCoDocs,
 } from "../purgeDocs"
 
 /** A bucket as a flat set of object paths; `list` returns files and folders one level under the prefix. */
@@ -80,6 +80,23 @@ describe("eraseLeadDocs — the DSAR entry point", () => {
   it("a failed listing is reported as failed, so the caller can abort before the identity strip", async () => {
     const { db } = fakeStorage(TREE, { failList: APP })
     expect(await eraseLeadDocs(db, "org1", ["app1", "app2"])).toEqual({ purged: ["app2"], failed: ["app1"] })
+  })
+})
+
+describe("eraseCoDocs — a co-applicant's own DSAR", () => {
+  it("erases only the subject's co_{id}/ folder — never the lead's root or another co's", async () => {
+    const { db, objects } = fakeStorage(TREE)
+    expect(await eraseCoDocs(db, "org1", [{ id: "c1", applicationId: "app1" }])).toEqual({ purged: ["c1"], failed: [] })
+    expect([...objects].sort()).toEqual([
+      `${APP}/bank_main_aaaaaaaa.pdf`, `${APP}/co_c2/payslip_bbbbbbbb.pdf`, `${APP}/id.pdf`,
+      "applications/org1/app2/id.pdf", "applications/org2/app3/id.pdf",
+    ])
+  })
+
+  it("a failed listing is reported as failed, so erasure aborts before the identity strip", async () => {
+    const { db } = fakeStorage(TREE, { failList: `${APP}/co_c1` })
+    expect(await eraseCoDocs(db, "org1", [{ id: "c1", applicationId: "app1" }, { id: "c2", applicationId: "app1" }]))
+      .toEqual({ purged: ["c2"], failed: ["c1"] })
   })
 })
 
