@@ -22,6 +22,7 @@ import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getServerUser } from "@/lib/auth/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { STAGE1_DECIDED_IN } from "@/lib/applications/screeningJobs"
 import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
 function getServiceClient() {
@@ -186,7 +187,12 @@ export async function POST(req: NextRequest) {
     const updateFields: Record<string, unknown> = { ...fields }
     // The filler finished their own section → mark documents_submitted (server-side; the unauthenticated applicant
     // can't reliably set it via the browser client). This is what the hub + resume read as "Completed".
-    if (body.documentsSubmitted) updateFields.stage1_status = "documents_submitted"
+    // Its own write, guarded: never demote an application an agent has already decided (A18 walker F7).
+    if (body.documentsSubmitted) {
+      const { error: stErr } = await db.from("applications").update({ stage1_status: "documents_submitted" })
+        .eq("id", body.applicationId).not("stage1_status", "in", STAGE1_DECIDED_IN)
+      logQueryError("save-draft documents_submitted", stErr)
+    }
     // Company sign-off → persist company_info.signedOff so the hub reads Completed on resume even after an edit
     // moves the draft_step cursor back into the company panes (the heuristic can't tell edited from unfinished).
     if (body.companySignedOff && fields.company_info && typeof fields.company_info === "object")

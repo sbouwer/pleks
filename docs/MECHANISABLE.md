@@ -2879,3 +2879,22 @@ The author identified the hazard, and defended the single field in front of them
   change, because sites that pass today only through masking will surface.
 - **Provenance:** noticed while writing 14W §0b's runner changes, 2026-10-03; queued in `brief/CURRENT.md`.
 - **Covering spec:** none — a control defect found in passing, not by a verification row
+
+### M-143 — the org-scope rules never run on a module that takes its Supabase client as a parameter
+
+- **Rule:** every service-client `.select()` / `.update()` / `.upsert()` / `.delete()` carries `.eq("org_id", orgId)`
+  (CLAUDE.md §4, `eslint:pleks/require-org-scope-on-service-read` and its write/delete twins).
+- **Where it lives (the instance):** `eslint-rules/require-org-scope-on-service-read.mjs`, as at `bd9cc00b`. The rule
+  returns `{}` at line 347 unless the file text matches `SERVICE_CLIENT` (line 223), a list of client-producing
+  calls. A helper module that receives `db: SupabaseClient` from its caller names none of them, so the rule never
+  runs on it, whatever the client really is. Found by the A18 walker (`.handoff/a18/02-walker.md` F6): an unscoped
+  `applications` read in such a file exits 0, and the same read with `createServiceClient()` errors. That is the
+  2026-08-19 scar's class — a control whose discriminator skips the surface — and `lib/applications/screeningJobs.ts`
+  is one such file, scoped by review only (its header says so). M-142 notes the write rule's parallel pass.
+- **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** a file whose functions take a `SupabaseClient`-typed parameter is in the rule's aperture (a
+  type-annotation test, not a call-name test), and a census classifies what that surfaces before it is baselined.
+  Probes in both directions: an unscoped read through an injected client FAILS; a scoped one passes; a cookie-client
+  file (RLS applies) stays out of scope.
+- **Provenance:** A18 walker, 2026-10-06.
+- **Covering spec:** none — a control defect found in passing, not by a verification row

@@ -25,6 +25,7 @@ import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
+import { STAGE1_DECIDED_IN } from "@/lib/applications/screeningJobs"
 
 export async function POST(
   req: Request,
@@ -69,10 +70,11 @@ export async function POST(
   }
 
   // Mark as extracting (moved AFTER auth + existence — no unauthenticated state pollution).
+  // Never demote an agent decision (A18): a late upload on a shortlisted row leaves stage1_status alone.
   await supabase.from("applications").update({
     stage1_status: "extracting",
     bank_statement_status: "extracting",
-  }).eq("id", applicationId)
+  }).eq("id", applicationId).not("stage1_status", "in", STAGE1_DECIDED_IN)
 
   const { data: listing, error: listingError } = await supabase
     .from("listings")
@@ -155,7 +157,7 @@ export async function POST(
     prescreen_employment_score: preScreen.employmentScore,
     prescreen_refs_score: preScreen.refsScore,
     prescreen_affordability_flag: indicator,
-  }).eq("id", applicationId)
+  }).eq("id", applicationId).not("stage1_status", "in", STAGE1_DECIDED_IN)
 
   return NextResponse.json({
     ok: true,

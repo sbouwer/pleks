@@ -16,12 +16,14 @@ import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { formatZAR } from "@/lib/constants"
 import { StepHeading } from "./applyShared"
+import { DocumentCheckCard } from "./DocumentCheckCard"
 import { type Emp, type ScreeningStatus, employmentLabel } from "./applyDomain"
 
 
 // ── Step 6 — Submit → instant Step-1 FREE assessment (declared affordability + readiness; zero-AI) ───────────
-// The deep-scan ruling UI (ProcessingView/RulingView/poll) was removed here: the applicant no longer triggers an
-// AI deep scan at submit. That runs later, on the agent's shortlist (Step 2). (ADDENDUM_14M three-step funnel)
+// The deep-scan RULING UI (ProcessingView/RulingView) stays removed: the ruling is the agent's. Since A18 (Stéan
+// ruling 2026-10-06) the scan is queued when this review opens, and DocumentCheckCard shows the applicant its
+// remediation to-dos only — never the tiers.
 
 /** Final state — nothing more for the applicant to do; the agent has it. Reached by "Submit to agent". */
 function HandoffView() {
@@ -192,7 +194,7 @@ function PersonalAffordabilityCard({ assessment, askingRentCents, onAddApplicant
 /** Step-1 FREE assessment — the application review: Completeness (what's done / still to add) + Residual
  *  affordability (income vs commitments + the residual + a tier read; prompts "Add applicant" when short).
  *  Re-runnable for free; the J1 gate (all co-applicants complete) blocks submit. (ADDENDUM_14M funnel) */
-function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmitToAgent, onAddApplicant, readOnly = false }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend?: (s: number) => void; onSubmitToAgent?: () => Promise<boolean>; onAddApplicant?: () => void; readOnly?: boolean }>) {
+function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmitToAgent, onAddApplicant, readOnly = false, applicationId = null, token = null }: Readonly<{ assessment: FreeAssessmentResult; askingRentCents: number; emp: Emp; onAmend?: (s: number) => void; onSubmitToAgent?: () => Promise<boolean>; onAddApplicant?: () => void; readOnly?: boolean; applicationId?: string | null; token?: string | null }>) {
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -273,10 +275,14 @@ function FreeAssessmentView({ assessment, askingRentCents, emp, onAmend, onSubmi
         </div>
       )}
 
+      {/* A18 — the 14M document check: to-dos only, never the ruling. Not in the read-only view (a co / the email
+          link holds no application token, and there is nothing to act on there). */}
+      {!readOnly && applicationId && token && <DocumentCheckCard applicationId={applicationId} token={token} onAmend={onAmend} />}
+
       {/* What happens next — sets the journey, reinforces pre-selection + the consent/credit-check expectation. */}
       <div className="rounded-[var(--r-button)] border border-[var(--rule)] bg-[var(--paper-sunk)] p-4">
         <h3 className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-mute)]"><span className="shrink-0">What happens next</span><span aria-hidden className="h-px flex-1 bg-[var(--rule)]" /></h3>
-        <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-soft)]">You submit → if the agent shortlists you, your documents are verified against what you declared → an optional credit check runs only with your explicit consent, and you&apos;ll receive a copy.</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-soft)]">You submit → your agent reviews your application and documents → if you&apos;re shortlisted, an optional credit check runs only with your explicit consent, and you&apos;ll receive a copy.</p>
       </div>
 
       {/* Submit pinned to the BOTTOM of the card (mt-auto), bottom-right. Hidden in read-only (the view-only link from
@@ -466,7 +472,7 @@ export function StepSubmit({ emp, askingRentCents, applicantsGreen, screeningSta
     } catch { toast.error("Could not submit. Please try again."); return false }
   }
 
-  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} readOnly={readOnly} />
+  if (screeningStatus === "done" && assessment) return <FreeAssessmentView assessment={assessment} askingRentCents={askingRentCents} emp={emp} onAmend={onAmend} onSubmitToAgent={submitToAgent} onAddApplicant={onAddApplicant} readOnly={readOnly} applicationId={applicationId} token={token} />
 
   // Not done yet — the assessment auto-runs when the review opens (consent is per-section, so there's no consent
   // gate here). Show a brief "preparing" state while it computes; if it isn't running (idle / a failed run), offer a

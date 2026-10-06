@@ -3,13 +3,15 @@
  *
  * Records POPIA Stage-1 consent (scope covers the Step-2 AI document analysis) + computes the COMBINED declared
  * affordability + readiness over ALL applicants (primary + co-applicants; guarantors excluded from affordability)
- * and stores it on the application (applications.free_assessment). NO AI, NO deep scan — the deep scan moved to
- * shortlist (Step 2). Does NOT set submitted_at; the applicant reviews the free assessment, then submits via
- * /submit-to-agent. (ADDENDUM_14M three-step funnel, P1e — supersedes the eager-extraction-at-submit posture.)
+ * and stores it on the application (applications.free_assessment). The assessment itself is zero-AI. Since A18
+ * (Stéan ruling 2026-10-06) this route also QUEUES the 14M AI pre-screen (a screening_jobs row, fired after the
+ * response) once stage-1 consent is on record; the scan runs in /screen, never inside this request. Does NOT set
+ * submitted_at; the applicant reviews the free assessment, then submits via /submit-to-agent.
  */
 /* eslint-disable pleks/require-org-scope-on-service-write -- resolveApplicationCredential() bakes in the .eq(applicationId) IDOR guard plus expiry for all three credential shapes; public apply flow, no caller org */
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
+import { enqueueScreening, fireScreening, STAGE1_DECIDED_IN } from "@/lib/applications/screeningJobs"
 import { createClient } from "@supabase/supabase-js"
 import { assembleAssessment, type AssessmentAppRow, type AssessmentCoRow } from "@/lib/applications/assembleAssessment"
 import { deriveDocCategories, categoryForFilename } from "@/lib/applications/docCategories"
@@ -111,11 +113,23 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Store the free assessment. NO deep scan — it runs at shortlist (Step 2). POPIA consent is NOT recorded here:
   // each applicant consents at their own SECTION sign-off (the filler via save-draft, co-applicants via their link,
   // the company at co-review) — ADDENDUM_14Q. The review is consent-free; re-running it never re-logs consent.
+  // Never demote an agent decision (A18): a review re-run on a shortlisted row leaves its status alone.
   const { error: updErr } = await service.from("applications").update({
     stage1_status: "pre_screen_complete",
     free_assessment: { ...assessment, assessedAt: now },
-  }).eq("id", id)
+  }).eq("id", id).not("stage1_status", "in", STAGE1_DECIDED_IN)
   logQueryError("submit free_assessment update", updErr)
+
+  // A18 — the 14M AI pre-screen. Opening the review is the moment the applicant can still act on what it finds
+  // (a submitted application cannot be edited), so the job is queued here, once the lead's stage-1 consent is on
+  // record (the section sign-off, via save-draft — this route only reads it). It queues only when no evaluation
+  // exists or the documents changed after the latest one, and never beside a live job, so re-opening an unchanged
+  // review costs nothing. The fire runs after the response; the cron is the backstop.
+  if (app.stage1_consent_given === true) {
+    const orgId = app.org_id as string
+    const queued = await enqueueScreening(service, { orgId, applicationId: id })
+    if (queued === "queued") after(() => fireScreening(service, { applicationId: id }))
+  }
 
   return NextResponse.json({ ok: true, freeAssessment: assessment })
 }
