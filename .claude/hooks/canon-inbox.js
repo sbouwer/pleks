@@ -1,7 +1,7 @@
 /**
  * .claude/hooks/canon-inbox.js — SessionStart: one line from canon about this project, or nothing.
  *
- * @kit canon-inbox v1 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
+ * @kit canon-inbox v2 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
  * else is canon's, and `check-kit-drift.mjs` says so if it changes here.
  *
  * Register: settings.json → hooks.SessionStart, matcher "startup", command
@@ -19,6 +19,13 @@
  *
  * IT READS CANON AND WRITES NOTHING, here or there. Taking an update is the session's own act —
  * `apply-kit --carry-only` from this checkout, which the line names when there is one to take.
+ *
+ * v2 (2026-10-05): A CLIENT FOLDER IS NOT AN ERROR. v1 looked for canon only BESIDE the project and
+ * named the project by its folder, so a project filed `<dev>/<client>/<project>` looked for
+ * `<dev>/<client>/dev-standards` and reported NOT MEASURED on every session. Canon is now the
+ * nearest `dev-standards` beside this project or any folder above it, and the folder name is only
+ * the fallback: canon names the project by the tree it is asked about (`inbox.mjs --tree`), so two
+ * clients' `website` folders are two register keys, not one.
  */
 // @event SessionStart
 // @matcher startup
@@ -41,7 +48,15 @@ const PROJECT = null;
 const TIMEOUT_MS = 8_000;
 
 const projectDir = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
-const canonDir = resolve(CANON_DIR ?? join(dirname(projectDir), "dev-standards"));
+
+/** The nearest `<ancestor>/dev-standards` holding canon's inbox, or the sibling path to name when none does. */
+function findCanon(from) {
+  for (let at = dirname(from); ; at = dirname(at)) {
+    if (existsSync(join(at, "dev-standards", "tools", "inbox.mjs"))) return join(at, "dev-standards");
+    if (dirname(at) === at) return join(dirname(from), "dev-standards");
+  }
+}
+const canonDir = resolve(CANON_DIR ?? findCanon(projectDir));
 const project = PROJECT ?? basename(projectDir);
 const inbox = join(canonDir, "tools", "inbox.mjs");
 
@@ -54,7 +69,10 @@ function say(line) {
 }
 
 if (!existsSync(inbox)) {
-  say(`📬 canon inbox: NOT MEASURED — no canon at ${canonDir.replace(/\\/g, "/")} (set CANON_DIR in .claude/hooks/canon-inbox.js if it lives elsewhere)`);
+  const where = CANON_DIR === null
+    ? `no dev-standards beside ${projectDir.replace(/\\/g, "/")} or any folder above it`
+    : `no canon at ${canonDir.replace(/\\/g, "/")}`;
+  say(`📬 canon inbox: NOT MEASURED — ${where} (set CANON_DIR in .claude/hooks/canon-inbox.js if it lives elsewhere)`);
   process.exit(0);
 }
 
