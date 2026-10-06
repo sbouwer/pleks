@@ -3,11 +3,13 @@
 /**
  * app/(dashboard)/listings/[slug]/compare/page.tsx — side-by-side applicant comparison for a listing
  *
- * Route:  /listings/[slug]/compare?ids=<id,id,…>
+ * Route:  /listings/[slug]/compare?listing=<listing id>
  * Auth:   gateway (dashboard layout)
- * Data:   applications rows (by ?ids) via the browser Supabase client
- * Notes:  applicants to compare arrive as a comma-separated ?ids query; the [slug] route param scopes the
- *         back-link to the parent listing (the comparison itself is keyed by application id, not slug).
+ * Data:   the listing's submitted, comparable applications via the browser Supabase client (agent session; RLS)
+ * Notes:  A9: reached from the listing quickbar's "Compare applicants", offered only when at least two applications
+ *         are comparable. The page and that link share ./comparable.ts, and the query mirrors the listing page's
+ *         (submitted, not deleted), so the link never opens a shorter list than it promised. This header said
+ *         `?ids=<id,…>` until A9; the page has always read `?listing`. The [slug] param only scopes the back-link.
  */
 import { useEffect, useState } from "react"
 import { useSearchParams, useParams } from "next/navigation"
@@ -16,6 +18,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import { Suspense } from "react"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
+import { COMPARABLE_STAGE1, COMPARE_LIMIT } from "./comparable"
 
 interface AppRow {
   id: string
@@ -44,10 +48,15 @@ function CompareContent() {
       .from("applications")
       .select("id, first_name, last_name, gross_monthly_income_cents, employment_type, prescreen_score, fitscore, prescreen_affordability_flag, has_co_applicant, applicant_motivation, documents_submitted, bank_statement_extracted")
       .eq("listing_id", listingId)
-      .in("stage1_status", ["pre_screen_complete", "shortlisted"])
+      .in("stage1_status", [...COMPARABLE_STAGE1])
+      .not("submitted_at", "is", null)
+      .is("deleted_at", null)
       .order("prescreen_score", { ascending: false })
-      .limit(8)
-      .then(({ data }) => setApps((data as unknown as AppRow[]) || []))
+      .limit(COMPARE_LIMIT)
+      .then(({ data, error }) => {
+        if (error) logQueryError("CompareContent applications", error)
+        setApps((data as unknown as AppRow[]) || [])
+      })
   }, [listingId])
 
   if (!listingId) {

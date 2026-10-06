@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * app/(dashboard)/listings/[slug]/ListingQuickbar.tsx — listing detail action surface: view / edit / delete.
+ * app/(dashboard)/listings/[slug]/ListingQuickbar.tsx — listing detail action surface: view / compare / edit / delete.
  *
  * Auth:   parent page is gatewaySSR; the server actions re-check requireAgentWriteAccess + org.
  * Notes:  Icon segment (DetailQuickbar style). Edit opens a dialog → updateListingAction (material changes email
@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { ActionButton, IconButton } from "@/components/ui/actions"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
-import { ExternalLink, Pencil, Trash2 } from "lucide-react"
+import { Columns3, ExternalLink, Pencil, Trash2 } from "lucide-react"
 import { updateListingAction, deleteListingAction, type ListingEditInput } from "@/lib/applications/listingActions"
 
 export interface ListingEditValues {
@@ -42,8 +42,11 @@ function FnIcon({ icon, label, onClick, disabled }: Readonly<{ icon: React.React
   )
 }
 
-export function ListingQuickbar({ listingId, publicUrl, submittedCount, initial }: Readonly<{
-  listingId: string; publicUrl: string | null; submittedCount: number; initial: ListingEditValues
+export function ListingQuickbar({ listingId, publicUrl, compareHref, submittedCount, initial }: Readonly<{
+  listingId: string; publicUrl: string | null
+  /** The compare page for this listing, or null when fewer than two applicants are comparable (A9). */
+  compareHref: string | null
+  submittedCount: number; initial: ListingEditValues
 }>) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
@@ -72,6 +75,7 @@ export function ListingQuickbar({ listingId, publicUrl, submittedCount, initial 
     <div className="flex items-center gap-1">
       {/* Nav/view — bordered IconButton (supplier-detail icon language) */}
       {publicUrl && <IconButton icon={<ExternalLink className="size-3.5" />} label="View listing" onClick={() => window.open(publicUrl, "_blank", "noopener,noreferrer")} />}
+      {compareHref && <IconButton icon={<Columns3 className="size-3.5" />} label="Compare applicants" onClick={() => router.push(compareHref)} />}
       <span aria-hidden className="mx-1 h-5 w-px bg-border" />
       {/* Manage — borderless functional icons */}
       <FnIcon icon={<Pencil className="size-3.5" />} label="Edit listing" onClick={() => setEditOpen(true)} />
