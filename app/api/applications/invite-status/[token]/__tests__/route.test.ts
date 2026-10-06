@@ -100,6 +100,14 @@ describe("GET /api/applications/invite-status/[token]", () => {
     expect((await call("old")).status).toBe(410)
   })
 
+  it("past the payment window, a PAID lead keeps the tracker; an unpaid one does not", async () => {
+    tables.application_screening_payments = [line({ paid_at: "2026-10-06T08:00:00Z" })]
+    expect(await call("old")).toMatchObject({ status: 200, body: { feePaid: true } })
+    tables.application_screening_payments = []
+    tables.applications = [app({ fee_paid_at: "2026-10-06T08:00:00Z", deleted_at: "2026-10-07T00:00:00Z" })]
+    expect((await call("old")).status).toBe(404)
+  })
+
   it("PLANTED: a deleted or purged application reads as not found", async () => {
     tables.applications = [app({ deleted_at: "2026-10-01T00:00:00Z" })]
     expect((await call("tok")).status).toBe(404)

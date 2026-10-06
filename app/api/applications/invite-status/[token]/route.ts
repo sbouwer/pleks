@@ -2,7 +2,8 @@
  * app/api/applications/invite-status/[token]/route.ts — the lead's stage-2 status, read for the invite tracker
  *
  * Route:  GET /api/applications/invite-status/[token]
- * Auth:   an unexpired 'shortlist_invite' application_tokens row is the credential (service client — no anon RLS)
+ * Auth:   a 'shortlist_invite' application_tokens row is the credential (service client — no anon RLS); unexpired,
+ *         or expired with the lead's fee paid — the expiry bounds the payment window, not tracking a paid line
  * Data:   application_tokens, applications, application_screening_payments (the lead's own line)
  * Notes:  A12. PayFast returns the paying lead to /apply/invite/[token]/status. That page read application_tokens and
  *         applications through the browser client, and both tables carry org-member-only policies, so an applicant
@@ -33,7 +34,9 @@ export async function GET(
   logQueryError("GET application_tokens", tokenError)
   if (tokenError) return NextResponse.json({ error: "Could not load status" }, { status: 503 })
   if (!tokenRow) return NextResponse.json({ error: "Not found" }, { status: 404 })
-  if (new Date(tokenRow.expires_at) < new Date()) return NextResponse.json({ error: "Token expired" }, { status: 410 })
+  // The token's expiry is the PAYMENT window. A lead who paid inside it keeps the tracker until the application is
+  // deleted or purged (below); an unpaid one past it gets the expired answer.
+  const expired = new Date(tokenRow.expires_at) < new Date()
 
   const { data: app, error: appError } = await service
     .from("applications")
@@ -58,11 +61,14 @@ export async function GET(
   logQueryError("GET application_screening_payments", lineError)
   if (lineError) return NextResponse.json({ error: "Could not load status" }, { status: 503 })
 
+  // fee_paid_at is the lead line's paid stamp on applications; fee_status is the older flag the tracker read.
+  const feePaid = !!line?.paid_at || !!app.fee_paid_at || app.fee_status === "paid"
+  if (expired && !feePaid) return NextResponse.json({ error: "Token expired" }, { status: 410 })
+
   return NextResponse.json({
     reference:    app.id,
     stage2Status: app.stage2_status ?? null,
-    // fee_paid_at is the lead line's paid stamp on applications; fee_status is the older flag the tracker read.
-    feePaid:      !!line?.paid_at || !!app.fee_paid_at || app.fee_status === "paid",
+    feePaid,
     feeCents:     app.fee_amount_cents ?? null,
   })
 }

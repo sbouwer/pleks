@@ -23,6 +23,8 @@ import { formatZAR } from "@/lib/constants"
 import { STEPS, classifyResponse, feeLine, isFinal, statusToStep, type InviteStatus } from "./tracker"
 
 const POLL_INTERVAL_MS = 10_000
+// A hung request would hold the in-flight guard and skip every later tick; abort it so the next tick runs.
+const POLL_TIMEOUT_MS = 8_000
 
 export default function Stage2StatusPage() {
   const params = useParams()
@@ -46,7 +48,9 @@ export default function Stage2StatusPage() {
       if (inFlight || cancelled) return
       inFlight = true
       try {
-        const res = await fetch(`/api/applications/invite-status/${encodeURIComponent(token)}`)
+        const res = await fetch(`/api/applications/invite-status/${encodeURIComponent(token)}`, {
+          signal: AbortSignal.timeout(POLL_TIMEOUT_MS),
+        })
         const kind = classifyResponse(res.status)
         if (cancelled) return
         if (kind === "missing") {
