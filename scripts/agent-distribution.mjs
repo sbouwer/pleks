@@ -2,7 +2,7 @@
 /**
  * scripts/agent-distribution.mjs — what agents actually cost, per type, against their budgets.
  *
- * @kit agent-distribution v2 — tracked OUTSIDE its `KIT:CONFIG` region. Edit it in dev-standards and
+ * @kit agent-distribution v3 — tracked OUTSIDE its `KIT:CONFIG` region. Edit it in dev-standards and
  * re-adopt; a local change outside the region is a fork, and `check-kit-drift.mjs` will say so.
  *
  * PORTED FROM `pleks/scripts/agent-distribution.mjs` (pleks M-062), where it was written and run
@@ -441,6 +441,11 @@ const agentsDir = resolve(agentsArg ?? AGENTS_DIR);
 
 // ── probes ───────────────────────────────────────────────────────────────────────────────────
 if (isEntry && argv.includes("--selftest")) {
+  // pleks CF-14: run from a git hook in a linked worktree, git exports an ABSOLUTE GIT_DIR, which
+  // beats `-C` — so the scratch repo's init, config and commits landed in the REAL repository
+  // (core.bare, user.email=probe, four commits on a branch mid-merge). A selftest's subject is its
+  // fixtures, never the repo the hook was called for, so nothing it or its children run inherits one.
+  for (const k of Object.keys(process.env)) if (k.startsWith("GIT_")) delete process.env[k];
   const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const tmp = mkdtempSync(join(tmpdir(), "agentdist-"));

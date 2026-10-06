@@ -2,7 +2,7 @@
 /**
  * scripts/check-handoff-contract.mjs — every handoff artefact carries a well-formed contract block.
  *
- * @kit check-handoff-contract v8 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-handoff-contract v9 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * PORTED FROM `pleks/scripts/check-handoff-contract.mjs`. It arrives because of dev-standards
@@ -65,6 +65,12 @@
  * about what it read, and a chain that cannot be walked on disk is one nobody can reconstruct. An
  * artefact with no `contract=` predates the block and is not asked. The L-39 tell reads `contract=`
  * too: the contract block is spliced into the same agent file, so the same commit answers for it.
+ *
+ * v9 (2026-10-06) AN INPUT IS SELF ONLY IN ITS OWN TASK — pleks CF-20. v8 dropped every Inputs entry
+ * whose basename was the artefact's own, so a grounder consuming the previous task's
+ * `.handoff/<other>/01-grounder.md` was told it "names no artefact". Such an entry now meets the
+ * cross-task rule above, which still fails it, now for the reason that is true. No verdict passes
+ * that failed before.
  *
  * Run: node scripts/check-handoff-contract.mjs             (wired into `npm run check`)
  *      node scripts/check-handoff-contract.mjs --selftest  (probes both directions, and every exit)
@@ -608,13 +614,16 @@ export function inputsFindings(paths, root, read = (p) => readFileSync(p, "utf8"
       continue;
     }
     const self = p.split("/").at(-1);
-    const inputs = inputsOf(section).filter((i) => i.file !== self);
+    const dir = dirname(p);
+    const slug = dir.split("/").at(-1);
+    // Self is the same file in the SAME task: `.handoff/<other>/01-grounder.md` is another task's
+    // artefact that happens to share this one's name — the grounder-after-grounder of a phased build
+    // (pleks CF-20). Dropping it by basename reported "names no artefact" over a named one.
+    const inputs = inputsOf(section).filter((i) => !(i.file === self && (i.slug === null || i.slug === slug)));
     if (!inputs.length) {
       if (!/\bnone\b/i.test(section)) out.push(`${rel}: \`## Inputs\` names no artefact and does not say \`none\` — an empty section cannot be told from a skipped one`);
       continue;
     }
-    const dir = dirname(p);
-    const slug = dir.split("/").at(-1);
     for (const i of inputs) {
       if (i.slug !== null && i.slug !== slug) {
         out.push(`${rel}: \`## Inputs\` names .handoff/${i.slug}/${i.file} — another task directory; a chain is walked inside one task`);
@@ -638,6 +647,11 @@ export function inputsFindings(paths, root, read = (p) => readFileSync(p, "utf8"
 const isEntry = process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 
 if (isEntry && process.argv.includes("--selftest")) {
+  // pleks CF-14: run from a git hook in a linked worktree, git exports an ABSOLUTE GIT_DIR, which
+  // beats `-C` — so the scratch repo's init, config and commits landed in the REAL repository
+  // (core.bare, user.email=probe, four commits on a branch mid-merge). A selftest's subject is its
+  // fixtures, never the repo the hook was called for, so nothing it or its children run inherits one.
+  for (const k of Object.keys(process.env)) if (k.startsWith("GIT_")) delete process.env[k];
   let failed = 0;
   const ok = (c, l) => {
     if (!c) failed++;
@@ -930,6 +944,13 @@ if (isEntry && process.argv.includes("--selftest")) {
     ok(drift.length === 1, "…and so does one quoting an anchor that differs by one field — verbatim means verbatim");
     ok(run({ [t("01-grounder.md")]: up.replace("none", `none — see ${"01-grounder.md"} for this file itself`) }).length === 0,
       "an artefact naming ITSELF under Inputs is not read as consuming itself");
+    ok(run({ [t("01-grounder.md")]: up.replace("none", `none — this is .handoff/t/01-grounder.md`) }).length === 0,
+      "v9: …nor when it names itself with its own task directory");
+    // pleks CF-20: grounder after grounder. Another task's same-named artefact is an INPUT; dropping it
+    // as self reported "names no artefact" over a named one. It now meets the cross-task rule instead.
+    const same = run({ [`${R}/.handoff/u/01-grounder.md`]: up, [t("01-grounder.md")]: `${A1}\n\n## Inputs\n\n- .handoff/u/01-grounder.md · \`${A1}\`\n` });
+    ok(same.length === 1 && same[0].includes("another task directory"),
+      `v9: another task's artefact with this one's filename is an input, not this file (pleks CF-20) — got ${JSON.stringify(same)}`);
     ok(inputsSection(`${A1}\n## Inputs\nnone\n## Map\n- 02-census.md`).includes("none") && !inputsSection(`${A1}\n## Inputs\nnone\n## Map\n- 02-census.md`).includes("02-census"),
       "the section stops at the next `## ` — a file named in a later section is not an input");
     const t0 = process.hrtime.bigint();
