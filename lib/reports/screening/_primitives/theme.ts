@@ -307,15 +307,8 @@ export const colors = {
 
 // ─── Band and grade display names ─────────────────────────────────────────────
 
-export const BAND_LABELS: Record<FitScoreBand, string> = {
-  verified_stability:   'Verified Stability',
-  stable_profile:       'Stable Profile',
-  cautious_review:      'Cautious Review',
-  limited_confidence:   'Limited Confidence',
-  adverse_signals:      'Adverse Signals',
-  limited_data_profile: 'Limited Data Profile',
-  blocked:              'Blocked',
-}
+// One map, in lib/screening/bandLabels.ts — kept free of @react-pdf so a web page can name a band too.
+export { BAND_LABELS } from '@/lib/screening/bandLabels'
 
 export const GRADE_LABELS: Record<string, string> = {
   high:         'High',

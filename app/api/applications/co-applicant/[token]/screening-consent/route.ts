@@ -29,7 +29,11 @@ export async function POST(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 })
   }
   const { token } = await params
-  const { verificationId } = await req.json().catch(() => ({})) as { verificationId?: string | null }
+  const { verificationId, groupClauseShown } = await req.json().catch(() => ({})) as {
+    verificationId?: string | null
+    /** The form rendered the group block (14X P5); recomputed against the application before it is recorded. */
+    groupClauseShown?: boolean
+  }
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 })
 
   const service = await createServiceClient()
@@ -103,6 +107,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     ip,
     userAgent:      req.headers.get("user-agent"),
     verificationId: verificationId ?? null,
+    groupClauseShown: groupClauseShown === true,
   })
   if (!logEntry.ok) {
     console.error("[co screening-consent] consent_log insert failed:", logEntry.error)

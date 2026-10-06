@@ -8,6 +8,8 @@
  * Notes:  BUILD_72 P1-R8. Rendered by the co page once the party has been invited to stage 2 (at shortlist) and has
  *         not yet consented. On success the page re-renders server-side and falls back to the party's normal view.
  *         No withdraw path: a co party has no withdraw action, so the form renders without decline buttons.
+ *         14X P5: always the group block — a co party's application has the lead and this party, so it is a group
+ *         application by construction (the route re-derives it before recording).
  */
 import { useRouter } from "next/navigation"
 import { ScreeningConsentForm } from "@/components/consent/ScreeningConsentForm"
@@ -20,6 +22,7 @@ export function CoScreeningConsent({ token }: Readonly<{ token: string }>) {
       consentType="co_applicant_standard"
       recordUrl={`/api/applications/co-applicant/${encodeURIComponent(token)}/screening-consent`}
       onRecorded={() => router.refresh()}
+      groupClause
     />
   )
 }

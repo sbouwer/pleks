@@ -16,9 +16,11 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { insertScreeningConsentLog } from "@/lib/screening/screeningConsent"
 
 export async function POST(req: NextRequest) {
-  const { token, verificationId } = await req.json() as {
+  const { token, verificationId, groupClauseShown } = await req.json() as {
     token?: string
     verificationId?: string | null
+    /** The form rendered the group block (14X P5); recomputed against the application before it is recorded. */
+    groupClauseShown?: boolean
   }
 
   if (!token) {
@@ -94,6 +96,7 @@ export async function POST(req: NextRequest) {
     ip,
     userAgent:      req.headers.get("user-agent"),
     verificationId: verificationId ?? null,
+    groupClauseShown: groupClauseShown === true,
   })
 
   if (!logEntry.ok) {
