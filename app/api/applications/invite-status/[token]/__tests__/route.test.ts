@@ -16,12 +16,16 @@ function fakeDb() {
   return {
     from(table: string) {
       const filters: [string, unknown][] = []
+      const notNull: string[] = []
       const b = {
         select: () => b,
         eq: (c: string, v: unknown) => { filters.push([c, v]); return b },
+        not: (c: string) => { notNull.push(c); return b },
+        limit: () => b,
         maybeSingle: async () => {
           if (failTable === table) return { data: null, error: { message: "boom" } }
-          const hit = (tables[table] ?? []).find((r) => filters.every(([c, v]) => r[c] === v))
+          const hit = (tables[table] ?? []).find((r) =>
+            filters.every(([c, v]) => r[c] === v) && notNull.every((c) => r[c] != null))
           return { data: hit ?? null, error: null }
         },
       }
@@ -40,7 +44,7 @@ const call = async (token: string) => {
 }
 
 const app = (over: Row = {}): Row => ({
-  id: "app-1", stage2_status: "pending_payment", fee_status: null, fee_paid_at: null, fee_amount_cents: 25000,
+  id: "app-1", org_id: "org-1", stage2_status: "pending_payment", fee_status: null, fee_paid_at: null, fee_amount_cents: 25000,
   deleted_at: null, pii_purged_at: null, ...over,
 })
 
@@ -53,7 +57,12 @@ beforeEach(() => {
       { token: "stage1", token_type: "application", application_id: "app-1", expires_at: "2099-01-01T00:00:00Z" },
     ],
     applications: [app()],
+    application_screening_payments: [],
   }
+})
+
+const line = (over: Row = {}): Row => ({
+  org_id: "org-1", application_id: "app-1", subject_id: "app-1", subject_type: "applicant", paid_at: null, ...over,
 })
 
 describe("GET /api/applications/invite-status/[token]", () => {
@@ -69,6 +78,20 @@ describe("GET /api/applications/invite-status/[token]", () => {
     expect((await call("tok")).body.feePaid).toBe(true)
     tables.applications = [app({ fee_status: "paid" })]
     expect((await call("tok")).body.feePaid).toBe(true)
+  })
+
+  it("paid when the lead's own line is stamped, even if the applications write never landed", async () => {
+    tables.application_screening_payments = [line({ paid_at: "2026-10-06T08:00:00Z" })]
+    expect((await call("tok")).body.feePaid).toBe(true)
+  })
+
+  it("PLANTED: an unpaid lead line, another party's paid line, or another org's line is not the lead's payment", async () => {
+    tables.application_screening_payments = [
+      line(),
+      line({ subject_id: "co-1", subject_type: "co_applicant", paid_at: "2026-10-06T08:00:00Z" }),
+      line({ org_id: "org-2", paid_at: "2026-10-06T08:00:00Z" }),
+    ]
+    expect((await call("tok")).body.feePaid).toBe(false)
   })
 
   it("PLANTED: unknown, wrong-type and expired tokens resolve nothing", async () => {
@@ -88,6 +111,8 @@ describe("GET /api/applications/invite-status/[token]", () => {
     failTable = "application_tokens"
     expect((await call("tok")).status).toBe(503)
     failTable = "applications"
+    expect((await call("tok")).status).toBe(503)
+    failTable = "application_screening_payments"
     expect((await call("tok")).status).toBe(503)
   })
 })

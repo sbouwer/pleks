@@ -3,7 +3,7 @@
  *
  * Route:  GET /api/applications/invite-status/[token]
  * Auth:   an unexpired 'shortlist_invite' application_tokens row is the credential (service client — no anon RLS)
- * Data:   application_tokens, applications
+ * Data:   application_tokens, applications, application_screening_payments (the lead's own line)
  * Notes:  A12. PayFast returns the paying lead to /apply/invite/[token]/status. That page read application_tokens and
  *         applications through the browser client, and both tables carry org-member-only policies, so an applicant
  *         with no session got nothing and the page fell back to "Screening fee paid" for ANY token. This route is the
@@ -37,18 +37,32 @@ export async function GET(
 
   const { data: app, error: appError } = await service
     .from("applications")
-    .select("id, stage2_status, fee_status, fee_paid_at, fee_amount_cents, deleted_at, pii_purged_at")
+    .select("id, org_id, stage2_status, fee_status, fee_paid_at, fee_amount_cents, deleted_at, pii_purged_at")
     .eq("id", tokenRow.application_id)
     .maybeSingle()
   logQueryError("GET applications", appError)
   if (appError) return NextResponse.json({ error: "Could not load status" }, { status: 503 })
   if (!app || app.deleted_at || app.pii_purged_at) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
+  // The lead's OWN line (subject_id = the application id, 14W §0). The ITN stamps this row before it writes
+  // applications, and a failed applications write is surfaced but not retried, so the line is the first truth.
+  const { data: line, error: lineError } = await service
+    .from("application_screening_payments")
+    .select("paid_at")
+    .eq("org_id", app.org_id)
+    .eq("application_id", app.id)
+    .eq("subject_id", app.id)
+    .not("paid_at", "is", null)
+    .limit(1)
+    .maybeSingle()
+  logQueryError("GET application_screening_payments", lineError)
+  if (lineError) return NextResponse.json({ error: "Could not load status" }, { status: 503 })
+
   return NextResponse.json({
     reference:    app.id,
     stage2Status: app.stage2_status ?? null,
-    // fee_paid_at is the lead line's paid stamp (the ITN writes it); fee_status is the older flag the tracker read.
-    feePaid:      !!app.fee_paid_at || app.fee_status === "paid",
+    // fee_paid_at is the lead line's paid stamp on applications; fee_status is the older flag the tracker read.
+    feePaid:      !!line?.paid_at || !!app.fee_paid_at || app.fee_status === "paid",
     feeCents:     app.fee_amount_cents ?? null,
   })
 }

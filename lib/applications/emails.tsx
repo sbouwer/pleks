@@ -67,6 +67,8 @@ export interface OrgContext {
 
 function appRef(id: string) { return `APP-${id.slice(0, 8).toUpperCase()}` }
 function statusUrl(slug: string, id: string, token: string) { return absoluteUrl(`/apply/${slug}/status?token=${token}`) }
+/** A12: the stage-2 tracker on the lead's invite token — where the payer lands after PayFast too. */
+function inviteStatusUrl(token: string) { return absoluteUrl(`/apply/invite/${encodeURIComponent(token)}/status`) }
 function formatEmployment(type = ""): string {
   return ({ permanent: "Permanent", contract: "Contract", commission: "Commission-based", self_employed: "Self-employed", freelance: "Freelance", retired: "Pensioner / retired", grant: "Receiving grants", student: "Student", unemployed: "Unemployed", full_time: "Full-time", part_time: "Part-time", contractor: "Contractor" })[type] ?? type
 }
@@ -390,7 +392,7 @@ export async function sendPaymentReceived(
   app: ApplicationSummary,
   listing: ListingSummary,
   org: OrgContext,
-  opts: { paymentRef: string; slug: string; accessToken: string; amountCents: number; paidAt: string }
+  opts: { paymentRef: string; inviteToken: string | null; amountCents: number; paidAt: string }
 ) {
   return sendEmail({
     orgId: org.orgId,
@@ -407,7 +409,9 @@ export async function sendPaymentReceived(
         <EmailDetail label="Date" value={formatDate(opts.paidAt)} />
         <EmailSectionHeading>What happens next</EmailSectionHeading>
         <p style={S.body}>The screening typically takes 1–2 business days. You&apos;ll receive an email when results are available.</p>
-        <EmailButton href={statusUrl(opts.slug, app.id, opts.accessToken)} accentColor={org.branding.accentColor}>Check your application status →</EmailButton>
+        {opts.inviteToken && (
+          <EmailButton href={inviteStatusUrl(opts.inviteToken)} accentColor={org.branding.accentColor}>Check your application status →</EmailButton>
+        )}
       </EmailLayout>
     ),
     bodyPreview: `Payment of ${formatZAR(opts.amountCents)} received. Screening in progress.`,

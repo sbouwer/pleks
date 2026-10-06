@@ -5,55 +5,24 @@
  *
  * Route:  /apply/invite/[token]/status
  * Auth:   Public — invite token; the server validates it inside /api/applications/invite-status/[token]
- * Data:   GET /api/applications/invite-status/[token], polled every 10s until a decision
+ * Data:   GET /api/applications/invite-status/[token], polled every 10s until a final state
  * Notes:  Client page, and PayFast's return_url for the lead's screening fee (lib/payfast/forms.ts).
  *         A12: this page read application_tokens and applications through the browser client and subscribed to
  *         realtime on applications. Both tables are org-member-only under RLS, so an applicant with no session got
  *         no rows and the page fell back to its defaults — "Screening fee paid" — for any token, valid or not. It
- *         now polls a service-client route, the director tracker's pattern, and shows "not found" when the token
- *         does not resolve. "Paid" is shown only once the ITN has stamped the line; PayFast can return the payer
- *         before the ITN lands, so until then the page says the payment is being confirmed.
+ *         now polls a service-client route, the director tracker's pattern. What it may claim lives in ./tracker.ts
+ *         (tested): "paid" only from the route, "not found" only on 400/404/410, and a 5xx or network failure
+ *         retries rather than calling a just-paid link invalid. Polls never overlap, and a stale answer never
+ *         replaces a newer one.
  */
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, Clock, Circle, Loader2 } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-
-const STEPS = [
-  { key: "submitted", label: "Application submitted" },
-  { key: "documents", label: "Documents uploaded" },
-  { key: "shortlisted", label: "Shortlisted" },
-  { key: "payment", label: "Payment received" },
-  { key: "screening", label: "Background screening" },
-  { key: "decision", label: "Decision" },
-]
+import { STEPS, classifyResponse, feeLine, isFinal, statusToStep, type InviteStatus } from "./tracker"
 
 const POLL_INTERVAL_MS = 10_000
-
-interface InviteStatus {
-  reference: string
-  stage2Status: string | null
-  feePaid: boolean
-  // The fee ACTUALLY charged, read from the application row — not the single-applicant constant, which
-  // quoted R250 to a joint applicant who paid R470.
-  feeCents: number | null
-}
-
-function statusToStep(stage2Status: string | null, feePaid: boolean): number {
-  if (stage2Status === "approved" || stage2Status === "declined") return 5
-  if (stage2Status === "screening_complete") return 5
-  if (stage2Status === "screening_in_progress") return 4
-  if (feePaid) return 3
-  return 2
-}
-
-const isFinal = (s: string | null) => s === "approved" || s === "declined"
-
-function feeLine(status: InviteStatus): string {
-  if (!status.feePaid) return "We're confirming your payment — this page updates on its own."
-  return status.feeCents == null ? "Screening fee paid" : `Screening fee: ${formatZAR(status.feeCents)} paid`
-}
 
 export default function Stage2StatusPage() {
   const params = useParams()
@@ -65,6 +34,7 @@ export default function Stage2StatusPage() {
 
   useEffect(() => {
     let cancelled = false
+    let inFlight = false
     let timer: ReturnType<typeof setInterval> | null = null
     const stop = () => {
       if (timer) clearInterval(timer)
@@ -72,22 +42,27 @@ export default function Stage2StatusPage() {
     }
 
     async function load() {
+      // One poll at a time: a slow answer can never land after a newer one, or after stop().
+      if (inFlight || cancelled) return
+      inFlight = true
       try {
         const res = await fetch(`/api/applications/invite-status/${encodeURIComponent(token)}`)
+        const kind = classifyResponse(res.status)
         if (cancelled) return
-        if (res.status === 404 || res.status === 410 || res.status === 400) {
+        if (kind === "missing") {
           setMissing(true)
           stop()
-        } else if (res.ok) {
+        } else if (kind === "ok") {
           const next = await res.json() as InviteStatus
           if (cancelled) return
           setStatus(next)
           if (isFinal(next.stage2Status)) stop()
         }
-        // Any other failure keeps the last good state and tries again on the next tick.
+        // "retry" keeps the last good state; the next tick tries again.
       } catch {
         // Network blip — the next tick retries.
       } finally {
+        inFlight = false
         if (!cancelled) setLoading(false)
       }
     }
@@ -105,12 +80,23 @@ export default function Stage2StatusPage() {
     )
   }
 
-  if (missing || !status) {
+  if (missing) {
     return (
       <div className="space-y-2">
         <h1 className="text-xl font-semibold">Application not found</h1>
         <p className="text-sm text-muted-foreground">
           This link is invalid or has expired. Contact the agent managing this listing for help.
+        </p>
+      </div>
+    )
+  }
+
+  if (!status) {
+    return (
+      <div className="space-y-2">
+        <h1 className="text-xl font-semibold">Application status</h1>
+        <p className="text-sm text-muted-foreground">
+          We couldn&apos;t load your status just now. This page will try again on its own.
         </p>
       </div>
     )
@@ -129,7 +115,7 @@ export default function Stage2StatusPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Application status</h1>
-        <p className="text-sm text-muted-foreground mt-1">{feeLine(status)}</p>
+        <p className="text-sm text-muted-foreground mt-1">{feeLine(status, formatZAR)}</p>
       </div>
 
       {stage2Status === "approved" && (

@@ -45,6 +45,8 @@ export interface AppEmailContext {
     branding: ReturnType<typeof buildBranding>
   }
   accessToken: string | null
+  /** The newest 'shortlist_invite' token — the only one the stage-2 tracker accepts. */
+  inviteToken: string | null
   listingSlug: string | null
   /** Joint application? Derived ONCE here so every email quotes the fee the applicant is actually charged. */
   isJoint: boolean
@@ -104,6 +106,18 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
     .maybeSingle()
     logQueryError("buildEmailContext application_tokens", tokenRowError)
 
+  // A12: the lead's stage-2 invite token, by TYPE. The most recent token above can be a later stage-1 one (resend-link,
+  // save-draft), and only the invite token opens /apply/invite/[token]/status.
+  const { data: inviteRow, error: inviteRowError } = await service
+    .from("application_tokens")
+    .select("token")
+    .eq("application_id", applicationId)
+    .eq("token_type", "shortlist_invite")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    logQueryError("buildEmailContext application_tokens invite", inviteRowError)
+
   const bankData = app.bank_statement_extracted as Record<string, unknown> | null
   const branding = buildBranding(await fetchOrgSettings(app.org_id as string))
 
@@ -141,6 +155,7 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
       branding,
     },
     accessToken: tokenRow?.token ?? null,
+    inviteToken: inviteRow?.token ?? null,
     listingSlug: listing?.public_slug as string | null,
     isJoint: Boolean(app.has_co_applicant),
     feeAmountCents: (app.fee_amount_cents as number | null) ?? null,
