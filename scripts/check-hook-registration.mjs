@@ -2,7 +2,7 @@
 /**
  * scripts/check-hook-registration.mjs — a hook file is not a hook until settings wires it.
  *
- * @kit check-hook-registration v7 — tracked. Edit it in dev-standards and re-adopt; a local
+ * @kit check-hook-registration v8 — tracked. Edit it in dev-standards and re-adopt; a local
  * change here is a fork, and `check-kit-drift.mjs` will say so.
  *
  * WHAT IT CATCHES. Delete the `hooks` block from `.claude/settings.json` and every gate goes inert
@@ -34,6 +34,9 @@
  * `Bash(git merge:*main*)` the colon is literal, so the rule matches no command, and a string
  * comparison between it and an identical `@twin` reconciles two strings that back nothing. Every
  * gated Bash rule in that shape is a finding.
+ *
+ * EVERY EVENT A HOOK LISTENS ON. A hook may declare several `@event`/`@matcher` pairs, the nth
+ * matcher belonging to the nth event, and each pair must be registered.
  *
  * Where it came from is the MANIFEST row's `why` in dev-standards. These bytes are copied into
  * every adopter, so they say what the code does and nothing about where it was first run.
@@ -323,17 +326,23 @@ export function audit(root = ".") {
     if (mine.length === 0) {
       out.push(`${HOOK_DIR}/${f}: no ${SETTINGS} entry EXECUTES it — the file exists and nothing invokes it`);
     } else {
-      const wantEvent = directives(src, EVENT)[0];
-      const wantMatcher = directives(src, MATCHER)[0];
-      if (!wantEvent || !wantMatcher) {
-        out.push(`${HOOK_DIR}/${f}: declares no "// @event <Event>" and "// @matcher <pattern>" — without them nothing can check it is registered for the calls it gates`);
+      // v8: EVERY declared pair, in order — the nth @event with the nth @matcher. A hook may listen on
+      // more than one event, and one registration satisfied a check that read only the first pair.
+      const events = directives(src, EVENT);
+      const matchers = directives(src, MATCHER);
+      if (!events.length || events.length !== matchers.length) {
+        out.push(`${HOOK_DIR}/${f}: declares no "// @event <Event>" and "// @matcher <pattern>" — without them nothing can check it is registered for the calls it gates` +
+          (events.length ? ` (${events.length} @event, ${matchers.length} @matcher — each @event needs its own @matcher)` : ""));
       } else {
-        if (!mine.some((r) => r.event === wantEvent)) {
-          out.push(`${HOOK_DIR}/${f}: declares @event ${wantEvent} but is registered under ${[...new Set(mine.map((r) => r.event))].join(", ")}`);
-        }
-        if (!mine.some((r) => r.matcher === wantMatcher)) {
-          out.push(`${HOOK_DIR}/${f}: declares @matcher ${wantMatcher} but is registered with ${mine.map((r) => JSON.stringify(r.matcher)).join(", ")} — a matcher that never sees its tool is a gate that cannot fire`);
-        }
+        events.forEach((wantEvent, k) => {
+          const wantMatcher = matchers[k];
+          const under = mine.filter((r) => r.event === wantEvent);
+          if (!under.length) {
+            out.push(`${HOOK_DIR}/${f}: declares @event ${wantEvent} but is registered under ${[...new Set(mine.map((r) => r.event))].join(", ")}`);
+          } else if (!under.some((r) => r.matcher === wantMatcher)) {
+            out.push(`${HOOK_DIR}/${f}: declares @matcher ${wantMatcher} for ${wantEvent} but is registered with ${under.map((r) => JSON.stringify(r.matcher)).join(", ")} — a matcher that never sees its tool is a gate that cannot fire`);
+          }
+        });
         // A hook on a non-blocking event cannot refuse anything. That is a defect for a GATE and
         // correct for an ANNOTATOR, so the file declares which it is: `// @non-blocking <why>`.
         const nonBlocking = directives(src, NON_BLOCKING)[0];
@@ -436,6 +445,17 @@ if (isEntry && process.argv.includes("--selftest")) {
   fires({ permissions: ASK, hooks: { UserPromptSubmit: [entry("Bash")] } }, "cannot refuse a call",
     "…and the SAME registration with no @non-blocking still fires",
     "// @event UserPromptSubmit\n// @matcher Bash\n// @twin Bash(git push *main*)\n");
+
+  // v8: a hook that listens on TWO events (canon-inbox v3) must be registered for both.
+  const TWO = "// @event SessionStart\n// @matcher startup\n// @event PostToolUse\n// @matcher Bash\n// @non-blocking it annotates\n// @twin Bash(git push *main*)\n";
+  clean({ permissions: ASK, hooks: { SessionStart: [entry("startup")], PostToolUse: [entry("Bash")] } },
+    "KNOWN-GOOD: a two-event hook registered for both of its declared pairs", TWO);
+  fires({ permissions: ASK, hooks: { SessionStart: [entry("startup")] } }, "declares @event PostToolUse",
+    "a two-event hook registered for its FIRST pair only — v7 read only the first and passed it", TWO);
+  fires({ permissions: ASK, hooks: { SessionStart: [entry("startup")], PostToolUse: [entry("Write")] } }, "declares @matcher Bash for PostToolUse",
+    "…and its second event under a matcher that never sees Bash", TWO);
+  fires({ permissions: ASK, hooks: { SessionStart: [entry("startup")], PostToolUse: [entry("Bash")] } }, "each @event needs its own @matcher",
+    "an @event without its @matcher is not a pair the check can hold", "// @event SessionStart\n// @matcher startup\n// @event PostToolUse\n// @non-blocking it annotates\n// @twin Bash(git push *main*)\n");
 
   fires({ permissions: ASK, hooks: { PreToolUse: [entry("Read")] } }, "a matcher that never sees its tool",
     "5/7 a matcher scoped to the wrong tool — registered, and it never fires");
