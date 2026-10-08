@@ -8,12 +8,19 @@
  *        asserted on the envelope that would leave, not on the scrubber called by hand.
  */
 import { existsSync } from "node:fs"
+import { createRequire } from "node:module"
 import { join } from "node:path"
 import { describe, it, expect, vi, beforeAll } from "vitest"
 import * as SentryBrowser from "@sentry/browser"
 
 const TOKEN = "126581d5-7b64-4508-93bd-ff4f4e4a897a"
 let clientOptions: Record<string, unknown> = {}
+
+// The integration @sentry/nextjs's client ALWAYS installs, which rewrites every frame's origin to app:// before
+// beforeSend runs (walker D1). Not in the package's exports map, so it is loaded by path.
+const { nextjsClientStackFrameNormalizationIntegration } = createRequire(import.meta.url)(
+  join(process.cwd(), "node_modules/@sentry/nextjs/build/cjs/client/clientNormalizationIntegration.js"),
+) as { nextjsClientStackFrameNormalizationIntegration: (o: Record<string, unknown>) => ReturnType<typeof SentryBrowser.dedupeIntegration> }
 
 vi.mock("@sentry/nextjs", () => ({
   init: (o: Record<string, unknown>) => { clientOptions = o },
@@ -45,22 +52,23 @@ describe("instrumentation-client.ts — browser Sentry (walker F8)", () => {
       dsn: clientOptions.dsn as string,
       beforeSend: clientOptions.beforeSend as SentryBrowser.BrowserOptions["beforeSend"],
       defaultIntegrations: false,
+      integrations: [nextjsClientStackFrameNormalizationIntegration({ experimentalThirdPartyOriginStackFrames: false })],
       transport: () => ({ send: async (envelope) => { sent.push(envelope); return {} }, flush: async () => true }),
     })
     SentryBrowser.withScope(scope => {
       scope.addBreadcrumb({ category: "navigation", data: { from: "/dashboard", to: `/approve/${TOKEN}?token=${TOKEN}` } })
       const page = `https://app.pleks.co.za/approve/${TOKEN}?token=${TOKEN}`
-      scope.addEventProcessor(event => {
-        // What GlobalHandlers writes for "Script error." / an inline handler: the PAGE url as the frame (walker C1).
-        event.exception?.values?.[0]?.stacktrace?.frames?.push({ filename: page, abs_path: page, function: "?" })
-        event.exception?.values?.[0]?.stacktrace?.frames?.push({ filename: "https://app.pleks.co.za/_next/static/Ab3dEf6hIj9kLm2nOp5qR/_buildManifest.js" })
-        return { ...event, request: { url: page } }
-      })
-      try {
-        throw new Error(`approve failed for /approve/${TOKEN}`)
-      } catch (err) {
-        SentryBrowser.captureException(err)
-      }
+      scope.addEventProcessor(event => ({ ...event, request: { url: page } }))
+      // A browser stack whose top frame is the PAGE (an inline handler; GlobalHandlers does the same for
+      // "Script error."), parsed by the SDK's own stack parser, then normalised to app:// (walkers C1, D1).
+      const err = new Error(`approve failed for /approve/${TOKEN}`)
+      err.stack = [
+        err.message.replace(/^/, "Error: "),
+        `    at onclick (${page}:1:10)`,
+        "    at render (https://app.pleks.co.za/_next/static/Ab3dEf6hIj9kLm2nOp5qR/_buildManifest.js:1:20)",
+        `    at load (https://app.pleks.co.za/x?next=/_next/${TOKEN}:1:30)`,
+      ].join("\n")
+      SentryBrowser.captureException(err)
     })
     await SentryBrowser.flush(2000)
 
@@ -69,7 +77,8 @@ describe("instrumentation-client.ts — browser Sentry (walker F8)", () => {
     expect(wire).not.toContain(TOKEN)
     expect(wire).toContain("https://app.pleks.co.za/approve/:id")
     expect(wire).toContain("approve failed for /approve/:id")
-    expect(wire).toContain("/_next/static/Ab3dEf6hIj9kLm2nOp5qR/_buildManifest.js")
+    expect(wire).toContain("app:///_next/static/Ab3dEf6hIj9kLm2nOp5qR/_buildManifest.js")
+    expect(wire).toContain('"filename":"app:///approve/:id"')
   })
 
   it("a standalone web-vital span's page is scrubbed (walker W4)", () => {

@@ -126,15 +126,19 @@ function scrubValue(value: unknown, key?: string): unknown {
   return value
 }
 
+/** A `scheme://` url (http, https, app) whose PATH is not under /_next/. Query and fragment are not read. */
 function isPageUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value) && !value.includes("/_next/")
+  const url = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*([^?#]*)/i.exec(value)
+  return url !== null && !url[1].startsWith("/_next/")
 }
 
 function scrubCommon<E extends SentryEvent>(event: E): E {
   event.exception?.values?.forEach(exception => {
     if (exception.value) exception.value = scrubText(exception.value)
     // The browser SDK writes the PAGE url into a frame when the script url is empty ("Script error.",
-    // inline handlers). A bundle under /_next/ keeps its path, which symbolication needs.
+    // inline handlers), and @sentry/nextjs's frame normalization has already rewritten its origin to
+    // app:// by the time beforeSend runs — so any scheme counts. A bundle under /_next/ keeps its path,
+    // which symbolication needs (its build id would read as a token).
     exception.stacktrace?.frames?.forEach(frame => {
       if (frame.filename && isPageUrl(frame.filename)) frame.filename = scrubUrl(frame.filename)
       if (frame.abs_path && isPageUrl(frame.abs_path)) frame.abs_path = scrubUrl(frame.abs_path)
