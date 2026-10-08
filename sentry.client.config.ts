@@ -6,7 +6,7 @@
  *        POPIA assessment pending. Events go through /monitoring tunnel to avoid ad-blocker interference.
  */
 import * as Sentry from "@sentry/nextjs"
-import { scrubEvent } from "@/lib/observability/scrubbing"
+import { scrubEvent, scrubTransaction } from "@/lib/observability/scrubbing"
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -18,5 +18,6 @@ Sentry.init({
   replaysOnErrorSampleRate: 0,
 
   beforeSend: scrubEvent,
+  beforeSendTransaction: scrubTransaction,
   enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN && process.env.NEXT_PUBLIC_VERCEL_ENV === "production",
 })
