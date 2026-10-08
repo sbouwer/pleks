@@ -69,6 +69,12 @@ describe("generateExport — review rows (DSAR follow-up 3)", () => {
     expect(json).not.toContain("app-spouse")
   })
 
+  it("never writes the column on a request whose erasure owns it (walker F5)", async () => {
+    await generateExport({ ...request, request_type: "nuke" } as DataSubjectRequest, "u-officer")
+    const link = writes.find((w) => w.table === "data_subject_requests" && w.op === "update")
+    expect(link?.payload).toEqual({ export_id: "exp1" })
+  })
+
   it("a failed request write throws, so the request is never completed without its record", async () => {
     linkError = { message: "boom" }
     await expect(generateExport(request, "u-officer")).rejects.toThrow(/request link failed/)

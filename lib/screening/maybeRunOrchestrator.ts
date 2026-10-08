@@ -17,6 +17,7 @@ import type { createServiceClient } from "@/lib/supabase/server"
 import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 import { notifyOutcome } from "@/lib/screening/milestoneNotices"
 import { optionalEnv } from "@/lib/env"
+import { REDACTED } from "@/lib/popia/anonymisePlan"
 
 export async function maybeRunOrchestrator(
   service: Awaited<ReturnType<typeof createServiceClient>>, orgId: string, applicationId: string,
@@ -44,6 +45,7 @@ export async function maybeRunOrchestrator(
     .eq("primary_application_id", applicationId)
     .eq("org_id", orgId)
     .is("declined_at", null)
+    .neq("applicant_email", REDACTED) // an erased co has left the set as a declined one has (dsar-next walker F3)
   if (coErr) {
     console.error("[maybeRunOrchestrator] co-applicant read failed:", coErr.message)
     return

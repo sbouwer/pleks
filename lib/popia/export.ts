@@ -141,11 +141,14 @@ export async function generateExport(
 
   // 7. Link export to request, with the rows held back for the Information Officer (DSAR follow-up 3). The page
   //    re-resolves them live; this is the record of what the export left out when it was made. Same key and row
-  //    shape as erasure's (erasure.ts). A nuke's erasure runs after this and rewrites the column with its own.
+  //    shape as erasure's (erasure.ts), and written only for the request types whose column nothing else writes:
+  //    on an erasure or nuke it holds erasure's whole record, which this must never replace (walker F5).
   const { error: linkErr } = await (await db)
     .from("data_subject_requests")
     // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: request object comes from the gated /api/popia/request/[id]/approve route which validates user_orgs membership in request.org_id (or platform-admin) before invoking; org-filtering unsafe (platform requests have org_id NULL)
-    .update({ export_id: exportRow.id, erasure_records_affected: { ambiguous_matches: needsReview } })
+    .update(request.request_type === "access" || request.request_type === "portability"
+      ? { export_id: exportRow.id, erasure_records_affected: { ambiguous_matches: needsReview } }
+      : { export_id: exportRow.id })
     .eq("id", request.id)
   // Thrown, so the approve route leaves the request "approved" rather than completing it without the record.
   if (linkErr) throw new Error(`[popia/export] request link failed: ${linkErr.message}`)

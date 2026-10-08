@@ -213,6 +213,7 @@ async function addEmailMatches(
   const matches = [
     ...await contactsByEmail(db, out.orgId, email), ...await appsByEmail(db, out.orgId, email), ...await coRowsByEmail(db, out.orgId, email),
   ].filter((m) => !known.has(m.id))
+  for (const m of matches) if (m.table === "contacts" && m.hash === null) m.hash = await hashThroughTenant(db, out.orgId, m.id)
   const parts = partitionEmailMatches(matches, chain, anchored)
   // A subject holds one contact row. A second contact on the mailbox, or one beside the account's own, is a duplicate
   // record nobody has reconciled — the Information Officer's call, not a pick by query order.
@@ -230,12 +231,29 @@ async function addEmailMatches(
     out.tenantId ??= await roleIdByContact(db, "tenants", out.orgId, out.contactId)
     out.landlordId ??= await roleIdByContact(db, "landlords", out.orgId, out.contactId)
   }
-  if (out.tenantId && !out.contactId) out.contactId = await contactIdByTenant(db, out.orgId, out.tenantId)
+  // The tenant's own contact — unless this pass sent it to review: a backfill after the partition must not re-admit
+  // what the partition rejected (dsar-next walker F1: the request recorded "confirm first" and erased it anyway).
+  const inReview = new Set(review.map((m) => m.id))
+  if (out.tenantId && !out.contactId) {
+    const backfill = await contactIdByTenant(db, out.orgId, out.tenantId)
+    if (backfill && !inReview.has(backfill)) out.contactId = backfill
+  }
   const ties = new Set([...chain.hashes, ...accept.map((m) => m.hash).filter((h): h is string => h !== null)])
   await addLinkedRows(db, out, {
     tenantId: hadTenant ? null : out.tenantId, contactId: contactsOk ? out.contactId : null,
-    inReview: new Set(review.map((m) => m.id)), ties,
+    inReview, ties,
   })
+}
+
+/** An unhashed contact's ID, read through the agency's own link: the one hash on the applications keyed to its tenant,
+ *  or null when there is none or more than one. Without it, a contact captured without an ID beside its own hashed
+ *  application on the same mailbox sent the subject's whole file to review (dsar-next walker F2). It vouches for
+ *  nothing: the hash still has to agree with every other match on the mailbox. */
+async function hashThroughTenant(db: Db, orgId: string, contactId: string): Promise<string | null> {
+  const tenantId = await roleIdByContact(db, "tenants", orgId, contactId)
+  if (!tenantId) return null
+  const hashes = new Set((await appsWithHashByTenant(db, orgId, tenantId)).map((a) => a.hash).filter((h): h is string => h !== null))
+  return hashes.size === 1 ? [...hashes][0] : null
 }
 
 function acceptMatch(out: ResolvedSubject, m: EmailMatch): void {
