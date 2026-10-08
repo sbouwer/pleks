@@ -87,64 +87,47 @@ FIX        CAN OFFER, not on the credential's type — no factor of any kind →
              that half as M-132 rather than claiming M-127 closed it.
 ```
 
-### CF-21 · bash-gate v16 reads a quoted string only for runners in its own table, and that table is an open set
+### CF-22 · bash-gate v17's inverted rule still skips shell-running reaches through known programs
 
 ```
-OBSERVED   Under v16 (canon 9b6b1b7), with pleks's regions and before pleks's backstop, these
-           ALLOW: cmd //c "git push --force origin main", wsl sh -c "git push --force",
-           wsl.exe -e bash -c "git reset --hard", find . -maxdepth 0 -exec sh -c "git push --force" \;,
-           git filter-branch --tree-filter "rm -rf ~/*" HEAD, and
-           npm pkg set scripts.x="git push --force" && npm run x. Each runs on Windows + Git Bash.
-           The held gate (98d8a9a0) read raw text, so it denied all of them; it only asked on npm pkg set.
-COMMAND    walker .handoff/kit-bash-gate-v16/01-walker.md F1 piped each payload as hook JSON through
-           both gates, and checked each runner was executable on this machine:
-           cmd //c "git rev-parse --short HEAD" → a1b08564; wsl sh -c "echo wsl-ran" → wsl-ran;
-           find … -exec sh -c "echo find-exec-ran" → find-exec-ran.
-           The same class, with binaries absent here: su -c, flock -c, script -c, setsid, runuser,
-           busybox sh -c, parallel, watch, pnpm/yarn exec, git rebase --exec.
-WHY IT IS  The reading is an allowlist of runners. A string handed to any program outside it is treated
-CANON'S    as an argument. Any stack has runners canon has not listed. `cmd //c` is Git Bash's ordinary
-           spelling: MSYS rewrites `/c` as a path, so `windowsRun = /^\/[ckr]$/i` misses the form people
-           actually type. The 380-row corpus contained none of these, so the "none executable" result
-           was true of the corpus only.
-SMALLEST   (1) `windowsRun` accepts `/{1,2}[ckr]`. (2) A command that names a program NOT in the table
-FIX        gets at least the verdict of the gate the project replaced. Its gated text was an argument
-           v16 never read, and the old gate's raw-text reading is the floor CF-18 promised.
-           pleks carries (2) in its regions as `runnerVerdict` (one rule in PROJECT_DENY, one in
-           PROJECT_ASK), with the held gate's rules ported verbatim (98d8a9a0, `held*`). Runners are
-           found the way the shell and cmd read a word:
-           - quotes and cmd's `^` are removed;
-           - `c\md` is `cmd`, and `C:\…\cmd.exe` is cmd;
-           - rare names count anywhere, and common words (`watch`, `start`, `script`) only at command
-             position;
-           - canon's message and heredoc masking runs first, so prose naming a runner is not one.
-           The command is judged with cmd's `^` removed too, which closes `git^ push`, a shape the held
-           gate missed. pleks offers it to canon. Allowlisting more runners cannot finish the list;
-           a project floor can.
-           Three walks shaped it (.handoff/kit-bash-gate-v16/0[123]-walker.md), and each lesson is portable:
-           - A first, regex version chained `.*` per segment and was CUBIC. 36 KB behind a `cmd //c`
-             got no decision, and a killed hook fails open. The cheapness assert (`rm x `×100k) named no
-             runner, so it never reached the rule; `check-bash-gate.mjs` now times a 500 KB runner input.
-           - A second version re-derived "each act's direct verdict" from words. It found runners only
-             at the head of a command (`start cmd //c`, `if cmd //c`, `sudo -u x cmd //c` went through),
-             and it false-denied routine `npx … && git commit -m "$(…)"`. Re-deriving a verdict
-             re-opens every case the old gate had already settled; porting it does not.
-           - A fourth walk (.handoff/kit-bash-gate-v16-floor/01-walker.md) found two more gaps, now closed.
-             First, a floor ported "verbatim" had dropped the old gate's `.env` ask. The new gate's own copy
-             of that rule reads masked text, so the floor has to carry EVERY old rule. Second, the
-             npm-family subcommand check read only the next word, which misses options and abbreviations
-             (`npm --yes exec -c`, `npm exe -c`). Both ran on this machine.
-           - What the floor does NOT close, and the held gate did not either: variables, `$'…'`,
-             `${IFS}`, brace expansion. No text gate reads expansions.
-           Must not break:
-           - canon's own `find -exec git push \;` → ask case;
-           - harmless strings handed to the same runners (`cmd //c "git log"`, `find -exec ls {} \;`)
-             stay allowed;
-           - a gh `--body` that names a runner stays prose.
+OBSERVED   Under v17 (canon 2c2bbb9), these shapes run a gated act and are ALLOWED. They are also
+           allowed by v16 and by pleks's CF-21 floor, while the held gate (98d8a9a0) denied them:
+           - git bisect run sh -c "<rm ~>" and git submodule foreach "<rm ~>". git runs a shell
+             there, but v17 reads only filter-branch's filters and rebase --exec/-x.
+           - bun x concurrently "<force push>". bun is classed as a code interpreter, so its
+             argv is not read. The same act through npx denies.
+           - node node_modules/.bin/concurrently "<rm ~>". This is the npx denial, reached
+             through node.
+           - node -e "…execSync(process.argv[1])" "<force push>", and the same through python3 -c
+             with os.system(sys.argv[1]) and perl -e 'system $ARGV[0]'. The code is read for its
+             literals, but the argv string is not read.
+           - gh alias set --shell p '<force push>' && gh p. gh is a TEXT_TAKER, and --shell runs
+             the expansion (`gh alias set --help`).
+           - tee >(sh) <<< "<rm ~>".
+           Separately: a 469 KB `npx "a | a | …"` takes about 2 s, and check-bash-gate's timed shapes
+           hold no quoted pipe. Above about 480 KB, v17 throws in decide() for quoted pipes and
+           semicolons, and the catch asks with the reason "could not parse hook input". That fails
+           closed, but the reason names the wrong cause. And `git log --grep "git push --force"`, a
+           read-only search, is denied in every gate.
+COMMAND    walker .handoff/kit-bash-gate-v17/01-walker.md F1/F2/F5. A script fed each payload as hook
+           JSON through four gates (held, pleks v16, pleks v17, canon v17 alone), and no act was run.
+           bun is not installed here, so its row is from bun's documented behaviour.
+WHY IT IS  v17 inverted the rule for UNKNOWN programs. Its known programs (interpreters, git,
+CANON'S    TEXT_TAKERS) are each assumed not to run their argv, and each of the shapes above breaks
+           that assumption. None of them depends on pleks's stack.
+SMALLEST   (1) Read git's shell-running subcommands as filter-branch is read: bisect run,
+FIX        submodule foreach, and difftool --extcmd / send-email --sendmail-cmd (held allowed these
+           two as well). (2) Treat `bun x` / `bun run <bin>`, and `node <path>/.bin/<x>`, as their
+           npx forms. (3) gh alias set --shell: read its expansion. (4) Interpreter argv fed to an
+           exec of argv: canon's call whether the cost is worth it. (5) Time a quoted-pipe shape in
+           check-bash-gate, and give an exception in decide() its own reason.
+           Must not break: git commit -m prose, gh --body prose, `node script.mjs <path>`, and
+           `npx vitest -t "<harmless>"`.
 ```
 
 CF-7 to CF-20 dropped to Filed on 2026-10-08 — canon took all fourteen between `98f9636` and
-`1ae8c14` (CF-12 was already closed by `77f1c58`). Their reports are not restated here; canon's
+`1ae8c14` (CF-12 was already closed by `77f1c58`). CF-21 followed the same day: canon took it as
+bash-gate v17 at `b9f9979`. Their reports are not restated here; canon's
 entries are the record.
 
 ## 2 · Lesson answers
@@ -213,6 +196,45 @@ is an open item with an owner in this repo.
 Adoptions canon has to record in `kitAdopted`, and pins: a row deliberately behind canon, with the
 row id, the version held, the reason, and a review date. A pin means *read and deliberately behind*,
 never *exempt*, so the reason has to argue it.
+
+**bash-gate v17, canon `2c2bbb9` (merge of `b9f9979`) — adopted 2026-10-08** (branch
+`chore/kit-bash-gate-v17`; the PR number is the stable name). Canon marked it URGENT: below canon's
+floor, and to be taken before the next push.
+- **Adopted:** `bash-gate@17` · `bash-gate-probe@17`, carried by `apply-kit.mjs pleks --carry-only
+  --write` with pleks's regions. The same carry rewrote canon-inbox and check-hook-registration as
+  well. Those three files were restored to `main` here because they are their own PR
+  (`chore/kit-canon-inbox-v4`).
+- **The CF-21 floor stays in pleks's regions.** It guarantees the held gate's verdict **only on
+  commands that name a runner on its list**, so it does not hold the "no regression" bar in general.
+  The walker found shapes that run a gated act, which the held gate denied and which v16, v17 and
+  the floor all allow. They are filed as CF-22. **None of them is a regression against v16**: every
+  v17 verdict the walker measured equals v16's. "39 looser, all declared" holds for the probe corpus
+  only. Retiring the floor is a later call, made by measuring v17 alone `--against` the held gate.
+- **Probe regions:**
+  - **Two pleks cases tighten from ask to deny:** `npm pkg set` → `npm run` of a force push, and
+    `cmd //c` with a `+refspec`. v17 reads the runner's string, and both acts deny when typed
+    directly, so the runner form now matches.
+  - **Two canon v17 cases are held stricter:** the `wsl` hard reset, under pleks's hard-reset deny;
+    and a gh `--body` naming `wsl` with a push, which the floor gates. In the probe's spelling it
+    asks. In ordinary spellings, such as `--body "wsl sh -c 'git push -f' …"`, it **denies**, and
+    did under v16 too. This is the cost CF-21 declared; the workaround is `--body-file`.
+  - **Costs that are new against pleks v16** (walker F4): an unknown program's quoted argument
+    naming a gated act now gets that act's verdict. `npm test -- -t "git reset --hard is denied"`
+    denies. `npm run test -- -t "git push asks"`, `pnpm vitest -t "…git push…"` and
+    `tsx scripts/x.mts "git push origin main"` ask. Each matches the held gate's verdict. Canon's own
+    example, `npx vitest -t "rejects rm -rf ~"`, was already denied under pleks v16, by the floor.
+  - **Three canon v17 allows are declared looser than the held gate:** a `-m` message, `curl -d`
+    data, and a node script's argv.
+- **Measured:**
+  - probe: 447 pass, with 39 verdicts tightened;
+  - `--against` the held gate (`98d8a9a0`): 39 looser, all declared, and 91 stricter;
+  - `check-bash-gate.mjs`: green, with a 500 KB runner input decided in about 380–450 ms. That
+    shape holds no quoted `|` or `;`, and a 469 KB `npx "a | a | …"` takes about 2 s (CF-22).
+- **Live check after the #364 restart** (bash-gate v16):
+  - `cmd //c "git push --force …"` was denied, with the runner reason;
+  - `gh pr merge` asked;
+  - `sh x.sh` was allowed.
+- **v17 needs its own restart (L-64).**
 
 **canon-inbox (M-KIT-32), canon `b96db8b` — adopted 2026-10-05 in pleks `4105f18b`** (branch
 `chore/kit-canon-inbox`; the squash onto `main` will carry a new SHA — the PR number is the stable name).
@@ -658,6 +680,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | CF-18 | `bash-gate` v9 masks text as data without asking where the data goes, and some of it goes into a shell | `bash-gate` **v13** | `f6140b8` |
 | CF-19 | canon-inbox-probe's live case makes a project's commit gate read canon's working tree | outbox triage | `1ae8c14` |
 | CF-20 | `check-handoff-contract` v8 drops a cross-task input that shares the artefact's own filename | outbox triage | `1ae8c14` |
+| CF-21 | bash-gate v16 read a quoted string only for runners in its own table, an open set | `bash-gate` **v17**, which inverts the rule: an unknown program's spaced and key=value arguments are read as commands | `b9f9979` |
 | — | §2.4's sweep test measured enforcement, not force (entry below, verbatim as relayed 2026-09-30) | BRIEF-STANDARD §2.4 test; `check-brief` v9; `brief-kit/DECISIONS.md` | `bfed62c` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**

@@ -1,7 +1,7 @@
 /**
  * bash-gate.probe.mjs — KIT FILE, install at `.claude/hooks/`.
  *
- * @kit bash-gate-probe v16 — tracked OUTSIDE its `KIT:CONFIG` regions.
+ * @kit bash-gate-probe v17 — tracked OUTSIDE its `KIT:CONFIG` regions.
  *
  * BOTH DIRECTIONS, per `ledgers/LESSONS.md` L-01: a planted violation must FAIL
  * and a known-good case must PASS. A pattern that matches nothing reports 100%
@@ -60,6 +60,11 @@
  * into `source`/`.`/a shell, a substitution as the command word, a file written and run in one
  * command, `npx -c` — their variants, the allows they must not cost, the declared limit (`sh x.sh`
  * alone), and four timed shapes for the file reader, one of which must ask past its budget.
+ *
+ * v17 (2026-10-08, pleks CF-21) carries the runners outside v16's table — `cmd //c`, wsl, find -exec,
+ * su/flock/busybox/ssh/docker exec, `npm pkg set scripts.x=`, git's filters and --exec — the allows
+ * they must not cost (gh, git -m, curl -d, harmless strings), the declared cost (a quoted test name),
+ * the declared limit (`"$CMD"`), and two timed shapes for the quoted-argument reading.
  *
  * Run: node .claude/hooks/bash-gate.probe.mjs   (wire into the `probe` script)
  *      node .claude/hooks/bash-gate.probe.mjs --against <the gate you are replacing>
@@ -306,7 +311,12 @@ const PROJECT_VERDICTS = {
   "PUSH -n is --dry-run, not --no-verify (yoros CF-10)": "ask",
   "PUSH --dry-run likewise": "ask",
   "ABBREVIATED: --har is --hard to git": "deny",
-  "SIZE: …and the same plan on the working branch pushes freely": "ask"
+  "SIZE: …and the same plan on the working branch pushes freely": "ask",
+  // v17 re-adoption. The first is pleks's hard-reset deny again. The second is the CF-21 runner floor:
+  // it ports the held gate, which read words through gh's --body, so a body naming a runner (`wsl`)
+  // and a push asks. This is the cost CF-21 declared. Use --body-file.
+  "v17: …asking as its act does": "deny",
+  "v17: gh is text — a PR body naming a runner": "ask"
 }
 /* KIT:CONFIG /verdicts */
 
@@ -348,7 +358,10 @@ const PROJECT_LOOSENED = {
   "SIZE: a 100 KB commit body to a sink heredoc is data, read once": "a 100 KB commit body to a sink heredoc is data (the same masking as the sink-heredoc case above)",
   "PLEKS RUNNER: gh --body prose naming a runner and a push is not a runner": "a quoted `--body` argument to gh: text. `script` is a word inside it, not a command, so the runner backstop does not read it",
   "PLEKS RUNNER: a PR body that says watch and start is not a runner": "a quoted `--body` argument to gh: prose. The held gate asked on the words `git push` anywhere; v16 reads it as gh's argument, and the runner backstop reads `watch`/`start` only at command position",
-  "PLEKS RUNNER: a commit message naming cmd //c git push --force is prose": "a quoted `-m` message: text git stores. The held gate matched the words; the runner backstop reads after canon's message masking"
+  "PLEKS RUNNER: a commit message naming cmd //c git push --force is prose": "a quoted `-m` message: text git stores. The held gate matched the words; the runner backstop reads after canon's message masking",
+  "v17: git reads a message as a message": "a quoted -m message naming a destructive rm: text git stores, never run. The held gate matched the words inside it",
+  "v17: curl's data is data": "curl -d sends its string as request data and runs nothing. The held gate matched the words anywhere in the line",
+  "v17: an interpreter is known — its script's quoted argument keeps v13's reading": "node runs a named script and hands it the string as argv. If the script executes it, that is the declared gap of a script the gate cannot read, which the held gate also allowed when the script was run without the string"
 }
 /* KIT:CONFIG /loosened */
 
@@ -891,6 +904,40 @@ const CASES = [
   // NOT COVERED, declared: a file written by an EARLIER Bash call is text no command shows the gate.
   { want: "allow", why: "v16: NOT COVERED — `sh x.sh` alone runs a file this call never wrote", payload: bash("sh x.sh") },
 
+  // ── v17: A STRING HANDED TO A PROGRAM THE GATE DOES NOT KNOW (pleks CF-21, 80272128) ──
+  { want: "deny", why: "v17: cmd //c — Git Bash's spelling of /c", payload: bash('cmd //c "git push --force origin main"') },
+  { want: "deny", why: "v17: …through start", payload: bash('start cmd //c "git push --force origin x"') },
+  { want: "deny", why: "v17: wsl hands its shell a string", payload: bash('wsl sh -c "git push --force"') },
+  { want: "ask", why: "v17: …asking as its act does", payload: bash('wsl.exe -e bash -c "git reset --hard"') },
+  { want: "deny", why: "v17: find -exec sh -c", payload: bash('find . -maxdepth 0 -exec sh -c "git push --force" \\;') },
+  { want: "deny", why: "v17: git filter-branch runs its filters", payload: bash('git filter-branch --tree-filter "rm -rf ~/*" HEAD') },
+  { want: "deny", why: "v17: …and rebase its --exec", payload: bash('git rebase --exec "rm -rf ~" HEAD~3') },
+  // rm, not push: a quoted `push -f` is already found by the token reading, so it cannot reach this one.
+  { want: "deny", why: "v17: …as --exec=", payload: bash("git rebase --exec='rm -rf ~' HEAD~3") },
+  { want: "deny", why: "v17: …and as -x", payload: bash("git rebase -x 'rm -rf ~' HEAD~3") },
+  { want: "deny", why: "v17: a key=value argument's value — npm pkg set scripts", payload: bash('npm pkg set scripts.x="git push --force" && npm run x') },
+  { want: "deny", why: "v17: npx concurrently runs each string", payload: bash('npx concurrently "git push --force origin x"') },
+  { want: "deny", why: "v17: npm's options before exec", payload: bash('npm --yes exec -c "git push --force origin x"') },
+  { want: "deny", why: "v17: …and its exe alias", payload: bash('npm exe -c "git push --force origin x"') },
+  { want: "deny", why: "v17: su -c", payload: bash('su -c "rm -rf ~"') },
+  { want: "deny", why: "v17: flock past its lock file", payload: bash('flock /tmp/l -c "git push -f"') },
+  { want: "deny", why: "v17: busybox sh -c", payload: bash('busybox sh -c "git push -f"') },
+  { want: "deny", why: "v17: ssh runs its string on the host", payload: bash('ssh box "rm -rf ~"') },
+  { want: "deny", why: "v17: docker exec … sh -c", payload: bash('docker exec c sh -c "git push -f"') },
+  { want: "allow", why: "v17: cmd //c with a harmless string", payload: bash('cmd //c "git log"') },
+  { want: "allow", why: "v17: find -exec a harmless program", payload: bash("find . -exec ls {} \\;") },
+  { want: "allow", why: "v17: gh is text — a PR body naming a runner", payload: bash('gh pr create --title t --body "use wsl sh -c \\"git push -f\\" to deploy"') },
+  { want: "allow", why: "v17: git reads a message as a message", payload: bash('git commit -m "docs: never rm -rf ~ in scripts"') },
+  { want: "allow", why: "v17: curl's data is data", payload: bash('curl -d "git push -f" https://example.com') },
+  { want: "allow", why: "v17: unknown programs given harmless strings", payload: bash('npx concurrently "npm run dev" "npm run api"') },
+  { want: "allow", why: "v17: …and a quoted key=value", payload: bash('docker run --rm -e "A=b c" node:22 node -v') },
+  { want: "allow", why: "v17: a harmless filter", payload: bash('git filter-branch --msg-filter "sed s/a/b/" HEAD') },
+  { want: "allow", why: "v17: an interpreter is known — its script's quoted argument keeps v13's reading", payload: bash('node tools/x.mjs "git push -f"') },
+  // THE COST, declared: an unknown program's quoted string naming a gated act is gated as if run.
+  { want: "deny", why: "v17: COST — a test name naming a gated act, given to an unknown program", payload: bash('npx vitest run -t "rejects rm -rf ~"') },
+  // NOT COVERED, declared: an expansion is not text the gate can read.
+  { want: "allow", why: "v17: NOT COVERED — the string arrives through a variable", payload: bash('npx concurrently "$CMD"') },
+
   /* KIT:CONFIG cases — this project's own gates, beyond the canonical set above.
    * ONE PROBE PER RULE YOU ADDED TO THE HOOK'S DENY/ASK BLOCKS, both directions: the
    * violation, and the near-miss that must still pass. A rule with no probe is a rule
@@ -918,7 +965,7 @@ const CASES = [
   { want: "deny", why: "PLEKS RUNNER: find -exec sh -c runs its string per match", payload: bash('find . -maxdepth 0 -exec sh -c "git push --force" \\;') },
   { want: "deny", why: "PLEKS RUNNER: filter-branch's tree-filter evals its string", payload: bash('git filter-branch --tree-filter "rm -rf ~/*" HEAD') },
   { want: "deny", why: "PLEKS RUNNER: rebase --exec runs its string after each commit", payload: bash('git rebase -i main --exec "git push --force"') },
-  { want: "ask", why: "PLEKS RUNNER: npm pkg set writes a script that npm run then runs — asks, as the held gate did", payload: bash('npm pkg set scripts.x="git push --force" && npm run x') },
+  { want: "deny", why: "PLEKS RUNNER: npm pkg set writes a script that npm run then runs — denied as the force push is directly (v17 reads a key=value's value; the held gate asked)", payload: bash('npm pkg set scripts.x="git push --force" && npm run x') },
   { want: "ask", why: "PLEKS RUNNER: flags in any order — watch runs a forced clean, which asks as directly", payload: bash('watch -n1 "git clean -fd"') },
   { want: "allow", why: "PLEKS RUNNER: rm -rfv on a named directory is ordinary, as directly and in the held gate", payload: bash('cmd //c "rm -rfv build"') },
   // Re-walk F2/F3 (02-walker.md): the shell's words, not the text's spelling.
@@ -931,7 +978,7 @@ const CASES = [
   { want: "deny", why: "PLEKS RUNNER: a substitution as the force flag", payload: bash('cmd //c "git push $(echo --force)"') },
   { want: "deny", why: "PLEKS RUNNER: quote-concatenated --force", payload: bash('cmd //c "git push ""--force"""') },
   { want: "deny", why: "PLEKS RUNNER: npx concurrently runs its string", payload: bash('npx -y concurrently "git push --force"') },
-  { want: "ask", why: "PLEKS RUNNER: a +refspec through a runner asks, as the held gate did", payload: bash('cmd //c "git push origin +main"') },
+  { want: "deny", why: "PLEKS RUNNER: a +refspec through a runner is denied as it is directly (v17 reads cmd //c; the held gate asked)", payload: bash('cmd //c "git push origin +main"') },
   { want: "deny", why: "PLEKS RUNNER: --mirror through wsl — canon reads wsl's argv and denies it", payload: bash('wsl git push --mirror') },
   { want: "ask", why: "PLEKS RUNNER: clean --force asks, as directly", payload: bash('cmd //c "git clean --force"') },
   { want: "allow", why: "PLEKS RUNNER: gh --body prose naming a runner and a push is not a runner", payload: bash('gh pr comment 5 --body "the script runs git push --force"') },
@@ -1058,6 +1105,10 @@ try {
       ["v16: a file written and sourced, many times", fill("echo hi > s.sh; source s.sh; ")],
       // …and every one of many files, each holding the pipeline, run: past WRITTEN_BUDGET it ASKS, never allows.
       ["v16: many files each holding a pipeline, each run", `echo x${Array.from({ length: 12_000 }, (_, k) => ` | tee f${k}`).join("")}${Array.from({ length: 12_000 }, (_, k) => `; sh f${k}`).join("")}`, "ask"],
+      // v17: every quoted argument of an unknown program is read as a command.
+      ["v17: many quoted arguments to an unknown program", `tool ${fill('"a b" ')}`],
+      ["v17: many single words to an unknown program — not a string", `tool ${fill("a ")}`],
+      ["v17: one quoted argument nested in quoted arguments", `tool "tool \\"tool '${"a ".repeat(250_000)}'\\""`],
     ]) {
       const t = Date.now();
       const got = await run(bash(command));

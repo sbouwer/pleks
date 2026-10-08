@@ -1,7 +1,7 @@
 /**
  * bash-gate.js — PreToolUse gate for Bash. KIT FILE, install at `.claude/hooks/`.
  *
- * @kit bash-gate v16 — tracked OUTSIDE its `KIT:CONFIG` regions. Those regions are yours;
+ * @kit bash-gate v17 — tracked OUTSIDE its `KIT:CONFIG` regions. Those regions are yours;
  * everything else is canon's, and `check-kit-drift.mjs` reconciles it.
  *
  * WHY THIS EXISTS, and it is not the reason you would guess. Allow-rules in
@@ -105,6 +105,12 @@
  * were ALLOWED; see "WHAT A COMMAND RUNS THAT IT NEVER QUOTED". No rule is added, so no fallback is
  * owed. A file written by an EARLIER Bash call is out of reach of any reader of command text.
  *
+ * v17 (2026-10-08) is pleks CF-21: the set of runners is open — `cmd //c`, wsl, find -exec, su, flock,
+ * busybox, ssh, docker exec, `npm pkg set scripts.x=`, git's filters and --exec were all ALLOWED. So a
+ * program the gate does not know has every multi-word argument, and every `key=value`'s value, read
+ * as a command; see "A STRING HANDED TO A PROGRAM THE GATE DOES NOT KNOW". The declared cost: such a
+ * string naming a gated act is gated as if run. No rule is added, so no fallback is owed.
+ *
  * A REASON IS ALWAYS SET, INCLUDING ON ALLOW. An empty reason makes an allow
  * indistinguishable from a hook that ran and decided nothing.
  *
@@ -167,7 +173,8 @@ const SEAM_VARS = ["PLEKS_HOOK_PROBE", "PLEKS_PRECOMMIT_CMD", "PLEKS_PREPUSH_CMD
 // argument and allowed, though the held gate — which read raw text — denied it.
 //
 // WHAT THIS PROMISES, AND WHY IT IS THIS AND NOT MORE: a command that names such a runner gets AT LEAST
-// the held gate's verdict, so on those commands v16 is never looser than what it replaced. The held
+// the held gate's verdict, so on THOSE commands the gate is never looser than what it replaced. A runner
+// on no list is not covered (CF-22: `bun x`, `git bisect run`, `gh alias --shell`). The held
 // gate's rules are carried below VERBATIM (98d8a9a0, `held*`), rather than re-derived as "each act's
 // direct verdict". Two re-derivations were walked and both failed: a regex version was CUBIC (36 KB
 // behind `cmd //c` got no decision, and a killed hook fails open), and a word-reading version missed
@@ -1685,7 +1692,8 @@ function shellString(args) {
 }
 
 /** pwsh's `-Command` and every prefix of it down to `-c`, and cmd's `/c`, `/k`, `/r`. */
-const windowsRun = (t) => /^\/[ckr]$/i.test(t) || (t.length >= 2 && "-command".startsWith(t.toLowerCase()));
+// v17 (pleks CF-21): `//c` too — Git Bash rewrites a lone `/c` as a path, so `cmd //c` is how it is typed there.
+const windowsRun = (t) => /^\/{1,2}[ckr]$/i.test(t) || (t.length >= 2 && "-command".startsWith(t.toLowerCase()));
 
 /**
  * A sed or awk program, from its words: each `-e`/`--expression`/`--source` value, stdin under
@@ -1761,7 +1769,8 @@ const AWK_VALUED = new Set(["-F", "-v", "--field-separator", "--assign", "-i", "
 //   source <(echo …)  . <(echo …)  bash <(echo …)   a process substitution's OUTPUT, run as a script
 //   $(printf 'git push') origin x                   a substitution's OUTPUT, run as the command word
 //   printf '…' > x.sh && sh x.sh                    a file written and then run, in ONE command
-//   npx -c '…'  (npm exec -c, --call)               npm's own shell string
+//   npx -c '…'  (npm exec -c, --call)               npm's own shell string — read since v17 by the
+//                                                   unknown-program rule below, which covers it
 // What a substitution writes is approximated as `givenTo` approximates a pipeline stage: the words
 // and stdin of each of its commands. A file written by `>`/`>>`/`tee` earlier in the same command is
 // remembered by name, and a shell, `source` or `.` that runs that name — or a command word that is
@@ -1842,22 +1851,54 @@ function scriptOf(word, files) {
   return files.get(word);
 }
 
-/** npm's shell string: `npx -c S`, `npm exec -c S`, `npm x --call=S`. */
-function npmCall(words) {
-  const i = words.findIndex((w, k) => commandName(w) === "npx" || (commandName(w) === "npm" && ["exec", "x"].includes(words[k + 1])));
-  if (i === -1) return null;
-  for (let j = i + 1; j < words.length; j++) {
-    if (words[j] === "-c" || words[j] === "--call") return words[j + 1] ?? null;
-    if (words[j].startsWith("--call=")) return words[j].slice("--call=".length);
+// ── A STRING HANDED TO A PROGRAM THE GATE DOES NOT KNOW (v17, pleks CF-21) ──
+//
+// v13 and v16 read the strings of runners the gate LISTS, and the set of runners is open. pleks
+// measured on Windows + Git Bash, and canon reproduced against v16, every one ALLOWED:
+//   cmd //c "…"  (Git Bash's spelling of /c)   wsl sh -c "…"   find -exec sh -c "…" \;   start cmd //c "…"
+//   git filter-branch --tree-filter "…"   npm pkg set scripts.x="…"   npx concurrently "…"   npm --yes exec -c "…"
+// and the same class: su -c, flock -c, busybox sh -c, ssh host "…", docker exec c sh -c "…".
+// No list of runners can finish, so the rule is inverted for programs the gate does not know: every
+// argument of an UNKNOWN program that is more than one word — it was quoted to be one argument — is
+// read as a command, and so is the value of a `key=value` argument. Each act then gets its own verdict,
+// not a flat deny. KNOWN programs keep their reading: an interpreter's is above; a PROSE or data
+// command's words stay text (echo, grep, curl, jq, gh — so a PR body naming a runner is prose); and git
+// is read only where git itself runs a shell — filter-branch's filters and rebase's --exec / -x — so a
+// commit message stays a message. v16's `npx -c` reading is this rule's special case, and is removed.
+//
+// THE COST, declared: an unknown program given a quoted string that names a gated act is gated as if
+// it ran it — `npx vitest -t "rejects rm -rf on root"` is read as `rm -rf on root`. Unknown fails
+// toward the gate, as an unlisted heredoc receiver already does.
+// NOT COVERED: expansions — `$VAR`, `$'…'` read as text, `${IFS}`, brace expansion — which no reader of
+// text can resolve; and a runner given its command as separate unquoted words, which only the backstop's
+// bare `git`/`rm`/`gh` reading sees.
+const TEXT_TAKERS = new Set([...PROSE, ...HEREDOC_SINKS]);
+const GIT_SHELL_OPTION = /^(?:--(?:tree|index|msg|commit|env|parent|tag-name)-filter|--exec|-x)(?:=([\s\S]*))?$/;
+
+/** v17's strings for one command: what an unknown program, or git's shell-running options, are handed. */
+function foreignStrings(cmd, at, kind) {
+  if (!at || kind) return [];
+  const args = cmd.words.slice(at.i + 1);
+  const out = [];
+  if (at.name === "git") {
+    for (let i = 0; i < args.length; i++) {
+      const m = GIT_SHELL_OPTION.exec(args[i]);
+      if (m) out.push(m[1] ?? args[i + 1] ?? "");
+    }
+    return out;
   }
-  return null;
+  if (TEXT_TAKERS.has(at.name)) return out;
+  for (const w of args) {
+    if (!/\s/.test(w)) continue;
+    const kv = /^[^\s=]+=([\s\S]*)$/.exec(w);
+    out.push(kv ? kv[1] : w);
+  }
+  return out;
 }
 
 /** v16's strings for one command: see the section above. `files` is updated with what it writes. */
 function unquotedRuns(cmd, at, kind, files, piped) {
-  const out = [];
-  const call = npmCall(cmd.words);
-  if (call !== null) out.push(call);
+  const out = foreignStrings(cmd, at, kind);
   if (at) {
     const sub = substitution(cmd.words[at.i]);
     if (sub && !cmd.words[at.i].startsWith("<(")) out.push([writtenBy(sub.inner) + sub.rest, ...cmd.words.slice(at.i + 1)].join(" "));
