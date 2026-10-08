@@ -87,6 +87,62 @@ FIX        CAN OFFER, not on the credential's type — no factor of any kind →
              that half as M-132 rather than claiming M-127 closed it.
 ```
 
+### CF-21 · bash-gate v16 reads a quoted string only for runners in its own table, and that table is an open set
+
+```
+OBSERVED   Under v16 (canon 9b6b1b7), with pleks's regions and before pleks's backstop, these
+           ALLOW: cmd //c "git push --force origin main", wsl sh -c "git push --force",
+           wsl.exe -e bash -c "git reset --hard", find . -maxdepth 0 -exec sh -c "git push --force" \;,
+           git filter-branch --tree-filter "rm -rf ~/*" HEAD, and
+           npm pkg set scripts.x="git push --force" && npm run x. Each runs on Windows + Git Bash.
+           The held gate (98d8a9a0) read raw text, so it denied all of them; it only asked on npm pkg set.
+COMMAND    walker .handoff/kit-bash-gate-v16/01-walker.md F1 piped each payload as hook JSON through
+           both gates, and checked each runner was executable on this machine:
+           cmd //c "git rev-parse --short HEAD" → a1b08564; wsl sh -c "echo wsl-ran" → wsl-ran;
+           find … -exec sh -c "echo find-exec-ran" → find-exec-ran.
+           The same class, with binaries absent here: su -c, flock -c, script -c, setsid, runuser,
+           busybox sh -c, parallel, watch, pnpm/yarn exec, git rebase --exec.
+WHY IT IS  The reading is an allowlist of runners. A string handed to any program outside it is treated
+CANON'S    as an argument. Any stack has runners canon has not listed. `cmd //c` is Git Bash's ordinary
+           spelling: MSYS rewrites `/c` as a path, so `windowsRun = /^\/[ckr]$/i` misses the form people
+           actually type. The 380-row corpus contained none of these, so the "none executable" result
+           was true of the corpus only.
+SMALLEST   (1) `windowsRun` accepts `/{1,2}[ckr]`. (2) A command that names a program NOT in the table
+FIX        gets at least the verdict of the gate the project replaced. Its gated text was an argument
+           v16 never read, and the old gate's raw-text reading is the floor CF-18 promised.
+           pleks carries (2) in its regions as `runnerVerdict` (one rule in PROJECT_DENY, one in
+           PROJECT_ASK), with the held gate's rules ported verbatim (98d8a9a0, `held*`). Runners are
+           found the way the shell and cmd read a word:
+           - quotes and cmd's `^` are removed;
+           - `c\md` is `cmd`, and `C:\…\cmd.exe` is cmd;
+           - rare names count anywhere, and common words (`watch`, `start`, `script`) only at command
+             position;
+           - canon's message and heredoc masking runs first, so prose naming a runner is not one.
+           The command is judged with cmd's `^` removed too, which closes `git^ push`, a shape the held
+           gate missed. pleks offers it to canon. Allowlisting more runners cannot finish the list;
+           a project floor can.
+           Three walks shaped it (.handoff/kit-bash-gate-v16/0[123]-walker.md), and each lesson is portable:
+           - A first, regex version chained `.*` per segment and was CUBIC. 36 KB behind a `cmd //c`
+             got no decision, and a killed hook fails open. The cheapness assert (`rm x `×100k) named no
+             runner, so it never reached the rule; `check-bash-gate.mjs` now times a 500 KB runner input.
+           - A second version re-derived "each act's direct verdict" from words. It found runners only
+             at the head of a command (`start cmd //c`, `if cmd //c`, `sudo -u x cmd //c` went through),
+             and it false-denied routine `npx … && git commit -m "$(…)"`. Re-deriving a verdict
+             re-opens every case the old gate had already settled; porting it does not.
+           - A fourth walk (.handoff/kit-bash-gate-v16-floor/01-walker.md) found two more gaps, now closed.
+             First, a floor ported "verbatim" had dropped the old gate's `.env` ask. The new gate's own copy
+             of that rule reads masked text, so the floor has to carry EVERY old rule. Second, the
+             npm-family subcommand check read only the next word, which misses options and abbreviations
+             (`npm --yes exec -c`, `npm exe -c`). Both ran on this machine.
+           - What the floor does NOT close, and the held gate did not either: variables, `$'…'`,
+             `${IFS}`, brace expansion. No text gate reads expansions.
+           Must not break:
+           - canon's own `find -exec git push \;` → ask case;
+           - harmless strings handed to the same runners (`cmd //c "git log"`, `find -exec ls {} \;`)
+             stay allowed;
+           - a gh `--body` that names a runner stays prose.
+```
+
 CF-7 to CF-20 dropped to Filed on 2026-10-08 — canon took all fourteen between `98f9636` and
 `1ae8c14` (CF-12 was already closed by `77f1c58`). Their reports are not restated here; canon's
 entries are the record.
@@ -103,10 +159,12 @@ is what an unanswered lesson should look like.
 | L-71 | 2026-09-10 | `scripts/check-mojibake.mjs`, in `npm run check` with its selftest, plus the repair of the four damaged migration files. **The rule's stated half was already carried** (`CLAUDE.md` §8: *"never author a pattern through a shell string… write the script to a file with an editor"*); what pleks lacked was **detection**, which a stated rule cannot supply for damage that predates it. **Two things worth sending back with the date.** First, the survey that opened this answer reported **436** sequences and was wrong by half — the real figure is **861** runs. It was a grep of the `Ã`/`â€`/`Â` families, and the dominant damage here is a doubly-encoded box rule whose third character is `U+0090`, an invisible C1 control that no family grep names. A blacklist of the mojibake you have already seen cannot find the mojibake you have not, and the number it produces looks like a measurement. Second, the detection that replaced it needs no list at all: re-encode a run to cp1252 and try to decode those bytes as strict UTF-8 — correct text cannot survive that, so success *is* the diagnosis. **That is portable and canon may want it**: it is arithmetic on codepoints, with no repo, stack or language in it. Evidence: repair verified by running it over all twelve migrations and confirming the eight undamaged files came out byte-identical, and by re-running the detector against `HEAD:` where it still reports all 861. |
 | L-64 | 2026-09-10 | `CLAUDE.md` §3 now states it, in the gates section where a session reads about hooks rather than in a hooks appendix: a hook installed **or edited** mid-session is not loaded by that session; restart, then verify with a throwaway call that would previously have prompted. The extension beyond the lesson's wording is deliberate — the lesson says *installed*, and an edit to an already-registered hook is the same inert change with none of the "did I wire it up right?" suspicion attached. **Prose, not a mechanism, and correctly so:** no control in this repo can observe when a hook file was written relative to session start. |
 | L-68 | 2026-09-10 | Given the same day it was raised, by the only person who could give it. `CLAUDE.md` §7 now carries: *"**STANDING AUTHORISATION — Stéan, 2026-09-10, from this date onwards.** Agents listed in the table above may be spawned without per-session approval; writes stay bounded by `.handoff/write-manifest.json`; nothing here authorises a push."* **What was wrong before is worth recording, because it is the lesson's whole shape:** the warrant was §7's agents table itself, which a session had to read as "the repo asking" — inference from a table's existence, re-derived from scratch by every session and attributable to nobody. The scope clause is not decoration: a bare dated signature would have authorised everything and nothing, and the next session would have gone back to inferring. It removes the question of whether spawning was permitted; it does not widen §5's write bound or §3's push gate, both of which still hold. |
+| L-104 | 2026-10-08 | Carried by adopting canon `bash-gate` **v16** (`9b6b1b7`) in this PR (`chore/kit-bash-gate-v16`; the squash carries a new SHA, so the PR number is the stable name). The held gate (`98d8a9a0`) already denied most `$(…)` inside a quoted commit message. What it lacked, and v16 has, is the general form: masked text is asked where it is going before it is treated as prose. A sink heredoc stays data, while `bash <<X`, `cat <<X \| bash`, `source <(…)` and a substitution used as the command word all deny or ask. Measured on 380 payloads (`.handoff/bash-gate-v16/01-scout.md` §3): no executable shape *in that corpus* is looser than the held gate. The walker then found executable shapes *off* the corpus: a gated string handed to a runner outside canon's table, such as `cmd //c`, `wsl sh -c`, `find -exec sh -c` or `filter-branch`. They are CF-21, and a pleks-region backstop closes them, probed both ways. Two gaps remain. A runner in neither canon's table nor pleks's list is still read as an argument: the set is open. And a file written in one Bash call and run in a later one cannot be seen by any text gate; the held gate allows `sh x.sh` alone too. `scripts/check-bash-gate.mjs` asserts both interpreter-fed heredoc denies. |
+| L-109 | n/a: pleks gives authority to no value that existed before the grant. Every value that opens something is minted for it at that moment, random, with an expiry or a revoke: `randomBytes(32)` hex application and step-up tokens, `randomUUID()` WO, signature and team-invite tokens, `gen_random_bytes` notice tokens, and HMAC-signed result links. A survey of every minting and accepting site found none that promotes an existing, inert value (an id, an email, a hash) into a credential (`.handoff/canon-lessons-l109/01-scout.md`, read at `826b5722`). **An adjacent finding, now fixed:** copies of those tokens were reaching Sentry in request URLs, contexts and browser frames. That is the lesson's "every copy already made", for a value that was a credential from the start. It was fixed in #362 and #363. | `.handoff/canon-lessons-l109/01-scout.md` · #362 · #363 |
 
 **The 13 answers from the 2026-09-10 triage were lifted in `fa7b92f` and have dropped to Filed** —
-canon's `LESSONS.md` is their record now, and this file does not restate it. **L-64, L-68 and L-71
-above are the three still awaiting canon**; all were given after the outbox was read at `9430df2a`.
+canon's `LESSONS.md` is their record now, and this file does not restate it. **L-64, L-68, L-71, L-104 and
+L-109 above are the five still awaiting canon**; all were given after the outbox was read at `9430df2a`.
 
 **⚠ Two dates canon corrected on measurement, and one it sent back — recorded here so the next
 session does not re-report the old ones:**
@@ -359,7 +417,61 @@ session started after #318 merged, so agent-brief-gate v2 and the batch-2 spines
   is no KIT:CONFIG region in the diff. It was copied by hand, not applied, because `apply-kit`
   refuses a pinned row and this session does not write canon's ledger.
 
-- **⚠ HELD at v9, 2026-10-04, on CF-18. Canon: do NOT record `kitAdopted`. Pin `bash-gate`,
+- **bash-gate v16, canon `9b6b1b7`: ADOPTED 2026-10-08 in this PR (`chore/kit-bash-gate-v16`). Canon:
+  record `kitAdopted` for `bash-gate`, `bash-gate-config` and `bash-gate-probe` at v16, and drop the
+  v9 pin below.** Every canon byte was read with `git -C <canon> show 9b6b1b7:kit/project-kit/hooks/<file>`.
+  - **Candidate.** Canon's v16 bytes, with pleks's five hook regions and three probe regions spliced in from
+    the v9/v15 candidates. The region markers match canon's. The config module is canon's, plus pleks's
+    merge-message line.
+  - **Probe.**
+    - Plain v16: 356 pass.
+    - Configured: 369 pass, 37 tightened `verdicts`. One was added: `$(echo git) reset --hard`, which
+      canon asks on and pleks denies.
+    - `--against` the held gate (`98d8a9a0`): **33 looser, all 33 declared, 84 stricter, exit 0.** The two
+      looser cases new in v16 are both written-file shapes. One writes a file and only reads it. The
+      other writes one file and runs a DIFFERENT one, which is the same class as the cross-call gap.
+  - **CF-18 re-measured, 380 payloads** (`.handoff/bash-gate-v16/01-scout.md` §3). Looser than held: v9 56,
+    v15 21, **v16 14, none executable in the corpus** (but see CF-21: off the corpus, runners outside
+    canon's table were executable and looser; a pleks backstop closes them). v16 closed all seven
+    executable shapes v15 left open:
+    - process substitution into `source`, `.` or a shell;
+    - `$(printf …)` used as the command word;
+    - a file written and run in one command (`>x.sh && sh x.sh`, and the heredoc form);
+    - `npx -c`.
+    
+    The extra variants also hold: `;` or newline between the write and the run, `tee`, `>>`, `chmod`+`./`,
+    `npm exec -c`, `eval "$(printf …)"`, `xargs sh -c`, and `env`/`command`/`exec` prefixes. The 14
+    still looser are prose, data, or commands that do not run. `git push -n` goes deny to ask, because it is
+    `--dry-run`.
+  - **The structural limit, accepted by Stéan 2026-10-08:** a file written in one Bash call and run in a
+    later one. No text gate can see it, and the held gate allows `sh x.sh` alone too, so this is not a
+    regression.
+  - **`check-bash-gate.mjs`: the three corrections the v9 hold listed, plus two asserts.**
+    - `git push -n` → ask (`--dry-run`).
+    - The heredoc-line seam → allow (sink body), now asserted beside `bash <<X` and `cat <<X | bash`, which
+      both deny.
+    - 500 KB adversarial input → ask with the work-budget reason, never deny. Over budget, the gate
+      fails to a prompt (213 ms); the assert names the reason, so an ask for any other cause fails it.
+  - **Walker F1 → CF-21, closed in pleks's regions.** A command that names a runner canon does not read
+    gets at least the held gate's verdict, with its rules ported verbatim. There is one rule in deny and
+    one in ask. Four walks went into it, and the probes cover every payload they raised. One accepted
+    cost is pinned by a probe: `npx` beside a commit body that names `rm -rf /` gets the held gate's
+    false deny.
+    - Configured probe: 418 pass.
+    - `--against` held: 36 looser, all declared, 87 stricter. The three new looser cases are prose: a gh
+      `--body` and a `-m` message that name a runner.
+    - `check-bash-gate.mjs` decides a 500 KB runner input in about 300 ms.
+
+    What stays open:
+    - a runner that is in neither canon's table nor pleks's list;
+    - expansions (variables, `$'…'`, braces), which the held gate did not read either;
+    - a file written in one Bash call and run in a later one.
+  - **Carried:** the probe in `npm run check` and `check-scope.mjs`. `gh pr merge` joins CLAUDE.md §3's
+    hook-ask list. v16 asks on it, so §1's routine `--auto` arming prompts every time, which is intended.
+  - **L-64:** the hook takes effect at the next session start. The adopting session verifies it after a
+    restart.
+
+- **⚠ (SUPERSEDED 2026-10-08 by the v16 adoption above) HELD at v9, 2026-10-04, on CF-18. Canon: do NOT record `kitAdopted`. Pin `bash-gate`,
   `bash-gate-config` and `bash-gate-probe` at pleks's held gate (`98d8a9a0`) against v9
   (`aa901cc`), reason CF-18, review when canon ships CF-18's fix or 2026-10-18, whichever comes
   first.**

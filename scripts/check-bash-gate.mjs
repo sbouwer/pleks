@@ -108,7 +108,7 @@ const CASES = [
   ["--no-verify before the message", bash('git commit --no-verify -m "x"'), "deny"],
   ["--no-verify on push", bash("git push --no-verify origin main"), "deny"],
   ["-n on commit is --no-verify", bash('git commit -n -m "x"'), "deny"],
-  ["-n on push is --no-verify", bash("git push -n origin main"), "deny"],
+  ["-n on push is --dry-run (git push -h), not --no-verify: it asks — canon's CF-10 case", bash("git push -n origin main"), "ask"],
   // ⚠ THE NO-BYPASS CASE, and the boundary that decides how much of M-072's false-deny is safe to
   // fix. The tempting fix — blank every quoted span so a flag inside a commit MESSAGE stops matching
   // — wins back the prose cases and hands over the real one: the shell strips these quotes before
@@ -149,7 +149,11 @@ const CASES = [
   // bodies would make `cat <<EOF` a universal envelope, which is the hole the quoted-`--no-verify`
   // ruling refused. The cost is one word of prose before the example; the mitigation is the ALLOW
   // probe below it. If this probe ever flips to allow, check what was widened to achieve it.
-  ["ACCEPTED cost: a heredoc line STARTING with the assignment is denied as prose", bash("git commit -F - <<'MSG'\nPLEKS_HOOK_PROBE=1 git commit is the bypass\nMSG"), "deny"],
+  // v9+ masks a SINK's heredoc body only (git commit -F -), so this is now prose and allows; the
+  // envelope hole stays closed because an INTERPRETER-fed body is not masked: the next two deny.
+  ["a sink heredoc line STARTING with the assignment is prose (v9+ masks sink bodies only)", bash("git commit -F - <<'MSG'\nPLEKS_HOOK_PROBE=1 git commit is the bypass\nMSG"), "allow"],
+  ["…but the same line fed to bash is the bypass", bash("bash <<'X'\nPLEKS_HOOK_PROBE=1 git commit -m x\nX"), "deny"],
+  ["…and piped from cat into bash", bash("cat <<'X' | bash\nPLEKS_HOOK_PROBE=1 git commit -m x\nX"), "deny"],
   ["…and the mitigation: any word first makes it prose again", bash("git commit -F - <<'MSG'\nThe bypass is PLEKS_HOOK_PROBE=1 git commit\nMSG"), "allow"],
 
   // ── ASK ─────────────────────────────────────────────────────────────────────────────────────
@@ -369,14 +373,35 @@ for (const [name, payload, want] of CASES) {
 {
   const adversarial = "rm x ".repeat(100_000)                 // 500KB, many `rm` tokens, NO match
   const t0 = Date.now()
-  const { decision } = decide(bash(adversarial))
+  const { decision, reason } = decide(bash(adversarial))
   const ms = Date.now() - t0
   const fast = ms < 2000
-  const right = decision === "allow"                          // no lethal target — must not deny
+  // No lethal target, so never a deny: over budget, the gate fails to a prompt, and it must be THAT
+  // prompt — an ask for any other reason would be a regression prompting on ordinary large input.
+  const right = decision === "ask" && String(reason).includes("work budget")
   if (!fast || !right) failed++
   console.log(
     `  ${fast && right ? "✓" : "✗"} must be cheap — 500KB adversarial input decided in ${ms}ms` +
       `${fast ? "" : " — SUPERLINEAR, the quadratic regex is back"}${right ? "" : ` — and got ${decision}`}`
+  )
+}
+// The same ratchet for the foreign-runner backstop, whose first version was CUBIC (re-walk F1,
+// .handoff/kit-bash-gate-v16/02-walker.md): `"rm x "` never names a runner, so the probe above could not
+// reach it, and 36KB behind a `cmd //c` got no decision at all. A push handed to a runner must never
+// allow, at any size.
+for (const [label, adversarial] of [
+  ["quoted", `cmd //c "${"git push ".repeat(55_000)}"`],
+  ["unquoted", `cmd //c ${"git push ".repeat(55_000)}`],
+]) {
+  const t0 = Date.now()
+  const { decision } = decide(bash(adversarial))
+  const ms = Date.now() - t0
+  const fast = ms < 2000
+  const right = decision === "ask" || decision === "deny"
+  if (!fast || !right) failed++
+  console.log(
+    `  ${fast && right ? "✓" : "✗"} must be cheap — 500KB ${label} runner input decided in ${ms}ms` +
+      `${fast ? "" : " — SUPERLINEAR, the runner backstop backtracks"}${right ? "" : ` — and got ${decision}`}`
   )
 }
 
