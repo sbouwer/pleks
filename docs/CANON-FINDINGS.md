@@ -197,6 +197,25 @@ Adoptions canon has to record in `kitAdopted`, and pins: a row deliberately behi
 row id, the version held, the reason, and a review date. A pin means *read and deliberately behind*,
 never *exempt*, so the reason has to argue it.
 
+**context-budget v1 + check-context-budget v1, canon `2c2bbb9` — adopted 2026-10-08** (branch
+`chore/kit-context-budget-v1`; the PR number is the stable name).
+- **Adopted:** `context-budget@1` · `check-context-budget@1`. Each is byte-identical to `git show
+  2c2bbb9:kit/project-kit/<path>`, and the `apply-kit --carry-only` dry run then reports `= identical`
+  for both. Canon's v1 *is* pleks's bytes at `4635041c` (nortiercupboards CF-4), plus four changes:
+  a `@kit` header, the thresholds wrapped in a KIT:CONFIG region whose values are unchanged, a
+  literal BOM in a regex written as `﻿`, and, in the check, `--hook`/`--settings` options and
+  two regexes rewritten without backtracking. pleks takes it rather than pinning its own copy,
+  because nothing pleks holds is lost.
+- **An observation for L-64, not yet a finding.** On 2026-10-08, a session restarted with `main`'s
+  `.claude/settings.json`, which had no `PostToolUse` entry. It then checked out
+  `chore/kit-canon-inbox-v4`, which adds `hooks.PostToolUse` for canon-inbox. The session's very next
+  `git push` printed canon-inbox's after-push line, as `PostToolUse:Bash hook additional context`.
+  So a hook *registration* added mid-session took effect in that session. L-64 says hooks are read at
+  session start. Either Claude Code re-reads `settings.json` when it changes, or a new event key is
+  picked up while edits to an existing hook's file are not. One observation cannot tell those apart.
+  Either way, "restart, then verify" stays the safe rule: what this shows is that a mid-session change
+  *can* take effect, not that it always does.
+
 **canon-inbox v4 + check-hook-registration v8, canon `9b6b1b7` — adopted 2026-10-08** (branch
 `chore/kit-canon-inbox-v4`; the PR number is the stable name). One PR because the two interlock: v8
 reads every `@event`/`@matcher` pair, and v4 declares a second one.

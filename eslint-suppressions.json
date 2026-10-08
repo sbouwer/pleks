@@ -9,14 +9,6 @@
       "count": 2
     }
   },
-  "scripts/check-context-budget.mjs": {
-    "sonarjs/no-unenclosed-multiline-block": {
-      "count": 1
-    },
-    "sonarjs/super-linear-regex": {
-      "count": 2
-    }
-  },
   "scripts/check-drift-if-sql-changed.mjs": {
     "sonarjs/no-unenclosed-multiline-block": {
       "count": 1

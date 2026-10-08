@@ -1,6 +1,18 @@
 /**
  * .claude/hooks/context-budget.js — UserPromptSubmit annotator that keeps the token budget in view.
  *
+ * @kit context-budget v1 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
+ * else is canon's, and `check-kit-drift.mjs` says so if it changes here.
+ *
+ * Register: settings.json → hooks.UserPromptSubmit, command
+ * `node "$CLAUDE_PROJECT_DIR/.claude/hooks/context-budget.js"`. Ignore `.claude/.context-budget.state.json`
+ * (playbooks/3-TOKEN-ECONOMY.md §2: a `.claude/*` ignore with negations must still list it).
+ *
+ * v1 (2026-10-08, nortiercupboards CF-4) is pleks's bytes at `4635041c`, which nortiercupboards and
+ * blindly had copied byte for byte, so a fix in pleks reached neither. The thresholds became the
+ * project's region; the measurements below are pleks's and are kept as its evidence. A literal BOM
+ * in a regex became `\uFEFF` (canon's no-irregular-whitespace).
+ *
  * WHY THIS EXISTS: every turn re-sends the whole conversation, so at 600k of context a one-line
  * `grep` costs the same billable-equivalent as a 200-line file write. Turn count × context size IS
  * the spend; output tokens were ~2% of it. Measured on this repo's own transcript metadata —
@@ -63,8 +75,12 @@ import { pathToFileURL } from "node:url";
 // WARN sits deliberately BELOW the 300k --autocompact threshold this repo recommends. If the two
 // were equal the tier could never fire: compaction would pre-empt its own warning and the text
 // would be unreachable.
+/* KIT:CONFIG thresholds — WARN below your autoCompactWindow, STOP above it.
+ * scripts/check-context-budget.mjs fails if either is on the wrong side of the window.
+ */
 const WARN = 180_000;
 const STOP = 450_000;
+/* KIT:CONFIG /thresholds */
 
 // ── pricing ──────────────────────────────────────────────────────────────────────────────────
 // Anthropic bills a cache READ at ~10% of the base input rate and a cache WRITE at ~125%. These
@@ -434,7 +450,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     let additionalContext = "";
     let systemMessage = null;
     try {
-      const input = JSON.parse(raw.replace(/^﻿/, ""));
+      const input = JSON.parse(raw.replace(/^\uFEFF/, ""));
       if (input.transcript_path) {
         const m = measure(input.transcript_path, input.cwd);
         additionalContext = adviseAgent(m) ?? "";
