@@ -7,8 +7,9 @@
  *        pleks_trace correlation id are KEPT in prose — they are non-identifying and
  *        the trace is load-bearing for log correlation. scrubString/scrubObject are
  *        exported for reuse by the bug-report endpoint (ADDENDUM_68); scrubEvent is
- *        the Sentry beforeSend hook and scrubTransaction its beforeSendTransaction
- *        twin. Request body, cookies, headers and query string are always dropped.
+ *        the Sentry beforeSend hook, scrubTransaction its beforeSendTransaction
+ *        twin, and scrubSpan the beforeSendSpan third path (browser standalone
+ *        web-vital spans skip both of the others). Request body, cookies, headers and query string are always dropped.
  *
  *        Link tokens are the other half. They live in URLs, as a query param
  *        (`/wo/…?token=`) OR as a path segment (`/approve/[token]`), in five shapes:
@@ -109,7 +110,7 @@ export function scrubObject(obj: Record<string, unknown>): Record<string, unknow
 
 // Keys whose value IS a URL or path (fetch/xhr `url`, navigation `from`/`to`, OTel `http.*`/`url.*`,
 // Next's `request_path`), and keys that hold only a query or fragment, which are dropped.
-const URL_KEY = /(?:^|[._])(?:url|full|path|target|from|to|route)$/i
+const URL_KEY = /(?:^|[._])(?:url|full|path|target|from|to|route|transaction)$/i
 const QUERY_KEY = /(?:^|[._])(?:query|query_string|fragment)$/i
 
 function scrubValue(value: unknown, key?: string): unknown {
@@ -125,9 +126,23 @@ function scrubValue(value: unknown, key?: string): unknown {
   return value
 }
 
+/** A `scheme://` url (http, https, app) whose PATH is not under /_next/. Query and fragment are not read. */
+function isPageUrl(value: string): boolean {
+  const url = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*([^?#]*)/i.exec(value)
+  return url !== null && !url[1].startsWith("/_next/")
+}
+
 function scrubCommon<E extends SentryEvent>(event: E): E {
   event.exception?.values?.forEach(exception => {
     if (exception.value) exception.value = scrubText(exception.value)
+    // The browser SDK writes the PAGE url into a frame when the script url is empty ("Script error.",
+    // inline handlers), and @sentry/nextjs's frame normalization has already rewritten its origin to
+    // app:// by the time beforeSend runs — so any scheme counts. A bundle under /_next/ keeps its path,
+    // which symbolication needs (its build id would read as a token).
+    exception.stacktrace?.frames?.forEach(frame => {
+      if (frame.filename && isPageUrl(frame.filename)) frame.filename = scrubUrl(frame.filename)
+      if (frame.abs_path && isPageUrl(frame.abs_path)) frame.abs_path = scrubUrl(frame.abs_path)
+    })
   })
   if (event.message) event.message = scrubText(event.message)
 
@@ -154,12 +169,16 @@ function scrubCommon<E extends SentryEvent>(event: E): E {
   if (event.tags) event.tags = scrubValue(event.tags) as typeof event.tags
   if (event.extra) event.extra = scrubValue(event.extra) as typeof event.extra
 
-  event.spans?.forEach(span => {
-    if (span.description) span.description = scrubText(span.description)
-    if (span.data) span.data = scrubValue(span.data) as typeof span.data
-  })
+  event.spans?.forEach(scrubSpan)
 
   return event
+}
+
+/** beforeSendSpan: a standalone web-vital span carries its page in `data.transaction`, a URL key. */
+export function scrubSpan<S extends { description?: string; data?: Record<string, unknown> }>(span: S): S {
+  if (span.description) span.description = scrubText(span.description)
+  if (span.data) span.data = scrubValue(span.data) as S["data"]
+  return span
 }
 
 export function scrubEvent(event: SentryErrorEvent, _hint?: SentryEventHint): SentryErrorEvent | null {

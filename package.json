@@ -99,6 +99,7 @@
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/github": "^12.0.10",
     "@semantic-release/release-notes-generator": "^14.1.1",
+    "@sentry/browser": "10.75.3",
     "@tailwindcss/postcss": "^4",
     "@types/estree": "^1.0.9",
     "@types/node": "^22.20.5",

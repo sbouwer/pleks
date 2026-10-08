@@ -30,7 +30,7 @@ const ALLOWLIST = new Set([
   "lib/env.ts",
   "next.config.ts",
   "instrumentation.ts",
-  "sentry.client.config.ts",
+  "instrumentation-client.ts",
   "sentry.edge.config.ts",
   "sentry.server.config.ts",
 ])

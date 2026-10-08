@@ -423,6 +423,8 @@ export async function proxy(request: NextRequest) {
   return handleProtectedRoute(rule, request, readOrMintTrace(request))
 }
 
+// `monitoring` is the Sentry tunnel (next.config.ts tunnelRoute): the subdomain split would 308 it off the
+// admin and marketing hosts (the envelope is lost) and every envelope would pay a session refresh.
 export const config = {
-  matcher: "/((?!_next/static|_next/image|_next/data|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  matcher: "/((?!monitoring(?:/|$)|_next/static|_next/image|_next/data|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 }
