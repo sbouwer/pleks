@@ -1,7 +1,7 @@
 /**
  * bash-gate.probe.mjs — KIT FILE, install at `.claude/hooks/`.
  *
- * @kit bash-gate-probe v17 — tracked OUTSIDE its `KIT:CONFIG` regions.
+ * @kit bash-gate-probe v18 — tracked OUTSIDE its `KIT:CONFIG` regions.
  *
  * BOTH DIRECTIONS, per `ledgers/LESSONS.md` L-01: a planted violation must FAIL
  * and a known-good case must PASS. A pattern that matches nothing reports 100%
@@ -65,6 +65,11 @@
  * su/flock/busybox/ssh/docker exec, `npm pkg set scripts.x=`, git's filters and --exec — the allows
  * they must not cost (gh, git -m, curl -d, harmless strings), the declared cost (a quoted test name),
  * the declared limit (`"$CMD"`), and two timed shapes for the quoted-argument reading.
+ *
+ * v18 (2026-10-08, pleks CF-22) carries the known programs that run a shell — git bisect run, submodule
+ * foreach, difftool/send-email's commands, bun x, a package's bin through node, an interpreter's argv,
+ * gh alias --shell, tee >(sh) — the allows they must not cost, the declared cost (a script's quoted
+ * argument), and four timed shapes; no timed shape may be answered by the gate failing (GATE_FAILED).
  *
  * Run: node .claude/hooks/bash-gate.probe.mjs   (wire into the `probe` script)
  *      node .claude/hooks/bash-gate.probe.mjs --against <the gate you are replacing>
@@ -361,7 +366,8 @@ const PROJECT_LOOSENED = {
   "PLEKS RUNNER: a commit message naming cmd //c git push --force is prose": "a quoted `-m` message: text git stores. The held gate matched the words; the runner backstop reads after canon's message masking",
   "v17: git reads a message as a message": "a quoted -m message naming a destructive rm: text git stores, never run. The held gate matched the words inside it",
   "v17: curl's data is data": "curl -d sends its string as request data and runs nothing. The held gate matched the words anywhere in the line",
-  "v17: an interpreter is known — its script's quoted argument keeps v13's reading": "node runs a named script and hands it the string as argv. If the script executes it, that is the declared gap of a script the gate cannot read, which the held gate also allowed when the script was run without the string"
+  "v18: a tee into >(…) that is not an interpreter": "the here-string goes to tee, and tee copies it into wc -l, which counts lines and runs nothing. The held gate matched the words in the line",
+  "v18: …so code naming an act outside a literal is not read as a shell line": "the act is named inside a JavaScript comment in node -e's code, which never executes it; v13's literal reading still denies the act inside a string literal. The held gate matched the words in the line"
 }
 /* KIT:CONFIG /loosened */
 
@@ -932,11 +938,40 @@ const CASES = [
   { want: "allow", why: "v17: unknown programs given harmless strings", payload: bash('npx concurrently "npm run dev" "npm run api"') },
   { want: "allow", why: "v17: …and a quoted key=value", payload: bash('docker run --rm -e "A=b c" node:22 node -v') },
   { want: "allow", why: "v17: a harmless filter", payload: bash('git filter-branch --msg-filter "sed s/a/b/" HEAD') },
-  { want: "allow", why: "v17: an interpreter is known — its script's quoted argument keeps v13's reading", payload: bash('node tools/x.mjs "git push -f"') },
   // THE COST, declared: an unknown program's quoted string naming a gated act is gated as if run.
   { want: "deny", why: "v17: COST — a test name naming a gated act, given to an unknown program", payload: bash('npx vitest run -t "rejects rm -rf ~"') },
   // NOT COVERED, declared: an expansion is not text the gate can read.
   { want: "allow", why: "v17: NOT COVERED — the string arrives through a variable", payload: bash('npx concurrently "$CMD"') },
+
+  // ── v18: …AND THE KNOWN PROGRAMS THAT RUN ONE ANYWAY (pleks CF-22, 0b60481d) ──
+  // rm, not push, wherever the string is quoted: a quoted `push -f` is found by the token reading.
+  { want: "deny", why: "v18: git bisect run hands its rest to a shell", payload: bash('git bisect run sh -c "rm -rf ~"') },
+  { want: "deny", why: "v18: …as one string", payload: bash('git bisect run "rm -rf ~"') },
+  { want: "deny", why: "v18: git submodule foreach runs its string", payload: bash('git submodule foreach "rm -rf ~"') },
+  { want: "deny", why: "v18: …past its options", payload: bash("git submodule foreach --recursive 'rm -rf ~'") },
+  { want: "deny", why: "v18: git difftool --extcmd=", payload: bash('git difftool --extcmd="rm -rf ~" HEAD~1') },
+  { want: "deny", why: "v18: git send-email --sendmail-cmd", payload: bash('git send-email --sendmail-cmd="rm -rf ~" x.patch') },
+  { want: "deny", why: "v18: bun x is npx", payload: bash('bun x concurrently "git push --force origin x"') },
+  { want: "deny", why: "v18: node running a package's bin", payload: bash('node node_modules/.bin/concurrently "rm -rf ~"') },
+  { want: "deny", why: "v18: node -e code that runs its argv", payload: bash('node -e "require(\'child_process\').execSync(process.argv[1])" "git push --force origin x"') },
+  { want: "deny", why: "v18: …python3 -c", payload: bash('python3 -c "import os,sys; os.system(sys.argv[1])" "rm -rf ~"') },
+  { want: "deny", why: "v18: …perl -e", payload: bash("perl -e 'system $ARGV[0]' \"rm -rf ~\"") },
+  { want: "deny", why: "v18: gh alias set --shell runs its expansion", payload: bash("gh alias set --shell p 'rm -rf ~' && gh p") },
+  { want: "deny", why: "v18: …as -s", payload: bash("gh alias set -s p 'rm -rf ~'") },
+  { want: "deny", why: "v18: a tee into >(sh) runs what tee is given", payload: bash('tee >(sh) <<< "rm -rf ~"') },
+  { want: "deny", why: "v18: …from the pipeline", payload: bash('echo "rm -rf ~" | tee >(bash) >/dev/null') },
+  { want: "allow", why: "v18: bisect run of a test", payload: bash("git bisect run npm test") },
+  { want: "allow", why: "v18: foreach of a harmless string", payload: bash('git submodule foreach "git status"') },
+  { want: "allow", why: "v18: a gh alias of gh arguments", payload: bash("gh alias set co 'pr checkout'") },
+  { want: "allow", why: "v18: a tee into >(…) that is not an interpreter", payload: bash('tee >(wc -l) <<< "rm -rf ~"') },
+  { want: "allow", why: "v18: node given a path", payload: bash("node scripts/x.mjs src/a.ts") },
+  { want: "allow", why: "v18: node -e given a harmless argument", payload: bash('node -e "console.log(process.argv[1])" "a b"') },
+  { want: "allow", why: "v18: a code interpreter's code keeps v13's reading of its literals", payload: bash('node -e "const a = 1; console.log(a | 2)"') },
+  { want: "allow", why: "v18: …so code naming an act outside a literal is not read as a shell line", payload: bash('node -e "x(); // never rm -rf ~"') },
+  // gawk, not awk: `awk` and `sed` are heredoc sinks, so only their g-/m-/n- spellings reach this rule.
+  { want: "allow", why: "v18: awk's arguments are its program and its variables, not commands", payload: bash(`gawk -v pat="rm -rf ~" '$0 ~ pat { n++ }' notes.md`) },
+  // THE COST, declared: a script's quoted argument naming a gated act is read as run.
+  { want: "deny", why: "v18: COST — a script's quoted argument naming a gated act", payload: bash('node tools/x.mjs "rm -rf ~"') },
 
   /* KIT:CONFIG cases — this project's own gates, beyond the canonical set above.
    * ONE PROBE PER RULE YOU ADDED TO THE HOOK'S DENY/ASK BLOCKS, both directions: the
@@ -1058,6 +1093,8 @@ const seenReasons = new Set();
 const UNPARSED = "could not parse hook input — failing to a prompt, not to silence";
 // v9: the backstop's budget is a failure mode like UNPARSED, not a rule, so it has no fallback to list.
 const OVER_BUDGET = "too long to read past each command word (bash-gate's work budget) — failing to a prompt, not to silence";
+// v18: the gate failing while it reads is a failure mode too — and no size case may reach it.
+const GATE_FAILED = "could not finish reading this command (the gate itself failed) — failing to a prompt, not to silence";
 try {
   for (const c of RUN_CASES) {
     const got = await run(c.payload, { raw: c.raw === true, root: c.root });
@@ -1066,7 +1103,7 @@ try {
     if (!ok) failed++;
     if (c.overridden) tightened++;
     const why = got.reason.replace(/^bash-gate: /, "");
-    if ((got.decision === "deny" || got.decision === "ask") && why !== UNPARSED && why !== OVER_BUDGET) seenReasons.add(why);
+    if ((got.decision === "deny" || got.decision === "ask") && why !== UNPARSED && why !== OVER_BUDGET && why !== GATE_FAILED) seenReasons.add(why);
     // The override is NAMED on its own line. A project reading a green run must be able to see
     // which verdicts are its own and which are canon's, or the next reader cannot tell a policy
     // decision from a default.
@@ -1108,12 +1145,21 @@ try {
       // v17: every quoted argument of an unknown program is read as a command.
       ["v17: many quoted arguments to an unknown program", `tool ${fill('"a b" ')}`],
       ["v17: many single words to an unknown program — not a string", `tool ${fill("a ")}`],
+      // v18: a quoted pipeline or list is one string of many segments — 470 KB overflowed a spread.
+      // …and past CONSUMED_SEGMENTS the second reading stops and it ASKS, never allows.
+      ["v18: a quoted pipeline to an unknown program", `npx "${fill("a | ")}a"`, "ask"],
+      ["v18: a quoted list to an unknown program", `npx "${fill("a; ")}a"`, "ask"],
+      ["v18: many tees into a shell", `echo x | tee ${fill(">(sh) ")}`],
+      // v18: the nested heredocs above asked from v13 to v17 only because the gate overflowed its stack.
+      // Read in full now, so the act at their centre must be found, not merely asked about.
+      ["v18: heredocs nested in heredocs, with an act at the centre", nested.replace(`\nH${levels - 1}\n`, `\nrm -rf ~\nH${levels - 1}\n`), "deny"],
       ["v17: one quoted argument nested in quoted arguments", `tool "tool \\"tool '${"a ".repeat(250_000)}'\\""`],
     ]) {
       const t = Date.now();
       const got = await run(bash(command));
       const ms = Date.now() - t;
-      const ok = got.decision !== "(no output)" && ms < BOUND_MS && (want === undefined || got.decision === want);
+      // v18: and never by the gate failing — that asks, but under a reason that names the wrong cause.
+      const ok = got.decision !== "(no output)" && ms < BOUND_MS && (want === undefined || got.decision === want) && !got.reason.endsWith(GATE_FAILED);
       if (!ok) failed++;
       console.log(`${ok ? "✓" : "✗"} size: ${Math.round(command.length / 1024)} KB of ${shape} → ${got.decision} in ${ms} ms (bound ${BOUND_MS} ms)`);
     }

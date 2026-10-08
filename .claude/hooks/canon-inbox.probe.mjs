@@ -2,7 +2,7 @@
 /**
  * .claude/hooks/canon-inbox.probe.mjs — canon-inbox.js in both directions, run as Claude Code runs it.
  *
- * @kit canon-inbox-probe v5 — tracked. It has no config region: its cases are the hook's contract.
+ * @kit canon-inbox-probe v6 — tracked. It has no config region: its cases are the hook's contract.
  *
  * Run: `node .claude/hooks/canon-inbox.probe.mjs` — exit 0 only if every case holds.
  *
@@ -26,6 +26,9 @@
  * v4 (2026-10-08): the hook speaks after a push too. A push asks canon with `--after-task` and
  * answers under PostToolUse; any other Bash call is silent WITHOUT asking canon, which a canon that
  * crashes when asked proves; a stdin that is not JSON still reads as a session start.
+ *
+ * v6 (2026-10-08, blindly CF-12): an escaped space, an escaped quote and a backslash-newline in a
+ * push speak; the same escapes around a non-push stay silent, and `'…\'` ends its quote.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
@@ -161,7 +164,9 @@ try {
     const hook = plant("push-hook", { canon: c, project: "named" });
     for (const command of ["git push origin feature", "git -C ../x push -u origin main", "npm run check && git push",
       // v5 (blindly CF-11): a quoted path to git is one word, as bash reads it.
-      `"C:/Program Files/Git/cmd/git.exe" push origin main`, `'C:/Program Files/Git/cmd/git.exe' -C "my repo" push`]) {
+      `"C:/Program Files/Git/cmd/git.exe" push origin main`, `'C:/Program Files/Git/cmd/git.exe' -C "my repo" push`,
+      // v6 (blindly CF-12): an escaped space is one word too, and so is a line joined by a backslash.
+      "git -C my\\ repo push origin main", "C:/Program\\ Files/Git/cmd/git.exe push", "git -C \"a\\\"b\" push", "git \\\npush origin main"]) {
       const r = run(hook, dir("push-proj"), bashCall(command));
       const args = (() => { try { return JSON.parse(msg(r)); } catch { return null; } })();
       check(`after \`${command}\`: canon is asked with --after-task, and the line is relayed under PostToolUse`,
@@ -178,7 +183,9 @@ try {
     const c = fakeCanon("unasked", "console.error('asked'); process.exit(4);\n");
     const hook = plant("unasked-hook", { canon: c });
     for (const command of ["git status", "npm test", "echo pushing is later", "git log --oneline -- push.md",
-      `"C:/Program Files/Git/cmd/git.exe" status`, `git commit -m "then git push; later"`]) {
+      `"C:/Program Files/Git/cmd/git.exe" status`, `git commit -m "then git push; later"`,
+      // v6: an escape keeps a character in its word — it does not make one, nor end a quote.
+      "git -C my\\ repo status", "echo git\\ push", "git commit -m \"a \\\" ; git push\"", "git commit -m 'a\\' && echo push"]) {
       const r = run(hook, dir("unasked-proj"), bashCall(command));
       check(`KNOWN-GOOD: after \`${command}\` the hook prints nothing and does not ask canon`, r.status === 0 && r.raw === "", r);
     }

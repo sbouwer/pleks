@@ -1,7 +1,7 @@
 /**
  * .claude/hooks/context-budget.js — UserPromptSubmit annotator that keeps the token budget in view.
  *
- * @kit context-budget v1 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
+ * @kit context-budget v2 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
  * else is canon's, and `check-kit-drift.mjs` says so if it changes here.
  *
  * Register: settings.json → hooks.UserPromptSubmit, command
@@ -13,12 +13,17 @@
  * project's region; the measurements below are pleks's and are kept as its evidence. A literal BOM
  * in a regex became `\uFEFF` (canon's no-irregular-whitespace).
  *
+ * v2 (2026-10-08, life-therapy CF-9): v1 still said "this repo" of those measurements in four places,
+ * one of them the advice injected into the model on every prompt \u2014 so every adopter told its own
+ * model, each turn, that it had measured what pleks measured. Each now names pleks. Numbers,
+ * thresholds and both audiences are unchanged.
+ *
  * WHY THIS EXISTS: every turn re-sends the whole conversation, so at 600k of context a one-line
  * `grep` costs the same billable-equivalent as a 200-line file write. Turn count × context size IS
- * the spend; output tokens were ~2% of it. Measured on this repo's own transcript metadata —
+ * the spend; output tokens were ~2% of it. Measured in pleks, on its own transcript metadata —
  * `cumulativeDroppedTokens: 4,344,909` across three compactions in one session.
  *
- * Compaction is the lever, by a distance. From this repo's own `compactMetadata`:
+ * Compaction is the lever, by a distance. From pleks's own `compactMetadata`:
  *   preTokens 1,001,754 → postTokens 16,754   (auto)
  *   preTokens   998,784 → postTokens 18,203   (auto)
  *   preTokens   687,984 → postTokens 15,444   (manual)
@@ -72,7 +77,7 @@ import { join, dirname, basename } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // ── thresholds ───────────────────────────────────────────────────────────────────────────────
-// WARN sits deliberately BELOW the 300k --autocompact threshold this repo recommends. If the two
+// WARN sits deliberately BELOW the 300k --autocompact threshold this hook recommends. If the two
 // were equal the tier could never fire: compaction would pre-empt its own warning and the text
 // would be unreachable.
 /* KIT:CONFIG thresholds — WARN below your autoCompactWindow, STOP above it.
@@ -105,7 +110,7 @@ const STATE_FILE = ".claude/.context-budget.state.json";
  * Read a byte range without loading the file.
  *
  * The version this replaces called readFileSync() and then subarray()'d the tail — so `WINDOW`
- * bounded the PARSING and not the READING. On this repo's own transcript that was a 41.5MB read
+ * bounded the PARSING and not the READING. On pleks's own transcript that was a 41.5MB read
  * and allocation on every single prompt: the hook written to police I/O cost was the most
  * I/O-expensive thing in the session.
  */
@@ -391,7 +396,7 @@ function adviseUser(m) {
 
   if (m.context >= STOP) {
     return `⚠ CONTEXT ${k(m.context)} — ~${perTurn} billable-equivalent per turn before any work happens. `
-      + `Run /compact if this starts a new task: measured on this repo, compaction resets 1,001,754 `
+      + `Run /compact if this starts a new task: measured in pleks, compaction resets 1,001,754 `
       + `tokens to 16,754. To stop doing it by hand, start with --autocompact 300000 (accepts 100k-1M; `
       + `the default fires at ~1M). ${spend}`;
   }
