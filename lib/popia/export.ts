@@ -70,8 +70,9 @@ export async function generateExport(
   const db = createServiceClient()
   const ttl = options.ttl_seconds ?? 7 * 24 * 60 * 60
 
-  // 1. Gather subject data
-  const bundle = await gatherSubjectData(await db, request)
+  // 1. Gather subject data. The review rows stay out of the bundle: it is the subject's file, and a row held for
+  //    review may be someone else's — only its count goes in (walker R2).
+  const { bundle, needsReview } = await gatherSubjectData(await db, request)
 
   // 2. AI narrative (optional)
   let narrative: string | null = null
@@ -138,12 +139,19 @@ export async function generateExport(
     throw new Error(`[popia/export] insert failed: ${error?.message ?? "unknown"}`)
   }
 
-  // 7. Link export to request
-  await (await db)
+  // 7. Link export to request, with the rows held back for the Information Officer (DSAR follow-up 3). The page
+  //    re-resolves them live; this is the record of what the export left out when it was made. Same key and row
+  //    shape as erasure's (erasure.ts), and written only for the request types whose column nothing else writes:
+  //    on an erasure or nuke it holds erasure's whole record, which this must never replace (walker F5).
+  const { error: linkErr } = await (await db)
     .from("data_subject_requests")
     // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: request object comes from the gated /api/popia/request/[id]/approve route which validates user_orgs membership in request.org_id (or platform-admin) before invoking; org-filtering unsafe (platform requests have org_id NULL)
-    .update({ export_id: exportRow.id })
+    .update(request.request_type === "access" || request.request_type === "portability"
+      ? { export_id: exportRow.id, erasure_records_affected: { ambiguous_matches: needsReview } }
+      : { export_id: exportRow.id })
     .eq("id", request.id)
+  // Thrown, so the approve route leaves the request "approved" rather than completing it without the record.
+  if (linkErr) throw new Error(`[popia/export] request link failed: ${linkErr.message}`)
 
   // 8. Sign download URLs
   const [signedPdf, signedJson] = await Promise.all([
@@ -254,7 +262,7 @@ Write 2–3 paragraphs summarising what the agency holds, when the relationship 
 async function gatherSubjectData(
   db: Awaited<ReturnType<typeof createServiceClient>>,
   request: DataSubjectRequest,
-): Promise<SubjectDataBundle> {
+): Promise<{ bundle: SubjectDataBundle; needsReview: ResolvedSubject["needsReview"] }> {
   const { data: org, error: orgError } = await db
     .from("organisations")
     .select("name")
@@ -304,7 +312,7 @@ async function gatherSubjectData(
 
   const held = await gatherApplicationData(db, request.org_id, resolvedSubject)
 
-  return {
+  const bundle: SubjectDataBundle = {
     subject_email: request.subject_email,
     subject_name: request.subject_full_name,
     org_name: org?.name ?? "Agency",
@@ -315,6 +323,7 @@ async function gatherSubjectData(
     consent_entries: consent_entries ?? [],
     ...held,
   }
+  return { bundle, needsReview: resolvedSubject.needsReview }
 }
 
 // What the subject gave in an application, as lead or co. Identity numbers are encrypted at rest and stay out —

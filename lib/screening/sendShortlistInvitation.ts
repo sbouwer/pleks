@@ -34,7 +34,7 @@ import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { revalidatePath } from "next/cache"
 import { after } from "next/server"
 import { addDays } from "date-fns"
-import { enqueueScreening, fireScreening } from "@/lib/applications/screeningJobs"
+import { enqueueScreening, fireScreening, isStrippedApplication } from "@/lib/applications/screeningJobs"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited, sendShortlistInvitation as sendShortlistEmail } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -42,6 +42,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { inviteRoute, suretyInviteRole } from "@/lib/applications/juristicParties"
 import { sendDirectorInvite } from "@/lib/applications/directorInvite"
 import { canInviteToStage2 } from "@/lib/applications/stage2Invite"
+import { REDACTED } from "@/lib/popia/anonymisePlan"
 import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
 import type { SendEmailResult } from "@/lib/comms/send-email"
 import { deadlineAsStated } from "@/lib/screening/notificationSchedule"
@@ -67,13 +68,17 @@ export async function sendShortlistInvitation(applicationId: string): Promise<Sh
   // Org-scoped fetch — a cross-org applicationId resolves to null (verifies org ownership)
   const { data: application, error: applicationError } = await db
     .from("applications")
-    .select("id, applicant_email, first_name, org_id, listing_id, entity_type, applicant_type, company_info, stage1_status, stage2_status")
+    .select("id, applicant_email, first_name, org_id, listing_id, entity_type, applicant_type, company_info, stage1_status, stage2_status, pii_purged_at, deleted_at")
     .eq("id", applicationId)
     .eq("org_id", orgId)
     .single()
     logQueryError("sendShortlistInvitation applications", applicationError)
 
   if (!application) return { error: "Application not found" }
+  // Before any send: an erased lead would get a fresh payment link minted and an email addressed to "[erased]",
+  // and enqueueScreening's refusal comes only after both (DSAR follow-up 2).
+  if (isStrippedApplication(application)) return { error: "This applicant's personal information has been erased" }
+  if (application.deleted_at !== null) return { error: "Application not found" } // enqueueScreening refuses it too (walker F4)
   if (!canInviteToStage2(application.stage1_status as string | null, application.stage2_status as string | null)) {
     return { error: "This application cannot be invited to screening" }
   }
@@ -194,6 +199,7 @@ async function sendCoPartyInvites(
     .eq("org_id", orgId)
     .eq("primary_application_id", applicationId)
     .is("declined_at", null)
+    .neq("applicant_email", REDACTED) // an erased co is out of the set: never stamped invited (dsar-next walker F3)
   if (error) {
     logQueryError("sendShortlistInvitation application_co_applicants", error)
     return { ok: false, error: NOT_SENT }

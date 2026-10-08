@@ -15,7 +15,8 @@
  *         and an unchanged application is never re-scanned. Enqueue is cap-checked against
  *         MAX_SCREENING_ITERATIONS, refuses while a job is live, and dedupes after insert (oldest live job wins),
  *         so concurrent callers cannot stack AI runs without a unique index. It queues nothing without stage-1
- *         consent or a live token: /screen would 403 or never be fired, and the job would sit "live" forever.
+ *         consent or a live token: /screen would 403 or never be fired, and the job would sit "live" forever. It
+ *         queues nothing for an erased, purged or deleted application — the one choke point every trigger passes.
  *         The fire is best-effort: the screening-jobs cron is the backstop.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -24,6 +25,7 @@ import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { REDACTED } from "@/lib/popia/anonymisePlan"
 import { applicantTodos, type ApplicantTodo } from "./applicantTodos"
 import type { RulingFlag } from "./ruling"
 
@@ -33,7 +35,14 @@ const STAGE1_DECIDED = ["shortlisted", "not_shortlisted"] as const
 /** The same set as a PostgREST `not.in` operand: `.not("stage1_status", "in", STAGE1_DECIDED_IN)`. */
 export const STAGE1_DECIDED_IN = `(${STAGE1_DECIDED.join(",")})`
 
-export type EnqueueResult = "queued" | "active" | "screened" | "cap" | "not-entitled" | "not-ready" | "error"
+export type EnqueueResult = "queued" | "active" | "screened" | "cap" | "not-entitled" | "not-ready" | "erased" | "error"
+
+/** The application's applicant was stripped — a DSAR erasure (the `[erased]` sentinel on the NOT NULL email) or the
+ *  90-day declined purge (its `pii_purged_at` latch, which stamps after the same strip). Nothing may screen it again:
+ *  a pass would process a subject who exercised erasure, against documents the erasure already deleted. */
+export function isStrippedApplication(app: { applicant_email?: unknown; pii_purged_at?: unknown }): boolean {
+  return app.applicant_email === REDACTED || (app.pii_purged_at !== null && app.pii_purged_at !== undefined)
+}
 
 interface JobRow { status: string; attempts: number; max_attempts: number }
 
@@ -138,9 +147,12 @@ export async function enqueueScreening(
   // /screen 403s without consent BEFORE it claims, and nothing fires a job with no live token — either way the
   // job would never advance its attempts and would read as "live" forever, blocking every later enqueue.
   const { data: app, error: appErr } = await db.from("applications")
-    .select("stage1_consent_given").eq("id", applicationId).eq("org_id", orgId).maybeSingle()
+    .select("stage1_consent_given, applicant_email, pii_purged_at, deleted_at").eq("id", applicationId).eq("org_id", orgId).maybeSingle()
   logQueryError("enqueueScreening consent", appErr)
   if (appErr) return "error"
+  // Before consent: erasure keeps stage1_consent_given (consent_log is retained evidence), so consent alone would
+  // pass an erased lead. A deleted application is gone from the agent's view and has no pass to read either.
+  if (app && (isStrippedApplication(app) || app.deleted_at !== null)) return "erased"
   if (app?.stage1_consent_given !== true) return "not-ready"
   const tok = await liveToken(db, applicationId)
   if (tok.error) return "error"

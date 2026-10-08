@@ -27,7 +27,7 @@ function fakeService(lead: string, cos: string[]): Svc {
   return {
     from(table: string) {
       const b: Record<string, unknown> = {}
-      for (const m of ["select", "eq", "is"]) b[m] = () => b
+      for (const m of ["select", "eq", "is", "neq"]) b[m] = () => b
       b.maybeSingle = async () => ({ data: { searchworx_check_status: lead }, error: null })
       if (table === "application_co_applicants") {
         b.then = (ok: (v: unknown) => unknown) =>

@@ -132,10 +132,11 @@ describe("resolveSubject — which email matches are the subject", () => {
     )
     const r = await resolveSubject(db, { org_id: "org1", email: "home@x.com" })
     expect(r.coApplicants).toEqual([])
-    expect(ids(r.needsReview)).toEqual(["c-jane"])
+    expect(r.contactId).toBeNull()
+    expect(ids(r.needsReview)).toEqual(["c-jane", "ct-bob"])
   })
 
-  it("no account: an unhashed match beside a hashed contact chain is not the mailbox's sole row (walker N1)", async () => {
+  it("no account: an unhashed match beside a hashed contact is not the mailbox's sole row (walker N1)", async () => {
     const db = fakeDb(
       [co("c-jane", { applicant_email: "home@x.com", primary_application_id: "app-bob" })],
       [app("app-bob", { tenant_id: "t-bob", applicant_email: "home@x.com", id_number_hash: "h-bob" })],
@@ -146,7 +147,124 @@ describe("resolveSubject — which email matches are the subject", () => {
     )
     const r = await resolveSubject(db, { org_id: "org1", email: "home@x.com" })
     expect(r.coApplicants).toEqual([])
-    expect(ids(r.needsReview)).toEqual(["c-jane"])
+    expect(r.tenantId).toBeNull()
+    expect(ids(r.needsReview)).toEqual(["app-bob", "c-jane", "ct-bob"])
+  })
+
+  it("no account: a contact sent to review takes its tenant, landlord and their applications with it (follow-up 1)", async () => {
+    const db = fakeDb(
+      [co("c-jane", { applicant_email: "home@x.com", id_number_hash: "h-jane" })],
+      [app("app-bob-linked", { tenant_id: "t-bob", applicant_email: "bob@work.com", id_number_hash: "h-bob" })],
+      {
+        contacts: [{ id: "ct-bob", org_id: "org1", primary_email: "HOME@x.com", id_number_hash: "h-bob" }],
+        tenants: [{ id: "t-bob", org_id: "org1", contact_id: "ct-bob" }],
+        landlords: [{ id: "l-bob", org_id: "org1", contact_id: "ct-bob" }],
+      },
+    )
+    const r = await resolveSubject(db, { org_id: "org1", email: "home@x.com" })
+    expect([r.contactId, r.tenantId, r.landlordId]).toEqual([null, null, null])
+    expect(r.applicationIds).toEqual([])
+    expect(ids(r.needsReview)).toEqual(["c-jane", "ct-bob"])
+  })
+
+  it("no account: a contact tied by one ID brings its chain, and a linked row with another ID goes to review", async () => {
+    const db = fakeDb(
+      [co("c-linked-other", { tenant_id: "t-jane", id_number_hash: "h-other" })],
+      [
+        app("app-email", { applicant_email: "jane@x.com", id_number_hash: "h-jane" }),
+        app("app-linked", { tenant_id: "t-jane", applicant_email: "old@x.com", id_number_hash: "h-jane" }),
+      ],
+      {
+        contacts: [{ id: "ct-jane", org_id: "org1", primary_email: "Jane@x.com", id_number_hash: "h-jane" }],
+        tenants: [{ id: "t-jane", org_id: "org1", contact_id: "ct-jane" }],
+        landlords: [{ id: "l-jane", org_id: "org1", contact_id: "ct-jane" }],
+      },
+    )
+    const r = await resolveSubject(db, { org_id: "org1", email: "jane@x.com" })
+    expect([r.contactId, r.tenantId, r.landlordId]).toEqual(["ct-jane", "t-jane", "l-jane"])
+    expect(r.applicationIds.sort()).toEqual(["app-email", "app-linked"])
+    expect(ids(r.needsReview)).toEqual(["c-linked-other"])
+  })
+
+  it("two contacts on one mailbox are never picked between, even with one ID", async () => {
+    const db = fakeDb([], [], {
+      contacts: [
+        { id: "ct-a", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-jane" },
+        { id: "ct-b", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-jane" },
+      ],
+      tenants: [{ id: "t-a", org_id: "org1", contact_id: "ct-a" }],
+    })
+    const r = await resolveSubject(db, { org_id: "org1", email: "jane@x.com" })
+    expect([r.contactId, r.tenantId]).toEqual([null, null])
+    expect(ids(r.needsReview)).toEqual(["ct-a", "ct-b"])
+  })
+
+  it("a contact sent to review is never re-admitted by the tenant backfill (dsar-next walker F1)", async () => {
+    const db = fakeDb([], [app("app-1", { applicant_email: "jane@x.com", id_number_hash: "h-jane", tenant_id: "t-a" })], {
+      contacts: [
+        { id: "ct-a", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-jane" },
+        { id: "ct-b", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-jane" },
+      ],
+      tenants: [{ id: "t-a", org_id: "org1", contact_id: "ct-a" }],
+    })
+    const r = await resolveSubject(db, { org_id: "org1", email: "jane@x.com" })
+    expect(r.applicationIds).toEqual(["app-1"])
+    expect(r.tenantId).toBeNull() // the tenant goes with its contact, not with the application (walker N2)
+    expect(r.contactId).toBeNull()
+    expect(ids(r.needsReview)).toEqual(["ct-a", "ct-b"])
+  })
+
+  it("anchored: a contact whose own tenant is not the account's goes to review, never half-erased (walker N1)", async () => {
+    const db = fakeDb([], [
+      app("app-j", { applicant_email: "jane@x.com", id_number_hash: "h-jane", tenant_id: "t-jane" }),
+      app("app-y", { applicant_email: "old@x.com", id_number_hash: "h-jane", tenant_id: "t-y" }),
+    ], {
+      tenants: [{ id: "t-jane", org_id: "org1", auth_user_id: "u-jane", contact_id: null }, { id: "t-y", org_id: "org1", contact_id: "ct-y" }],
+      contacts: [{ id: "ct-y", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-jane" }],
+    })
+    const r = await resolveSubject(db, { org_id: "org1", user_id: "u-jane", email: "jane@x.com" })
+    expect([r.contactId, r.tenantId]).toEqual([null, "t-jane"])
+    expect(ids(r.needsReview)).toEqual(["ct-y"])
+  })
+
+  it("an accepted application never brings in a tenant whose contact is in review (walker N2)", async () => {
+    const db = fakeDb([], [app("app-y", { applicant_email: "jane@x.com", id_number_hash: "h-jane", tenant_id: "t-x" })], {
+      landlords: [{ id: "l-jane", org_id: "org1", auth_user_id: "u-jane", contact_id: "ct-jane" }],
+      tenants: [{ id: "t-x", org_id: "org1", contact_id: "ct-x" }],
+      contacts: [
+        ...janeAccount.contacts,
+        { id: "ct-x", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-other" },
+      ],
+    })
+    const r = await resolveSubject(db, { org_id: "org1", user_id: "u-jane", email: "jane@x.com" })
+    expect(r.applicationIds).toEqual(["app-y"])
+    expect(r.tenantId).toBeNull()
+    expect(ids(r.needsReview)).toEqual(["ct-x"])
+  })
+
+  it("an unhashed contact takes the one ID on its own tenant's applications (dsar-next walker F2)", async () => {
+    const db = fakeDb([], [app("app-1", { applicant_email: "jane@x.com", id_number_hash: "h-jane", tenant_id: "t-jane" })], {
+      contacts: [{ id: "ct-jane", org_id: "org1", primary_email: "jane@x.com", id_number_hash: null }],
+      tenants: [{ id: "t-jane", org_id: "org1", contact_id: "ct-jane" }],
+    })
+    const r = await resolveSubject(db, { org_id: "org1", email: "jane@x.com" })
+    expect([r.contactId, r.tenantId]).toEqual(["ct-jane", "t-jane"])
+    expect(r.applicationIds).toEqual(["app-1"])
+    expect(r.needsReview).toEqual([])
+  })
+
+  it("…and that ID still has to agree with the mailbox: a spouse's row on it sends all to review", async () => {
+    const db = fakeDb(
+      [co("c-spouse", { applicant_email: "jane@x.com", id_number_hash: "h-spouse" })],
+      [app("app-1", { applicant_email: "jane@x.com", id_number_hash: "h-jane", tenant_id: "t-jane" })],
+      {
+        contacts: [{ id: "ct-jane", org_id: "org1", primary_email: "jane@x.com", id_number_hash: null }],
+        tenants: [{ id: "t-jane", org_id: "org1", contact_id: "ct-jane" }],
+      },
+    )
+    const r = await resolveSubject(db, { org_id: "org1", email: "jane@x.com" })
+    expect([r.contactId, r.tenantId]).toEqual([null, null])
+    expect(ids(r.needsReview)).toEqual(["app-1", "c-spouse", "ct-jane"])
   })
 
   it("no account: one consistent ID across every match is the subject", async () => {
