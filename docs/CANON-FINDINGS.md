@@ -197,6 +197,34 @@ Adoptions canon has to record in `kitAdopted`, and pins: a row deliberately behi
 row id, the version held, the reason, and a review date. A pin means *read and deliberately behind*,
 never *exempt*, so the reason has to argue it.
 
+**canon-inbox v4 + check-hook-registration v8, canon `9b6b1b7` — adopted 2026-10-08** (branch
+`chore/kit-canon-inbox-v4`; the PR number is the stable name). One PR because the two interlock: v8
+reads every `@event`/`@matcher` pair, and v4 declares a second one.
+- **Adopted:** `canon-inbox@4` · `canon-inbox-probe@5` · `check-hook-registration@8`, carried by
+  `apply-kit.mjs pleks --carry-only --write`. Outside KIT:CONFIG all three are byte-identical to
+  `git show 9b6b1b7:<path>`. Inside it, pleks's v1 comment described a canon lookup the code dropped
+  in v2, so it now carries canon's text and the file is byte-identical. Canon's working tree was dirty
+  at the time (`M kit/project-kit/hooks/bash-gate.js`, `.probe.mjs`), and none of the carried files was.
+- **After-push registration:** `hooks.PostToolUse`, matcher `Bash`, beside the existing
+  `SessionStart`/`startup`. `check-hook-registration` is green, and its selftest includes v8's
+  two-event probes. canon-inbox probe: 21 held, 1 advisory.
+- **Run by hand:** after a `git push`, it printed the one line, with `--after-task` wording. After a
+  `git status`, it printed nothing in 65 ms.
+- **Observed, not a finding yet:** `bash <(echo git push)` is not read as a push. `segments` sees
+  `<(echo` and `push)`. The hook's own header calls a miss "one reminder", so this goes no further.
+- **The inbox line names `bash-gate.js`/`.probe.mjs` as "not canon's copy"**, because it compares
+  them with canon's *working tree*, which has uncommitted bash-gate edits. This was corroborated
+  once canon committed those edits as `b9f9979` (bash-gate v17): at `2c2bbb9`, with a clean tree, the
+  line lists bash-gate as *behind* rather than "not canon's copy". It is the CF-19 shape again, on the
+  inbox rather than the probe.
+- **Finding for canon: check-hook-registration is one-directional, in v7 and in v8.** It checks that
+  every declared `@event`/`@matcher` pair is registered, and never the reverse. A hook that declares
+  only `SessionStart`/`startup` but is also registered under `PreToolUse`/`Bash` audits clean, so it
+  runs as a blocking gate on a surface its header never claims. Walker reproduction:
+  `.handoff/kit-canon-inbox-v4/01-walker.md` F3.
+  Smallest fix: fail any registration whose (event, matcher) pair is not among the declared pairs.
+  It must not break a hook that legitimately declares several pairs.
+
 **bash-gate v17, canon `2c2bbb9` (merge of `b9f9979`) — adopted 2026-10-08** (branch
 `chore/kit-bash-gate-v17`; the PR number is the stable name). Canon marked it URGENT: below canon's
 floor, and to be taken before the next push.

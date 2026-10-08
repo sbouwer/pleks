@@ -2,7 +2,7 @@
 /**
  * .claude/hooks/canon-inbox.probe.mjs — canon-inbox.js in both directions, run as Claude Code runs it.
  *
- * @kit canon-inbox-probe v3 — tracked. It has no config region: its cases are the hook's contract.
+ * @kit canon-inbox-probe v5 — tracked. It has no config region: its cases are the hook's contract.
  *
  * Run: `node .claude/hooks/canon-inbox.probe.mjs` — exit 0 only if every case holds.
  *
@@ -22,6 +22,10 @@
  * dirty, never counted. Run from canon's own `kit/project-kit/hooks/` it still gates, because there
  * the tree it reads is the tree being gated. The banner counts what held, what was skipped and what
  * was advisory; it no longer says "every case holds" over a case that did not run.
+ *
+ * v4 (2026-10-08): the hook speaks after a push too. A push asks canon with `--after-task` and
+ * answers under PostToolUse; any other Bash call is silent WITHOUT asking canon, which a canon that
+ * crashes when asked proves; a stdin that is not JSON still reads as a session start.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
@@ -68,11 +72,14 @@ function plant(at, { canon, project, timeout } = {}) {
   return file;
 }
 
-function run(hook, projectDir) {
+const START = JSON.stringify({ hook_event_name: "SessionStart", source: "startup" });
+const bashCall = (command) => JSON.stringify({ hook_event_name: "PostToolUse", tool_name: "Bash", tool_input: { command } });
+
+function run(hook, projectDir, input = START) {
   const t = Date.now();
   const r = spawnSync(process.execPath, [hook], {
     encoding: "utf8",
-    input: JSON.stringify({ hook_event_name: "SessionStart", source: "startup" }),
+    input,
     env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
     timeout: 20_000,
   });
@@ -146,6 +153,38 @@ try {
     const r = run(plant("hang-hook", { canon: c, timeout: 300 }), dir("hang-proj"));
     check("a hanging canon: cut off at the timeout, NOT MEASURED, exit 0",
       r.status === 0 && msg(r).includes("NOT MEASURED") && msg(r).includes("timed out") && r.ms < 10_000, r);
+  }
+
+  // 8 · AFTER A PUSH (v3): the same question, asked with --after-task, answered under PostToolUse.
+  {
+    const c = fakeCanon("push", "console.log(JSON.stringify(process.argv.slice(2)));\n");
+    const hook = plant("push-hook", { canon: c, project: "named" });
+    for (const command of ["git push origin feature", "git -C ../x push -u origin main", "npm run check && git push",
+      // v5 (blindly CF-11): a quoted path to git is one word, as bash reads it.
+      `"C:/Program Files/Git/cmd/git.exe" push origin main`, `'C:/Program Files/Git/cmd/git.exe' -C "my repo" push`]) {
+      const r = run(hook, dir("push-proj"), bashCall(command));
+      const args = (() => { try { return JSON.parse(msg(r)); } catch { return null; } })();
+      check(`after \`${command}\`: canon is asked with --after-task, and the line is relayed under PostToolUse`,
+        r.status === 0 && Array.isArray(args) && args.includes("--after-task") && args[1] === "--quick" &&
+          r.out?.hookSpecificOutput?.hookEventName === "PostToolUse" && r.out?.hookSpecificOutput?.additionalContext === msg(r), r);
+    }
+    const start = run(hook, dir("push-proj"));
+    check("KNOWN-GOOD: a session start does NOT pass --after-task — it keeps its own wording",
+      !msg(start).includes("--after-task") && start.out?.hookSpecificOutput?.hookEventName === "SessionStart", start);
+  }
+
+  // 9 · KNOWN-GOOD: any other Bash call is silent, and canon is NOT ASKED — this canon crashes if it is.
+  {
+    const c = fakeCanon("unasked", "console.error('asked'); process.exit(4);\n");
+    const hook = plant("unasked-hook", { canon: c });
+    for (const command of ["git status", "npm test", "echo pushing is later", "git log --oneline -- push.md",
+      `"C:/Program Files/Git/cmd/git.exe" status`, `git commit -m "then git push; later"`]) {
+      const r = run(hook, dir("unasked-proj"), bashCall(command));
+      check(`KNOWN-GOOD: after \`${command}\` the hook prints nothing and does not ask canon`, r.status === 0 && r.raw === "", r);
+    }
+    const garbled = run(hook, dir("unasked-proj"), "not json");
+    check("stdin that is not JSON reads as a session start — canon IS asked (and here says it crashed)",
+      garbled.status === 0 && msg(garbled).includes("NOT MEASURED") && msg(garbled).includes("exited 4"), garbled);
   }
 
   // 7 · LIVE: the real canon names a copy planted a version behind, inside a session start's budget.
