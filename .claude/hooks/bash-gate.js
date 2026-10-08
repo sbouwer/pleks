@@ -1,7 +1,7 @@
 /**
  * bash-gate.js — PreToolUse gate for Bash. KIT FILE, install at `.claude/hooks/`.
  *
- * @kit bash-gate v17 — tracked OUTSIDE its `KIT:CONFIG` regions. Those regions are yours;
+ * @kit bash-gate v18 — tracked OUTSIDE its `KIT:CONFIG` regions. Those regions are yours;
  * everything else is canon's, and `check-kit-drift.mjs` reconciles it.
  *
  * WHY THIS EXISTS, and it is not the reason you would guess. Allow-rules in
@@ -110,6 +110,14 @@
  * program the gate does not know has every multi-word argument, and every `key=value`'s value, read
  * as a command; see "A STRING HANDED TO A PROGRAM THE GATE DOES NOT KNOW". The declared cost: such a
  * string naming a gated act is gated as if run. No rule is added, so no fallback is owed.
+ *
+ * v18 (2026-10-08) is pleks CF-22: v17's KNOWN programs were assumed not to run their argv, and eleven
+ * shapes broke that — git bisect run / submodule foreach / difftool --extcmd / send-email
+ * --sendmail-cmd, `bun x`, `node node_modules/.bin/…`, a code interpreter's argv handed to an exec,
+ * `gh alias set --shell`, and `tee >(sh)`. See "…AND THE KNOWN PROGRAMS THAT RUN ONE ANYWAY". A 470 KB
+ * quoted pipeline overflowed the stack and asked as "could not parse"; spreads are gone, a failure
+ * while reading has its own reason (GATE_FAILED), and the second reading of a quoted list is bounded
+ * by CONSUMED_SEGMENTS, past which it asks. No rule is added, so no fallback is owed.
  *
  * A REASON IS ALWAYS SET, INCLUDING ON ALLOW. An empty reason makes an allow
  * indistinguishable from a hook that ran and decided nothing.
@@ -559,7 +567,17 @@ function pastWrapper(tokens, i, w) {
 // NOT COVERED: a settings twin matches the spelling it names, so `Bash(git push --force *)` is no
 // floor for `git.exe push --force`. A project that wants one lists the spelling in its settings.
 const EXECUTABLE_SUFFIX = /\.(?:exe|cmd|bat|com)$/;
-const commandName = (t) => t.slice(Math.max(t.lastIndexOf("/"), t.lastIndexOf("\\")) + 1).toLowerCase().replace(EXECUTABLE_SUFFIX, "");
+// v18: remembered per token — every rule asks it of every segment, and on a 500 KB quoted list
+// (pleks CF-22) that was 0.8 s of 1.9. The map holds at most one entry per distinct token of the input.
+const NAMES = new Map();
+const commandName = (t) => {
+  let name = NAMES.get(t);
+  if (name === undefined) {
+    name = t.slice(Math.max(t.lastIndexOf("/"), t.lastIndexOf("\\")) + 1).toLowerCase().replace(EXECUTABLE_SUFFIX, "");
+    NAMES.set(t, name);
+  }
+  return name;
+};
 
 /** Index of the command word in a segment: past assignments, keywords, wrappers and runners. */
 function commandWordIndex(tokens) {
@@ -1486,6 +1504,13 @@ function configStrings(seg, g) {
 // into another command's ARGUMENTS (`echo ~ | xargs rm -rf`) — reading those as a target would deny
 // `find / -name x | xargs rm -f`, since rm's targets are then find's arguments.
 const CONSUMED_DEPTH = 3;
+// v18 (pleks CF-22): `out.push(...list)` passes every element as an argument, and past about 120 000
+// the stack overflows — a 470 KB quoted pipeline did, and asked under the wrong reason. Every list
+// the consumed reading builds goes through this instead.
+const append = (out, list) => {
+  for (const x of list) out.push(x);
+  return out;
+};
 const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish"]);
 const WINDOWS_SHELLS = new Set(["pwsh", "powershell", "cmd"]);
 const CODE = /^(?:python[\d.]*|py|node|nodejs|deno|bun|perl|ruby|php)$/;
@@ -1714,7 +1739,7 @@ function programs(args, stdin, flag, valued) {
       if (!file) out.programs.push(v);
       else if ((v === "-" || v === "/dev/stdin") && !out.fromStdin) {
         out.fromStdin = true;
-        out.programs.push(...stdin());
+        append(out.programs, stdin());
       }
     } else if (valued.has(t)) i++;
     else if (!t.startsWith("-") && first === null) first = t;
@@ -1872,33 +1897,102 @@ function scriptOf(word, files) {
 // NOT COVERED: expansions — `$VAR`, `$'…'` read as text, `${IFS}`, brace expansion — which no reader of
 // text can resolve; and a runner given its command as separate unquoted words, which only the backstop's
 // bare `git`/`rm`/`gh` reading sees.
+//
+// ── …AND THE KNOWN PROGRAMS THAT RUN ONE ANYWAY (v18, pleks CF-22) ──
+//
+// v17 assumed each KNOWN program does not run its argv. pleks measured eleven shapes that break the
+// assumption, all ALLOWED by v17, and each is now read:
+//   git bisect run …, git submodule foreach "…"   the rest of the line is a command — `foreach` takes
+//                                                  one string as a shell line, several as quoted words
+//   git difftool --extcmd, git send-email --sendmail-cmd / --to-cmd / --cc-cmd / --header-cmd
+//   bun x concurrently "…", node node_modules/.bin/concurrently "…"
+//   node -e "…execSync(process.argv[1])" "…", python3 -c "…os.system(sys.argv[1])" "…", perl -e '…' "…"
+//   gh alias set --shell p '…' (a shell line) — and without --shell, `gh <expansion>`
+//   tee >(sh) <<< "…"                              a `>(…)` runs what the command writes
+// A code interpreter is a runner of a script the gate cannot read, so the script's arguments are
+// what an unknown program's are: every one holding whitespace is read as a command. The code
+// itself (`-e`/`-c`/`-p`/`--eval`/`--print`'s value) keeps v13's reading, of its literals. A shell's
+// arguments likewise. sed and awk are not runners of their arguments: their argument IS the program.
+// THE COST, declared: `node tools/x.mjs "git push -f"` is now read as the push.
 const TEXT_TAKERS = new Set([...PROSE, ...HEREDOC_SINKS]);
-const GIT_SHELL_OPTION = /^(?:--(?:tree|index|msg|commit|env|parent|tag-name)-filter|--exec|-x)(?:=([\s\S]*))?$/;
+const GIT_SHELL_OPTION = /^(?:--(?:tree|index|msg|commit|env|parent|tag-name)-filter|--exec|-x|--extcmd|--(?:sendmail|to|cc|header)-cmd)(?:=([\s\S]*))?$/;
+const CODE_FLAG = /^(?:-[ecpE]|--eval|--print)$/;
 
-/** v17's strings for one command: what an unknown program, or git's shell-running options, are handed. */
-function foreignStrings(cmd, at, kind) {
-  if (!at || kind) return [];
-  const args = cmd.words.slice(at.i + 1);
+/** Words as one shell line: a single word is the line itself; several are each quoted, as git quotes them. */
+function shellLine(words) {
+  if (words.length === 1) return words[0];
+  return words.map((w) => (/^[\w@%+=:,./~-]+$/.test(w) ? w : `'${w.replace(/'/g, "'\\''")}'`)).join(" ");
+}
+
+/** git: the values of its shell-running options, and the rest of a `bisect run` / `submodule foreach` line. */
+function gitStrings(args) {
   const out = [];
-  if (at.name === "git") {
-    for (let i = 0; i < args.length; i++) {
-      const m = GIT_SHELL_OPTION.exec(args[i]);
-      if (m) out.push(m[1] ?? args[i + 1] ?? "");
+  for (let i = 0; i < args.length; i++) {
+    const m = GIT_SHELL_OPTION.exec(args[i]);
+    if (m) out.push(m[1] ?? args[i + 1] ?? "");
+    const runs = (args[i] === "run" && args[i - 1] === "bisect") || (args[i] === "foreach" && args.slice(0, i).includes("submodule"));
+    if (runs) {
+      let k = i + 1;
+      while (k < args.length && args[k].startsWith("-")) k++;
+      if (k < args.length) out.push(shellLine(args.slice(k)));
+      break;
     }
-    return out;
   }
-  if (TEXT_TAKERS.has(at.name)) return out;
-  for (const w of args) {
-    if (!/\s/.test(w)) continue;
+  return out;
+}
+
+/** gh alias set: the expansion, as a shell line under --shell / -s, else as `gh <expansion>`. */
+function ghAlias(args) {
+  if (args[0] !== "alias" || args[1] !== "set") return [];
+  const positional = args.slice(2).filter((w) => !w.startsWith("-"));
+  if (positional.length < 2) return [];
+  const shell = args.includes("--shell") || args.includes("-s");
+  return [shell ? positional[1] : `gh ${positional[1]}`];
+}
+
+/** v17/v18's strings for one command: what an unknown program, a code interpreter's script, or git and gh's shell-running options are handed. */
+function foreignStrings(cmd, at, kind) {
+  if (!at || kind === "sed" || kind === "awk") return [];
+  const args = cmd.words.slice(at.i + 1);
+  if (at.name === "git") return gitStrings(args);
+  if (at.name === "gh") return ghAlias(args);
+  if (TEXT_TAKERS.has(at.name)) return [];
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    const w = args[i];
+    if (!/\s/.test(w) || (kind === "code" && CODE_FLAG.test(args[i - 1] ?? ""))) continue;
     const kv = /^[^\s=]+=([\s\S]*)$/.exec(w);
     out.push(kv ? kv[1] : w);
   }
   return out;
 }
 
+/**
+ * v18: a `>(…)` that runs an interpreter is given what the command writes — tee copies its stdin there.
+ * Every such `>(…)` of one command is given the SAME text, so it is built and read once per kind: once
+ * per word was quadratic — 100 KB of `tee >(sh) >(sh) …` took 8 s.
+ */
+function writtenInto(cmd, piped) {
+  const kinds = new Set();
+  for (const w of cmd.words) {
+    if (!w.startsWith(">(")) continue;
+    const end = w.lastIndexOf(")");
+    const inner = lexCommands(w.slice(2, end > 1 ? end : w.length))[0];
+    const runner = inner && commandAt(inner.words);
+    const kind = runner && interpreterKind(runner.name);
+    if (kind === "shell" || kind === "windows" || kind === "code") kinds.add(kind === "code" ? "code" : "shell");
+  }
+  if (kinds.size === 0) return [];
+  const text = [...givenTo({ ...cmd, words: dropRedirections(cmd.words) }), ...piped].join("\n");
+  writtenSpent += text.length;
+  if (writtenSpent > WRITTEN_BUDGET) throw new OverBudget();
+  const out = kinds.has("shell") ? [text] : [];
+  return kinds.has("code") ? append(out, literals(text)) : out;
+}
+
 /** v16's strings for one command: see the section above. `files` is updated with what it writes. */
 function unquotedRuns(cmd, at, kind, files, piped) {
-  const out = foreignStrings(cmd, at, kind);
+  const out = append(foreignStrings(cmd, at, kind), writtenInto(cmd, piped));
   if (at) {
     const sub = substitution(cmd.words[at.i]);
     if (sub && !cmd.words[at.i].startsWith("<(")) out.push([writtenBy(sub.inner) + sub.rest, ...cmd.words.slice(at.i + 1)].join(" "));
@@ -1928,40 +2022,52 @@ function consumedStrings(command) {
   for (const cmd of lexCommands(command.replace(/\\\r?\n/g, " "))) {
     const at = commandAt(cmd.words);
     const kind = at && interpreterKind(at.name);
-    out.push(...unquotedRuns(cmd, at, kind, files, piped));
+    append(out, unquotedRuns(cmd, at, kind, files, piped));
     const args = kind ? cmd.words.slice(at.i + 1) : [];
     const stdin = () => [...cmd.stdin, ...piped];
     let ran = kind === "shell" || kind === "windows" || kind === "code";
     if (kind === "shell") {
-      out.push(...stdin());
+      append(out, stdin());
       const s = shellString(args);
       if (s !== null) out.push(s);
     } else if (kind === "windows") {
-      out.push(...stdin());
+      append(out, stdin());
       const f = args.findIndex(windowsRun);
       if (f !== -1) out.push(args.slice(f + 1).join(" "));
     } else if (kind === "code") {
-      for (const t of [...args, ...stdin()]) out.push(...literals(t));
+      for (const t of [...args, ...stdin()]) append(out, literals(t));
     } else if (kind) {
       const sed = kind === "sed";
       const read = programs(args, stdin, sed ? /^-[A-Za-z]*[ef]$/ : /^-[ef]$/, sed ? SED_VALUED : AWK_VALUED);
       ran = read.fromStdin;
       for (const p of read.programs) {
-        if (sed) out.push(...sedRuns(p));
-        else if (AWK_RUNS.test(p)) out.push(...literals(p));
+        if (sed) append(out, sedRuns(p));
+        else if (AWK_RUNS.test(p)) append(out, literals(p));
       }
     }
     if (ran || !cmd.pipe) piped = [];
-    if (cmd.pipe && !ran) piped.push(...givenTo(cmd));
+    if (cmd.pipe && !ran) append(piped, givenTo(cmd));
   }
   return out;
 }
+
+// v18 (pleks CF-22): a quoted list or pipeline handed to an unknown program is read twice — as the
+// command's own segments and again as the string the program runs — and 500 KB of it took 1.2 s
+// alone, 3.4 s under load, past the probe's bound. Past CONSUMED_SEGMENTS the consumed reading stops
+// and the command ASKS, as WRITTEN_BUDGET does; the deny rules still read its own segments.
+const CONSUMED_SEGMENTS = 50_000;
+let consumedCount = 0;
 
 /** The segments of every consumed string, and of the strings THEY consume, to CONSUMED_DEPTH. */
 function consumedSegments(command, depth = 1) {
   if (depth > CONSUMED_DEPTH) return [];
   const out = [];
-  for (const s of consumedStrings(command)) out.push(...segments(maskMessageText(s)), ...consumedSegments(s, depth + 1));
+  for (const s of consumedStrings(command)) {
+    const own = segments(maskMessageText(s));
+    consumedCount += own.length;
+    if (consumedCount > CONSUMED_SEGMENTS) throw new OverBudget();
+    append(append(out, own), consumedSegments(s, depth + 1));
+  }
   return out;
 }
 
@@ -1979,6 +2085,7 @@ function consumedSegments(command, depth = 1) {
 // No verdict loosens; only a command too long to read in full is stopped for a human.
 const LATER_BUDGET = 100_000;
 const OVER_BUDGET = "too long to read past each command word (bash-gate's work budget) — failing to a prompt, not to silence";
+const GATE_FAILED = "could not finish reading this command (the gate itself failed) — failing to a prompt, not to silence";
 
 /** `plan` with segment `index` read as `self` — a view, so building one per later position is O(1). */
 const withSelf = (plan, index, self) =>
@@ -1992,6 +2099,7 @@ function decide(command) {
   // v14: then each segment again as its shell WORDS where they differ from its tokens — appended too.
   // v16: a command whose written files exceed WRITTEN_BUDGET is read without its consumed strings, and asked.
   writtenSpent = 0;
+  consumedCount = 0;
   let consumed = [];
   let unread = false;
   try {
@@ -2094,7 +2202,14 @@ function gate() {
         throw new TypeError("hook input is not an object");
       }
       const command = String(input.tool_input?.command ?? "");
-      const [d, why] = decide(command);
+      // v18 (pleks CF-22): a failure while READING a parsed command is not a parse failure, and says so.
+      let verdict;
+      try {
+        verdict = decide(command);
+      } catch {
+        verdict = ["ask", GATE_FAILED];
+      }
+      const [d, why] = verdict;
       decision = d;
       reason = "bash-gate: " + why;
     } catch {

@@ -2,7 +2,7 @@
 /**
  * scripts/check-context-budget.mjs — probes for the context-budget hook.
  *
- * @kit check-context-budget v1 — tracked. No config region: its cases are the hook's contract.
+ * @kit check-context-budget v2 — tracked. No config region: its cases are the hook's contract.
  *
  * Run: node scripts/check-context-budget.mjs
  *      node scripts/check-context-budget.mjs --hook <path> --settings <path>   (canon's gate, on the
@@ -11,6 +11,9 @@
  * v1 (2026-10-08, nortiercupboards CF-4) is pleks's bytes at `4635041c` plus the two paths as options,
  * and three spots pleks's own lint refused once the file was linted as a kit row: a one-line `if`
  * body braced, and two regexes rewritten to match the same strings without backtracking.
+ *
+ * v2 (2026-10-08, life-therapy CF-9): the user's line must name pleks as where the compaction figure
+ * was measured, and neither line may say "this repo" — false in every project but pleks.
  *
  * A reminder hook has several ways to be useless, and this repo has now shipped three of them:
  *   quiet when it should be     — a warning on every prompt is wallpaper and gets ignored
@@ -150,6 +153,9 @@ const ok = (cond, label, detail = "") => {
   ok(!/run \/compact/i.test(r.ctx ?? ""), "…and is NOT what the model is told to do — it cannot run a slash command", JSON.stringify(r))
   ok(/batch/i.test(r.ctx ?? ""), "the model gets the lever it CAN pull: batching independent tool calls", JSON.stringify(r))
   ok(/autocompact/.test(r.sys ?? ""), "…and the user is told the permanent fix, not just the manual one", JSON.stringify(r))
+  // v2 (life-therapy CF-9): the figures are pleks's. Every adopter's model reads this line each turn.
+  ok(/measured in pleks/.test(r.sys ?? "") && !/this repo/i.test(`${r.sys ?? ""} ${r.ctx ?? ""}`),
+    "the measurement is named as pleks's, where it was taken — not as \"this repo\"'s, which is false in every adopter", JSON.stringify(r))
 }
 
 // ── THE POST-COMPACTION READ (shipped defect) ────────────────────────────────────────────────

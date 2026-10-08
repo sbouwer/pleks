@@ -1,7 +1,7 @@
 /**
  * .claude/hooks/canon-inbox.js — SessionStart, and after a push: one line from canon about this project, or nothing.
  *
- * @kit canon-inbox v4 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
+ * @kit canon-inbox v5 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
  * else is canon's, and `check-kit-drift.mjs` says so if it changes here.
  *
  * Register it TWICE, with the same command `node "$CLAUDE_PROJECT_DIR/.claude/hooks/canon-inbox.js"`:
@@ -36,6 +36,8 @@
  * call prints nothing and does not ask canon. It still refuses nothing.
  *
  * v4 (2026-10-08, blindly CF-11): a quoted path to git is one word — see `segments`.
+ *
+ * v5 (2026-10-08, blindly CF-12): so is an escaped one — `git -C my\ repo push` speaks.
  */
 // @event SessionStart
 // @matcher startup
@@ -90,7 +92,13 @@ const event = hook.hook_event_name === "PostToolUse" ? "PostToolUse" : "SessionS
  * The command's segments as shell words: a quoted span is one word, its quotes dropped, and a
  * separator inside quotes separates nothing. v4 (blindly CF-11): v3 split at every space, so
  * `"C:/Program Files/Git/cmd/git.exe" push` was two words and neither was git.
+ * v5 (blindly CF-12): a backslash takes the next character into the word, as bash does — outside
+ * quotes always, inside double quotes before `"`, `\`, `$` or a backtick — and a backslash-newline
+ * joins two lines. v4 read `git -C my\ repo push` as `-C my\` and the subcommand `repo`.
  */
+const escapes = (chars, i, quote) =>
+  chars[i] === "\\" && quote !== "'" && i + 1 < chars.length && (quote === null || /["\\$`\n]/.test(chars[i + 1]));
+
 function segments(command) {
   const out = [[]];
   let word = null;
@@ -99,8 +107,13 @@ function segments(command) {
     if (word !== null) out.at(-1).push(word);
     word = null;
   };
-  for (const ch of command) {
-    if (quote) {
+  const chars = [...command];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (escapes(chars, i, quote)) {
+      i++;
+      if (chars[i] !== "\n") word = (word ?? "") + chars[i];
+    } else if (quote) {
       if (ch === quote) quote = null;
       else word += ch;
     } else if (ch === '"' || ch === "'") {

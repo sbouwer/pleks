@@ -87,47 +87,9 @@ FIX        CAN OFFER, not on the credential's type — no factor of any kind →
              that half as M-132 rather than claiming M-127 closed it.
 ```
 
-### CF-22 · bash-gate v17's inverted rule still skips shell-running reaches through known programs
-
-```
-OBSERVED   Under v17 (canon 2c2bbb9), these shapes run a gated act and are ALLOWED. They are also
-           allowed by v16 and by pleks's CF-21 floor, while the held gate (98d8a9a0) denied them:
-           - git bisect run sh -c "<rm ~>" and git submodule foreach "<rm ~>". git runs a shell
-             there, but v17 reads only filter-branch's filters and rebase --exec/-x.
-           - bun x concurrently "<force push>". bun is classed as a code interpreter, so its
-             argv is not read. The same act through npx denies.
-           - node node_modules/.bin/concurrently "<rm ~>". This is the npx denial, reached
-             through node.
-           - node -e "…execSync(process.argv[1])" "<force push>", and the same through python3 -c
-             with os.system(sys.argv[1]) and perl -e 'system $ARGV[0]'. The code is read for its
-             literals, but the argv string is not read.
-           - gh alias set --shell p '<force push>' && gh p. gh is a TEXT_TAKER, and --shell runs
-             the expansion (`gh alias set --help`).
-           - tee >(sh) <<< "<rm ~>".
-           Separately: a 469 KB `npx "a | a | …"` takes about 2 s, and check-bash-gate's timed shapes
-           hold no quoted pipe. Above about 480 KB, v17 throws in decide() for quoted pipes and
-           semicolons, and the catch asks with the reason "could not parse hook input". That fails
-           closed, but the reason names the wrong cause. And `git log --grep "git push --force"`, a
-           read-only search, is denied in every gate.
-COMMAND    walker .handoff/kit-bash-gate-v17/01-walker.md F1/F2/F5. A script fed each payload as hook
-           JSON through four gates (held, pleks v16, pleks v17, canon v17 alone), and no act was run.
-           bun is not installed here, so its row is from bun's documented behaviour.
-WHY IT IS  v17 inverted the rule for UNKNOWN programs. Its known programs (interpreters, git,
-CANON'S    TEXT_TAKERS) are each assumed not to run their argv, and each of the shapes above breaks
-           that assumption. None of them depends on pleks's stack.
-SMALLEST   (1) Read git's shell-running subcommands as filter-branch is read: bisect run,
-FIX        submodule foreach, and difftool --extcmd / send-email --sendmail-cmd (held allowed these
-           two as well). (2) Treat `bun x` / `bun run <bin>`, and `node <path>/.bin/<x>`, as their
-           npx forms. (3) gh alias set --shell: read its expansion. (4) Interpreter argv fed to an
-           exec of argv: canon's call whether the cost is worth it. (5) Time a quoted-pipe shape in
-           check-bash-gate, and give an exception in decide() its own reason.
-           Must not break: git commit -m prose, gh --body prose, `node script.mjs <path>`, and
-           `npx vitest -t "<harmless>"`.
-```
-
 CF-7 to CF-20 dropped to Filed on 2026-10-08 — canon took all fourteen between `98f9636` and
-`1ae8c14` (CF-12 was already closed by `77f1c58`). CF-21 followed the same day: canon took it as
-bash-gate v17 at `b9f9979`. Their reports are not restated here; canon's
+`1ae8c14` (CF-12 was already closed by `77f1c58`). CF-21 and CF-22 followed the same day: canon took
+them as bash-gate v17 at `b9f9979` and v18 at `58faa9a`. Their reports are not restated here; canon's
 entries are the record.
 
 ## 2 · Lesson answers
@@ -196,6 +158,29 @@ is an open item with an owner in this repo.
 Adoptions canon has to record in `kitAdopted`, and pins: a row deliberately behind canon, with the
 row id, the version held, the reason, and a review date. A pin means *read and deliberately behind*,
 never *exempt*, so the reason has to argue it.
+
+**Canon `37a030c` — six rows adopted 2026-10-08** (branch `chore/kit-canon-37a030c`; the PR number is
+the stable name). One `apply-kit --carry-only --write` carried all six, so they ship as one kit PR:
+`bash-gate@18` · `bash-gate-probe@18` (URGENT, below canon's floor; CF-22 taken at `58faa9a`) ·
+`canon-inbox@5` · `canon-inbox-probe@6` (blindly CF-12: a backslash-escaped `git -C my\ repo push`
+was read as no push) · `context-budget@2` · `check-context-budget@2` (life-therapy CF-9: the
+measurements are attributed to pleks instead of "this repo"; the thresholds are unchanged).
+- **Probe regions:**
+  - **Dropped:** the `PROJECT_LOOSENED` declaration for "v17: an interpreter is known". v18 reads a
+    script's quoted argument as run, so that case is no longer looser than the held gate, and canon
+    removed it.
+  - **Declared looser than the held gate:** two new v18 allows. A `tee >(wc -l)`, because wc runs
+    nothing. A `node -e` whose act sits in a code comment, while v13's literal reading still denies
+    one inside a string.
+- **Measured:**
+  - bash-gate probe: 471 pass, with 39 verdicts tightened;
+  - `--against` the held gate (`98d8a9a0`): 40 looser, all declared, and 93 stricter;
+  - `check-bash-gate.mjs`: 500 KB inputs decided in 326–563 ms;
+  - canon-inbox probe: 29 held, 1 advisory;
+  - `check-context-budget`: green;
+  - `check-hook-registration`: green.
+- **New cost, as canon declared it:** `node tools/x.mjs "<gated act>"` now gets that act's verdict.
+- **Needs a restart (L-64)** for bash-gate v18.
 
 **context-budget v1 + check-context-budget v1, canon `2c2bbb9` — adopted 2026-10-08** (branch
 `chore/kit-context-budget-v1`; the PR number is the stable name).
@@ -728,6 +713,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | CF-19 | canon-inbox-probe's live case makes a project's commit gate read canon's working tree | outbox triage | `1ae8c14` |
 | CF-20 | `check-handoff-contract` v8 drops a cross-task input that shares the artefact's own filename | outbox triage | `1ae8c14` |
 | CF-21 | bash-gate v16 read a quoted string only for runners in its own table, an open set | `bash-gate` **v17**, which inverts the rule: an unknown program's spaced and key=value arguments are read as commands | `b9f9979` |
+| CF-22 | bash-gate v17's known programs (git bisect run / submodule foreach, bun x, node .bin, interpreter argv, gh alias --shell, tee >(sh)) run a shell anyway; a 470 KB quoted pipeline asked under the wrong reason | `bash-gate` **v18**, which reads each of them; failures in reading ask as `GATE_FAILED` | `58faa9a` |
 | — | §2.4's sweep test measured enforcement, not force (entry below, verbatim as relayed 2026-09-30) | BRIEF-STANDARD §2.4 test; `check-brief` v9; `brief-kit/DECISIONS.md` | `bfed62c` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**
