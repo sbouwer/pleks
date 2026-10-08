@@ -27,7 +27,8 @@ export interface ResolvedSubject {
   /** The subject's own co-applicant rows — on applications someone ELSE leads (their `co_{id}/` documents too). */
   coApplicants: Array<{ id: string; applicationId: string }>
   /** Rows matched by email alone whose ID number conflicts — neither erased nor exported; surfaced for a human. A
-   *  contact sent here takes its tenant, landlord and their rows with it: none of them is resolved. */
+   *  contact sent here is never resolved, and neither are its roles: its tenant stays unresolved even when an accepted
+   *  application points at it (that application, tied by its own ID, is still the subject's). */
   needsReview: Array<{ table: EmailMatch["table"]; id: string; reason: string }>
 }
 
@@ -213,36 +214,51 @@ async function addEmailMatches(
   const matches = [
     ...await contactsByEmail(db, out.orgId, email), ...await appsByEmail(db, out.orgId, email), ...await coRowsByEmail(db, out.orgId, email),
   ].filter((m) => !known.has(m.id))
-  for (const m of matches) if (m.table === "contacts" && m.hash === null) m.hash = await hashThroughTenant(db, out.orgId, m.id)
+  // Anchored, an unhashed match is evidence of nothing (R1), so only the unanchored rule borrows the tenant's ID.
+  if (!anchored) for (const m of matches) if (m.table === "contacts" && m.hash === null) m.hash = await hashThroughTenant(db, out.orgId, m.id)
   const parts = partitionEmailMatches(matches, chain, anchored)
-  // A subject holds one contact row. A second contact on the mailbox, or one beside the account's own, is a duplicate
-  // record nobody has reconciled — the Information Officer's call, not a pick by query order.
   const contacts = parts.accept.filter((m) => m.table === "contacts")
-  const contactsOk = contacts.length === 1 && !out.contactId
+  const roles = await contactRoles(db, out, contacts)
+  const contactsOk = roles !== null
   const accept = contactsOk ? parts.accept : parts.accept.filter((m) => m.table !== "contacts")
   const review = contactsOk ? parts.review : [...parts.review, ...contacts]
   const hadTenant = out.tenantId !== null
+  // The tied contact's roles first, so an application's tenant link cannot take the slot its own tenant should fill.
+  if (roles) { out.tenantId ??= roles.tenantId; out.landlordId ??= roles.landlordId }
   for (const m of accept) acceptMatch(out, m)
   for (const m of review) {
     out.needsReview.push({ table: m.table, id: m.id, reason: "matched by email only, and no ID number ties it to the subject (conflicting or missing) — confirm whose row it is before erasing" })
   }
-  // Only now, with the contact tied, are its role rows reached — never for a contact sent to review (follow-up 1).
-  if (contactsOk && out.contactId) {
-    out.tenantId ??= await roleIdByContact(db, "tenants", out.orgId, out.contactId)
-    out.landlordId ??= await roleIdByContact(db, "landlords", out.orgId, out.contactId)
-  }
-  // The tenant's own contact — unless this pass sent it to review: a backfill after the partition must not re-admit
-  // what the partition rejected (dsar-next walker F1: the request recorded "confirm first" and erased it anyway).
+  // A tenant reached through an accepted application, and the tenant's own contact — unless this pass sent that
+  // contact to review: a backfill after the partition must not re-admit what the partition rejected (dsar-next walker
+  // F1), and the tenant goes with its contact, not with the application (walker N2: its bank accounts and the rest
+  // would be erased under a contact the request says to confirm first). The application itself is tied by its ID.
   const inReview = new Set(review.map((m) => m.id))
-  if (out.tenantId && !out.contactId) {
+  if (out.tenantId && (!hadTenant || !out.contactId)) {
     const backfill = await contactIdByTenant(db, out.orgId, out.tenantId)
-    if (backfill && !inReview.has(backfill)) out.contactId = backfill
+    if (backfill && inReview.has(backfill)) { if (!hadTenant) out.tenantId = null }
+    else if (backfill) out.contactId ??= backfill
   }
   const ties = new Set([...chain.hashes, ...accept.map((m) => m.hash).filter((h): h is string => h !== null)])
   await addLinkedRows(db, out, {
     tenantId: hadTenant ? null : out.tenantId, contactId: contactsOk ? out.contactId : null,
     inReview, ties,
   })
+}
+
+/**
+ * The one accepted contact's tenant and landlord, or null when it cannot be the subject's contact: a subject holds one
+ * contact row, so a second on the mailbox, or one beside the account's own, is a duplicate nobody has reconciled — the
+ * Information Officer's call, not a pick by query order. Nor can it be when one of its roles is not the role the
+ * account already reached: that role and its rows would be left behind with nothing on the request to say so (dsar-next
+ * walker N1). Reading the role ids resolves nothing — they are applied only once the contact is accepted.
+ */
+async function contactRoles(db: Db, out: ResolvedSubject, contacts: EmailMatch[]): Promise<{ tenantId: string | null; landlordId: string | null } | null> {
+  if (contacts.length !== 1 || out.contactId) return null
+  const tenantId = await roleIdByContact(db, "tenants", out.orgId, contacts[0].id)
+  const landlordId = await roleIdByContact(db, "landlords", out.orgId, contacts[0].id)
+  const clash = (mine: string | null, known: string | null) => mine !== null && known !== null && mine !== known
+  return clash(tenantId, out.tenantId) || clash(landlordId, out.landlordId) ? null : { tenantId, landlordId }
 }
 
 /** An unhashed contact's ID, read through the agency's own link: the one hash on the applications keyed to its tenant,

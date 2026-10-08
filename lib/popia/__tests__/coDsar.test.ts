@@ -209,9 +209,37 @@ describe("resolveSubject — which email matches are the subject", () => {
     })
     const r = await resolveSubject(db, { org_id: "org1", email: "jane@x.com" })
     expect(r.applicationIds).toEqual(["app-1"])
-    expect(r.tenantId).toBe("t-a")
+    expect(r.tenantId).toBeNull() // the tenant goes with its contact, not with the application (walker N2)
     expect(r.contactId).toBeNull()
     expect(ids(r.needsReview)).toEqual(["ct-a", "ct-b"])
+  })
+
+  it("anchored: a contact whose own tenant is not the account's goes to review, never half-erased (walker N1)", async () => {
+    const db = fakeDb([], [
+      app("app-j", { applicant_email: "jane@x.com", id_number_hash: "h-jane", tenant_id: "t-jane" }),
+      app("app-y", { applicant_email: "old@x.com", id_number_hash: "h-jane", tenant_id: "t-y" }),
+    ], {
+      tenants: [{ id: "t-jane", org_id: "org1", auth_user_id: "u-jane", contact_id: null }, { id: "t-y", org_id: "org1", contact_id: "ct-y" }],
+      contacts: [{ id: "ct-y", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-jane" }],
+    })
+    const r = await resolveSubject(db, { org_id: "org1", user_id: "u-jane", email: "jane@x.com" })
+    expect([r.contactId, r.tenantId]).toEqual([null, "t-jane"])
+    expect(ids(r.needsReview)).toEqual(["ct-y"])
+  })
+
+  it("an accepted application never brings in a tenant whose contact is in review (walker N2)", async () => {
+    const db = fakeDb([], [app("app-y", { applicant_email: "jane@x.com", id_number_hash: "h-jane", tenant_id: "t-x" })], {
+      landlords: [{ id: "l-jane", org_id: "org1", auth_user_id: "u-jane", contact_id: "ct-jane" }],
+      tenants: [{ id: "t-x", org_id: "org1", contact_id: "ct-x" }],
+      contacts: [
+        ...janeAccount.contacts,
+        { id: "ct-x", org_id: "org1", primary_email: "jane@x.com", id_number_hash: "h-other" },
+      ],
+    })
+    const r = await resolveSubject(db, { org_id: "org1", user_id: "u-jane", email: "jane@x.com" })
+    expect(r.applicationIds).toEqual(["app-y"])
+    expect(r.tenantId).toBeNull()
+    expect(ids(r.needsReview)).toEqual(["ct-x"])
   })
 
   it("an unhashed contact takes the one ID on its own tenant's applications (dsar-next walker F2)", async () => {
