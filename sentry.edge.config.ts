@@ -6,7 +6,7 @@
  *        Loaded via instrumentation.ts register() hook when NEXT_RUNTIME === "edge".
  */
 import * as Sentry from "@sentry/nextjs"
-import { scrubEvent, scrubTransaction } from "@/lib/observability/scrubbing"
+import { scrubEvent, scrubSpan, scrubTransaction } from "@/lib/observability/scrubbing"
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -17,5 +17,6 @@ Sentry.init({
 
   beforeSend: scrubEvent,
   beforeSendTransaction: scrubTransaction,
+  beforeSendSpan: scrubSpan,
   enabled: !!process.env.SENTRY_DSN && process.env.VERCEL_ENV === "production",
 })
