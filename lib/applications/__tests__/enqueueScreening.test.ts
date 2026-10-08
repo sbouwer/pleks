@@ -1,21 +1,24 @@
 /**
  * lib/applications/__tests__/enqueueScreening.test.ts — enqueueScreening against a fake db: the preconditions
- * (consent, live token), the stale-document re-queue, and the post-insert dedupe that stops concurrent callers
+ * (consent, live token, not erased — DSAR follow-up 2), the stale-document re-queue, and the post-insert dedupe that stops concurrent callers
  * stacking AI runs (A18 walker F2/F3; the race reproduced in .handoff/a18/scratch/enqueueRace.test.ts).
  */
 import { describe, it, expect, vi } from "vitest"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 
 vi.mock("@/lib/tier/getOrgTier", () => ({ getOrgTierCanonical: async () => "firm" }))
 vi.mock("@/lib/tier/gates", () => ({ hasFeature: () => true }))
 
 import { enqueueScreening } from "../screeningJobs"
+import { ANONYMISE_PLAN } from "@/lib/popia/anonymisePlan"
 
 interface Job { id: string; status: string; attempts: number; max_attempts: number; started_at?: string }
-interface World { consent: boolean; token: boolean; evals: number; docsChanged: boolean; jobs: Job[]; orArgs: string[] }
+interface World { consent: boolean; token: boolean; evals: number; docsChanged: boolean; jobs: Job[]; orArgs: string[]; app: Record<string, unknown>; tokenReads: number }
 
 /** Each awaited step yields a tick, so two Promise.all callers interleave the way two invocations would. */
 function fakeDb(over: Partial<World> = {}) {
-  const w: World = { consent: true, token: true, evals: 0, docsChanged: false, jobs: [], orArgs: [], ...over }
+  const w: World = { consent: true, token: true, evals: 0, docsChanged: false, jobs: [], orArgs: [], app: {}, tokenReads: 0, ...over }
   let seq = 0
   const tick = () => new Promise((r) => setTimeout(r, 1))
   function builder(table: string) {
@@ -40,8 +43,10 @@ function fakeDb(over: Partial<World> = {}) {
     }
     b.maybeSingle = async () => {
       await tick()
-      if (table === "applications") return { data: { stage1_consent_given: w.consent }, error: null }
-      if (table === "application_tokens") return { data: w.token ? { token: "t" } : null, error: null }
+      if (table === "applications") {
+        return { data: { stage1_consent_given: w.consent, applicant_email: "jane@x.com", pii_purged_at: null, deleted_at: null, ...w.app }, error: null }
+      }
+      if (table === "application_tokens") { w.tokenReads++; return { data: w.token ? { token: "t" } : null, error: null } }
       if (table === "screening_jobs" && filteredByStatus) {
         return { data: w.jobs.find((j) => j.status === "pending" || j.status === "running") ?? null, error: null }
       }
@@ -88,5 +93,50 @@ describe("enqueueScreening", () => {
     const { db, w } = fakeDb({ evals: 1, jobs: [{ id: "j0", status: "done", attempts: 1, max_attempts: 3, started_at: "2026-10-06T09:59:00Z" }] })
     await enqueueScreening(db, ARGS)
     expect(w.orArgs).toEqual(["uploaded_at.gt.2026-10-06T09:59:00.000Z,deleted_at.gt.2026-10-06T09:59:00.000Z"])
+  })
+})
+
+describe("enqueueScreening — an erased subject never queues (DSAR follow-up 2)", () => {
+  /** The applications row exactly as the erasure plan leaves it: its own strip fields over a consented row. */
+  const erasedRow = () => ({ ...ANONYMISE_PLAN.find((g) => g.id === "C.applications")!.fields })
+
+  it("the row the plan's strip leaves is refused — even forced, with consent and a token, and before the token is read", async () => {
+    for (const force of [false, true]) {
+      const { db, w } = fakeDb({ app: erasedRow() })
+      expect(await enqueueScreening(db, { ...ARGS, force })).toBe("erased")
+      expect(w.jobs).toHaveLength(0)
+      expect(w.tokenReads).toBe(0)
+    }
+  })
+
+  it("a purged (pii_purged_at) or deleted application is refused the same way", async () => {
+    for (const app of [{ pii_purged_at: "2026-10-01T00:00:00Z" }, { deleted_at: "2026-10-01T00:00:00Z" }]) {
+      const { db, w } = fakeDb({ app })
+      expect(await enqueueScreening(db, ARGS)).toBe("erased")
+      expect(w.jobs).toHaveLength(0)
+    }
+  })
+
+  it("the erasure plan revokes the lead's tokens, so a job already queued has nothing to run with", () => {
+    const tokens = ANONYMISE_PLAN.find((g) => g.id === "C.application_tokens")!
+    expect(new Date(tokens.fields.expires_at as string).getTime()).toBeLessThan(Date.now())
+  })
+})
+
+describe("the paths around the choke point (source) — DSAR follow-up 2", () => {
+  const src = (p: string) => readFileSync(join(process.cwd(), p), "utf8")
+
+  it("the shortlist invite refuses an erased lead before it mints a token or sends", () => {
+    const s = src("lib/screening/sendShortlistInvitation.ts")
+    const guard = s.indexOf("if (isStrippedApplication(application))")
+    expect(guard).toBeGreaterThan(-1)
+    expect(guard).toBeLessThan(s.indexOf("sendCoPartyInvites(db, application"))
+    expect(guard).toBeLessThan(s.indexOf('.from("application_tokens")'))
+  })
+
+  it("an erased co is not read into the lead's pass as a director", () => {
+    const s = src("app/api/applications/[id]/screen/route.ts")
+    const load = s.slice(s.indexOf("screen co-directors") - 600, s.indexOf("screen co-directors"))
+    expect(load).toContain('.neq("applicant_email", REDACTED)')
   })
 })

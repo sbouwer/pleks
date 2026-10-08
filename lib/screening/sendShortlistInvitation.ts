@@ -34,7 +34,7 @@ import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 import { revalidatePath } from "next/cache"
 import { after } from "next/server"
 import { addDays } from "date-fns"
-import { enqueueScreening, fireScreening } from "@/lib/applications/screeningJobs"
+import { enqueueScreening, fireScreening, isStrippedApplication } from "@/lib/applications/screeningJobs"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited, sendShortlistInvitation as sendShortlistEmail } from "@/lib/applications/emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -67,13 +67,16 @@ export async function sendShortlistInvitation(applicationId: string): Promise<Sh
   // Org-scoped fetch — a cross-org applicationId resolves to null (verifies org ownership)
   const { data: application, error: applicationError } = await db
     .from("applications")
-    .select("id, applicant_email, first_name, org_id, listing_id, entity_type, applicant_type, company_info, stage1_status, stage2_status")
+    .select("id, applicant_email, first_name, org_id, listing_id, entity_type, applicant_type, company_info, stage1_status, stage2_status, pii_purged_at")
     .eq("id", applicationId)
     .eq("org_id", orgId)
     .single()
     logQueryError("sendShortlistInvitation applications", applicationError)
 
   if (!application) return { error: "Application not found" }
+  // Before any send: an erased lead would get a fresh payment link minted and an email addressed to "[erased]",
+  // and enqueueScreening's refusal comes only after both (DSAR follow-up 2).
+  if (isStrippedApplication(application)) return { error: "This applicant's personal information has been erased" }
   if (!canInviteToStage2(application.stage1_status as string | null, application.stage2_status as string | null)) {
     return { error: "This application cannot be invited to screening" }
   }

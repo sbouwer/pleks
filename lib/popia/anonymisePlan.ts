@@ -41,6 +41,10 @@ export type KeyFrom =
  *  without violating the constraint. Distinct, greppable, obviously-not-real. */
 export const REDACTED = "[erased]"
 
+/** A NOT NULL expiry already in the past: the strip's revoke for a token row (005:487), the timestamptz twin of
+ *  REDACTED. Every live-token read compares `expires_at > now`, so the row stays for the audit trail and opens nothing. */
+const TOKEN_REVOKED_AT = "1970-01-01T00:00:00.000Z"
+
 /** A co-applicant row's PII — one set, stripped whether the row is reached as the lead's co or as the subject's own. */
 const CO_APPLICANT_FIELDS: Record<string, string | null> = {
   first_name: null, last_name: null, id_number: null, id_number_hash: null, id_type: null, date_of_birth: null,
@@ -150,7 +154,9 @@ export const ANONYMISE_PLAN: AnonymiseGroup[] = [
   { id: "C.application_guarantors", table: "application_guarantors", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { first_name: REDACTED, last_name: REDACTED, id_number: null, id_type: null, nationality: null, email: null, phone: null, searchworx_extracted_data: null } }, // 70H F3 add — id_type + bureau payload
   { id: "C.application_tokens", table: "application_tokens", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
-    fields: { applicant_email: REDACTED } },                        // NOT NULL
+    // expires_at revokes the lead's links, as the co strip's access_token: null revokes theirs. A live token was all the
+    // screening-jobs cron and /screen needed to keep running an erased lead's queued pass (DSAR follow-up 2).
+    fields: { applicant_email: REDACTED, expires_at: TOKEN_REVOKED_AT } }, // both NOT NULL
   { id: "C.application_screening_payments", table: "application_screening_payments", keyColumn: "application_id", keyFrom: "applicationId", appliesTo: ["applicant", "tenant"],
     fields: { paid_by_email: null } },
 
