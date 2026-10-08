@@ -26,8 +26,9 @@ export interface ResolvedSubject {
   applicationIds: string[]
   /** The subject's own co-applicant rows — on applications someone ELSE leads (their `co_{id}/` documents too). */
   coApplicants: Array<{ id: string; applicationId: string }>
-  /** Rows matched by email alone whose ID number conflicts — neither erased nor exported; surfaced for a human. */
-  needsReview: Array<{ table: "applications" | "application_co_applicants"; id: string; reason: string }>
+  /** Rows matched by email alone whose ID number conflicts — neither erased nor exported; surfaced for a human. A
+   *  contact sent here takes its tenant, landlord and their rows with it: none of them is resolved. */
+  needsReview: Array<{ table: EmailMatch["table"]; id: string; reason: string }>
 }
 
 export interface AnonymiseSubjectInput {
@@ -73,10 +74,17 @@ async function roleIdByContact(db: Db, table: RoleTable, orgId: string, contactI
   return (data?.id as string | undefined) ?? null
 }
 
-async function contactByEmail(db: Db, orgId: string, email: string): Promise<string | null> {
-  const { data, error } = await db.from("contacts").select("id").eq("org_id", orgId).eq("primary_email", email).maybeSingle()
+/** Contacts whose primary email is the request's — every one, case-insensitively. This was an exact `maybeSingle`
+ *  that pulled the contact's tenant, landlord, applications and co rows before any ID tie (DSAR follow-up 1); a second
+ *  contact on the address made it error and resolve nothing. Each is now an email match like any other. */
+async function contactsByEmail(db: Db, orgId: string, email: string): Promise<EmailMatch[]> {
+  const f = emailFilter(email)
+  const q = db.from("contacts").select("id, id_number_hash").eq("org_id", orgId)
+  const { data, error } = await (f.exact ? q.eq("primary_email", f.value) : q.ilike("primary_email", f.value))
   logQueryError("resolveSubject contacts by email", error)
-  return (data?.id as string | undefined) ?? null
+  return (data ?? []).map((r) => ({
+    table: "contacts", id: r.id as string, applicationId: null, tenantId: null, hash: (r.id_number_hash as string | null) ?? null,
+  }))
 }
 
 async function appIdsByTenant(db: Db, orgId: string, tenantId: string): Promise<string[]> {
@@ -87,7 +95,10 @@ async function appIdsByTenant(db: Db, orgId: string, tenantId: string): Promise<
 }
 
 /** A row matched by its stored email alone — a mailbox, not yet a person. */
-interface EmailMatch { table: "applications" | "application_co_applicants"; id: string; applicationId: string; tenantId: string | null; hash: string | null }
+interface EmailMatch {
+  table: "contacts" | "applications" | "application_co_applicants"; id: string
+  applicationId: string | null; tenantId: string | null; hash: string | null
+}
 
 async function appsByEmail(db: Db, orgId: string, email: string): Promise<EmailMatch[]> {
   // Case-insensitive, like the co lookup: the apply form stores the address as typed, while a portal DSAR carries
@@ -128,10 +139,11 @@ async function linkedIdHashes(db: Db, orgId: string, applicationIds: string[], c
  * person). Conflicting rows go to the Information Officer as manual review.
  *  - ANCHORED (the request's user account reached the subject's records): `chain` holds the hashes on those records,
  *    and a match is the subject only if it carries one of them. An unhashed match is evidence of nothing (walker R1).
- *  - Not anchored: nothing vouches — a contact found by email is itself an email match (walker R3), so `chain` is only
- *    a witness. The matches are the subject iff no two hashes among them and the chain differ, and each match carries
- *    a hash or is the mailbox's ONLY row — counting the chain's rows too, which were filtered out of `matches` before
- *    this call (walker N1: an unhashed spouse row beside a hashed chain is not "sole"). Otherwise all are review.
+ *  - Not anchored: nothing vouches — a contact found by email is itself one of the matches (walker R3, follow-up 1),
+ *    so `chain` is empty here. The matches are the subject iff no two hashes among them and the chain differ, and each
+ *    match carries a hash or is the mailbox's ONLY row — counting the chain's rows too, which were filtered out of
+ *    `matches` before this call (walker N1: an unhashed spouse row beside a hashed chain is not "sole"). Otherwise all
+ *    are review.
  */
 function partitionEmailMatches(
   matches: EmailMatch[], chain: { hashes: Set<string>; rows: number }, anchored: boolean,
@@ -167,10 +179,9 @@ export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Pr
     if (l) { landlordId = l.id; contactId = l.contactId ?? contactId }
   }
   // The request's own account reached the subject — the one link no shared mailbox can forge. A contact found by
-  // email below is still resolved (pre-existing A/B strip) but never anchors: it is an email match (walker R3).
+  // email never anchors: it is an email match, partitioned in addEmailMatches before its chain is pulled.
   const anchored = tenantId !== null || landlordId !== null || contactId !== null
 
-  if (!contactId && subject.email) contactId = await contactByEmail(db, orgId, subject.email)
   if (contactId && !tenantId) tenantId = await roleIdByContact(db, "tenants", orgId, contactId)
   if (contactId && !landlordId) landlordId = await roleIdByContact(db, "landlords", orgId, contactId)
 
@@ -198,27 +209,67 @@ export async function resolveSubject(db: Db, subject: AnonymiseSubjectInput): Pr
 async function addEmailMatches(
   db: Db, out: ResolvedSubject, email: string, chain: { hashes: Set<string>; rows: number }, anchored: boolean,
 ): Promise<void> {
-  const known = new Set([...out.applicationIds, ...out.coApplicants.map((c) => c.id)])
-  const matches = [...await appsByEmail(db, out.orgId, email), ...await coRowsByEmail(db, out.orgId, email)]
-    .filter((m) => !known.has(m.id))
-  const { accept, review } = partitionEmailMatches(matches, chain, anchored)
-  const inReview = new Set(review.map((m) => m.id))
+  const known = new Set([...out.applicationIds, ...out.coApplicants.map((c) => c.id), out.contactId])
+  const matches = [
+    ...await contactsByEmail(db, out.orgId, email), ...await appsByEmail(db, out.orgId, email), ...await coRowsByEmail(db, out.orgId, email),
+  ].filter((m) => !known.has(m.id))
+  const parts = partitionEmailMatches(matches, chain, anchored)
+  // A subject holds one contact row. A second contact on the mailbox, or one beside the account's own, is a duplicate
+  // record nobody has reconciled — the Information Officer's call, not a pick by query order.
+  const contacts = parts.accept.filter((m) => m.table === "contacts")
+  const contactsOk = contacts.length === 1 && !out.contactId
+  const accept = contactsOk ? parts.accept : parts.accept.filter((m) => m.table !== "contacts")
+  const review = contactsOk ? parts.review : [...parts.review, ...contacts]
   const hadTenant = out.tenantId !== null
-  for (const m of accept) {
-    if (m.table === "applications") { out.applicationIds.push(m.id); out.tenantId ??= m.tenantId }
-    else out.coApplicants.push({ id: m.id, applicationId: m.applicationId })
-  }
+  for (const m of accept) acceptMatch(out, m)
   for (const m of review) {
     out.needsReview.push({ table: m.table, id: m.id, reason: "matched by email only, and no ID number ties it to the subject (conflicting or missing) — confirm whose row it is before erasing" })
   }
-  if (out.tenantId && !out.contactId) out.contactId = await contactIdByTenant(db, out.orgId, out.tenantId)
-  // An accepted application can carry the tenant link the subject had no other way to reach: its co rows are linked.
-  if (hadTenant || !out.tenantId) return
-  // A row already sent to review stays there: the link was found through an email match, so it cannot overrule (R4).
-  for (const c of await coRowsByLink(db, out.orgId, out.tenantId, null)) {
-    if (inReview.has(c.id) || out.coApplicants.some((x) => x.id === c.id)) continue
-    out.coApplicants.push({ id: c.id, applicationId: c.applicationId })
+  // Only now, with the contact tied, are its role rows reached — never for a contact sent to review (follow-up 1).
+  if (contactsOk && out.contactId) {
+    out.tenantId ??= await roleIdByContact(db, "tenants", out.orgId, out.contactId)
+    out.landlordId ??= await roleIdByContact(db, "landlords", out.orgId, out.contactId)
   }
+  if (out.tenantId && !out.contactId) out.contactId = await contactIdByTenant(db, out.orgId, out.tenantId)
+  const ties = new Set([...chain.hashes, ...accept.map((m) => m.hash).filter((h): h is string => h !== null)])
+  await addLinkedRows(db, out, {
+    tenantId: hadTenant ? null : out.tenantId, contactId: contactsOk ? out.contactId : null,
+    inReview: new Set(review.map((m) => m.id)), ties,
+  })
+}
+
+function acceptMatch(out: ResolvedSubject, m: EmailMatch): void {
+  if (m.table === "contacts") out.contactId = m.id
+  else if (m.table === "applications") { out.applicationIds.push(m.id); out.tenantId ??= m.tenantId }
+  else if (m.applicationId) out.coApplicants.push({ id: m.id, applicationId: m.applicationId })
+}
+
+/** Rows linked to a tenant or contact the subject reached only through an email match: the applications keyed to the
+ *  tenant and the co rows keyed to either. A row already sent to review stays there — the link was found through an
+ *  email match, so it cannot overrule (R4) — and a row whose ID number is not among the ones that tied the match goes
+ *  to review too: the link is only as good as the match it hangs from. */
+async function addLinkedRows(db: Db, out: ResolvedSubject, link: {
+  tenantId: string | null; contactId: string | null; inReview: Set<string>; ties: Set<string>
+}): Promise<void> {
+  if (!link.tenantId && !link.contactId) return
+  const apps = link.tenantId ? await appsWithHashByTenant(db, out.orgId, link.tenantId) : []
+  const cos = await coRowsByLink(db, out.orgId, link.tenantId, link.contactId)
+  const rows: EmailMatch[] = [
+    ...apps.map((a) => ({ table: "applications" as const, id: a.id, applicationId: a.id, tenantId: link.tenantId, hash: a.hash })),
+    ...cos.map((c) => ({ table: "application_co_applicants" as const, tenantId: null, ...c })),
+  ]
+  for (const r of rows) {
+    if (link.inReview.has(r.id) || out.applicationIds.includes(r.id) || out.coApplicants.some((x) => x.id === r.id)) continue
+    if (r.hash && link.ties.size > 0 && !link.ties.has(r.hash)) {
+      out.needsReview.push({ table: r.table, id: r.id, reason: "linked to the subject only through a record matched by email, and its ID number differs — confirm whose row it is before erasing" })
+    } else acceptMatch(out, r)
+  }
+}
+
+async function appsWithHashByTenant(db: Db, orgId: string, tenantId: string): Promise<Array<{ id: string; hash: string | null }>> {
+  const { data, error } = await db.from("applications").select("id, id_number_hash").eq("org_id", orgId).eq("tenant_id", tenantId)
+  logQueryError("resolveSubject linked applications by tenant", error)
+  return (data ?? []).map((r) => ({ id: r.id as string, hash: (r.id_number_hash as string | null) ?? null }))
 }
 
 /** An ILIKE pattern that matches `s` literally, case-insensitively: %, _ and \ are escaped. */
