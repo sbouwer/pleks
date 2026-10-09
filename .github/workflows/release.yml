@@ -73,7 +73,9 @@ jobs:
       - uses: lewagon/wait-on-check-action@v1.9.1
         with:
           ref: ${{ github.sha }}
-          check-regexp: '(Lint & Typecheck|Marketing consistency|DB integration tier|Dependency CVE scan)'
+          # `Checks & unit tests` joined 2026-10-09: CI split `npm run check` into it and Lint & Typecheck
+          # (scripts/ci-partition.mjs). Without it here, Release would ship past a red unit test.
+          check-regexp: '(Lint & Typecheck|Checks & unit tests|Marketing consistency|DB integration tier|Dependency CVE scan)'
           # ✅ VERIFIED 2026-08-23 against v1.9.0's own action.yml. The draft worried that `cancelled`
           # might be in the default; it is not. The default is `success,skipped` — so the risk was
           # real but the mechanism was different: today a check that SKIPS satisfies this gate, and

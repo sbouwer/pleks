@@ -23,7 +23,9 @@
  * PARALLEL, not cached, is how CI gets faster (2026-10-09). CI's Lint & Typecheck job took ~6m, of which
  * tsc + uncached ESLint were one 225s stretch. `--concurrency` (ESLint ≥ 9.34; this repo is on 10) lints
  * every file with every rule, split across worker threads — coverage unchanged, unlike a cache.
- * Measured uncached on this repo: serial 150s, 4 workers 69s, same clean result.
+ * Measured uncached on this repo: serial 150s, 4 workers 69s, same clean result — on a 24-core desktop.
+ * On the 4-vCPU hosted runner it saved only ~25s (225s → 200s for tsc + lint, job 113783832236); the
+ * bigger CI cut came from splitting the job (scripts/ci-partition.mjs).
  * Safe because no `pleks/*` rule shares state ACROSS files: their module-level Sets are read-only
  * baselines each worker loads for itself, and the one `Program:exit` (require-audit-on-sensitive-mutation)
  * is per-file. A rule that ever aggregates across files (e.g. reporting unused baseline entries) would

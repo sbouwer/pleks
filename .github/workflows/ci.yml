@@ -9,6 +9,9 @@
 #          before it, the tier ran on one laptop and in no workflow, and the security
 #          categories ran nowhere at all while reporting green. The old `security-scan` job
 #          was removed rather than fixed; see the comment where it used to be.
+#          `npm run check` runs as TWO parallel jobs (2026-10-09): Lint & Typecheck and Checks &
+#          unit tests, split by scripts/ci-partition.mjs. Both must be required checks on
+#          `main-protection`, and release.yml's wait regexp must name both.
 
 name: CI
 
@@ -49,8 +52,32 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Typecheck + Lint (npm run check)
-        run: npm run check
+      # Half of `npm run check`; `checks` below runs the other half in parallel. scripts/ci-partition.mjs
+      # reads both halves from the chain itself and its selftest proves they cover it exactly, so a step
+      # added to `check` runs in CI with no edit here. Serial, the chain took ~5m20s on this runner.
+      - name: Typecheck + Lint (half of npm run check)
+        run: npm run check:ci -- static
+
+  checks:
+    name: Checks & unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the selftests mint probe commits from HEAD~1 — see quick-check's checkout
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Every other step of npm run check, in chain order
+        run: npm run check:ci -- rest
 
   # NOTE: No `build` job in CI.
   # Vercel handles production and preview builds directly. Running `next build`
@@ -113,7 +140,8 @@ jobs:
   # assumes (127.0.0.1:54321), so CI just becomes that topology instead of a laptop.
   db-tests:
     name: DB integration tier (test:db)
-    needs: quick-check
+    # No `needs:` — it ran after quick-check and so added its whole ~4m to every PR's wait. It shares
+    # nothing with that job, and a red typecheck still blocks the merge on its own.
     runs-on: ubuntu-latest
     # Generous: first run pulls the whole stack's images. Tighten once a few runs have been timed.
     timeout-minutes: 30
@@ -198,9 +226,8 @@ jobs:
           SUPABASE_ANON_KEY="$ANON_KEY" \
             npm run security:db
 
-      - name: Stop the stack
-        if: always()
-        run: supabase stop
+      # No "Stop the stack" step: the hosted runner is discarded with its containers, so `supabase stop`
+      # spent ~15s per run tidying a machine nobody reuses.
 
   dependency-scan:
     name: Dependency CVE scan (Trivy)

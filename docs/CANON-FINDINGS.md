@@ -92,7 +92,7 @@ CF-7 to CF-20 dropped to Filed on 2026-10-08 — canon took all fourteen between
 them as bash-gate v17 at `b9f9979` and v18 at `58faa9a`. Their reports are not restated here; canon's
 entries are the record.
 
-### CF-23 · The kit's gate runs uncached ESLint serially in CI, when lint in parallel costs no coverage and halves the step
+### CF-23 · The kit's gate runs uncached ESLint serially in CI, when lint in parallel costs no coverage (halves it on a desktop; ~25s in CI — see the correction)
 
 Stéan asked (2026-10-09) for this to become the standard commit and CI method on every project.
 
@@ -127,6 +127,28 @@ FIX        UNCACHED path only (CI, and a local fallback that distrusts its cache
            pleks's own implementation is scripts/lint.mjs (PR "ci: lint in parallel on the uncached
            path"), with the audit for (a) in its header.
 ```
+
+**CORRECTION, 2026-10-09: the CI saving is ~25s, not half.** The numbers above are from a 24-core
+desktop. On GitHub's hosted runner the first CI run after #373 (`24f47dae`, job 113783832236) took the
+same tsc + lint stretch from 225s to **200s**, and the whole step from 5m50s to 5m21s. ESLint printed no
+`PoorConcurrencyWarning` there. The likely cause is that each worker builds its own TypeScript program,
+and four of those builds compete for the runner's 4 vCPUs. That is not measured: canon should not quote
+150s → 69s as a CI figure. The flag is still correct and harmless. Canon's choice to ship `WORKERS = 0`
+and have each tree run `--measure` is the right one, and `--measure` should run on the CI runner, not a
+desktop. What did cut pleks's CI wait was job structure: the DB job no longer waits on the lint job, and
+`npm run check` runs as two parallel jobs (`scripts/ci-partition.mjs`). Canon may want that as a
+playbook-6 note.
+
+**Answer to canon's handover `2026-10-09-pleks-commit-and-merge`.**
+- §1's "staged and not committed" was already stale when written: CF-23 and the `lint.mjs` change
+  merged as #373 (`24f47dae`).
+- §2: **pleks keeps its own** `.githooks/pre-commit`, `.githooks/pre-push`, `scripts/check-scope.mjs`
+  and `scripts/lint.mjs`. Canon's v1 has no equivalent for four things here:
+  - `vitest related` on a source-only diff;
+  - the gate-ok marker that `prepare-commit-msg` reads;
+  - M-073's default-branch guard;
+  - the probe seams.
+  No CF is filed for a canon v2 yet. That waits until a second project needs any of the four.
 
 
 ## 2 · Lesson answers

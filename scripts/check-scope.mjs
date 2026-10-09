@@ -132,6 +132,7 @@ export const MAP = {
   "node scripts/check-prepush-composition.mjs": [".githooks/**"],
   "node scripts/eslint-cache-guard.mjs --selftest": "full",
   "node scripts/check-scope.mjs --selftest": "full",
+  "node scripts/ci-partition.mjs --selftest": "full",
   "node scripts/check-test-floor.mjs --selftest": "full",
   [VITEST_FULL]: [SRC, "**/*.{sql,yml,yaml,csv,txt,html,xml}", "**/__fixtures__/**", "**/__tests__/**"],
   "node scripts/check-test-floor.mjs": "full",
