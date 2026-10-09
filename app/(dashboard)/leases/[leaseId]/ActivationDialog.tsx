@@ -6,6 +6,7 @@
  * Route:  /leases/[leaseId] (used from SigningOptions)
  * Auth:   gateway (dashboard layout)
  * Data:   markAsSigned server action; cascade steps returned and surfaced to parent
+ * Notes:  The deposit reaches the trust ledger only if the agent ticks it as received.
  */
 
 import { useState } from "react"
@@ -59,14 +60,16 @@ export function ActivationDialog({
   onActivated,
 }: Readonly<ActivationDialogProps>) {
   const [activating, setActivating] = useState(false)
+  const [depositReceived, setDepositReceived] = useState(false)
 
   const { tenantName, unitLabel, depositAmountCents, startDate } = leaseData
+  const hasDeposit = depositAmountCents != null && depositAmountCents > 0
 
   const cascadeItems = [
     "Set lease status to Active",
     `Mark ${unitLabel} as occupied`,
-    ...(depositAmountCents && depositAmountCents > 0
-      ? [`Record deposit of ${formatRand(depositAmountCents)}`]
+    ...(hasDeposit && depositReceived
+      ? [`Record the deposit of ${formatRand(depositAmountCents)} in the trust account`]
       : []),
     "Generate first month's invoice",
     `Schedule move-in inspection for ${formatDate(startDate)}`,
@@ -75,7 +78,7 @@ export function ActivationDialog({
 
   async function handleActivate() {
     setActivating(true)
-    const result = await markAsSigned(leaseId)
+    const result = await markAsSigned(leaseId, { depositReceived: hasDeposit && depositReceived })
     setActivating(false)
     if (result?.error) {
       toast.error(result.error)
@@ -110,6 +113,24 @@ export function ActivationDialog({
               </li>
             ))}
           </ul>
+
+          {hasDeposit && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={depositReceived}
+                onChange={(e) => setDepositReceived(e.target.checked)}
+                disabled={activating}
+              />
+              <span>
+                The deposit of {formatRand(depositAmountCents)} has been received
+                <span className="block text-xs text-muted-foreground">
+                  Leave this unticked if it hasn&apos;t arrived. You can record it on the Finance tab later.
+                </span>
+              </span>
+            </label>
+          )}
 
           <p className="text-xs font-medium text-destructive">
             This action cannot be undone.

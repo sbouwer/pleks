@@ -8,6 +8,7 @@
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
+import { depositReceipt } from "@/lib/deposits/depositReceipt"
 import { redirect, notFound } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
@@ -315,6 +316,7 @@ async function fetchPortfolioOverviewStatus(
 
 type FinanceExtras = {
   depositReceivedAt: string | null
+  depositReceiptUnknown: boolean
   depositRateDescription: string | null
   depositInterestCents: number
   trustBankName: string | null
@@ -346,7 +348,7 @@ async function fetchFinanceTabExtras(
     trustTxnRes,
     totalPaymentsRes,
   ] = await Promise.all([
-    db.from("deposit_transactions").select("created_at").eq("lease_id", leaseId).eq("transaction_type", "deposit_received").order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    depositReceipt(db, leaseId, orgId),
     db.from("bank_accounts").select("bank_name").eq("org_id", orgId).eq("type", "trust").limit(1).maybeSingle(),
     db.from("rent_invoices").select("total_amount_cents").eq("lease_id", leaseId).gte("due_date", taxYearStart),
     db.from("rent_invoices").select("payment_reference").eq("lease_id", leaseId).not("payment_reference", "is", null).order("due_date", { ascending: false }).limit(1).maybeSingle(),
@@ -354,7 +356,10 @@ async function fetchFinanceTabExtras(
     db.from("payments").select("amount_cents").eq("lease_id", leaseId),
   ])
 
-  const depositReceivedAt = (depositTxnRes.data as { created_at: string } | null)?.created_at ?? null
+  // An unread ledger is not "not received": report it, and hide the record button (depositReceiptUnknown).
+  if (!depositTxnRes.ok) console.error("fetchFinanceTabExtras depositReceipt:", depositTxnRes.error)
+  const depositReceivedAt = depositTxnRes.ok ? depositTxnRes.receivedAt : null
+  const depositReceiptUnknown = !depositTxnRes.ok
   const trustBankName = (trustBankRes.data as { bank_name: string } | null)?.bank_name ?? null
   const paymentReference = (payRefRes.data as { payment_reference: string } | null)?.payment_reference ?? null
   const ytdInvoiceRows = (ytdInvoicesRes.data ?? []) as Array<{ total_amount_cents: number }>
@@ -388,6 +393,7 @@ async function fetchFinanceTabExtras(
 
   return {
     depositReceivedAt,
+    depositReceiptUnknown,
     depositRateDescription,
     depositInterestCents,
     trustBankName,
@@ -800,6 +806,11 @@ export default async function LeaseDetailPage({
             arrearsCase={arrearsCase}
             depositAmountCents={lease.deposit_amount_cents ?? null}
             depositReceivedAt={financeExtras?.depositReceivedAt ?? null}
+            canRecordDeposit={
+              ["active", "month_to_month", "notice"].includes(lease.status as string)
+              && (lease.deposit_amount_cents ?? 0) > 0
+              && !!financeExtras && !financeExtras.depositReceivedAt && !financeExtras.depositReceiptUnknown
+            }
             depositRateDescription={financeExtras?.depositRateDescription ?? null}
             depositInterestCents={financeExtras?.depositInterestCents ?? 0}
             depositInterestTo={lease.deposit_interest_to ?? null}

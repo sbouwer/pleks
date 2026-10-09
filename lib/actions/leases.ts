@@ -24,7 +24,7 @@ import { LeaseCreatedEmail } from "@/lib/comms/templates/tenant/leases/lease-cre
 import { LeaseNoticeAcknowledgedEmail } from "@/lib/comms/templates/tenant/leases/lease-notice-acknowledged"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { addCalendarDays, addCalendarMonths, fmtDateLongZA, saTodayISO } from "@/lib/dates"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, type OrgType } from "@/lib/constants"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
 import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
@@ -368,7 +368,7 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   return documentError ? { leaseId, documentError } : { leaseId }
 }
 
-export async function markAsSigned(leaseId: string) {
+export async function markAsSigned(leaseId: string, options: { depositReceived?: boolean } = {}) {
   const { activateLeaseCascade } = await import("@/lib/leases/activateLeaseCascade")
   const { checkLeasePrerequisites } = await import("@/lib/leases/checkPrerequisites")
   const { canActivateLease } = await import("@/lib/tier/canActivateLease")
@@ -391,16 +391,30 @@ export async function markAsSigned(leaseId: string) {
   // CPA gate (ADDENDUM_04A): derive and snapshot CPA applicability at signing time.
   const { data: lease, error: leaseErr } = await db
     .from("leases")
-    .select("tenant_id, is_franchise_agreement")
+    .select("status, tenant_id, is_franchise_agreement")
     .eq("id", leaseId)
     .eq("org_id", orgId)
     .single()
   if (leaseErr || !lease) return { error: "Lease not found" }
+  // The UI offers this only on a draft; the action said nothing, and the cascade's claim accepts any non-active
+  // status — so a direct call on a cancelled or expired lease re-ran the whole activation.
+  if (lease.status !== "draft" && lease.status !== "pending_signing") return { error: "Only a draft or sent lease can be activated" }
+
+  // leases.tenant_id is a tenants.id; the CPA facts live on the tenant's contact. This read went to contacts by
+  // the tenant id until 2026-10-09 — two different uuids, so every manual activation stopped here.
+  const { data: tenant, error: tenantErr } = await db
+    .from("tenants")
+    .select("contact_id")
+    .eq("id", lease.tenant_id)
+    .eq("org_id", orgId)
+    .single()
+  if (tenantErr || !tenant) return { error: "Tenant not found" }
 
   const { data: contact, error: contactErr } = await db
     .from("contacts")
     .select("entity_type, juristic_type, turnover_under_2m, asset_value_under_2m, size_bands_captured_at")
-    .eq("id", lease.tenant_id)
+    .eq("id", tenant.contact_id)
+    .eq("org_id", orgId)
     .single()
   if (contactErr || !contact) return { error: "Tenant contact not found" }
 
@@ -441,13 +455,62 @@ export async function markAsSigned(leaseId: string) {
   })
 
   try {
-    const result = await activateLeaseCascade(db, leaseId, orgId, "manual", userId)
+    const result = await activateLeaseCascade(db, leaseId, orgId, "manual", userId, { depositReceived: options.depositReceived === true })
     revalidatePath(`/leases/${leaseId}`)
     revalidatePath("/leases")
     return { success: true, steps: result.steps }
   } catch (e) {
     return { error: String(e) }
   }
+}
+
+const DEPOSIT_RECORDABLE_STATUSES = new Set(["active", "month_to_month", "notice"])
+
+/** The agent's "deposit received" tick for a lease activated without it (or by DocuSeal, where nobody could tick).
+ *  Gated on the leases capability, not finance: the tick belongs to whoever activates the lease, and letting agents
+ *  hold leases but not finance. */
+export async function recordLeaseDepositReceived(leaseId: string) {
+  const { recordDepositReceived, sendDepositReceived, depositTimerEvent } = await import("@/lib/leases/leaseDepositReceipt")
+  const { getOrgCapabilities } = await import("@/lib/org/capabilities")
+  const { depositReceipt } = await import("@/lib/deposits/depositReceipt")
+
+  const gw = await requireAgentWriteAccess("activate_lease")
+  const { db, userId, orgId } = gw
+  if (!(await hasCapability(gw, "leases"))) return { error: "You don't have access to leases" }
+
+  const { data: lease, error: leaseError } = await db
+    .from("leases")
+    .select("status, deposit_amount_cents, tenant_id, property_id, unit_id, start_date")
+    .eq("id", leaseId)
+    .eq("org_id", orgId)
+    .single()
+  if (leaseError || !lease) return { error: "Lease not found" }
+  if (!DEPOSIT_RECORDABLE_STATUSES.has(lease.status as string)) return { error: "Record the deposit when you activate the lease" }
+  if (!lease.deposit_amount_cents || lease.deposit_amount_cents <= 0) return { error: "This lease has no deposit amount" }
+
+  // Check-then-write: a second click between the read and the RPC could post twice. The button disables while the
+  // call runs; a database guard needs a column no spec names yet.
+  // Both ledgers: the GL import records a deposit in trust_transactions only.
+  const receipt = await depositReceipt(db, leaseId, orgId)
+  if (!receipt.ok) return { error: "Could not check the deposit ledger" }
+  if (receipt.receivedAt) return { error: "The deposit is already recorded" }
+
+  const recorded = await recordDepositReceived(db, lease, leaseId, orgId, userId)
+  if (recorded.status !== "success") return { error: recorded.detail ?? "The deposit was not recorded" }
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "leases", recordId: leaseId,
+    after: { action: "deposit_received", deposit_amount_cents: lease.deposit_amount_cents },
+  })
+  const { error: eventError } = await db.from("lease_lifecycle_events").insert(depositTimerEvent(leaseId, orgId))
+  if (eventError) console.error("recordLeaseDepositReceived: lifecycle event not written", eventError.message)
+
+  const { data: org, error: orgError } = await db.from("organisations").select("type, name").eq("id", orgId).single()
+  logQueryError("recordLeaseDepositReceived organisations", orgError)
+  await sendDepositReceived(db, lease, leaseId, orgId, getOrgCapabilities((org?.type as OrgType) ?? "agency", (org?.name as string) ?? ""))
+
+  revalidatePath(`/leases/${leaseId}`)
+  return { success: true }
 }
 
 export async function sendForSigning(leaseId: string) {

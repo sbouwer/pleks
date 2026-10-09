@@ -4,7 +4,8 @@
  * Auth:   Server-only; called from DocuSeal webhook and manual activation actions
  * Data:   leases, units, organisations, tenancy_history, deposits, invoices via service client
  * Notes:  Each step returns a CascadeStep so failures are recorded without aborting the whole
- *         cascade. Fetches OrgCapabilities so BUILD_63 email step can use org-type-correct
+ *         cascade. Supabase returns `{ error }` rather than throwing, so every write checks it — a step's
+ *         try/catch alone reported a refused insert as "success" (2026-10-09). Fetches OrgCapabilities so BUILD_63 email step can use org-type-correct
  *         sender framing (signatureAttribution, tenantWelcomeSender) without an extra DB round-trip.
  *         BUILD_63 Phase 3: stepSendDepositReceived fires deposit.received comm after deposit record.
  */
@@ -17,7 +18,7 @@ import type { OrgType } from "@/lib/constants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { resolveOrgTone } from "@/lib/comms/resolveOrgTone"
-import { DepositReceivedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-received"
+import { depositTimerEvent, recordDepositReceived, sendDepositReceived } from "@/lib/leases/leaseDepositReceipt"
 import { generatePortalInviteLink } from "@/lib/leases/portalInviteLink"
 import { LeaseActivatedEmail } from "@/lib/comms/templates/tenant/leases/lease-activated"
 import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-signed"
@@ -54,12 +55,13 @@ async function stepUpdateUnit(
   triggeredBy: string,
 ): Promise<CascadeStep> {
   try {
-    await supabase.from("units").update({
+    const { error: unitError } = await supabase.from("units").update({
       status: "occupied",
       prospective_tenant_id: null,
       prospective_co_tenant_ids: [],
-    }).eq("id", lease.unit_id)
-    await supabase.from("unit_status_history").insert({
+    }).eq("id", lease.unit_id).eq("org_id", orgId)
+    if (unitError) return { step: "Update unit status", status: "failed", detail: unitError.message }
+    const { error: historyError } = await supabase.from("unit_status_history").insert({
       unit_id: lease.unit_id,
       org_id: orgId,
       from_status: "vacant",
@@ -67,6 +69,7 @@ async function stepUpdateUnit(
       changed_by: userId ?? null,
       reason: `Lease activated (${triggeredBy})`,
     })
+    if (historyError) return { step: "Update unit status", status: "failed", detail: `Unit occupied; history not written: ${historyError.message}` }
     return { step: "Update unit status", status: "success" }
   } catch (e) {
     return { step: "Update unit status", status: "failed", detail: String(e) }
@@ -85,116 +88,11 @@ async function stepCreateTenancy(
       { org_id: orgId, tenant_id: lease.tenant_id, unit_id: lease.unit_id, lease_id: leaseId, move_in_date: lease.start_date, status: "active" },
       ...coTenants.map((ct) => ({ org_id: orgId, tenant_id: ct.tenant_id, unit_id: lease.unit_id, lease_id: leaseId, move_in_date: lease.start_date, status: "active" })),
     ]
-    await supabase.from("tenancy_history").insert(rows)
+    const { error } = await supabase.from("tenancy_history").insert(rows)
+    if (error) return { step: "Create tenancy records", status: "failed", detail: error.message }
     return { step: "Create tenancy records", status: "success", detail: `${rows.length} tenant(s)` }
   } catch (e) {
     return { step: "Create tenancy records", status: "failed", detail: String(e) }
-  }
-}
-
-async function stepRecordDeposit(
-  supabase: SupabaseClient,
-  lease: { deposit_amount_cents: number | null; tenant_id: string; property_id: string; unit_id: string },
-  leaseId: string,
-  orgId: string,
-  userId: string | undefined,
-): Promise<CascadeStep> {
-  if (!lease.deposit_amount_cents || lease.deposit_amount_cents <= 0) {
-    return { step: "Record deposit", status: "skipped", detail: "No deposit amount set" }
-  }
-  // Atomic deposit sub-ledger + trust posting (ADDENDUM_TRUST_RPC_ATOMICITY step 2) — the two
-  // ledgers commit together or not at all (previously written separately → could disagree).
-  const { error } = await supabase.rpc("record_deposit_atomic", {
-    p_org_id: orgId,
-    p_lease_id: leaseId,
-    p_tenant_id: lease.tenant_id,
-    p_amount_cents: lease.deposit_amount_cents,
-    p_dep_txn_type: "deposit_received",
-    p_dep_description: "Security deposit received",
-    p_trust_txn_type: "deposit_received",
-    p_trust_description: "Security deposit",
-    p_initiated_by: "agent",
-    p_created_by: userId ?? null,
-    p_property_id: lease.property_id ?? null,
-    p_unit_id: lease.unit_id ?? null,
-    p_reference: null,
-    p_effective_rate_percent: null,
-    p_rate_config_id: null,
-    p_statement_month: null,
-  })
-  if (error) return { step: "Record deposit", status: "failed", detail: error.message }
-  return { step: "Record deposit", status: "success", detail: `R ${(lease.deposit_amount_cents / 100).toFixed(2)}` }
-}
-
-async function stepSendDepositReceived(
-  supabase: SupabaseClient,
-  lease: { deposit_amount_cents: number | null; tenant_id: string; start_date: string; unit_id: string },
-  leaseId: string,
-  orgId: string,
-  capabilities: OrgCapabilities,
-): Promise<CascadeStep> {
-  if (!lease.deposit_amount_cents || lease.deposit_amount_cents <= 0) {
-    return { step: "Send deposit.received comm", status: "skipped", detail: "No deposit" }
-  }
-  try {
-    // Fetch tenant contact
-    const { data: tenant, error: tenantError } = await supabase
-      .from("tenant_view")
-      .select("first_name, last_name, email, phone")
-      .eq("id", lease.tenant_id)
-      .single()
-    logQueryError("stepSendDepositReceived tenant_view", tenantError)
-
-    if (!tenant?.email) {
-      return { step: "Send deposit.received comm", status: "skipped", detail: "No tenant email" }
-    }
-
-    // Fetch property label for email body
-    const { data: unit, error: unitError } = await supabase
-      .from("units")
-      .select("unit_number, properties(address_line1, suburb, city)")
-      .eq("id", lease.unit_id)
-      .maybeSingle()
-    logQueryError("stepSendDepositReceived units", unitError)
-
-    type PropRow = { address_line1: string; suburb: string | null; city: string }
-    const raw = unit as unknown as { unit_number: string; properties: PropRow | PropRow[] | null } | null
-    const rawProps = raw?.properties ?? null
-    const prop = Array.isArray(rawProps) ? rawProps[0] : rawProps
-    const propertyLabel = prop
-      ? [prop.address_line1, `Unit ${raw?.unit_number}`, prop.suburb ?? prop.city].filter(Boolean).join(", ")
-      : "your property"
-
-    const orgSettings = await fetchOrgSettings(orgId)
-    const branding = buildBranding(orgSettings)
-    const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-    const depositDisplay = formatZAR(lease.deposit_amount_cents, true)
-    const leaseStartDisplay = fmtDateLongZA(lease.start_date)
-
-    await routeAndSend({
-      orgId,
-      tenantId: lease.tenant_id,
-      templateKey: "deposit.received",
-      to: { email: tenant.email, phone: tenant.phone ?? undefined, name: tenantName },
-      subject: `Deposit received — ${depositDisplay} — ${propertyLabel}`,
-      emailElement: React.createElement(DepositReceivedEmail, {
-        branding,
-        tenantName,
-        propertyLabel,
-        depositAmountDisplay: depositDisplay,
-        leaseStartDate: leaseStartDisplay,
-        senderName: capabilities.copy.tenantWelcomeSender,
-      }),
-      entityType: "lease",
-      entityId: leaseId,
-      triggerEventType: "lease_activation",
-      triggerEventId: leaseId,
-      toneVariant: "n/a",
-    })
-
-    return { step: "Send deposit.received comm", status: "success" }
-  } catch (e) {
-    return { step: "Send deposit.received comm", status: "failed", detail: String(e) }
   }
 }
 
@@ -230,7 +128,7 @@ async function stepGenerateFirstInvoice(
     // PREVIOUS day for any timezone east of Greenwich — a first invoice one day short, every time.
     const periodEnd = monthEnd(invoiceMonthIso)
 
-    await supabase.from("rent_invoices").insert({
+    const { error: invoiceError } = await supabase.from("rent_invoices").insert({
       org_id: orgId, lease_id: leaseId, unit_id: lease.unit_id, tenant_id: lease.tenant_id,
       invoice_number: `PLEKS-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}`,
       invoice_date: saDateISO(now),
@@ -242,6 +140,7 @@ async function stepGenerateFirstInvoice(
       })),
       notes: isProRata ? `Pro-rata from ${lease.start_date}` : null,
     })
+    if (invoiceError) return { step: "Generate first invoice", status: "failed", detail: invoiceError.message }
     return { step: "Generate first invoice", status: "success", detail: `R ${(total / 100).toFixed(2)}${isProRata ? " (pro-rata)" : ""}` }
   } catch (e) {
     return { step: "Generate first invoice", status: "failed", detail: String(e) }
@@ -304,7 +203,7 @@ async function stepSendLeaseSigned(
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = formatPropertyLabel(unit)
 
-    await routeAndSend({
+    const sent = await routeAndSend({
       orgId,
       tenantId: lease.tenant_id,
       templateKey: "lease.signed",
@@ -323,6 +222,7 @@ async function stepSendLeaseSigned(
       triggerEventId: leaseId,
       toneVariant: "n/a",
     })
+    if (!sent.success) return { step: "Send lease.signed comm (L3)", status: "failed", detail: sent.error ?? "Not sent" }
     return { step: "Send lease.signed comm (L3)", status: "success" }
   } catch (e) {
     return { step: "Send lease.signed comm (L3)", status: "failed", detail: String(e) }
@@ -354,7 +254,7 @@ async function stepSendLeaseActivated(
     const rentDisplay = formatZAR(lease.rent_amount_cents, true)
     const fmt = (d: string) => fmtDateLongZA(d)
 
-    await routeAndSend({
+    const sent = await routeAndSend({
       orgId,
       tenantId: lease.tenant_id,
       templateKey: "lease.activated",
@@ -378,6 +278,7 @@ async function stepSendLeaseActivated(
       triggerEventId: leaseId,
       toneVariant: "n/a",
     })
+    if (!sent.success) return { step: "Send lease.activated comm", status: "failed", detail: sent.error ?? "Not sent" }
     return { step: "Send lease.activated comm", status: "success" }
   } catch (e) {
     return { step: "Send lease.activated comm", status: "failed", detail: String(e) }
@@ -441,7 +342,8 @@ async function stepSendPortalInvite(
     )
     if ("error" in link) return { step: "Portal auto-invite (P1)", status: "failed", detail: link.error }
 
-    await routeAndSend({
+    // Stamp only a send that went out: a stamp on a failed send makes every later run skip as "Already invited".
+    const sent = await routeAndSend({
       orgId,
       tenantId: lease.tenant_id,
       templateKey: "portal.tenant_invite",
@@ -460,11 +362,14 @@ async function stepSendPortalInvite(
       triggerEventId: leaseId,
       toneVariant,
     })
+    if (!sent.success) return { step: "Portal auto-invite (P1)", status: "failed", detail: sent.error ?? "Not sent" }
 
-    await supabase
+    const { error: stampError } = await supabase
       .from("tenants")
       .update({ portal_invite_sent_at: new Date().toISOString() })
       .eq("id", lease.tenant_id)
+      .eq("org_id", orgId)
+    if (stampError) return { step: "Portal auto-invite (P1)", status: "failed", detail: `Invite sent; not stamped, so it may be sent again: ${stampError.message}` }
 
     return { step: "Portal auto-invite (P1)", status: "success" }
   } catch (e) {
@@ -478,20 +383,19 @@ async function stepLogLifecycleEvents(
   orgId: string,
   triggeredBy: "docuseal" | "manual",
   userId: string | undefined,
+  depositRecorded: boolean,
 ): Promise<CascadeStep> {
   try {
-    await supabase.from("lease_lifecycle_events").insert([
+    const { error } = await supabase.from("lease_lifecycle_events").insert([
       {
         org_id: orgId, lease_id: leaseId, event_type: "lease_signed",
         description: `Lease ${triggeredBy === "docuseal" ? "signed via DocuSeal" : "signed manually"}`,
         triggered_by: triggeredBy === "docuseal" ? "system" : "agent",
         triggered_by_user: userId ?? null,
       },
-      {
-        org_id: orgId, lease_id: leaseId, event_type: "deposit_timer_started",
-        description: "Deposit recorded", triggered_by: "system",
-      },
+      ...(depositRecorded ? [depositTimerEvent(leaseId, orgId)] : []),
     ])
+    if (error) return { step: "Log lifecycle events", status: "failed", detail: error.message }
     return { step: "Log lifecycle events", status: "success" }
   } catch (e) {
     return { step: "Log lifecycle events", status: "failed", detail: String(e) }
@@ -520,15 +424,18 @@ export async function activateLeaseCascade(
   leaseId: string,
   orgId: string,
   triggeredBy: "docuseal" | "manual",
-  userId?: string
+  userId?: string,
+  options: { depositReceived?: boolean } = {},
 ): Promise<ActivationResult> {
-  const [{ data: lease }, { data: org }, { data: coTenants }] = await Promise.all([
-    supabase.from("leases").select("*, units(unit_number, properties(id, name))").eq("id", leaseId).single(),
+  const [{ data: lease }, { data: org }, { data: coTenants, error: coTenantsError }] = await Promise.all([
+    supabase.from("leases").select("*, units(unit_number, properties(id, name))").eq("id", leaseId).eq("org_id", orgId).single(),
     supabase.from("organisations").select("type, name").eq("id", orgId).single(),
     supabase.from("lease_co_tenants").select("tenant_id").eq("lease_id", leaseId),
   ])
 
   if (!lease) throw new Error("Lease not found")
+  // A failed read here would activate the lease with its co-tenants left off the tenancy records.
+  if (coTenantsError) throw new Error(`Co-tenants could not be read: ${coTenantsError.message}`)
 
   const capabilities = getOrgCapabilities(
     ((org?.type as OrgType) ?? "agency"),
@@ -559,6 +466,7 @@ export async function activateLeaseCascade(
     .from("leases")
     .update({ status: "active", signed_at: new Date().toISOString(), payment_reference: paymentReference })
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .neq("status", "active")
     .select("id")
   if (claimErr) throw new Error(`Lease activation claim failed: ${claimErr.message}`)
@@ -572,15 +480,23 @@ export async function activateLeaseCascade(
     }
   }
 
+  const hasDeposit = (lease.deposit_amount_cents ?? 0) > 0
+  const depositStep: CascadeStep = options.depositReceived
+    ? await recordDepositReceived(supabase, lease, leaseId, orgId, userId)
+    : { step: "Record deposit", status: "skipped", detail: hasDeposit ? "Not received yet — record it on the Finance tab when it arrives" : "No deposit amount set" }
+  const depositRecorded = depositStep.status === "success"
+
   const steps: CascadeStep[] = [
     { step: "Activate lease", status: "success" },
     await stepUpdateUnit(supabase, lease, orgId, userId, triggeredBy),
     await stepCreateTenancy(supabase, lease, leaseId, orgId, coTenants ?? []),
-    await stepRecordDeposit(supabase, lease, leaseId, orgId, userId),
-    await stepSendDepositReceived(supabase, lease, leaseId, orgId, capabilities),
+    depositStep,
+    depositRecorded
+      ? await sendDepositReceived(supabase, lease, leaseId, orgId, capabilities)
+      : { step: "Send deposit.received comm", status: "skipped", detail: "Deposit not recorded" },
     await stepGenerateFirstInvoice(supabase, lease, leaseId, orgId),
     await stepScheduleMoveIn(supabase, lease, leaseId, orgId, userId),
-    await stepLogLifecycleEvents(supabase, leaseId, orgId, triggeredBy, userId),
+    await stepLogLifecycleEvents(supabase, leaseId, orgId, triggeredBy, userId, depositRecorded),
     await stepAuditLog(supabase, leaseId, orgId, triggeredBy, userId),
     // BUILD_63 Phase 5: L3 + L4 + P1
     await stepSendLeaseSigned(supabase, lease, leaseId, orgId, capabilities),

@@ -15,6 +15,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { depositReceipt, interestStartDate } from "@/lib/deposits/depositReceipt"
 
 /**
  * Pure calculation — used by both the server action and the cron route.
@@ -59,7 +60,7 @@ export async function accrueDepositInterest(
       deposit_amount_cents,
       deposit_interest_rate_percent,
       deposit_interest_last_accrued_date,
-      start_date
+      start_date, migrated
     `)
     .eq("id", leaseId)
     .single()
@@ -69,9 +70,21 @@ export async function accrueDepositInterest(
     return { interestCents: 0, fromDate: upToDate, toDate: upToDate, ratePercent: 0 }
   }
 
+  // No interest on a deposit nobody has received. A deposit amount is a lease term; since the receipt became an
+  // agent tick (2026-10-09) an active lease can carry one with nothing on the ledger, and accruing on it credited
+  // trust with interest on money never held — which calculateReturn would then pay out.
+  const receipt = await depositReceipt(supabase, leaseId, lease.org_id)
+  if (!receipt.ok) {
+    console.error("[deposit-interest] receipt read failed, holding:", receipt.error)
+    return { interestCents: 0, fromDate: upToDate, toDate: upToDate, ratePercent: 0 }
+  }
+  if (!receipt.receivedAt) {
+    return { interestCents: 0, fromDate: upToDate, toDate: upToDate, ratePercent: 0 }
+  }
+
   const fromDate = lease.deposit_interest_last_accrued_date
     ? new Date(lease.deposit_interest_last_accrued_date)
-    : new Date(lease.start_date)
+    : new Date(interestStartDate(lease, receipt.receivedAt))
 
   const daysElapsed = differenceInDays(upToDate, fromDate)
 
