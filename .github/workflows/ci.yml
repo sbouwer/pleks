@@ -87,7 +87,8 @@ jobs:
 
   marketing-consistency:
     name: Marketing consistency (ADDENDUM_00J)
-    needs: quick-check
+    # No `needs:` — waiting on Lint & Typecheck made this the last job of every run (~50s after it,
+    # #374's run 37928982985), and Release waits on it. It reads marketing copy, not compiled code.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
