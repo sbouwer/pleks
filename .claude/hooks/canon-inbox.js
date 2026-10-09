@@ -1,7 +1,7 @@
 /**
  * .claude/hooks/canon-inbox.js — SessionStart, and after a push: one line from canon about this project, or nothing.
  *
- * @kit canon-inbox v5 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
+ * @kit canon-inbox v6 — tracked OUTSIDE its `KIT:CONFIG` region. The region is yours; everything
  * else is canon's, and `check-kit-drift.mjs` says so if it changes here.
  *
  * Register it TWICE, with the same command `node "$CLAUDE_PROJECT_DIR/.claude/hooks/canon-inbox.js"`:
@@ -38,6 +38,8 @@
  * v4 (2026-10-08, blindly CF-11): a quoted path to git is one word — see `segments`.
  *
  * v5 (2026-10-08, blindly CF-12): so is an escaped one — `git -C my\ repo push` speaks.
+ *
+ * v6 (2026-10-09, blindly CF-13): `echo git push` is text, not a push — see `pushes`.
  */
 // @event SessionStart
 // @matcher startup
@@ -132,8 +134,16 @@ function segments(command) {
   return out;
 }
 
+/**
+ * v6 (blindly CF-13): a segment whose command word only prints or searches text runs nothing, so
+ * `echo git push` is not a push. The set is bash-gate's PROSE set; a leading `VAR=x` is skipped.
+ */
+const PROSE = new Set(["echo", "printf", "grep", "egrep", "fgrep", "rg", "ag", "man", "help", "info", "whatis", "apropos", "which", "type", "whereis", ":", "true", "false"]);
+
 function pushes(command) {
   for (const words of segments(command)) {
+    const cw = words.find((w) => !/^\w+=/.test(w));
+    if (cw !== undefined && PROSE.has(cw.replace(/^.*[\\/]/, ""))) continue;
     let i = words.findIndex((w) => /(?:^|[\\/])git(?:\.exe)?$/i.test(w));
     if (i === -1) continue;
     for (i++; i < words.length && words[i].startsWith("-"); i++) {
