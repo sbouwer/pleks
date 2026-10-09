@@ -15,6 +15,9 @@ import { Info } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import type { CpaDetermination } from "@/lib/leases/cpaApplicability"
 import { addCalendarDays, addCalendarMonths } from "@/lib/dates"
+// Only the escalation types the lease document can state (see SELECTABLE_ESCALATION_TYPES). This listed "cpi_linked"
+// and "negotiable" until 2026-10-09; the leases CHECK refuses both, so choosing either failed Create.
+import { SELECTABLE_ESCALATION_TYPES as ESCALATION_TYPES } from "@/lib/leases/leaseTermsEdit"
 
 export interface TermsState {
   startDate: string
@@ -31,12 +34,6 @@ export interface TermsState {
   arrearsInterestEnabled: boolean
   arrearsMargin: string
 }
-
-const ESCALATION_TYPES = [
-  { value: "fixed", label: "Fixed %" },
-  { value: "cpi_linked", label: "CPI-linked" },
-  { value: "negotiable", label: "Negotiable" },
-]
 
 const DUE_DAY_OPTIONS = [
   { value: "1", label: "1st of the month" },

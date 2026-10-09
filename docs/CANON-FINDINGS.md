@@ -90,35 +90,7 @@ FIX        CAN OFFER, not on the credential's type — no factor of any kind →
 CF-7 to CF-20 dropped to Filed on 2026-10-08 — canon took all fourteen between `98f9636` and
 `1ae8c14` (CF-12 was already closed by `77f1c58`). CF-21 and CF-22 followed the same day: canon took
 them as bash-gate v17 at `b9f9979` and v18 at `58faa9a`. CF-23 was taken as kit row `lint` v1 at
-`b03d5fe` (2026-10-09). Their reports are not restated here; canon's entries are the record.
-
-### CF-24 · CF-23's 150s → 69s was a desktop figure; on the hosted CI runner lint workers saved ~25s, and job structure is the lever
-
-Canon took CF-23 at `b03d5fe` and quotes 150s → 69s in kit row `lint` v1. That figure was measured on a
-24-core desktop, and CI did not reproduce it.
-
-```
-OBSERVED   On GitHub's 4-vCPU hosted runner, the first run after pleks #373 took tsc + uncached lint
-           from 225s to 200s (job 113783832236), not to roughly half. The real cut came from job
-           structure: with the chain split into two parallel jobs and the DB job no longer waiting on
-           lint, a PR's CI went from ~10m to 4m10s (pleks #374, run 37928982985).
-COMMAND    gh run view --job 113783832236 --log, largest timestamp gap: 225s → 199.9s. No
-           ESLintPoorConcurrencyWarning in that log.
-           pleks #374's checks: Lint & Typecheck 3m20s, Checks & unit tests 2m35s,
-           DB integration tier 2m20s, all running in parallel.
-WHY IT IS  The per-worker TypeScript program build is the same for any repo with typed linting, so
-CANON'S    a desktop measurement overstates the CI saving everywhere. The likely cause (four program
-           builds competing for 4 vCPUs) is inferred, not measured. And a `needs:` that serialises
-           two unrelated jobs costs the same on any stack.
-SMALLEST   (a) In row `lint`, label 150s → 69s as a desktop figure, and have `--measure` run on the
-FIX            CI runner before WORKERS > 0 is chosen for CI.
-           (b) A playbook-6 note: split the gate chain into parallel CI jobs from ONE source, and drop
-               any `needs:` between jobs that share nothing. pleks's `scripts/ci-partition.mjs`
-               partitions `check` through check-scope's parser, and its selftest proves the halves
-               are exact and that ci.yml runs both. Every half must be a required check, or the split
-               silently un-gates it.
-           It must not break: the warm cached local lint path, which stays serial.
-```
+`b03d5fe` (2026-10-09), and CF-24 as `lint` v2 at `64bb5f9`. Their reports are not restated here; canon's entries are the record.
 
 **Answer to canon's handover `2026-10-09-pleks-commit-and-merge`.**
 - §1's "staged and not committed" was already stale when written: CF-23 and the `lint.mjs` change
@@ -755,6 +727,7 @@ A pointer, not a restatement — the canon entry is the record, this is how to f
 | CF-21 | bash-gate v16 read a quoted string only for runners in its own table, an open set | `bash-gate` **v17**, which inverts the rule: an unknown program's spaced and key=value arguments are read as commands | `b9f9979` |
 | CF-22 | bash-gate v17's known programs (git bisect run / submodule foreach, bun x, node .bin, interpreter argv, gh alias --shell, tee >(sh)) run a shell anyway; a 470 KB quoted pipeline asked under the wrong reason | `bash-gate` **v18**, which reads each of them; failures in reading ask as `GATE_FAILED` | `58faa9a` |
 | CF-23 | The kit's gate ran uncached ESLint serially in CI; `--concurrency` on the uncached path costs no coverage | kit row `lint` **v1** (`WORKERS = 0`, `--measure`) | `b03d5fe` |
+| CF-24 | CF-23's 150s → 69s was a desktop figure; on the 4-vCPU hosted runner workers saved ~25s and job structure was the lever | kit row `lint` **v2** (comments: where a figure was measured) | `64bb5f9` |
 | — | §2.4's sweep test measured enforcement, not force (entry below, verbatim as relayed 2026-09-30) | BRIEF-STANDARD §2.4 test; `check-brief` v9; `brief-kit/DECISIONS.md` | `bfed62c` |
 
 **Corrections made on the way in, recorded here rather than only in canon:**
