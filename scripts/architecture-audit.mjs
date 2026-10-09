@@ -155,7 +155,7 @@ function checkCrossOriginLinks() {
       .join("\n")
 
     // Create regex per-file so lastIndex never bleeds between files
-    const linkRegex = /<Link\s+[^>]*href=["']([^"']+)["']/g
+    const linkRegex = /<Link\b[^>]*\bhref=["']([^"']+)["']/g
     let m
     while ((m = linkRegex.exec(content)) !== null) {
       const href = m[1]
@@ -202,11 +202,11 @@ function checkSafeRedirectDenylist() {
   const authPaths = new Set()
   for (const dir of authDirs) {
     try {
-      for (const f of walk(dir, /^(page|route)\.(tsx?|ts)$/)) {
+      for (const f of walk(dir, /^(?:page|route)\.tsx?$/)) {
         // Convert filesystem path to URL path
         const rel = relPath(f).replace(/^app\/\([^/]+\)/, "")
-          .replace(/\/(page|route)\.(tsx?|ts)$/, "")
-          .replace(/\[([^\]]+)\]/g, ":$1")  // dynamic segments
+          .replace(/\/(?:page|route)\.tsx?$/, "")
+          .split("/").map((s) => (s.startsWith("[") && s.endsWith("]") ? ":" + s.slice(1, -1) : s)).join("/")  // dynamic segments
         authPaths.add(rel || "/")
       }
     } catch { /* dir may not exist */ }
@@ -363,31 +363,46 @@ function checkCookieReadability() {
 // Catches: a ROUTE_MANIFEST entry typo where the path doesn't match
 // any file in app/.
 
+// ⚠ UNTIL 2026-10-09 THIS CHECKED NOTHING: it extracted `path: "…"` fields, the manifest is keyed by object
+// keys (`"/leases": { … }`), so it matched 0 entries and reported green (.handoff/loading-boundaries/01-walker.md
+// F1). Its candidates were also `app/<group>/<segment>/page.tsx` only, blind to nested groups like
+// `leases/(overview)/page.tsx`. It now reads the keys, derives every route URL from disk (groups and slots
+// stripped, as check-loading-boundaries does), and asserts its own extraction with a floor (L-10).
+// A key is a PREFIX (proxy.ts matches `/apply` for `/apply/[slug]/…`), so it must name at least one route
+// URL equal to it or beneath it.
+const ROUTE_FILES = new Set(["page.tsx", "page.ts", "route.ts", "route.tsx"])
+const MANIFEST_KEY_FLOOR = 30
+
+function routeUrlsOnDisk() {
+  const urls = []
+  const walk = (dir, segs) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) {
+        const n = e.name
+        const isGroup = n.startsWith("(") && n.endsWith(")")
+        walk(join(dir, n), isGroup || n.startsWith("@") ? segs : [...segs, n])
+      } else if (ROUTE_FILES.has(e.name)) urls.push("/" + segs.join("/"))
+    }
+  }
+  walk(join(ROOT, "app"), [])
+  return urls
+}
+
 function checkRouteManifest() {
   const manifest = readFile(join(ROOT, "lib/routing/manifest.ts"))
-  const pathMatches = [...manifest.matchAll(/path:\s*["'](\/[^"']*)["']/g)]
-
-  for (const m of pathMatches) {
-    const path = m[1]
-    // Convert URL path to filesystem path candidates
-    // /welcome → app/(*)welcome/page.tsx — could be in any group
-    const segment = path.replace(/^\//, "").replace(/\/$/, "") || ""
-    if (!segment) continue   // root
-
-    const candidates = [
-      ...APP_ONLY_GROUPS, ...MARKETING_ONLY_GROUPS, "(public)",
-    ].flatMap(group => [
-      join(ROOT, "app", group, segment, "page.tsx"),
-      join(ROOT, "app", group, segment, "route.ts"),
-    ])
-
-    const exists = candidates.some(p => {
-      try { statSync(p); return true } catch { return false }
-    })
-
-    if (!exists) {
-      fail("route-manifest", `ROUTE_MANIFEST path "${path}" has no matching page.tsx or route.ts in any route group`,
-           `Check the path string for typos, or add the page/route file`)
+  const keys = [...manifest.matchAll(/^ *["'](\/[^"']*)["'] *: *\{/gm)].map((m) => m[1])
+  if (keys.length < MANIFEST_KEY_FLOOR) {
+    fail("route-manifest", `ROUTE_MANIFEST extraction found ${keys.length} key(s) (floor ${MANIFEST_KEY_FLOOR})`,
+         `The manifest's shape changed or the extraction broke; a scan of nothing reports every key valid`)
+    return
+  }
+  const urls = routeUrlsOnDisk()
+  for (const key of keys) {
+    const prefix = key === "/" ? "/" : key.replace(/\/$/, "")
+    const named = urls.some((u) => u === prefix || u.startsWith(prefix === "/" ? "/" : prefix + "/"))
+    if (!named) {
+      fail("route-manifest", `ROUTE_MANIFEST key "${key}" names no page or route handler under app/`,
+           `Check the key for typos, or add the page/route file`)
     }
   }
 }
