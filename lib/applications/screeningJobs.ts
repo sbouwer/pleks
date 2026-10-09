@@ -99,20 +99,28 @@ async function liveToken(db: SupabaseClient, applicationId: string): Promise<{ t
 /** When the latest pass READ the documents — its job's started_at (claimed just before loadDocuments), never the
  *  evaluation's generated_at, which is stamped after the pipeline: a document uploaded mid-pass is newer than the
  *  read but older than the write, and anchoring on the write hides it for good (A18 walker N1). Falls back to
- *  generated_at for an evaluation with no done job. undefined = query error. */
-async function passReadAt(db: SupabaseClient, orgId: string, applicationId: string, generatedAt: string | null): Promise<string | null | undefined> {
+ *  generated_at for an evaluation with no done job. undefined = query error.
+ *  Keyed on the job that WROTE this evaluation (`iteration_number`, stamped only on a pass that persisted one), never
+ *  on the latest done job: /screen's cap branch claims a job — stamping started_at — and marks it done with no
+ *  evaluation, so "latest" can postdate the read and hide a change at exactly the cap (a18-staleness walker W1). */
+async function passReadAt(db: SupabaseClient, orgId: string, applicationId: string, evaluation: PassEvaluation): Promise<string | null | undefined> {
   const { data, error } = await db.from("screening_jobs")
     .select("started_at")
-    .eq("org_id", orgId).eq("application_id", applicationId).eq("status", "done").not("started_at", "is", null)
+    .eq("org_id", orgId).eq("application_id", applicationId).eq("status", "done")
+    .eq("iteration_number", evaluation.iteration_number).not("started_at", "is", null)
     .order("finished_at", { ascending: false }).limit(1).maybeSingle()
   logQueryError("enqueueScreening pass read-at", error)
   if (error) return undefined
-  return (data?.started_at as string | undefined) ?? generatedAt
+  return (data?.started_at as string | undefined) ?? evaluation.generated_at
 }
 
-/** Whether the documents changed after the latest pass read them. null = query error. */
-async function docsChangedSinceLastPass(db: SupabaseClient, orgId: string, applicationId: string, generatedAt: string | null): Promise<boolean | null> {
-  const since = await passReadAt(db, orgId, applicationId, generatedAt)
+/** The evaluation a staleness test is about: the one shown, or the one a re-queue would supersede. */
+export interface PassEvaluation { iteration_number: number; generated_at: string }
+
+/** Whether the documents changed after `evaluation`'s pass read them. null = query error. Also read by the agent's
+ *  ruling card, so the staleness it shows is the same test that decides a re-queue (A18 walker N2). */
+export async function docsChangedSinceLastPass(db: SupabaseClient, orgId: string, applicationId: string, evaluation: PassEvaluation): Promise<boolean | null> {
+  const since = await passReadAt(db, orgId, applicationId, evaluation)
   if (since === undefined) return null
   return since ? await docsChangedSince(db, orgId, applicationId, since) : false
 }
@@ -159,14 +167,15 @@ export async function enqueueScreening(
   if (!tok.token) return "not-ready"
 
   const { data: latestEval, count, error: evalErr } = await db.from("application_screening_evaluations")
-    .select("generated_at", { count: "exact" })
+    .select("iteration_number, generated_at", { count: "exact" })
     .eq("org_id", orgId).eq("application_id", applicationId)
     .order("iteration_number", { ascending: false }).limit(1)
   logQueryError("enqueueScreening evaluations", evalErr)
   if (evalErr) return "error"
   const evalCount = count ?? 0
-  const docsChanged = !force && evalCount > 0
-    ? await docsChangedSinceLastPass(db, orgId, applicationId, (latestEval?.[0]?.generated_at as string | undefined) ?? null)
+  const shown = latestEval?.[0] as PassEvaluation | undefined
+  const docsChanged = !force && shown
+    ? await docsChangedSinceLastPass(db, orgId, applicationId, shown)
     : false
   if (docsChanged === null) return "error"
 

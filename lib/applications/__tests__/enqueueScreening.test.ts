@@ -13,7 +13,7 @@ vi.mock("@/lib/tier/gates", () => ({ hasFeature: () => true }))
 import { enqueueScreening } from "../screeningJobs"
 import { ANONYMISE_PLAN } from "@/lib/popia/anonymisePlan"
 
-interface Job { id: string; status: string; attempts: number; max_attempts: number; started_at?: string }
+interface Job { id: string; status: string; attempts: number; max_attempts: number; started_at?: string; iteration_number?: number }
 interface World { consent: boolean; token: boolean; evals: number; docsChanged: boolean; jobs: Job[]; orArgs: string[]; app: Record<string, unknown>; tokenReads: number }
 
 /** Each awaited step yields a tick, so two Promise.all callers interleave the way two invocations would. */
@@ -26,12 +26,14 @@ function fakeDb(over: Partial<World> = {}) {
     let pendingInsert: Job | null = null
     let deleting = false
     let deleteId = ""
+    let iteration: number | undefined
     const b: Record<string, unknown> = {}
     for (const m of ["select", "order", "limit", "gt", "not"]) b[m] = () => b
     b.or = (f: string) => { w.orArgs.push(f); return b }
     b.in = () => { filteredByStatus = true; return b }
     b.eq = (col: string, v: string) => {
       if (deleting && col === "id") { deleteId = v }
+      if (col === "iteration_number") iteration = Number(v)
       return b
     }
     b.insert = (row: { status: string }) => { pendingInsert = { id: `j${++seq}`, status: row.status, attempts: 0, max_attempts: 3 }; return b }
@@ -50,12 +52,13 @@ function fakeDb(over: Partial<World> = {}) {
       if (table === "screening_jobs" && filteredByStatus) {
         return { data: w.jobs.find((j) => j.status === "pending" || j.status === "running") ?? null, error: null }
       }
-      return { data: w.jobs.at(-1) ?? null, error: null }
+      const pool = iteration === undefined ? w.jobs : w.jobs.filter((j) => j.iteration_number === iteration)
+      return { data: pool.at(-1) ?? null, error: null }
     }
     b.then = (res: (v: unknown) => void) => tick().then(() => {
       if (deleting) { w.jobs = w.jobs.filter((j) => j.id !== deleteId); return res({ error: null }) }
       if (table === "application_documents") return res({ count: w.docsChanged ? 1 : 0, error: null })
-      return res({ data: w.evals ? [{ generated_at: "2026-10-06T10:00:00Z" }] : [], count: w.evals, error: null })
+      return res({ data: w.evals ? [{ iteration_number: w.evals, generated_at: "2026-10-06T10:00:00Z" }] : [], count: w.evals, error: null })
     })
     return b
   }
@@ -90,7 +93,18 @@ describe("enqueueScreening", () => {
 
   it("'changed' is measured from when the pass READ the documents (its job's started_at), not when it wrote", async () => {
     // generated_at is 10:00 (fake); the pass claimed at 09:59 — a 09:59:30 upload must count as changed.
-    const { db, w } = fakeDb({ evals: 1, jobs: [{ id: "j0", status: "done", attempts: 1, max_attempts: 3, started_at: "2026-10-06T09:59:00Z" }] })
+    const { db, w } = fakeDb({ evals: 1, jobs: [{ id: "j0", status: "done", attempts: 1, max_attempts: 3, started_at: "2026-10-06T09:59:00Z", iteration_number: 1 }] })
+    await enqueueScreening(db, ARGS)
+    expect(w.orArgs).toEqual(["uploaded_at.gt.2026-10-06T09:59:00.000Z,deleted_at.gt.2026-10-06T09:59:00.000Z"])
+  })
+
+  it("PLANTED: a later done job that wrote NO evaluation (the cap no-op) never becomes the anchor (a18-staleness W1)", async () => {
+    // Eval 2 read at 09:59; the cap branch claimed and finished a job at 11:00 with no iteration. A 10:30 change must
+    // still count — anchoring on "latest done" would measure from 11:00 and hide it.
+    const { db, w } = fakeDb({ evals: 2, jobs: [
+      { id: "j1", status: "done", attempts: 1, max_attempts: 3, started_at: "2026-10-06T09:59:00Z", iteration_number: 2 },
+      { id: "j2", status: "done", attempts: 1, max_attempts: 3, started_at: "2026-10-06T11:00:00Z" },
+    ] })
     await enqueueScreening(db, ARGS)
     expect(w.orArgs).toEqual(["uploaded_at.gt.2026-10-06T09:59:00.000Z,deleted_at.gt.2026-10-06T09:59:00.000Z"])
   })
