@@ -12,6 +12,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { saDateISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { SentryClientProbe } from "./SentryClientProbe"
 
 interface SnapshotRow {
   id: string
@@ -136,6 +137,8 @@ export default async function PlatformHealthPage() {
           Cost &amp; usage across all orgs. Updated nightly at 08:30 SAST.
         </p>
       </div>
+
+      <SentryClientProbe />
 
       {/* ── This month summary ── */}
       <div className="grid grid-cols-3 gap-4">
