@@ -7,6 +7,8 @@
  * Data:   leases, tenants, units, properties, lease_charges, audit_log, communication_log
  * Notes:  BUILD_63 Phase 5: L1 fires in sendForSigning, L10 fires in giveNotice (tenant-only),
  *         L4+P1 fire in activateLeaseCascade. L11 fires from lease-expiry-check cron.
+ *         Both create actions accept an optional application_id (approval → lease, arc 2 B2): validated against
+ *         the tenant + unit, stamped on originating_application_id, and back-linked via applicationLink.ts.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { getLeaseCreationGate, LEASE_GATE_BLOCKED_MESSAGE } from "@/lib/leases/leaseCreationGate"
@@ -25,6 +27,7 @@ import { formatZAR } from "@/lib/constants"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
 import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
+import { checkOriginatingApplication, linkApplicationToLease } from "@/lib/leases/applicationLink"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 
@@ -170,10 +173,14 @@ export async function createLease(formData: FormData) {
   const overlap = await findLeaseOverlapBlock(db, orgId, f.unitId, f.startDate)
   if (overlap) return { error: overlap }
 
+  const origin = await checkOriginatingApplication(db, orgId, (formData.get("application_id") as string) || null, { tenantId: f.tenantId, unitId: f.unitId })
+  if ("error" in origin) return { error: origin.error }
+
   const { data: lease, error } = await db
     .from("leases")
     .insert({
       org_id: orgId,
+      originating_application_id: origin.applicationId,
       unit_id: f.unitId,
       property_id: f.propertyId,
       tenant_id: f.tenantId,
@@ -236,7 +243,8 @@ export async function createLease(formData: FormData) {
     prospective_co_tenant_ids: coTenantIds,
   }).eq("id", f.unitId).eq("org_id", orgId) // org-scope guard (caller-ID census)
 
-  await recordAudit(db, { orgId: orgId, table: "leases", recordId: lease.id, action: "INSERT", actorId: userId, after: { tenant_id: f.tenantId, unit_id: f.unitId, lease_type: f.leaseType, rent_cents: f.rentCents } })
+  await recordAudit(db, { orgId: orgId, table: "leases", recordId: lease.id, action: "INSERT", actorId: userId, after: { tenant_id: f.tenantId, unit_id: f.unitId, lease_type: f.leaseType, rent_cents: f.rentCents, originating_application_id: origin.applicationId } })
+  if (origin.applicationId) await linkApplicationToLease(db, orgId, origin.applicationId, lease.id, userId)
 
   revalidatePath("/leases")
   redirect(`/leases/${lease.id}`)
@@ -282,6 +290,9 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   const uploadOverlap = await findLeaseOverlapBlock(db, orgId, unitId, startDate)
   if (uploadOverlap) return { error: uploadOverlap }
 
+  const origin = await checkOriginatingApplication(db, orgId, (formData.get("application_id") as string) || null, { tenantId, unitId })
+  if ("error" in origin) return { error: origin.error }
+
   // setFullYear/getFullYear are LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
   const escalationReviewDate = addCalendarMonths(startDate, 12)
 
@@ -292,6 +303,7 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
     .from("leases")
     .insert({
       org_id: orgId,
+      originating_application_id: origin.applicationId,
       unit_id: unitId,
       property_id: propertyId,
       tenant_id: tenantId,
@@ -364,7 +376,8 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
     }
   }
 
-  await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "INSERT", actorId: userId, after: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents, template_source: "uploaded" } })
+  await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "INSERT", actorId: userId, after: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents, template_source: "uploaded", originating_application_id: origin.applicationId } })
+  if (origin.applicationId) await linkApplicationToLease(db, orgId, origin.applicationId, leaseId, userId)
 
   revalidatePath("/leases")
   return documentError ? { leaseId, documentError } : { leaseId }

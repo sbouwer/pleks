@@ -138,7 +138,7 @@ export default async function ApplicationDetailPage({
       salary_reconciliation_status, document_consistency_status,
       bank_account_ownership_status,
       free_assessment,
-      stage1_status, stage2_status,
+      stage1_status, stage2_status, resulting_lease_id,
       fitscore, fitscore_band, fitscore_confidence_index,
       fitscore_verification_integrity, fitscore_material_flags,
       fitscore_components, fitscore_component_snapshot, fitscore_narrative,
@@ -270,6 +270,7 @@ export default async function ApplicationDetailPage({
         stage2Status={app.stage2_status}
         isForeignNational={app.is_foreign_national}
         immigrationConfirmed={app.immigration_compliance_confirmed}
+        resultingLeaseId={(app.resulting_lease_id as string | null) ?? null}
       />
     </div>
   )

@@ -46,6 +46,7 @@ function appendCommonFields(formData: FormData, data: WizardData, cpaApplies: bo
   formData.set("unit_id", data.unitId)
   formData.set("property_id", data.propertyId)
   formData.set("tenant_id", data.tenantId)
+  if (data.applicationId) formData.set("application_id", data.applicationId)
   formData.set("lease_type", data.leaseType)
   formData.set("tenant_is_juristic", String(data.tenantIsJuristic))
   formData.set("cpa_applies", String(cpaApplies))
