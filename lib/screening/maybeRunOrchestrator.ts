@@ -11,6 +11,7 @@
  *         the run": the orchestrator runs only when no live party is outstanding — everyone completed, or the rest were
  *         declined at their D — so N6 never reaches a party while another's window is still open. Once per recipient
  *         comes from the trail, since a re-run returns ok exactly as a first run does.
+ *         An ERASED lead never runs (isStrippedApplication): its status survives the strip, its subject does not.
  */
 import * as Sentry from "@sentry/nextjs"
 import type { createServiceClient } from "@/lib/supabase/server"
@@ -18,6 +19,7 @@ import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 import { notifyOutcome } from "@/lib/screening/milestoneNotices"
 import { optionalEnv } from "@/lib/env"
 import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
+import { isStrippedApplication } from "@/lib/applications/screeningJobs"
 
 export async function maybeRunOrchestrator(
   service: Awaited<ReturnType<typeof createServiceClient>>, orgId: string, applicationId: string,
@@ -27,7 +29,7 @@ export async function maybeRunOrchestrator(
   // Primary applicant must be complete
   const { data: app, error: appErr } = await service
     .from("applications")
-    .select("searchworx_check_status")
+    .select("searchworx_check_status, applicant_email, pii_purged_at")
     .eq("id", applicationId)
     .eq("org_id", orgId)
     .maybeSingle()
@@ -36,6 +38,10 @@ export async function maybeRunOrchestrator(
     return
   }
   if (app?.searchworx_check_status !== "complete") return
+  // An erased lead keeps its `complete` status, and erasing it strips every co too — so settling those cos' lines
+  // offered this an application whose subject has left. A run would rewrite the fitscore columns the strip nulled and
+  // mail the outcome (n3b walker F1). The application is over; nothing scores it again.
+  if (isStrippedApplication(app)) return
 
   // All LIVE co-applicants must be complete. A declined party has left the set (the view drops it too), so it never
   // completes — counting it held FitScore back for good once residential lines reached this runner (walker F8).

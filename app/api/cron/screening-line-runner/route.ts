@@ -33,6 +33,8 @@
  *         write defect — no ID number, no consent, a line insert that failed — and that marks the subject `failed`
  *         for a person, because retrying it would re-bill without ever reaching the bound. A lines READ that fails
  *         hands the claim back to `pending` instead: nothing has been bought on that path, or the lines already landed.
+ *
+ *         An ERASED co party's line is never run: it is settled before the claim (lib/screening/settleErasedCoLine.ts).
  */
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -47,6 +49,8 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { planRun, type RunPlan } from "@/lib/screening/retryPlan"
 import { recordOwedRefund } from "@/lib/screening/refundOwed"
 import { completeSubject } from "@/lib/screening/completeSubject"
+import { isLiveCoParty } from "@/lib/applications/liveCoParties"
+import { settleErasedCoLine } from "@/lib/screening/settleErasedCoLine"
 
 const BATCH_SIZE = 50
 
@@ -89,6 +93,20 @@ async function handler(_req: NextRequest): Promise<Response> {
         // a process that is no longer running (M-111). Best-effort: a failure to record the failure
         // must not abort the batch, and the sweep above will collect the row on a later run.
         await markLineFailed(service, line, msg)
+        // A co erased WHILE its line ran (no ID number by the time the bundle read it) fails here, after the pre-claim
+        // check passed. `failed` is a state nothing re-reads, so settle it now; the helper's update matches only an
+        // erased row, so a live party's failure is untouched (n3b walker F2).
+        if (!isApplicationSubject(line.subject_type)) {
+          await settleErasedCoLine(service, {
+            org_id: line.org_id, application_id: line.application_id, subject_id: line.subject_id, paid: true,
+          }).catch((e: unknown) => {
+            // The line is `failed` now and no queue re-reads it, so this is the last chance anyone hears of it (n3b W1).
+            Sentry.captureException(e, {
+              tags: { cron_job: "screening_line_runner", reason: "erased_settle_failed" },
+              extra: { subject_id: line.subject_id, application_id: line.application_id },
+            })
+          })
+        }
         Sentry.captureException(err, {
           tags: { cron_job: "screening_line_runner", subject_type: line.subject_type },
           extra: { subject_id: line.subject_id, application_id: line.application_id },
@@ -158,6 +176,23 @@ async function processLine(
   // next constraint, permission or column defect surfaces as a failure instead of a skip.
   const table = isApplicationSubject(line.subject_type) ? "applications" : "application_co_applicants"
   const rowId = isApplicationSubject(line.subject_type) ? line.application_id : line.subject_id
+
+  // An ERASED co party is never screened: its line is paid and consented, but the subject has left and the strip took
+  // its ID number, so the bundle would throw and the line go `failed` — a state nothing re-reads, so the group's
+  // FitScore was stranded (N3 re-walk R1b). Settled unrun instead, before any claim; the payment goes to a person.
+  if (!isApplicationSubject(line.subject_type)) {
+    const { data: party, error: partyError } = await service
+      .from("application_co_applicants")
+      .select("applicant_email, declined_at")
+      .eq("id", line.subject_id)
+      .eq("org_id", line.org_id)
+      .maybeSingle()
+    if (partyError) throw new Error(`read co party ${line.subject_id}: ${partyError.message}`)
+    if (party && !isLiveCoParty(party)) {
+      await settleErasedCoLine(service, { org_id: line.org_id, application_id: line.application_id, subject_id: line.subject_id, paid: true })
+      return
+    }
+  }
 
   const { data: claimed, error: claimError } = await service
     .from(table)

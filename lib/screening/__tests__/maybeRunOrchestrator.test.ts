@@ -7,6 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { createServiceClient } from "@/lib/supabase/server"
+import { REDACTED } from "@/lib/popia/anonymisePlan"
 
 let orchResult: { ok: boolean; reason?: string } = { ok: true }
 const runFitScoreOrchestrator = vi.fn(async () => orchResult)
@@ -23,12 +24,12 @@ import { maybeRunOrchestrator } from "../maybeRunOrchestrator"
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 
 /** The lead's status and the live co rows' statuses. */
-function fakeService(lead: string, cos: string[]): Svc {
+function fakeService(lead: string, cos: string[], leadRow: Record<string, unknown> = {}): Svc {
   return {
     from(table: string) {
       const b: Record<string, unknown> = {}
       for (const m of ["select", "eq", "is", "neq"]) b[m] = () => b
-      b.maybeSingle = async () => ({ data: { searchworx_check_status: lead }, error: null })
+      b.maybeSingle = async () => ({ data: { searchworx_check_status: lead, applicant_email: "lead@test", pii_purged_at: null, ...leadRow }, error: null })
       if (table === "application_co_applicants") {
         b.then = (ok: (v: unknown) => unknown) =>
           Promise.resolve({ data: cos.map((s) => ({ searchworx_check_status: s })), error: null }).then(ok)
@@ -61,6 +62,13 @@ describe("N6 follows the run (14X §2)", () => {
   it("PLANTED: a live party still outstanding means no run and no N6", async () => {
     await maybeRunOrchestrator(fakeService("complete", ["complete", "pending"]), "org-A", "app-1")
     await maybeRunOrchestrator(fakeService("pending", []), "org-A", "app-1")
+    expect(runFitScoreOrchestrator).not.toHaveBeenCalled()
+    expect(notifyOutcome).not.toHaveBeenCalled()
+  })
+
+  it("PLANTED: an erased lead is never scored again, though its status survived the strip (n3b walker F1)", async () => {
+    await maybeRunOrchestrator(fakeService("complete", [], { applicant_email: REDACTED }), "org-A", "app-1")
+    await maybeRunOrchestrator(fakeService("complete", [], { pii_purged_at: "2026-10-09T00:00:00Z" }), "org-A", "app-1")
     expect(runFitScoreOrchestrator).not.toHaveBeenCalled()
     expect(notifyOutcome).not.toHaveBeenCalled()
   })

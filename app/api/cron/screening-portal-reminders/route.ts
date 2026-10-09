@@ -40,6 +40,7 @@ import { sendCoApplicantInvited, sendShortlistInvitation } from "@/lib/applicati
 import { inviteRoute } from "@/lib/applications/juristicParties"
 import { maybeFireAllGreen } from "@/lib/applications/peerCompletion"
 import { isLiveCoParty } from "@/lib/applications/liveCoParties"
+import { settleErasedCoLine } from "@/lib/screening/settleErasedCoLine"
 import { maybeRunOrchestrator } from "@/lib/screening/maybeRunOrchestrator"
 import { readLine } from "@/lib/screening/lineFee"
 import {
@@ -455,8 +456,7 @@ async function trail(
 
 async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   // Declined only, NOT onlyLiveCoParties: an erased co still has a line in the view (it keeps a null declined_at), and
-  // the deadline decline below is the only thing that takes it out and offers the orchestrator the application. Read
-  // past, it would be skipped on every run and the group's FitScore stranded (N3 walker F1). It is told nothing.
+  // reading past it would leave that line open on every run and the group's FitScore stranded (N3 walker F1).
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
     .select("applicant_email, first_name, created_at, stage2_invited_at, primary_application_id, access_token, role, is_surety_director, declared_director, reminder_milestones_sent")
@@ -469,6 +469,13 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
 
   if (line.party_kind !== "co_applicant" && line.party_kind !== "guarantor" && line.party_kind !== "surety") return "skipped"
 
+  // ERASED (N3): the party has left, so its line is settled now — invited or not, inside its window or past it, paid or
+  // not — silently, and a paid one is raised to a person (lib/screening/settleErasedCoLine.ts). Never reminded.
+  if (!isLiveCoParty(row)) {
+    return await settleErasedCoLine(service, { org_id: line.org_id, application_id: line.application_id, subject_id: line.subject_id, paid: line.paid_at !== null })
+      ? "expired" : "skipped"
+  }
+
   // ONE CLOCK (14W §0b, §9 rows 26/40): every party's window runs SCREENING_WINDOW_DAYS from its own stage-2 invite,
   // written at shortlist — sureties included, since they are invited there now. Never `created_at`, never the payment
   // row's expires_at (a settlement field). A party nobody has invited is not chased, or expired, for it.
@@ -476,13 +483,10 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
   const t0 = row.stage2_invited_at
   const pastDeadline = isPastDeadline(t0)
 
-  const erased = !isLiveCoParty(row)
-
   // HELD (P1-R3): a surety no approved role sentence fits is not reminded, and not expired either — declining someone
   // for not completing an invite we withheld would record their failure for ours. Since the 2026-10-03 A/B/C release
   // that set is empty. The decision is inviteRoute's, the same one the first invite and the co-parties Resend read.
-  // An erased party skips it: the strip may have taken the fields the route reads, and "held" would strand its line.
-  if (line.party_kind === "surety" && !erased) {
+  if (line.party_kind === "surety") {
     const { data: application, error: applicationError } = await service
       .from("applications")
       .select("entity_type, applicant_type, company_info")
@@ -504,10 +508,6 @@ async function processLine(service: Svc, line: PendingLine): Promise<LineOutcome
       return "skipped"
     }
   }
-
-  // ERASED (N3): never reminded, and at its deadline declined like any party that did not complete — silently, since its
-  // address is "[erased]". After the paid branch on purpose: a paid erased line keeps its alarm (N3 re-walk R1a).
-  if (erased) return pastDeadline ? declineLine(service, line, row, { erased: true }) : "skipped"
 
   // At the deadline, whoever did not complete does not count (§0): consented-but-unpaid included — it is declined on
   // the same clock as everyone else (walker 14w-s0a F2), and the set it leaves may now be complete.
@@ -558,7 +558,7 @@ async function processCoApplicantLine(
  *  whose last open party was declined never ran. A surety is told its portion expired (the approved notice, without
  *  the refund note it carried under the pooled model) as its N6′; every other co party gets the 14X N6′, held until
  *  counsel approves it (the gap is recorded). */
-async function declineLine(service: Svc, line: PendingLine, coApp: CoAppRow, opts: { erased: boolean } = { erased: false }): Promise<LineOutcome> {
+async function declineLine(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<LineOutcome> {
   // The state was read once at the start of the run; the party may have paid since (walker 14w-s0b F3). Re-read its own
   // line immediately before declining, and never decline a paid one. The residual window (an ITN landing between this
   // read and the update) is held by the ITN, which flags a payment on a declined line for a person.
@@ -567,11 +567,9 @@ async function declineLine(service: Svc, line: PendingLine, coApp: CoAppRow, opt
   if (fresh.row?.paid_at) return "skipped"
 
   const now = new Date().toISOString()
-  // An erased party is recorded as what it was, not as a party that ran out of time (N3 re-walk R3); nothing reads it.
-  const reason = opts.erased ? "subject_erased" : "expired_no_completion"
   const { data: declined, error } = await service
     .from("application_co_applicants")
-    .update({ declined_at: now, decline_reason: reason })
+    .update({ declined_at: now, decline_reason: "expired_no_completion" })
     .eq("id", line.subject_id)
     .eq("org_id", line.org_id)
     .is("declined_at", null)
@@ -579,17 +577,16 @@ async function declineLine(service: Svc, line: PendingLine, coApp: CoAppRow, opt
   if (error) throw new Error(`decline line: ${error.message}`)
   // An overlapping run already declined it: no second audit row, notice or fan-out (walker F6).
   if (!declined?.length) return "skipped"
-  await recordAudit(service, { orgId: line.org_id, table: "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { declined_at: now, decline_reason: reason } })
+  await recordAudit(service, { orgId: line.org_id, table: "application_co_applicants", recordId: line.subject_id, action: "UPDATE", after: { declined_at: now, decline_reason: "expired_no_completion" } })
   // N6′ first: the line has left the view, so nothing after this point is retried (walker F6). A surety's N6′ is the
   // approved expiry notice, as its N2/N4 is the approved director reminder; every other party's is the new 14X copy,
   // held until counsel approves it (the gap is recorded).
   // Neither may throw past here: the decline is committed and the line has left the view, so a throw would skip the
   // fan-out and the orchestrator below with nothing to retry them (walker 14x-p4 F1).
-  // An erased party is told nothing: it has no address, and the strip revoked its link.
-  if (!opts.erased && line.party_kind === "surety") {
+  if (line.party_kind === "surety") {
     await sendSuretyExpiry(service, line, coApp).catch((err: unknown) =>
       Sentry.captureException(err, { tags: { cron_job: "screening_portal_reminders", milestone: "N6_absent" }, extra: { subject_id: line.subject_id } }))
-  } else if (!opts.erased) await sendOutcomeAbsent(service, line, coApp)
+  } else await sendOutcomeAbsent(service, line, coApp)
   await maybeFireAllGreen(service, line.application_id)
   await maybeRunOrchestrator(service, line.org_id, line.application_id)
   return "expired"
