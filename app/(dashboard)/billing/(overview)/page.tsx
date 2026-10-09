@@ -1,5 +1,5 @@
 /**
- * app/(dashboard)/billing/page.tsx — payments & invoices (the billing area)
+ * app/(dashboard)/billing/(overview)/page.tsx — payments & invoices (the billing area)
  *
  * Route:  /billing
  * Auth:   gateway + the 'billing' capability (owner / is_admin exempt) — RBAC P4; redirects to /403 otherwise
@@ -11,7 +11,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { hasCapability } from "@/lib/auth/can"
 import { createServiceClient } from "@/lib/supabase/server"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchPayments } from "@/lib/queries/portfolio"
-import { BillingPageClient } from "./BillingPageClient"
+import { BillingPageClient } from "../BillingPageClient"
 
 export default async function PaymentsPage() {
   const gw = await gatewaySSR()

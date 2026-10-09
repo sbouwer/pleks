@@ -1,5 +1,5 @@
 /**
- * app/(dashboard)/finance/page.tsx — Finance Overview (trust, collections, owner payouts, reconciliation)
+ * app/(dashboard)/finance/(overview)/page.tsx — Finance Overview (trust, collections, owner payouts, reconciliation)
  *
  * Route:  /finance
  * Auth:   gatewaySSR (redirects to /login if missing)
@@ -15,7 +15,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getFinanceHubData } from "@/lib/finance/financeHub"
 import { getCollectionRate } from "@/lib/dashboard/collectionRate"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
-import { FinanceOverview } from "./FinanceOverview"
+import { FinanceOverview } from "../FinanceOverview"
 import { SA_TIMEZONE } from "@/lib/dates"
 
 export default async function FinancePage() {
