@@ -363,9 +363,21 @@ DO $do$ BEGIN
     CREATE TRIGGER _test_inject_deptxn_trg BEFORE INSERT ON public.deposit_transactions
       FOR EACH ROW EXECUTE FUNCTION pleks_test.fail_if_forced('deptxn', 'test-forced-deposit-txn-failure');
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '_test_inject_tpt_update_trg') THEN
+    CREATE TRIGGER _test_inject_tpt_update_trg BEFORE UPDATE ON public.tenant_portal_tokens
+      FOR EACH ROW EXECUTE FUNCTION pleks_test.fail_if_forced('tpt_update', 'test-forced-tenant-portal-token-update-failure');
+  END IF;
+  -- The old injectors' unscoped triggers, which a run that crashed mid-test leaves behind. Their off-toggle
+  -- used to heal them; nothing toggles them now, and one left up fails every trust or deposit insert.
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname IN ('_test_fail_trust_trg', '_test_fail_deptxn_trg', '_test_fail_tpt_update_trg')) THEN
+    DROP TRIGGER IF EXISTS _test_fail_trust_trg ON public.trust_transactions;
+    DROP TRIGGER IF EXISTS _test_fail_deptxn_trg ON public.deposit_transactions;
+    DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON public.tenant_portal_tokens;
+  END IF;
 END $do$;`)
 }
 
+/** Switches one registry row; the name says INSERT, and `tpt_update` is the one UPDATE injector. */
 function forceInsertFailure(tag: string, orgId: string, on: boolean): void {
   if (!UUID_RE.test(orgId)) throw new Error(`forceInsertFailure(${tag}): "${orgId}" is not a uuid`) // interpolated into SQL
   psql(on
@@ -396,22 +408,12 @@ export function forceDepositTxnInsertFailure(orgId: string, on: boolean): void {
 }
 
 /**
- * Toggle a temporary BEFORE UPDATE trigger on tenant_portal_tokens that always raises — same injector
- * shape as forceTrustInsertFailure/forceDepositTxnInsertFailure, UPDATE instead of INSERT because the
+ * Toggle the BEFORE UPDATE injector on tenant_portal_tokens for `orgId`'s rows — same registry shape as
+ * forceTrustInsertFailure/forceDepositTxnInsertFailure, UPDATE instead of INSERT because the
  * resend-bounce-revoke webhook's failure path is `.update({ revoked: true })...`. Lets a test prove the
  * webhook's Sentry capture fires on a REAL DB failure, not just assert the 200 status code around it.
  * Always toggle off in a finally/afterEach.
- * NOT org-scoped, unlike the two above, and safe under the parallel tier only because no other dbtest
- * touches tenant_portal_tokens (census, .handoff/ci-faster-gates/01-census.md). A second file that does
- * must scope this the same way first.
  */
-export function forceTenantPortalTokenUpdateFailure(on: boolean): void {
-  if (on) {
-    psql(`CREATE OR REPLACE FUNCTION _test_fail_tpt_update() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE EXCEPTION 'test-forced-tenant-portal-token-update-failure' USING ERRCODE = 'check_violation'; END; $fn$;
-DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON tenant_portal_tokens;
-CREATE TRIGGER _test_fail_tpt_update_trg BEFORE UPDATE ON tenant_portal_tokens FOR EACH ROW EXECUTE FUNCTION _test_fail_tpt_update();`)
-  } else {
-    psql(`DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON tenant_portal_tokens;
-DROP FUNCTION IF EXISTS _test_fail_tpt_update();`)
-  }
+export function forceTenantPortalTokenUpdateFailure(orgId: string, on: boolean): void {
+  forceInsertFailure("tpt_update", orgId, on)
 }

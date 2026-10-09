@@ -15,8 +15,10 @@
  *         A NEW dbtest lands in `parallel` by default. It belongs in SERIAL if it:
  *           · calls code that reads or writes across ALL orgs (a cron, a sweep, a claim runner);
  *           · asserts a count over a whole table, or reads rows it did not create;
- *           · runs DDL, TRUNCATE, or a trigger that is not scoped to its own org (the injectors in
- *             test/db/tier.ts are scoped; forceTenantPortalTokenUpdateFailure is not — see its comment).
+ *           · runs DDL or TRUNCATE. To force a DB failure, use the org-scoped injectors in
+ *             test/db/tier.ts; never CREATE a trigger mid-run (it deadlocked this tier, 2026-10-09).
+ *         Nothing checks a new file's placement. A `>=` over rows other files also create passes MORE
+ *         easily in parallel, so that failure is toward green.
  */
 import { defineConfig } from "vitest/config"
 import { resolve, dirname } from "path"

@@ -88,7 +88,7 @@ function bouncePayload(
 
 // ── Seeding — a comm log row (+ optionally a tenant_portal_tokens row pointing at it) ────────────
 
-async function seedCommLogWithToken(): Promise<{ tokenId: string; emailId: string }> {
+async function seedCommLogWithToken(): Promise<{ tokenId: string; emailId: string; orgId: string }> {
   const seeded = await seedLedgerCase(db, { invoices: [] })
   orgIds.push(seeded.orgId)
   const emailId = `re_${randomUUID()}`
@@ -106,7 +106,7 @@ async function seedCommLogWithToken(): Promise<{ tokenId: string; emailId: strin
   }).select("id").single()
   if (tokenErr) throw new Error(`seed tenant_portal_tokens: ${tokenErr.message}`)
 
-  return { tokenId: token.id as string, emailId }
+  return { tokenId: token.id as string, emailId, orgId: seeded.orgId }
 }
 
 /** A comm log row with NO credential token pointed at it — bullet 4. */
@@ -174,14 +174,14 @@ describe("resend webhook — bounce/complaint revokes (or doesn't) the credentia
   })
 
   it("5. a DB failure on the revoke still returns 200 AND captures to Sentry (the loud-failure rule)", async () => {
-    const { tokenId, emailId } = await seedCommLogWithToken()
+    const { tokenId, emailId, orgId } = await seedCommLogWithToken()
 
-    forceTenantPortalTokenUpdateFailure(true)
+    forceTenantPortalTokenUpdateFailure(orgId, true)
     let status: number, json: unknown
     try {
       ;({ status, json } = await postWebhook(bouncePayload(emailId, "email.bounced", "permanent")))
     } finally {
-      forceTenantPortalTokenUpdateFailure(false)
+      forceTenantPortalTokenUpdateFailure(orgId, false)
     }
 
     // The 200 alone proves nothing — a route that silently ate the error also returns 200. The

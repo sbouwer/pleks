@@ -55,6 +55,11 @@ if (invoked && process.argv.includes("--selftest")) {
   threw = false
   try { partition(c, "everything") } catch { threw = true }
   ok(threw, "PLANTED: an unknown part throws")
+  // The partition proves nothing unless CI runs BOTH halves (walker, .handoff/ci-faster-gates/02-walker.md F2).
+  const ci = readFileSync(".github/workflows/ci.yml", "utf8")
+  const runs = (part) => new RegExp(`^\\s*run:\\s*npm run check:ci -- ${part}\\s*$`, "m")
+  ok(runs("static").test(ci) && runs("rest").test(ci), "ci.yml runs both halves (`npm run check:ci -- static` and `-- rest`)")
+  ok(!runs("rest").test(ci.replace("npm run check:ci -- rest", "npm run check:ci -- static")), "PLANTED: a ci.yml that drops `rest` is caught")
   console.log(failed ? `\n❌ ${failed} probe(s) wrong` : "\n✅ probes green — the two halves are exactly `check`")
   process.exit(failed ? 1 : 0)
 }
