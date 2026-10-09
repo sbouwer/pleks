@@ -6,10 +6,11 @@
  * Data:   generateLeaseDocument(leaseId, orgId), documents storage bucket (signed URL)
  * Notes:  Config write → gateway(), not requireAgentWriteAccess — rendering an existing lease's
  *         document (even non-preview) is "your data, always"; lockdown belongs on lease creation,
- *         not rendering. orgId comes from the gateway session.
+ *         not rendering. orgId comes from the gateway session. 409 when the lease's source is one Pleks does
+ *         not render (lib/leases/leaseSource.ts).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { generateLeaseDocument } from "@/lib/leases/generateDocument"
+import { generateLeaseDocument, LeaseNotRenderedError } from "@/lib/leases/generateDocument"
 import { gateway } from "@/lib/supabase/gateway"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -29,6 +30,9 @@ export async function POST(req: NextRequest) {
   try {
     result = await generateLeaseDocument(leaseId, orgId, preview === true)
   } catch (err) {
+    if (err instanceof LeaseNotRenderedError) {
+      return NextResponse.json({ error: "This lease uses your own document, so Pleks does not generate one" }, { status: 409 })
+    }
     console.error("generate-docx: generation failed for lease", leaseId, err)
     return NextResponse.json({ error: "Could not generate the lease document" }, { status: 500 })
   }

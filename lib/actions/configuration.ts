@@ -10,8 +10,9 @@
  *         document-source fork default; null clears it (back to undecided → the lease step shows the fork).
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { isOrgLeaseSourceDefault, type OrgLeaseSourceDefault } from "@/lib/leases/leaseSource"
 
-export type LeaseDocumentSource = "pleks" | "external"
+export type LeaseDocumentSource = OrgLeaseSourceDefault
 
 /**
  * Persist the org's default lease document source (Axis A). 'pleks' = Generate with Pleks,
@@ -21,6 +22,9 @@ export async function setDefaultLeaseDocumentSource(
   source: LeaseDocumentSource | null,
 ): Promise<{ error?: string }> {
   const { db, orgId } = await requireAgentWriteAccess("edit_org_settings")
+  // A server action's argument is caller-supplied whatever its type says; the CHECK would refuse a bad value,
+  // but as a 500-shaped error rather than an answer.
+  if (source !== null && !isOrgLeaseSourceDefault(source)) return { error: "Unknown lease source" }
 
   const { error } = await db
     .from("organisations")

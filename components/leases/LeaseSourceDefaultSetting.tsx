@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { Card, CardContent } from "@/components/ui/card"
 import { useOrg } from "@/hooks/useOrg"
 import { setDefaultLeaseDocumentSource, type LeaseDocumentSource } from "@/lib/actions/configuration"
+import { isOrgLeaseSourceDefault } from "@/lib/leases/leaseSource"
 
 type Choice = LeaseDocumentSource | "undecided"
 
@@ -25,9 +26,7 @@ const OPTIONS: ReadonlyArray<{ value: Choice; label: string; sub: string }> = [
 ]
 
 function currentChoice(raw: unknown): Choice {
-  if (raw === "pleks") return "pleks"
-  if (raw === "external") return "external"
-  return "undecided"
+  return isOrgLeaseSourceDefault(raw) ? raw : "undecided"
 }
 
 export function LeaseSourceDefaultSetting() {

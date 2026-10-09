@@ -15,6 +15,7 @@ import { PrerequisitesCard } from "./PrerequisitesCard"
 import { SigningOptions } from "./SigningOptions"
 import { MigratedDocSection } from "./MigratedDocSection"
 import type { PrerequisitesCheck } from "@/lib/leases/checkPrerequisites"
+import { leaseSourceProfile } from "@/lib/leases/leaseSource"
 import { fmtDateZA, saTodayISO } from "@/lib/dates"
 import { cpaRenewalNoticeDueSafe } from "@/lib/leases/cpaRenewal"
 
@@ -186,7 +187,7 @@ export function LeaseDetailsTab({
             depositAmountCents={lease.deposit_amount_cents ?? null}
             startDate={lease.start_date ?? null}
             rentAmountCents={lease.rent_amount_cents ?? 0}
-            isUploaded={lease.template_source === "uploaded"}
+            rendersDocument={leaseSourceProfile(lease.template_source).rendersDocument}
           />
         </div>
       )}

@@ -6,7 +6,8 @@
  * Route:  /leases/[leaseId] (Details tab, draft only)
  * Auth:   gateway (dashboard layout)
  * Data:   sendForSigning server action; upload via /api/leases/[id]/upload-document
- * Notes:  Path A = DocuSeal digital, Path B = print/sign/upload, Path C = own document
+ * Notes:  Path A = DocuSeal digital, Path B = print/sign/upload, Path C = own document. A lease whose source
+ *         Pleks does not render (lib/leases/leaseSource.ts) gets the upload + mark-as-signed panel only.
  */
 
 import { useState } from "react"
@@ -18,6 +19,7 @@ import { toast } from "sonner"
 import { FileSignature, PenLine, Upload, CheckCircle2, FileText, Loader2 } from "lucide-react"
 import { ActivationDialog } from "./ActivationDialog"
 import { sendForSigning } from "@/lib/actions/leases"
+import { UPLOAD_MAX_BYTES, UPLOAD_MAX_LABEL } from "@/lib/constants"
 
 interface SigningOptionsProps {
   leaseId: string
@@ -30,7 +32,8 @@ interface SigningOptionsProps {
   depositAmountCents: number | null
   startDate: string | null
   rentAmountCents: number
-  isUploaded?: boolean
+  /** From the lease-source profile: false → the agency's own document, so only upload + mark-as-signed apply. */
+  rendersDocument?: boolean
 }
 
 export function SigningOptions({
@@ -44,7 +47,7 @@ export function SigningOptions({
   depositAmountCents,
   startDate,
   rentAmountCents,
-  isUploaded = false,
+  rendersDocument = true,
 }: Readonly<SigningOptionsProps>) {
   const router = useRouter()
 
@@ -90,8 +93,10 @@ export function SigningOptions({
   const hasSignedDoc = hasExternalDoc || hasDocusealDoc
 
   async function handleUpload(file: File, uploaderSetter: (v: boolean) => void) {
-    if (file.size > 20 * 1024 * 1024) {
-      toast.error("Max 20MB")
+    // The route refuses anything over UPLOAD_MAX_BYTES (and Vercel refuses the body first); this said 20 MB,
+    // so a 5–20 MB file passed here and failed there with a bare "Upload failed".
+    if (file.size > UPLOAD_MAX_BYTES) {
+      toast.error(`Max ${UPLOAD_MAX_LABEL}`)
       return
     }
     const ext = file.name.split(".").pop()?.toLowerCase()
@@ -108,7 +113,8 @@ export function SigningOptions({
       toast.success("Document uploaded")
       router.refresh()
     } else {
-      toast.error("Upload failed")
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      toast.error(data.error ?? "Upload failed")
     }
   }
 
@@ -140,8 +146,8 @@ export function SigningOptions({
     router.refresh()
   }
 
-  // Uploaded leases: show only document upload + mark as signed
-  if (isUploaded) {
+  // A source Pleks does not render (the agency's own lease): only document upload + mark as signed
+  if (!rendersDocument) {
     return (
       <div className="space-y-4">
         {/* Document upload / replace */}

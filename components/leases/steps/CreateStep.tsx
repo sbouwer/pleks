@@ -10,6 +10,8 @@
  *         ('uploaded'). LeaseDisclaimerGate gates the GENERATE branch only (D-10). When the org default column is
  *         absent/null the fork is shown (degrade gracefully — do NOT add the column, that's Phase 3). Registers a
  *         submit handler the footer's "Create lease" invokes; create never advances the wizard (it navigates away).
+ *         Which create action runs and whether the disclaimer gates it come from the lease-source profile
+ *         (lib/leases/leaseSource.ts), so a third source changes the profile, not these branches.
  */
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -24,11 +26,10 @@ import { MomentFloorChecklist } from "@/components/properties/MomentFloorCheckli
 import { writeBackUnitRuleSet } from "@/lib/actions/units"
 import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 import { momentCompleteness } from "@/lib/properties/journeyCompleteness"
+import { leaseSourceFromOrgDefault, leaseSourceProfile, type LeaseSource } from "@/lib/leases/leaseSource"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { WizardData } from "../wizardData"
 import type { StepHandle } from "../stepHandle"
-
-type Source = "pleks" | "uploaded"
 
 interface Props {
   register: (handle: StepHandle) => void
@@ -36,12 +37,8 @@ interface Props {
   disclaimerAccepted: boolean
 }
 
-/** Map the org's stored default ('pleks'/'external') onto the per-lease source axis, or null when undecided. */
-function defaultSourceFromOrg(org: Record<string, unknown> | null): Source | null {
-  const raw = org?.default_lease_document_source
-  if (raw === "pleks") return "pleks"
-  if (raw === "external") return "uploaded"
-  return null
+function defaultSourceFromOrg(org: Record<string, unknown> | null): LeaseSource | null {
+  return leaseSourceFromOrgDefault(org?.default_lease_document_source)
 }
 
 /** Shared lease fields written by both create paths. */
@@ -118,7 +115,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [source, setSource] = useState<Source | null>(() => defaultSourceFromOrg(org))
+  const [source, setSource] = useState<LeaseSource | null>(() => defaultSourceFromOrg(org))
   const [sourceTouched, setSourceTouched] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [accepted, setAccepted] = useState(disclaimerAccepted)
@@ -131,7 +128,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
     if (!sourceTouched && source === null && orgDefault) setSource(orgDefault)
   }, [orgDefault, source, sourceTouched])
 
-  function chooseSource(next: Source) {
+  function chooseSource(next: LeaseSource) {
     setSourceTouched(true)
     setSource(next)
   }
@@ -180,7 +177,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
 
   async function runCreate(): Promise<void> {
     await runWriteBack()
-    if (source === "pleks") {
+    if (source && leaseSourceProfile(source).rendersDocument) {
       const result = await createLease(buildGeneratedFormData(data, cpaApplies)) // redirects on success
       if (result?.error) { toast.error(result.error); setError(result.error) }
       return
@@ -201,7 +198,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
       return
     }
     if (!source) { setError("Choose how to create this lease."); return }
-    if (source === "pleks" && !accepted) { setShowDisclaimer(true); return } // D-10: gate generate branch only
+    if (leaseSourceProfile(source).requiresTemplateDisclaimer && !accepted) { setShowDisclaimer(true); return } // D-10
     await runCreate()
   }
 

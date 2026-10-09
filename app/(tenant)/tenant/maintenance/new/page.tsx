@@ -8,6 +8,7 @@
  */
 import { redirect } from "next/navigation"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
+import { leaseSourceProfile } from "@/lib/leases/leaseSource"
 import { createServiceClient } from "@/lib/supabase/server"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { MaintenanceNewForm } from "./MaintenanceNewForm"
@@ -26,7 +27,7 @@ export default async function PortalMaintenanceNewPage() {
   const service = await createServiceClient()
   const { leaseId, orgId, lease } = session
 
-  const isPleksTemplate = lease.template_source === "pleks"
+  const isPleksTemplate = leaseSourceProfile(lease.template_source).usesClauseLibrary
   let clauseNumbers = { maintenanceClause: null as number | null, tenantLiabilityClause: null as number | null }
 
   if (isPleksTemplate) {

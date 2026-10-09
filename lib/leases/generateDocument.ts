@@ -2,7 +2,7 @@
  * lib/leases/generateDocument.ts — generate the lease-agreement DOCX from the clause library + lease variables, upload to storage, and snapshot the enabled clauses
  *
  * Data:   reads leases, organisations, lease_clause_library, lease_clause_selections, org_lease_clause_defaults, lease_co_tenants; writes leases (clause_snapshot/generated_doc_path), audit_log, and the "documents" storage bucket.
- * Notes:  clause inclusion follows a 4-level priority (per-lease → org custom → org toggle default → library default) gated by clause condition; deposit-interest rate is a signing-date disclosure snapshot only — the accrual engine re-resolves per period; {{self:N}} tokens are resolved later inside buildDocx.
+ * Notes:  refuses (LeaseNotRenderedError) a lease whose source profile does not render — the agency's own lease. Clause inclusion follows a 4-level priority (per-lease → org custom → org toggle default → library default) gated by clause condition; deposit-interest rate is a signing-date disclosure snapshot only — the accrual engine re-resolves per period; {{self:N}} tokens are resolved later inside buildDocx.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
@@ -15,8 +15,17 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import {fmtDateLongZA, saTodayISO} from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
 
 // ─── Types ───────────────────────────────────────────────────
+
+/** The lease's source is one Pleks does not render (lib/leases/leaseSource.ts) — a refusal, not a failure. */
+export class LeaseNotRenderedError extends Error {
+  constructor(source: unknown) {
+    super(`Lease source '${String(source)}' is not rendered by Pleks`)
+    this.name = "LeaseNotRenderedError"
+  }
+}
 
 export interface LeaseVariables {
   lessor_name: string
@@ -97,6 +106,9 @@ export async function generateLeaseDocument(
     logQueryError("generateLeaseDocument leases", leaseError)
 
   if (!lease) throw new Error(`Lease ${leaseId} not found`)
+  // An agency's own lease is not Pleks's to render: generating would put a Pleks template beside (and, via
+  // generated_doc_path, in place of) the document the agency uploaded. Until 2026-10-09 nothing checked.
+  if (!rendersLeaseDocument(lease.template_source)) throw new LeaseNotRenderedError(lease.template_source)
 
   // Load org
   const { data: org, error: orgError } = await supabase
@@ -282,7 +294,9 @@ export async function generateLeaseDocument(
   if (uploadError) throw new Error(`Lease document upload failed: ${uploadError.message}`)
 
   if (!previewOnly) {
-    await supabase
+    // Org-scoped and checked: the read above is org-bound, so the write must be too, and an unrecorded path
+    // leaves a file nobody points at while the agent is told it generated (walker, arc 2 grounder §3).
+    const { error: pathError } = await supabase
       .from("leases")
       .update({
         clause_snapshot: clauseSnapshot,
@@ -290,6 +304,8 @@ export async function generateLeaseDocument(
         template_type: leaseType === "commercial" ? "pleks_commercial" : "pleks_residential",
       })
       .eq("id", leaseId)
+      .eq("org_id", orgId)
+    if (pathError) throw new Error(`Lease document path write failed: ${pathError.message}`)
 
     await recordAudit(supabase, { orgId: orgId, table: "leases", recordId: leaseId, action: "UPDATE", after: {
         action: "lease_document_generated",
