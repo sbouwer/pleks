@@ -93,12 +93,12 @@ describe("deposit-interest accrual — double-post guard (ledger 4c)", () => {
     await db.from("leases").update({ deposit_interest_last_accrued_date: "2026-06-01" }).eq("id", c.leaseId).eq("org_id", c.orgId)
 
     // Force the trust insert (2nd write) to fail — the whole RPC rolls back, incl. the watermark advance.
-    forceTrustInsertFailure(true)
+    forceTrustInsertFailure(c.orgId, true)
     try {
       const r = await accrue(c, { expected: "2026-06-01", advanceTo: "2026-07-01" })
       expect(r.error).not.toBeNull()
     } finally {
-      forceTrustInsertFailure(false)
+      forceTrustInsertFailure(c.orgId, false)
     }
     expect(await interestPostCount(c.leaseId)).toBe(0)
     expect(await watermark(c.leaseId)).toBe("2026-06-01") // NOT advanced

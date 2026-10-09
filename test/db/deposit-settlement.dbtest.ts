@@ -56,12 +56,12 @@ describe("deposit-charge settlement — atomic Pattern B/C (ledger 4b)", () => {
     const chargeId = await seedCharge(c)
 
     // Force the trust insert (2nd write) to fail — the whole settlement must roll back.
-    forceTrustInsertFailure(true)
+    forceTrustInsertFailure(c.orgId, true)
     try {
       const r = await settle(c, chargeId, true)
       expect(r.error).not.toBeNull()
     } finally {
-      forceTrustInsertFailure(false)
+      forceTrustInsertFailure(c.orgId, false)
     }
     expect(await depTxnCount(c.leaseId)).toBe(0)   // deposit debit rolled back (was left committed before 4b)
     expect(await chargeLink(chargeId)).toBeNull()  // charge NOT linked → a re-run is safe, no double-settle

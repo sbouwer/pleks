@@ -63,12 +63,12 @@ describe("maintenance sign-off financials — atomic (ledger 4b sign-off half)",
     const reqId = await seedRequest(c)
     const alloc = [{ type: "landlord_expense", amount_cents: 10000, description: "roof fix" }]
 
-    forceTrustInsertFailure(true)
+    forceTrustInsertFailure(c.orgId, true)
     try {
       const r = await signOff(c, reqId, alloc)
       expect(r.error).not.toBeNull()
     } finally {
-      forceTrustInsertFailure(false)
+      forceTrustInsertFailure(c.orgId, false)
     }
     expect(await allocCount(reqId)).toBe(0)                    // allocation rolled back
     expect(await reqStatus(reqId)).toBe("pending_completion")  // status NOT falsely completed
