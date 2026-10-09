@@ -190,6 +190,7 @@ export async function checkLeasePrerequisites(
     .from("leases")
     .select("*, units(unit_number, assigned_agent_id, properties(id, landlord_id, managing_agent_id)), tenant_view(id, first_name, last_name)")
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .single()
     logQueryError("checkLeasePrerequisites leases", leaseError)
 

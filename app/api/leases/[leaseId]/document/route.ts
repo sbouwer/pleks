@@ -1,12 +1,11 @@
 /**
- * app/api/leases/[leaseId]/download-document/route.ts — signed download URL for a lease's stored document
+ * app/api/leases/[leaseId]/document/route.ts — open a lease's stored document ("View lease")
  *
- * Route:  GET /api/leases/[leaseId]/download-document
+ * Route:  GET /api/leases/[leaseId]/document
  * Auth:   gateway() (agent session + org membership)
- * Data:   leaseDocumentSignedUrl — org-scoped lease read → "documents" storage signed URL (1h).
- * Notes:  leaseId is caller-supplied and the response hands back a signed URL; the helper's lease read filters
- *         org_id, which is the boundary (the service client bypasses RLS). Returns JSON for fetch() callers; the
- *         sibling /document route redirects for plain links.
+ * Data:   leaseDocumentSignedUrl — org-scoped lease read → "documents" storage signed URL (1h)
+ * Notes:  A plain link target, so it REDIRECTS to the signed URL instead of returning JSON like download-document.
+ *         The lease detail page linked here from before the route existed (arc 2: dead link).
  */
 import { NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
@@ -22,5 +21,5 @@ export async function GET(
 
   const doc = await leaseDocumentSignedUrl(gw.db, gw.orgId, leaseId)
   if ("error" in doc) return NextResponse.json({ error: doc.error }, { status: doc.status })
-  return NextResponse.json({ url: doc.url })
+  return NextResponse.redirect(doc.url, 302)
 }

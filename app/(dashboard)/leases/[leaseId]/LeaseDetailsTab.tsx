@@ -144,7 +144,8 @@ export function LeaseDetailsTab({
 
       {/* Action bar */}
       <div className="flex flex-wrap gap-2">
-        {lease.generated_doc_path && (
+        {/* Uploaded copy or generated document; a migrated lease's document has its own section above. */}
+        {(lease.generated_doc_path || lease.external_document_path) && !lease.migrated && (
           <InlineLink href={`/api/leases/${leaseId}/document`} external withArrow={false}>
             View lease
           </InlineLink>

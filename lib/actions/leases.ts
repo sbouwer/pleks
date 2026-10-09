@@ -29,7 +29,8 @@ import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
 import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
 import { checkOriginatingApplication, insertLeaseClaimingApplication } from "@/lib/leases/applicationLink"
 import { releaseLeaseStartMarker } from "@/lib/leases/leaseStartMarker"
-import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
+import { mandatoryGate, MissingMandatoryFieldsError, recomputeIncompleteMandatory } from "@/lib/migration/mandatoryGate"
+import { changedTerms, parseLeaseTermsEdit, type LeaseTermsInput } from "@/lib/leases/leaseTermsEdit"
 
 
 type DbClient = GatewayContext["db"]
@@ -658,6 +659,61 @@ export async function releaseLeaseStart(applicationId: string): Promise<void> {
   const gw = await gateway()
   if (!gw) return
   await releaseLeaseStartMarker(gw.db, gw.orgId, applicationId, gw.userId)
+}
+
+const EDITABLE_TERMS_SELECT = "status, unit_id, start_date, end_date, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_type, escalation_review_date, notice_period_days, generated_doc_path"
+
+/**
+ * Edit a DRAFT lease's terms (/leases/[id]/edit — the target of the activation prerequisites' "Edit lease" links).
+ * Only a draft: a lease sent for signing is out of the agent's hands, and an in-force one changes by amendment.
+ * A Pleks-generated document no longer matches edited terms, so it is cleared and must be generated again before
+ * signing (sendForSigning refuses without one) — sending the old file would put superseded terms before the signer.
+ * Filling the start date and rent clears an import's incomplete_mandatory flag (21E corollary 12).
+ */
+export async function updateDraftLeaseTerms(
+  leaseId: string,
+  input: LeaseTermsInput,
+): Promise<{ error: string } | { success: true; documentCleared: boolean }> {
+  const { db, userId, orgId } = await requireAgentWriteAccess("edit_lease")
+  const parsed = parseLeaseTermsEdit(input)
+  if ("error" in parsed) return parsed
+
+  // Org-scope guard (caller-ID census): a foreign leaseId matches no row → "Lease not found".
+  const { data: lease, error: leaseError } = await db
+    .from("leases").select(EDITABLE_TERMS_SELECT).eq("id", leaseId).eq("org_id", orgId).maybeSingle()
+  logQueryError("updateDraftLeaseTerms leases", leaseError)
+  if (!lease) return { error: "Lease not found" }
+  if (lease.status !== "draft") return { error: "Only a draft lease can be edited. Change a signed lease by amendment." }
+
+  const changed = changedTerms(lease, parsed.patch)
+  if (changed.length === 0) return { success: true, documentCleared: false }
+  if (changed.includes("start_date")) {
+    const overlap = await findLeaseOverlapBlock(db, orgId, lease.unit_id as string | null, parsed.patch.start_date)
+    if (overlap) return { error: overlap }
+  }
+
+  const documentCleared = lease.generated_doc_path != null
+  const update = {
+    ...parsed.patch,
+    ...recomputeIncompleteMandatory("lease", lease, { ...parsed.patch }),
+    ...(documentCleared ? { generated_doc_path: null } : {}),
+  }
+  // .eq status draft: a concurrent send-for-signing between the read and this write must not be overwritten.
+  const { data: updated, error: updateError } = await db
+    .from("leases").update(update).eq("id", leaseId).eq("org_id", orgId).eq("status", "draft").select("id")
+  logQueryError("updateDraftLeaseTerms update", updateError)
+  if (updateError) return { error: "The lease could not be saved. Try again." }
+  if (!updated?.length) return { error: "This lease is no longer a draft (it may have been sent for signing). Reload the page." }
+
+  const pick = (row: Record<string, unknown>) => Object.fromEntries(changed.map((k) => [k, row[k] ?? null]))
+  await recordAudit(db, {
+    orgId, table: "leases", recordId: leaseId, action: "UPDATE", actorId: userId,
+    before: { ...pick(lease), ...(documentCleared ? { generated_doc_path: lease.generated_doc_path } : {}) },
+    after: { ...pick(update), action: "lease_terms_edited", ...(documentCleared ? { generated_doc_path: null } : {}) },
+  })
+  revalidatePath(`/leases/${leaseId}`)
+  revalidatePath("/leases")
+  return { success: true, documentCleared }
 }
 
 /**
