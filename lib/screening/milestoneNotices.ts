@@ -20,6 +20,7 @@ import { heldFor } from "@/lib/comms/template-registry"
 import { ASSESSMENT_CLOSING_SENTENCE } from "@/lib/screening/assessmentWording"
 import { fmtDateLongZA } from "@/lib/dates"
 import { readAssessedWith } from "@/lib/screening/assessedWith"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 import { outcomeLinkFor } from "@/lib/screening/resultLink"
 import { deadlineAsStated, deadlineAt, finalNoticeAt, isPastDeadline } from "@/lib/screening/notificationSchedule"
 import {
@@ -195,12 +196,11 @@ export async function readRoster(db: SupabaseClient, orgId: string, applicationI
     .maybeSingle()
   if (appError) throw new Error(`progress: read application: ${appError.message}`)
   if (!app) return null
-  const { data: cos, error: coError } = await db
+  const { data: cos, error: coError } = await onlyLiveCoParties(db
     .from("application_co_applicants")
     .select("id, first_name, last_name, applicant_email, stage2_invited_at, searchworx_check_status")
     .eq("primary_application_id", applicationId)
-    .eq("org_id", orgId)
-    .is("declined_at", null)
+    .eq("org_id", orgId)) // not declined, not erased (N3)
     .order("created_at", { ascending: true })
   if (coError) throw new Error(`progress: read co parties: ${coError.message}`)
   const { data: lines, error: lineError } = await db

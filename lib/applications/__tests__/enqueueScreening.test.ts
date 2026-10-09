@@ -137,6 +137,6 @@ describe("the paths around the choke point (source) — DSAR follow-up 2", () =>
   it("an erased co is not read into the lead's pass as a director", () => {
     const s = src("app/api/applications/[id]/screen/route.ts")
     const load = s.slice(s.indexOf("screen co-directors") - 600, s.indexOf("screen co-directors"))
-    expect(load).toContain('.neq("applicant_email", REDACTED)')
+    expect(load).toContain("onlyLiveCoParties(") // the shared live-co filter carries the erased half (N3)
   })
 })

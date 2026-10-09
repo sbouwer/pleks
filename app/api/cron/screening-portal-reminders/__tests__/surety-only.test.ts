@@ -26,6 +26,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { NextRequest } from "next/server"
+import { ANONYMISE_PLAN } from "@/lib/popia/anonymisePlan"
 
 // The real SendEmailResult shape: failure is a RETURN value, never a throw (walker F4).
 const sendEmail = vi.fn(async (): Promise<{ success: boolean; error?: string }> => ({ success: true }))
@@ -123,9 +124,18 @@ function builder(table: string) {
   let leadsQuery = false
   let lapsedQuery = false
   let chaserQuery = false
-  const result = (one: boolean) => () => Promise.resolve({ data: rowsFor(table, leadsQuery, one, lapsedQuery, chaserQuery), error: null })
+  // A co read honours `.neq`: were the cron's read wrapped in onlyLiveCoParties again, an erased row would vanish here as
+  // it does in PostgREST, and the erased-line tests would fail rather than pass on the filter-blind stand-in (re-walk R2).
+  let excluded = false
+  const result = (one: boolean) => () => Promise.resolve({ data: excluded ? null : rowsFor(table, leadsQuery, one, lapsedQuery, chaserQuery), error: null })
   const b: Record<string, unknown> = {}
   for (const m of ["select", "eq", "is", "limit", "gt", "order"]) b[m] = (...args: unknown[]) => { calls.push({ table, m, args }); return b }
+  b.neq = (...args: unknown[]) => {
+    const row = table === "application_co_applicants" ? (coApp as Record<string, unknown> | null) : null
+    if (row && row[args[0] as string] === args[1]) excluded = true
+    calls.push({ table, m: "neq", args })
+    return b
+  }
   b.in = (...args: unknown[]) => {
     if (table === "applications" && args[0] === "stage2_status") chaserQuery = true
     calls.push({ table, m: "in", args })
@@ -231,6 +241,33 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(updates[0].patch).toMatchObject({ decline_reason: "expired_no_completion" })
     expect(maybeFireAllGreen).toHaveBeenCalledWith(expect.anything(), "app-1")
     expect(maybeRunOrchestrator).toHaveBeenCalledWith(expect.anything(), "org-1", "app-1")
+  })
+
+  it("N3: an ERASED co inside its window is not reminded — its address is \"[erased]\"", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields, stage2_invited_at: daysAgo(4), role: "co_applicant" }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+  })
+
+  it("PLANTED (N3 walker F1): past its deadline an ERASED co is declined SILENTLY and the orchestrator offered — never stranded", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = { ...baseCo, ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields, stage2_invited_at: daysAgo(15), role: "co_applicant" }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    expect(updates[0].patch).toMatchObject({ decline_reason: "subject_erased" })
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
+    expect(maybeFireAllGreen).toHaveBeenCalledWith(expect.anything(), "app-1")
+    expect(maybeRunOrchestrator).toHaveBeenCalledWith(expect.anything(), "org-1", "app-1")
+  })
+
+  it("PLANTED (N3 re-walk R1a): a PAID erased line without consent keeps its alarm at the deadline — never declined", async () => {
+    line = { ...baseLine, party_kind: "co_applicant", state: "paid_pending_consent" }
+    coApp = { ...baseCo, ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields, stage2_invited_at: daysAgo(15), role: "co_applicant" }
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
+    expect(updates).toEqual([])
+    expect(captureMessage).toHaveBeenCalledWith("Paid screening line without consent reached its deadline", expect.anything())
   })
 
   it("KNOWN-GOOD: a declared director surety still gets director copy", async () => {

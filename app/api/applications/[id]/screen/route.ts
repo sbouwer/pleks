@@ -32,7 +32,7 @@ import { MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { optionalEnv } from "@/lib/env"
 import { SURETY_PARTY_OR_FILTER } from "@/lib/applications/juristicParties"
-import { REDACTED } from "@/lib/popia/anonymisePlan"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 import { enqueueScreening, fireScreening, screenStatusView, STAGE1_DECIDED_IN } from "@/lib/applications/screeningJobs"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
@@ -46,14 +46,13 @@ async function loadCompanyDirectorSet(
   reconcileSubject: (ref: string, declaredCtx: DeclaredContext) => ReconciliationResult,
   primaryDirector: DirectorSurety,
 ): Promise<DirectorSurety[]> {
-  const { data: cos, error } = await db
+  // A declined party is out of the pool, as in billing and the ITN (walk F4). An erased co keeps stage1_consent_given,
+  // so it would be assessed as a consented director with no data: a subject who exercised erasure, processed in the
+  // lead's pass (DSAR follow-up 2). onlyLiveCoParties drops both.
+  const { data: cos, error } = await onlyLiveCoParties(db
     .from("application_co_applicants")
     .select("id, first_name, last_name, id_number, gross_monthly_income_cents, employment_type, section_data, stage1_consent_given")
-    .eq("primary_application_id", appId).or(SURETY_PARTY_OR_FILTER) // both markers (M-118, BUILD_72 R2)
-    .is("declined_at", null) // a declined party is out of the pool, as in billing and the ITN (walk F4)
-    // An erased co keeps stage1_consent_given, so it would be assessed as a consented director with no data: a
-    // subject who exercised erasure, processed in the lead's pass (DSAR follow-up 2). REDACTED is set by every strip.
-    .neq("applicant_email", REDACTED)
+    .eq("primary_application_id", appId).or(SURETY_PARTY_OR_FILTER)) // both markers (M-118, BUILD_72 R2)
   logQueryError("screen co-directors", error)
   const directors: DirectorSurety[] = [primaryDirector]
   for (const c of cos ?? []) {

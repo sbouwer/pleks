@@ -17,6 +17,7 @@
  *         alone, so a stale or forged claim can only under-record, which withholds the link (fails closed).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 
 /**
  * The version string of the applicant screening consent text (components/consent/ScreeningConsentForm.tsx).
@@ -46,15 +47,14 @@ export interface ScreeningConsentLogInput {
 
 /**
  * Whether the application has more than one party now: the lead plus at least one co party not declined (14X P5, D4).
- * A declined party has left the set, as it has for the roster and the orchestrator.
+ * A declined or erased party has left the set, as it has for the roster and the orchestrator (N3).
  */
 export async function isGroupApplication(db: SupabaseClient, orgId: string, applicationId: string): Promise<boolean> {
-  const { count, error } = await db
+  const { count, error } = await onlyLiveCoParties(db
     .from("application_co_applicants")
     .select("id", { count: "exact", head: true })
     .eq("primary_application_id", applicationId)
-    .eq("org_id", orgId)
-    .is("declined_at", null)
+    .eq("org_id", orgId))
   if (error) throw new Error(`group application: count co parties: ${error.message}`)
   return (count ?? 0) > 0
 }

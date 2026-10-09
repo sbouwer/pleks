@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { SCREENING_CONSENT_VERSION, insertScreeningConsentLog, isGroupApplication } from "../screeningConsent"
+import { REDACTED } from "@/lib/popia/anonymisePlan"
 import {
   CONSENT_CHECKBOX_GROUP, CONSENT_CHECKBOX_SINGLE, GROUP_COMPLETION_STATUS_SENTENCE, GROUP_CONSOLIDATION_PARAGRAPH,
 } from "../consentWording"
@@ -31,8 +32,10 @@ function fakeDb(liveCos: number, countFails = false) {
       if (table === "application_co_applicants") {
         b.select = () => b
         b.eq = (c: string, v: unknown) => { countFilters[c] = v; return b }
-        b.is = (c: string, v: unknown) => {
-          countFilters[`is:${c}`] = v
+        b.is = (c: string, v: unknown) => { countFilters[`is:${c}`] = v; return b }
+        // The live-co filter ends on the erased half (N3), so the count resolves there.
+        b.neq = (c: string, v: unknown) => {
+          countFilters[`neq:${c}`] = v
           const mine = countFilters.org_id === "org-A" && countFilters.primary_application_id === "app-1"
           return Promise.resolve(countFails
             ? { count: null, error: { message: "boom" } }
@@ -81,10 +84,12 @@ describe("group_clause_shown — recorded only when shown AND the application is
     expect(inserts).toEqual([])
   })
 
-  it("the count is scoped to the org and the application, and leaves declined parties out", async () => {
+  it("the count is scoped to the org and the application, and leaves declined and erased parties out", async () => {
     const { db, countFilters } = fakeDb(1)
     expect(await isGroupApplication(db, "org-A", "app-1")).toBe(true)
-    expect(countFilters).toEqual({ primary_application_id: "app-1", org_id: "org-A", "is:declined_at": null })
+    expect(countFilters).toEqual({
+      primary_application_id: "app-1", org_id: "org-A", "is:declined_at": null, "neq:applicant_email": REDACTED,
+    })
     expect(await isGroupApplication(fakeDb(1).db, "org-B", "app-1")).toBe(false)
   })
 })

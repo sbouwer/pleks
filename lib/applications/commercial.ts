@@ -20,6 +20,7 @@ import { sendCoApplicantInvited } from "@/lib/applications/emails"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { inviteRoute, suretyInviteRole } from "@/lib/applications/juristicParties"
 import { verifyApplicantToken } from "@/lib/applications/verifyApplicantToken"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 
 /**
  * Verifies the applicant credential against this application AND returns the application's own org.
@@ -89,10 +90,11 @@ export async function resendDirectorInvite(
   const [{ data: app, error: appErr }, { data: party, error: partyErr }] = await Promise.all([
     service.from("applications").select("entity_type, applicant_type, company_info")
       .eq("id", applicationId).eq("org_id", orgId).maybeSingle(),
-    service.from("application_co_applicants")
+    // Live parties only: an erased party would be mailed at "[erased]" (N3).
+    onlyLiveCoParties(service.from("application_co_applicants")
       .select("applicant_email, first_name, access_token, role, is_surety_director, declared_director, stage2_invited_at")
-      .eq("id", coApplicantId).eq("primary_application_id", applicationId).eq("org_id", orgId)
-      .is("declined_at", null).maybeSingle(),
+      .eq("id", coApplicantId).eq("primary_application_id", applicationId).eq("org_id", orgId))
+      .maybeSingle(),
   ])
   logQueryError("resendDirectorInvite applications", appErr)
   logQueryError("resendDirectorInvite application_co_applicants", partyErr)
