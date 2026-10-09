@@ -22,6 +22,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { resolveAgentContact } from "@/lib/agent/resolveAgentContact"
 import { isProductionNode } from "@/lib/env"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { isOrgLeaseSourceDefault, type OrgLeaseSourceDefault } from "@/lib/leases/leaseSource"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -43,7 +44,7 @@ export interface OnboardingData {
   onboardingComplete: boolean
   // ADDENDUM_LEASE_CREATION_MODAL Phase 3 (D-7): optional org default for the lease document-source fork.
   // 'pleks' = Generate with Pleks · 'external' = Upload signed leases · undefined = undecided (show the fork).
-  defaultLeaseDocumentSource?: "pleks" | "external"
+  defaultLeaseDocumentSource?: OrgLeaseSourceDefault
   // Auth fields (only when creating a new account)
   password?: string
   isAlreadyAuthenticated?: boolean
@@ -90,7 +91,8 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       user_type: data.userType,
       onboarding_complete: data.onboardingComplete,
       // Phase 3: only set when the agent made a choice; undecided stays NULL → lease step shows the fork.
-      default_lease_document_source: data.defaultLeaseDocumentSource ?? null,
+      // Caller-supplied on a public action: anything but a known default lands as "decide per lease".
+      default_lease_document_source: isOrgLeaseSourceDefault(data.defaultLeaseDocumentSource) ? data.defaultLeaseDocumentSource : null,
     })
     .select("id")
     .single()

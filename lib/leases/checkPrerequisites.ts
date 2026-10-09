@@ -6,6 +6,7 @@
  */
 import { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { leaseSourceProfile } from "@/lib/leases/leaseSource"
 
 export interface PrerequisiteResult {
   key: string
@@ -99,7 +100,7 @@ function checkDeposit(lease: { lease_type: string; deposit_amount_cents: number 
 }
 
 function checkDocument(lease: { template_source: string; generated_doc_path: string | null; external_document_path: string | null; docuseal_document_url: string | null; migrated: boolean | null }, leaseId: string): PrerequisiteResult {
-  const isUploadedLease = lease.template_source === "uploaded"
+  const isUploadedLease = !leaseSourceProfile(lease.template_source).rendersDocument
   const hasDocument =
     lease.generated_doc_path != null ||
     lease.external_document_path != null ||
@@ -229,7 +230,7 @@ export async function checkLeasePrerequisites(
   items.push(checkDocument(lease, leaseId))
 
   // 8. Clauses saved — skip for uploaded leases and external/migrated leases
-  const isUploadedLease = lease.template_source === "uploaded"
+  const isUploadedLease = !leaseSourceProfile(lease.template_source).usesClauseLibrary
   const isExternalOrMigrated =
     lease.external_document_path != null || lease.migrated === true || isUploadedLease
 

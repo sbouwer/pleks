@@ -24,6 +24,7 @@ import { addCalendarDays, addCalendarMonths, fmtDateLongZA, saTodayISO } from "@
 import { formatZAR } from "@/lib/constants"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
+import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 
@@ -458,7 +459,7 @@ export async function sendForSigning(leaseId: string) {
   // Org-scope guard (caller-ID census): a foreign leaseId matches no row → "Lease not found".
   const { data: lease, error: leaseError } = await db
     .from("leases")
-    .select("status, generated_doc_path, tenant_id, rent_amount_cents, start_date, unit_id")
+    .select("status, generated_doc_path, template_source, tenant_id, rent_amount_cents, start_date, unit_id")
     .eq("id", leaseId)
     .eq("org_id", orgId)
     .single()
@@ -466,6 +467,9 @@ export async function sendForSigning(leaseId: string) {
 
   if (!lease) return { error: "Lease not found" }
   if (lease.status !== "draft") return { error: "Lease has already been sent for signing" }
+  // A Pleks-rendered document on a lease whose source Pleks does not render is a stray (generate-docx refused
+  // nothing before 2026-10-09): sending it would put our template in front of the signer, not the agency's lease.
+  if (!rendersLeaseDocument(lease.template_source)) return { error: "This lease uses your own document — upload the signed copy instead" }
   if (!lease.generated_doc_path) return { error: "Generate the lease document first" }
 
   const sentForSigningAt = new Date().toISOString()

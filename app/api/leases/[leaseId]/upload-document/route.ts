@@ -41,6 +41,15 @@ export async function POST(
     return NextResponse.json({ error: "Only PDF and DOCX files accepted" }, { status: 400 })
   }
 
+  // The lease must be this org's before anything is stored under its id.
+  const { data: lease, error: leaseError } = await db
+    .from("leases").select("id").eq("org_id", orgId).eq("id", leaseId).maybeSingle()
+  if (leaseError) {
+    console.error("upload-document: lease read failed", leaseId, leaseError.message)
+    return NextResponse.json({ error: "Could not load the lease" }, { status: 500 })
+  }
+  if (!lease) return NextResponse.json({ error: "Lease not found" }, { status: 404 })
+
   const storagePath = `orgs/${orgId}/leases/${leaseId}/signed_original.${ext}`
 
   const buffer = Buffer.from(await file.arrayBuffer())
@@ -57,12 +66,19 @@ export async function POST(
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
   }
 
-  // Update lease record
-  await db
+  // Link it to the lease. Checked: until 2026-10-09 the result was discarded, so a failed link still answered
+  // ok and wrote an audit row for a document no lease points at — the agent saw "uploaded", the lease had none.
+  // Affected rows checked too: a lease deleted after the pre-check is a zero-row update with no error.
+  const { data: linked, error: linkError } = await db
     .from("leases")
     .update({ external_document_path: storagePath })
     .eq("org_id", orgId)
     .eq("id", leaseId)
+    .select("id")
+  if (linkError || !linked?.length) {
+    console.error("upload-document: link failed for lease", leaseId, linkError?.message ?? "no row updated")
+    return NextResponse.json({ error: "The document uploaded but could not be attached to the lease" }, { status: 500 })
+  }
 
   // Audit log
   await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "UPDATE", actorId: userId, after: {
