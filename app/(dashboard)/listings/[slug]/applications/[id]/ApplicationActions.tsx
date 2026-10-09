@@ -9,6 +9,7 @@
  * Notes:  Foreign national applications require immigration compliance confirmed before shortlisting.
  *         The invite shows while canInviteToStage2 holds — stage 1 complete OR already ticked in triage, no stage 2
  *         yet (CD 2026-10-02); the action checks the same predicate server-side.
+ *         Approve, and an approved application without a lease, go to /leases/new?application=<id> (arc 2 B2).
  */
 import { useState } from "react"
 import { ActionButton } from "@/components/ui/actions"
@@ -32,6 +33,8 @@ interface ApplicationActionsProps {
   readonly stage2Status: string | null
   readonly isForeignNational: boolean
   readonly immigrationConfirmed: boolean
+  /** applications.resulting_lease_id — once set, the approved application links to its lease, not a new one */
+  readonly resultingLeaseId: string | null
 }
 
 export function ApplicationActions({
@@ -41,6 +44,7 @@ export function ApplicationActions({
   stage2Status,
   isForeignNational,
   immigrationConfirmed,
+  resultingLeaseId,
 }: ApplicationActionsProps) {
   const { user } = useUser()
   const { isAdmin } = usePermissions()
@@ -91,8 +95,10 @@ export function ApplicationActions({
       return
     }
 
-    toast.success("Application approved — tenant record created")
-    router.push(`/tenants/${result.tenantId}`)
+    // B2: approval hands straight on to the lease, carrying the application (it went to /tenants/[id] before,
+    // which has no route to a lease, and the application id was lost on the way).
+    toast.success("Application approved — now create the lease")
+    router.push(`/leases/new?application=${applicationId}`)
   }
 
   async function handleDeclineStage2(decision: DeclineSubmission) {
@@ -138,6 +144,11 @@ export function ApplicationActions({
           <ActionButton tone="primary" onClick={handleApprove}>Approve</ActionButton>
           <ActionButton tone="destructive" onClick={() => setDeclineModalOpen(true)}>Decline</ActionButton>
         </>
+      )}
+      {stage2Status === "approved" && (
+        resultingLeaseId
+          ? <ActionButton tone="secondary" onClick={() => router.push(`/leases/${resultingLeaseId}`)}>View lease</ActionButton>
+          : <ActionButton tone="primary" onClick={() => router.push(`/leases/new?application=${applicationId}`)}>Create lease</ActionButton>
       )}
       {isAdmin && <ActionButton tone="destructive" onClick={() => setDeleteOpen(true)}>Delete</ActionButton>}
       <DeclineDecisionModal

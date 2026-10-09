@@ -4,7 +4,10 @@
  * Route:  /tenants/[tenantId]
  * Auth:   createClient().auth.getUser() gate; org membership from user_orgs; data via service client
  * Data:   reads tenant_view, contacts, contact_phones/emails/addresses, leases (+units/properties), maintenance_requests, arrears_cases (org-scoped)
- * Notes:  renders separate mobile (MobileTenantView) and desktop (DetailPageLayout) variants
+ * Notes:  renders separate mobile (MobileTenantView) and desktop (DetailPageLayout) variants. With no lease in
+ *         force, the card offers the tenant's draft / pending-signing lease if one exists, else "Create lease" via
+ *         the tenant's approved, lease-less application when one exists (applications, org-scoped), so the
+ *         application id is carried (arc 2 B2). A failed lease read offers nothing rather than a second lease.
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { decryptIdNumber } from "@/lib/crypto/idNumber"
@@ -102,6 +105,43 @@ function getMaintenanceStatusVariant(status: string): "amber" | "blue" {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+/**
+ * B2: with no lease in force, what the "Current lease" card offers. A lease still being made (draft / out for
+ * signing) is the one to open, never a second (walker F5); otherwise a new lease — from the tenant's approved,
+ * lease-less application when there is one, so the application id is carried. Any failed read offers nothing.
+ */
+async function nextLeaseAction(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  orgId: string,
+  tenantId: string,
+): Promise<{ label: string; href: string } | undefined> {
+  const { data: openLease, error: openLeaseError } = await service
+    .from("leases")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("tenant_id", tenantId)
+    .in("status", ["draft", "pending_signing"])
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (openLeaseError) { logQueryError("TenantDetailPage open lease", openLeaseError); return undefined }
+  if (openLease) return { label: "Open draft lease", href: `/leases/${openLease.id}` }
+
+  const { data: pendingApp, error: pendingAppError } = await service
+    .from("applications")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("tenant_id", tenantId)
+    .eq("stage2_status", "approved")
+    .is("resulting_lease_id", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (pendingAppError) { logQueryError("TenantDetailPage applications", pendingAppError); return undefined }
+  return { label: "Create lease", href: pendingApp ? `/leases/new?application=${pendingApp.id}` : `/leases/new?tenant=${tenantId}` }
+}
+
 export default async function TenantDetailPage({
   params,
 }: Readonly<{
@@ -149,7 +189,7 @@ export default async function TenantDetailPage({
     { data: phones },
     { data: emails },
     { data: addresses },
-    { data: activeLease },
+    { data: activeLease, error: activeLeaseError },
     { data: maintenanceRequests },
   ] = await Promise.all([
     service
@@ -184,6 +224,9 @@ export default async function TenantDetailPage({
       .order("created_at", { ascending: false })
       .limit(5),
   ])
+
+  const leaseAction = activeLeaseError || activeLease ? undefined : await nextLeaseAction(service, membership.org_id, tenantId)
+  logQueryError("TenantDetailPage leases", activeLeaseError)
 
   let arrearsCase: ArrearsCase | null = null
   try {
@@ -293,7 +336,7 @@ export default async function TenantDetailPage({
       </DetailSection>
 
       <DetailFullWidth>
-        <SectionCard title="Current lease">
+        <SectionCard title="Current lease" action={leaseAction}>
           {activeLease && leaseUnit ? (
             <RelationshipCard
               icon={<Home className="h-4 w-4 text-indigo-600" />}

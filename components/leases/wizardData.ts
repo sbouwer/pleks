@@ -85,6 +85,8 @@ export interface WizardData {
   tenantId: string
   tenantName: string
   coTenants: CoTenant[]
+  /** the approved application this lease is being created from (B2), or "" — sent to the create action */
+  applicationId: string
   // Step 3 — Lease details (terms)
   startDate: string
   endDate: string
@@ -147,6 +149,7 @@ export interface WizardPrefill {
   tenantId?: string | null
   tenantName?: string | null
   coTenants?: CoTenant[]
+  applicationId?: string | null
 }
 
 /** Build the initial WizardData from the server-resolved prefill (URL params, owner tier, renewal). */
@@ -170,6 +173,7 @@ export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
     tenantId: prefill.tenantId ?? "",
     tenantName: prefill.tenantName ?? "",
     coTenants: prefill.coTenants ?? [],
+    applicationId: prefill.applicationId ?? "",
     startDate: "",
     endDate: "",
     isFixedTerm: true,

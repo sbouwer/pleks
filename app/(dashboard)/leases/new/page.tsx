@@ -3,7 +3,8 @@
  *
  * Route:  /leases/new
  * Auth:   requireAdminAuth via getServerOrgMembership (redirects to /login if missing)
- * Data:   pre-fills property/unit/tenant from query params; owner tier auto-prefills from single property
+ * Data:   pre-fills property/unit/tenant from query params; owner tier auto-prefills from single property;
+ *         ?application=<id> pre-fills from an approved application and carries its id to the create action (B2)
  * Notes:  ADDENDUM_LEASE_CREATION_MODAL Phase 1 — the page resolves prefill (incl. renewal) + disclaimer
  *         acceptance and opens LeaseWizardModal, returning to /leases on close (mirrors /properties/new).
  *         The disclaimer now gates the "Generate with Pleks" branch inside the modal only (D-10), not the
@@ -19,6 +20,7 @@ import { NewLeaseRoute } from "./NewLeaseRoute"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getPrimeRateOn } from "@/lib/deposits/interestConfig"
 import { saTodayISO } from "@/lib/dates"
+import { resolveApprovedApplication } from "@/lib/leases/applicationLink"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -133,7 +135,8 @@ async function resolveIds(
     resolvedTenantName: null,
     resolvedCoTenants: [],
   }
-  if (base.propertyId || tier !== "owner") return base
+  // An application already names its unit and tenant; the owner single-property guess must never replace them.
+  if (base.propertyId || sp.application || tier !== "owner") return base
 
   const prefill = await prefillOwnerTier(supabase, orgId, base.tenantId)
   if (!prefill) return base
@@ -156,6 +159,17 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
 
   const sp = await searchParams
   const renewalOf = sp.renewal_of ?? null
+
+  // B2 — from an approved application: its unit, applicant and linked co-applicants replace the URL ids, and a
+  // lease already created from it is where the agent belongs instead of a second wizard.
+  const application = sp.application ? await resolveApprovedApplication(supabase, orgId, sp.application) : null
+  if (application?.resultingLeaseId) redirect(`/leases/${application.resultingLeaseId}`)
+  if (application) {
+    sp.property = application.propertyId ?? ""
+    sp.unit = application.unitId
+    sp.tenant = application.tenantId
+    sp.co_tenants = application.coTenantIds.join(",")
+  }
   const coTenantIds = sp.co_tenants ? sp.co_tenants.split(",").filter(Boolean) : []
 
   // Canonical, not `membership.tier` — that field came verbatim from the unsigned pleks_org cookie
@@ -220,7 +234,8 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         propertyName: propRes.data?.name ?? null,
         unitId,
         unitLabel: buildUnitLabel(unitData),
-        askingRentCents: unitData?.asking_rent_cents ?? null,
+        // The listing's rent is what the applicant applied at; the unit's asking rent otherwise.
+        askingRentCents: application?.listingRentCents ?? unitData?.asking_rent_cents ?? null,
         defaultLeasePeriodMonths: unitData?.default_lease_period_months ?? null,
         defaultDepositMultiple: unitData?.default_deposit_multiple ?? null,
         currentPrimePercent,
@@ -230,6 +245,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         tenantId,
         tenantName: resolvedTenantName ?? displayName(tenantRes.data as TenantRow),
         coTenants: finalCoTenants,
+        applicationId: application?.id ?? null,
       }}
       renewalOf={renewalOf}
       disclaimerAccepted={accepted}
