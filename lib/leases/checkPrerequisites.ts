@@ -7,6 +7,7 @@
 import { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { leaseSourceProfile } from "@/lib/leases/leaseSource"
+import { getLeaseCreationGate } from "@/lib/leases/leaseCreationGate"
 
 export interface PrerequisiteResult {
   key: string
@@ -123,15 +124,11 @@ function checkClausesExternal(isUploadedLease: boolean): PrerequisiteResult {
   }
 }
 
+// The lease-creation gate's rule, asked rather than restated: this check accepted only type 'trust' and exempted no
+// org, so a landlord org or a ppra_trust-only agency could create a lease and then never activate it.
 async function checkTrustAccount(supabase: SupabaseClient, orgId: string): Promise<PrerequisiteResult> {
-  const { data: trustAccount, error: trustAccountError } = await supabase
-    .from("bank_accounts")
-    .select("id")
-    .eq("org_id", orgId)
-    .eq("type", "trust")
-    .limit(1)
-    logQueryError("checkTrustAccount bank_accounts", trustAccountError)
-  if (trustAccount && trustAccount.length > 0) {
+  const gate = await getLeaseCreationGate(supabase, orgId)
+  if (gate.allowed) {
     return { key: "trust_account", label: "Trust account configured", status: "pass", message: "Trust account banking details are on file" }
   }
   return {

@@ -159,7 +159,7 @@ export function SigningOptions({
               <p className="text-xs text-muted-foreground mt-0.5">
                 {hasExternalDoc
                   ? "Document uploaded. You can replace it below."
-                  : "Upload the signed lease document (optional — you can do this later)."}
+                  : "Upload the signed lease document. You can activate the lease once it is uploaded."}
               </p>
             </div>
           </div>

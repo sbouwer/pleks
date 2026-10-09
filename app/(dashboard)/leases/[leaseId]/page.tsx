@@ -800,6 +800,11 @@ export default async function LeaseDetailPage({
             arrearsCase={arrearsCase}
             depositAmountCents={lease.deposit_amount_cents ?? null}
             depositReceivedAt={financeExtras?.depositReceivedAt ?? null}
+            canRecordDeposit={
+              ["active", "month_to_month", "notice"].includes(lease.status as string)
+              && (lease.deposit_amount_cents ?? 0) > 0
+              && !financeExtras?.depositReceivedAt
+            }
             depositRateDescription={financeExtras?.depositRateDescription ?? null}
             depositInterestCents={financeExtras?.depositInterestCents ?? 0}
             depositInterestTo={lease.deposit_interest_to ?? null}

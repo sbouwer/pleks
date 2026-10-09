@@ -9,6 +9,7 @@ import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { LeaseCharges } from "@/components/leases/LeaseCharges"
 import { fmtDateZA } from "@/lib/dates"
+import { RecordDepositButton } from "./RecordDepositButton"
 
 // ─────────────────────────────────────────────────────────────
 // Shared types
@@ -46,6 +47,8 @@ interface FinanceTabProps {
   // Deposit detail
   depositAmountCents: number | null
   depositReceivedAt: string | null
+  /** An activated lease whose deposit is not on the ledger yet — the agent ticks it here when it arrives. */
+  canRecordDeposit: boolean
   depositRateDescription: string | null
   depositInterestCents: number
   depositInterestTo: string | null
@@ -168,8 +171,11 @@ function SummaryStrip({
       <div className="rounded-xl border bg-card p-4">
         <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Deposit held</p>
         <p className="text-xl font-heading">
-          {depositAmountCents ? formatZAR(depositAmountCents) : "—"}
+          {depositAmountCents && depositReceivedAt ? formatZAR(depositAmountCents) : "—"}
         </p>
+        {depositAmountCents && !depositReceivedAt ? (
+          <p className="text-xs text-muted-foreground mt-1">Not received yet</p>
+        ) : null}
         {depositReceivedAt && (
           <p className="text-xs text-muted-foreground mt-1">
             Since {fmtDate(depositReceivedAt)} · {days}d
@@ -267,8 +273,8 @@ function DepositDetailCard({
           <p className="text-sm text-muted-foreground">No deposit recorded.</p>
         ) : (
           <div>
-            <KvRow label="Amount held" value={formatZAR(depositAmountCents)} />
-            <KvRow label="Date received" value={depositReceivedAt ? fmtDate(depositReceivedAt) : "—"} />
+            <KvRow label={depositReceivedAt ? "Amount held" : "Amount due"} value={formatZAR(depositAmountCents)} />
+            <KvRow label="Date received" value={depositReceivedAt ? fmtDate(depositReceivedAt) : "Not received yet"} />
             <KvRow label="Days held" value={days > 0 ? `${days} days` : "—"} />
             <KvRow label="Interest rate" value={depositRateDescription ?? "—"} />
             <KvRow label="Interest accrued" value={formatZAR(depositInterestCents)} className="text-success font-medium" />
@@ -478,6 +484,7 @@ export function FinanceTab({
   arrearsCase,
   depositAmountCents,
   depositReceivedAt,
+  canRecordDeposit,
   depositRateDescription,
   depositInterestCents,
   depositInterestTo,
@@ -514,6 +521,9 @@ export function FinanceTab({
         <InlineLink href={`/payments?lease=${leaseId}`}>Record payment</InlineLink>
         <InlineLink href={`/leases/${leaseId}/statement`}>Generate statement</InlineLink>
         <InlineLink href={`/leases/${leaseId}/deposit`}>View deposit details</InlineLink>
+        {canRecordDeposit && depositAmountCents != null && (
+          <RecordDepositButton leaseId={leaseId} depositAmountCents={depositAmountCents} />
+        )}
         {arrearsCase && (
           <InlineLink href="/billing/arrears">View arrears case</InlineLink>
         )}
