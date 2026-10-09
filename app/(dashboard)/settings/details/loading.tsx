@@ -1,21 +1,23 @@
 /**
- * app/(dashboard)/settings/details/loading.tsx — Suspense fallback skeleton for the /settings/details route
+ * app/(dashboard)/settings/details/loading.tsx — the Organisation page's own skeleton
+ *
+ * Route:  /settings/details
+ * Notes:  Mirrors page.tsx's default Details tab: a DetailPageLayout category header (no pill, no facts, one sub
+ *         line, four tabs — three without the hours tab) over OrgDetailsCards in the two-column grid: Organisation
+ *         details (5 rows), Contact details (3), Address (1), Banking (1 + one per trust account).
  */
-import { Skeleton } from "@/components/ui/skeleton"
+import { SkCard, SkDetailGrid, SkDetailHeader } from "@/components/ui/page-skeleton"
 
-export default function ProfileLoading() {
+export default function OrgDetailsLoading() {
   return (
-    <div className="max-w-xl space-y-6">
-      <Skeleton className="h-8 w-40" />
-      <div className="space-y-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="space-y-1.5">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        ))}
-      </div>
-      <Skeleton className="h-9 w-full" />
+    <div>
+      <SkDetailHeader pill={false} facts={0} sub={1} actions={0} tabs={4} />
+      <SkDetailGrid>
+        <SkCard rows={5} />
+        <SkCard rows={3} />
+        <SkCard rows={1} />
+        <SkCard rows={2} />
+      </SkDetailGrid>
     </div>
   )
 }

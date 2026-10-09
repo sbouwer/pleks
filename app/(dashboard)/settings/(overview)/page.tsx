@@ -1,5 +1,5 @@
 /**
- * app/(dashboard)/settings/page.tsx — settings overview landing
+ * app/(dashboard)/settings/(overview)/page.tsx — settings overview landing
  *
  * Route:  /settings
  * Auth:   dashboard layout (gatewaySSR)
