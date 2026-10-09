@@ -18,6 +18,7 @@ import { checkVisaLeaseAlignment } from "@/lib/screening/visaLeaseCheck"
 import { assembleReportData } from "@/lib/screening/assembleReportData"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ApplicationActions } from "./ApplicationActions"
+import { readLeaseStartHolder, startedAgoLabel } from "@/lib/leases/leaseStartMarker"
 import { ApplicationDetailShell } from "./ApplicationDetailShell"
 import { ApplicantsCard, type PartyInfo } from "./ApplicantsCard"
 import { directorDeclarationDiscrepancy, directorDiscrepancyNotice, heldPartyReason, inviteHold, isJuristicForCopy, partyKind } from "@/lib/applications/juristicParties"
@@ -260,6 +261,11 @@ export default async function ApplicationDetailPage({
   ]
   if (hasFitscore) tabs.push({ id: "fitscore", label: "FitScore" })
 
+  // Arc 2: a colleague's live "currently creating" marker, shown beside Create lease (advisory — leaseStartMarker.ts).
+  const leaseHolder = app.stage2_status === "approved" && !app.resulting_lease_id
+    ? await readLeaseStartHolder(db, orgId, id, gw.userId)
+    : null
+
   const actions = (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {hasStream2 && <FitScorePdfDownload applicationId={id} />}
@@ -271,6 +277,7 @@ export default async function ApplicationDetailPage({
         isForeignNational={app.is_foreign_national}
         immigrationConfirmed={app.immigration_compliance_confirmed}
         resultingLeaseId={(app.resulting_lease_id as string | null) ?? null}
+        leaseInProgress={leaseHolder ? `${leaseHolder.name ?? "A colleague"} is creating the lease (started ${startedAgoLabel(leaseHolder.startedAt)})` : null}
       />
     </div>
   )

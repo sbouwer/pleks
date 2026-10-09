@@ -13,7 +13,7 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { getLeaseCreationGate, LEASE_GATE_BLOCKED_MESSAGE } from "@/lib/leases/leaseCreationGate"
 import { recordAudit } from "@/lib/audit/recordAudit"
-import type { GatewayContext } from "@/lib/supabase/gateway"
+import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import * as React from "react"
@@ -28,6 +28,7 @@ import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
 import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
 import { checkOriginatingApplication, insertLeaseClaimingApplication } from "@/lib/leases/applicationLink"
+import { releaseLeaseStartMarker } from "@/lib/leases/leaseStartMarker"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 
@@ -647,11 +648,25 @@ export async function ensureTenantForContact(contactId: string): Promise<{ ok: b
 }
 
 /**
+ * The lease wizard closed without creating: release MY "currently creating" marker on the application so a
+ * colleague is not warned off for the rest of the hold window. Someone else's marker is left alone.
+ * Intentionally gateway(), not requireAgentWriteAccess: clearing my own presence marker creates no value, and it
+ * must succeed wherever the page could take the marker — a lockdown throw here left a locked org's marker standing
+ * for the whole hold window (walker F3).
+ */
+export async function releaseLeaseStart(applicationId: string): Promise<void> {
+  const gw = await gateway()
+  if (!gw) return
+  await releaseLeaseStartMarker(gw.db, gw.orgId, applicationId, gw.userId)
+}
+
+/**
  * Delete a DRAFT lease (only). Drafts have no payments/reconciliations yet, so this clears the child
  * rows (co-tenants, charges, clause selections), undoes the unit's draft-tenant reflection if it still
  * points at this draft, then removes the lease. Hard-guarded to status='draft' — an in-force lease is
  * never deletable here (it must be cancelled/ended through its own flow).
  */
+
 export async function deleteLease(leaseId: string): Promise<{ error: string } | { success: true }> {
   const gw = await requireAgentWriteAccess("delete_lease")
   const { db, orgId } = gw

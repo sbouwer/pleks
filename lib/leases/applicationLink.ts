@@ -13,11 +13,14 @@
  *         become tenants on activation (schema-gotchas: applicant ≡ tenant), so the agent adds them in the wizard.
  *         One lease per application: checkOriginatingApplication is the early, friendly refusal; the lock is
  *         claimApplicationForLease, an atomic conditional UPDATE right after the lease INSERT, whose loser discards
- *         its own fresh draft (Stéan 2026-10-09: "we don't want multiple leases hanging around"). No DDL — a partial
- *         unique index on leases(originating_application_id) would add a DB-level backstop and stays queued.
+ *         its own fresh draft (Stéan 2026-10-09: "we don't want multiple leases hanging around"). The backstop is the
+ *         partial unique index uq_leases_originating_application (004, #380): a second INSERT fails with 23505 before
+ *         any draft exists, and is told the same named message. The claim also clears the advisory "currently
+ *         creating" marker (leaseStartMarker.ts).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { orgMemberFullName } from "@/lib/leases/leaseStartMarker"
 import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 import { isSuretyParty } from "@/lib/applications/juristicParties"
 
@@ -118,6 +121,9 @@ export async function insertLeaseClaimingApplication(
     .insert({ ...row, org_id: orgId, originating_application_id: applicationId })
     .select("id")
     .single()
+  // 23505 on uq_leases_originating_application: a lease from this application already exists — name its holder
+  // rather than surface the raw constraint (#380 walker F1).
+  if (error?.code === "23505" && applicationId) return { error: await alreadyLeasedMessage(db, orgId, applicationId, actorId) }
   if (error || !lease) return { error: error?.message || "Failed to create lease" }
   const leaseId = lease.id as string
   if (!applicationId) return { leaseId }
@@ -132,7 +138,7 @@ export async function insertLeaseClaimingApplication(
 /**
  * Name who holds the application's lease rather than show a bare error (Stéan 2026-10-09). The holder is the
  * creator of the lease resulting_lease_id points at; a double submit by the same agent is told so, not named.
- * Both lookups are org-bound; user_profiles is identity-scoped (read by id, like every other site).
+ * Both lookups are org-bound, and the name is read only for a live member of the org (orgMemberFullName).
  */
 async function alreadyLeasedMessage(db: SupabaseClient, orgId: string, applicationId: string, actorId: string): Promise<string> {
   const fallback = "A colleague is already creating the lease for this application. Open it from the application instead."
@@ -147,10 +153,7 @@ async function alreadyLeasedMessage(db: SupabaseClient, orgId: string, applicati
   if (lease.created_by === actorId) {
     return "You have already created the lease for this application (perhaps in another tab). Open it from the application."
   }
-  const { data: profile, error: profileError } = await db
-    .from("user_profiles").select("full_name").eq("id", lease.created_by).maybeSingle()
-  if (profileError) console.error("alreadyLeasedMessage user_profiles:", profileError.message)
-  const name = (profile?.full_name as string | null | undefined)?.trim()
+  const name = await orgMemberFullName(db, orgId, lease.created_by as string)
   return name ? `${name} is already creating the lease for this application. Open it from the application instead.` : fallback
 }
 
@@ -168,7 +171,8 @@ async function claimApplicationForLease(
 ): Promise<"claimed" | "taken" | "failed"> {
   const { data, error } = await db
     .from("applications")
-    .update({ resulting_lease_id: leaseId })
+    // The lease now exists: the "currently creating" marker has done its job.
+    .update({ resulting_lease_id: leaseId, lease_started_by: null, lease_started_at: null })
     .eq("id", applicationId)
     .eq("org_id", orgId)
     .is("resulting_lease_id", null)
