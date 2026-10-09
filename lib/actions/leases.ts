@@ -27,7 +27,7 @@ import { formatZAR } from "@/lib/constants"
 import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { parseLeaseFormData } from "@/lib/leases/leaseFormFields"
 import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
-import { checkOriginatingApplication, linkApplicationToLease } from "@/lib/leases/applicationLink"
+import { checkOriginatingApplication, insertLeaseClaimingApplication } from "@/lib/leases/applicationLink"
 import { mandatoryGate, MissingMandatoryFieldsError } from "@/lib/migration/mandatoryGate"
 
 
@@ -173,14 +173,11 @@ export async function createLease(formData: FormData) {
   const overlap = await findLeaseOverlapBlock(db, orgId, f.unitId, f.startDate)
   if (overlap) return { error: overlap }
 
-  const origin = await checkOriginatingApplication(db, orgId, (formData.get("application_id") as string) || null, { tenantId: f.tenantId, unitId: f.unitId })
+  const origin = await checkOriginatingApplication(db, orgId, (formData.get("application_id") as string) || null, { tenantId: f.tenantId, unitId: f.unitId }, userId)
   if ("error" in origin) return { error: origin.error }
 
-  const { data: lease, error } = await db
-    .from("leases")
-    .insert({
-      org_id: orgId,
-      originating_application_id: origin.applicationId,
+  // Inserts and, from an application, claims it before any child row (one lease per application).
+  const created = await insertLeaseClaimingApplication(db, orgId, {
       unit_id: f.unitId,
       property_id: f.propertyId,
       tenant_id: f.tenantId,
@@ -211,13 +208,9 @@ export async function createLease(formData: FormData) {
       template_source: "pleks",
       status: "draft",
       created_by: userId,
-    })
-    .select("id")
-    .single()
-
-  if (error || !lease) {
-    return { error: error?.message || "Failed to create lease" }
-  }
+    }, origin.applicationId, userId)
+  if ("error" in created) return { error: created.error }
+  const lease = { id: created.leaseId }
 
   await insertLeaseCharges(db, formData, lease.id, orgId, userId)
   const coTenantIds = await insertCoTenants(db, formData, lease.id, orgId)
@@ -244,7 +237,6 @@ export async function createLease(formData: FormData) {
   }).eq("id", f.unitId).eq("org_id", orgId) // org-scope guard (caller-ID census)
 
   await recordAudit(db, { orgId: orgId, table: "leases", recordId: lease.id, action: "INSERT", actorId: userId, after: { tenant_id: f.tenantId, unit_id: f.unitId, lease_type: f.leaseType, rent_cents: f.rentCents, originating_application_id: origin.applicationId } })
-  if (origin.applicationId) await linkApplicationToLease(db, orgId, origin.applicationId, lease.id, userId)
 
   revalidatePath("/leases")
   redirect(`/leases/${lease.id}`)
@@ -290,7 +282,7 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   const uploadOverlap = await findLeaseOverlapBlock(db, orgId, unitId, startDate)
   if (uploadOverlap) return { error: uploadOverlap }
 
-  const origin = await checkOriginatingApplication(db, orgId, (formData.get("application_id") as string) || null, { tenantId, unitId })
+  const origin = await checkOriginatingApplication(db, orgId, (formData.get("application_id") as string) || null, { tenantId, unitId }, userId)
   if ("error" in origin) return { error: origin.error }
 
   // setFullYear/getFullYear are LOCAL-time accessors and the result was sliced in UTC — mixed coordinates.
@@ -299,11 +291,8 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   // CPA s14(2)(b)(ii) expiry-notice date is NOT stamped here — derived at evaluation time by the
   // lease-expiry-check cron (lib/leases/cpaRenewal). `auto_renewal_notice_due` is being dropped (70K §6).
 
-  const { data: lease, error } = await db
-    .from("leases")
-    .insert({
-      org_id: orgId,
-      originating_application_id: origin.applicationId,
+  // Inserts and, from an application, claims it before any child row (one lease per application).
+  const created = await insertLeaseClaimingApplication(db, orgId, {
       unit_id: unitId,
       property_id: propertyId,
       tenant_id: tenantId,
@@ -327,15 +316,9 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
       template_type: leaseType === "commercial" ? "pleks_commercial" : "pleks_residential",
       status: "draft",
       created_by: userId,
-    })
-    .select("id")
-    .single()
-
-  if (error || !lease) {
-    return { error: error?.message || "Failed to create lease" }
-  }
-
-  const leaseId = lease.id
+    }, origin.applicationId, userId)
+  if ("error" in created) return { error: created.error }
+  const leaseId = created.leaseId
 
   // Insert co-tenants (co-lessees + company signatories; is_signatory marks which ones sign)
   const co = parseCoTenants(formData.get("co_tenants_json") as string | null)
@@ -377,7 +360,6 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
   }
 
   await recordAudit(db, { orgId: orgId, table: "leases", recordId: leaseId, action: "INSERT", actorId: userId, after: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents, template_source: "uploaded", originating_application_id: origin.applicationId } })
-  if (origin.applicationId) await linkApplicationToLease(db, orgId, origin.applicationId, leaseId, userId)
 
   revalidatePath("/leases")
   return documentError ? { leaseId, documentError } : { leaseId }

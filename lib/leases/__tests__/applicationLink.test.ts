@@ -3,7 +3,8 @@
  *
  * Notes:  Both directions per rule: an approved, lease-less application of this org validates and back-links; a
  *         foreign/unapproved one, one already holding a lease, or one for another tenant/unit is refused; and the
- *         back-link only fills an empty resulting_lease_id. Co prefill (walker F1): only live, non-surety co rows
+ *         insert-and-claim (the one-lease lock) only fills an empty resulting_lease_id — a second create discards
+ *         its own draft and names the holder (or tells a double-submitter it is theirs); a winner is never discarded. Co prefill (walker F1): only live, non-surety co rows
  *         holding a tenant row; the mock really filters every .eq/.is/.not/.neq, and foreign-org rows sit first.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
@@ -12,11 +13,16 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 vi.mock("@/lib/audit/recordAudit", () => ({ recordAudit: vi.fn(async () => undefined) }))
 
 import { REDACTED } from "@/lib/popia/anonymisePlan"
-import { checkOriginatingApplication, linkApplicationToLease, resolveApprovedApplication } from "../applicationLink"
+import {
+  checkOriginatingApplication, insertLeaseClaimingApplication, resolveApprovedApplication,
+} from "../applicationLink"
 
 type Row = Record<string, unknown>
 let tables: Record<string, Row[]>
 let updates: { table: string; patch: Row; filters: string[] }[]
+let deletes: string[][]
+let updateError: { message: string } | null
+let seq = 0
 
 /** Filters rows by every .eq/.is the chain applied, so an org or status mismatch genuinely returns nothing. */
 function makeDb(): SupabaseClient {
@@ -27,9 +33,11 @@ function makeDb(): SupabaseClient {
       const notNull: string[] = []
       const neqs: [string, unknown][] = []
       let patch: Row | null = null
-      const rows = () => (tables[table] ?? []).filter((r) =>
-        eqs.every(([c, v]) => r[c] === v) && isNull.every((c) => r[c] == null)
-        && notNull.every((c) => r[c] != null) && neqs.every(([c, v]) => r[c] !== v))
+      let deleting = false
+      let inserted: Row | null = null
+      const matches = (r: Row) => eqs.every(([c, v]) => r[c] === v) && isNull.every((c) => r[c] == null)
+        && notNull.every((c) => r[c] != null) && neqs.every(([c, v]) => r[c] !== v)
+      const rows = () => (tables[table] ?? []).filter(matches)
       const chain: Record<string, unknown> = {
         select: () => chain, order: () => chain, limit: () => chain,
         not: (c: string, op: string, v: unknown) => {
@@ -40,8 +48,22 @@ function makeDb(): SupabaseClient {
         eq: (c: string, v: unknown) => { eqs.push([c, v]); return chain },
         is: (c: string) => { isNull.push(c); return chain },
         update: (p: Row) => { patch = p; return chain },
+        delete: () => { deleting = true; return chain },
+        insert: (r: Row) => {
+          const row = { id: `lease${++seq}`, status: "draft", ...r }
+          tables[table] = [...(tables[table] ?? []), row]
+          inserted = row
+          return chain
+        },
+        single: async () => ({ data: inserted ? { id: inserted.id } : null, error: null }),
         maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
         then: (res: (v: unknown) => unknown) => {
+          if (deleting) {
+            deletes.push(eqs.map(([c, v]) => `${c}=${String(v)}`))
+            tables[table] = (tables[table] ?? []).filter((r) => !matches(r))
+            return Promise.resolve({ data: null, error: null }).then(res)
+          }
+          if (patch && updateError) return Promise.resolve({ data: null, error: updateError }).then(res)
           if (patch) {
             const hit = rows()
             updates.push({ table, patch, filters: eqs.map(([c, v]) => `${c}=${String(v)}`).concat(isNull.map((c) => `${c} is null`)) })
@@ -79,6 +101,9 @@ beforeEach(() => {
     ],
   }
   updates = []
+  deletes = []
+  updateError = null
+  seq = 0
 })
 
 describe("resolveApprovedApplication", () => {
@@ -99,39 +124,81 @@ describe("checkOriginatingApplication", () => {
   const lease = { tenantId: "t1", unitId: "u1" }
 
   it("no application sent → nothing to stamp", async () => {
-    expect(await checkOriginatingApplication(makeDb(), "org1", null, lease)).toEqual({ applicationId: null })
+    expect(await checkOriginatingApplication(makeDb(), "org1", null, lease, "user1")).toEqual({ applicationId: null })
   })
 
   it("accepts the approved application for the same tenant and unit", async () => {
-    expect(await checkOriginatingApplication(makeDb(), "org1", "app1", lease)).toEqual({ applicationId: "app1" })
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app1", lease, "user1")).toEqual({ applicationId: "app1" })
   })
 
   it("refuses a foreign or unapproved application", async () => {
     // app3 matches tenant + unit exactly, so only the org boundary refuses it.
-    expect(await checkOriginatingApplication(makeDb(), "org1", "app3", lease)).toHaveProperty("error")
-    expect(await checkOriginatingApplication(makeDb(), "org1", "app2", { tenantId: "t2", unitId: "u1" })).toHaveProperty("error")
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app3", lease, "user1")).toHaveProperty("error")
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app2", { tenantId: "t2", unitId: "u1" }, "user1")).toHaveProperty("error")
   })
 
-  it("refuses an application that already produced a lease", async () => {
-    expect(await checkOriginatingApplication(makeDb(), "org1", "app4", { tenantId: "t4", unitId: "u1" }))
-      .toEqual({ error: expect.stringMatching(/already created/) })
+  it("refuses an application that already produced a lease, naming nobody when the holder is unreadable", async () => {
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app4", { tenantId: "t4", unitId: "u1" }, "user1"))
+      .toEqual({ error: expect.stringMatching(/^A colleague is already creating/) })
+  })
+
+  it("names who holds the application's lease, read through the org-bound lease", async () => {
+    tables.leases = [{ id: "lease0", org_id: "org2", created_by: "uX" }, { id: "lease0", org_id: "org1", created_by: "u9" }]
+    tables.user_profiles = [{ id: "uX", full_name: "Foreign Agent" }, { id: "u9", full_name: "Jane Smith" }]
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app4", { tenantId: "t4", unitId: "u1" }, "user1"))
+      .toEqual({ error: expect.stringMatching(/^Jane Smith is already creating/) })
+  })
+
+  it("tells the holder it is their own lease (a double submit), not their name", async () => {
+    tables.leases = [{ id: "lease0", org_id: "org1", created_by: "u9" }]
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app4", { tenantId: "t4", unitId: "u1" }, "u9"))
+      .toEqual({ error: expect.stringMatching(/^You have already created/) })
   })
 
   it("refuses when the agent changed the tenant or unit in the wizard", async () => {
-    expect(await checkOriginatingApplication(makeDb(), "org1", "app1", { tenantId: "tX", unitId: "u1" })).toHaveProperty("error")
-    expect(await checkOriginatingApplication(makeDb(), "org1", "app1", { tenantId: "t1", unitId: "uX" })).toHaveProperty("error")
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app1", { tenantId: "tX", unitId: "u1" }, "user1")).toHaveProperty("error")
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app1", { tenantId: "t1", unitId: "uX" }, "user1")).toHaveProperty("error")
   })
 })
 
-describe("linkApplicationToLease", () => {
-  it("fills an empty link, bound to the org", async () => {
-    await linkApplicationToLease(makeDb(), "org1", "app1", "leaseN", "user1")
-    expect(tables.applications[0].resulting_lease_id).toBe("leaseN")
-    expect(updates[0].filters).toEqual(expect.arrayContaining(["id=app1", "org_id=org1", "resulting_lease_id is null"]))
+describe("insertLeaseClaimingApplication — one lease per application", () => {
+  const row = { unit_id: "u1", tenant_id: "t1", created_by: "user1" }
+
+  it("without an application: inserts the org's lease and claims nothing", async () => {
+    expect(await insertLeaseClaimingApplication(makeDb(), "org1", row, null, "user1")).toEqual({ leaseId: "lease1" })
+    expect(tables.leases).toEqual([expect.objectContaining({ id: "lease1", org_id: "org1", originating_application_id: null })])
+    expect(updates).toHaveLength(0)
   })
 
-  it("never re-points an application that already has a lease", async () => {
-    await linkApplicationToLease(makeDb(), "org1", "app4", "leaseN", "user1")
-    expect(tables.applications[3].resulting_lease_id).toBe("lease0")
+  it("the winner stamps and claims the application, org-bound, and is never discarded", async () => {
+    expect(await insertLeaseClaimingApplication(makeDb(), "org1", row, "app1", "user1")).toEqual({ leaseId: "lease1" })
+    expect(tables.leases[0]).toMatchObject({ org_id: "org1", originating_application_id: "app1" })
+    expect(tables.applications[0].resulting_lease_id).toBe("lease1")
+    expect(updates[0].filters).toEqual(expect.arrayContaining(["id=app1", "org_id=org1", "resulting_lease_id is null"]))
+    expect(deletes).toHaveLength(0)
+  })
+
+  it("two creates from one application: the second discards its own draft and names the first", async () => {
+    const db = makeDb()
+    tables.user_profiles = [{ id: "u9", full_name: "Jane Smith" }]
+    expect(await insertLeaseClaimingApplication(db, "org1", { ...row, created_by: "u9" }, "app1", "u9")).toEqual({ leaseId: "lease1" })
+    expect(await insertLeaseClaimingApplication(db, "org1", { ...row, created_by: "u2" }, "app1", "u2"))
+      .toEqual({ error: expect.stringMatching(/^Jane Smith is already creating/) })
+    expect(tables.applications[0].resulting_lease_id).toBe("lease1")
+    expect(tables.leases.map((l) => l.id)).toEqual(["lease1"])
+    expect(deletes[0]).toEqual(expect.arrayContaining(["id=lease2", "org_id=org1", "status=draft"]))
+  })
+
+  it("cannot claim another org's application — its own draft is discarded", async () => {
+    expect(await insertLeaseClaimingApplication(makeDb(), "org1", row, "app3", "user1")).toHaveProperty("error")
+    expect(tables.applications[2].resulting_lease_id).toBeNull()
+    expect(tables.leases).toHaveLength(0)
+  })
+
+  it("a failed claim discards the draft and says to try again", async () => {
+    updateError = { message: "boom" }
+    expect(await insertLeaseClaimingApplication(makeDb(), "org1", row, "app1", "user1"))
+      .toEqual({ error: expect.stringMatching(/Try again/) })
+    expect(tables.leases).toHaveLength(0)
   })
 })
