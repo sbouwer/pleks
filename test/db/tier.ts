@@ -328,53 +328,92 @@ export async function seedDepositCase(
 }
 
 /**
- * Toggle a temporary BEFORE INSERT trigger on trust_transactions that always raises. Lets a test prove
- * a failing trust posting rolls the whole enclosing RPC transaction back (the disburse_deposit_atomic
+ * The failure injectors, installed ONCE by global-setup before any worker starts, and never dropped.
+ *
+ * The tier runs files in parallel against one database (vitest.db.config.ts), which ruled out the old
+ * shape twice over. A trigger created per test failed EVERY file's trust insert while it was up
+ * (trust-immutability's `seedTrustTxn` died on `test-forced-trust-failure`). And CREATE/DROP TRIGGER
+ * mid-run takes table locks that deadlocked against other files' inserts and teardowns, measured on
+ * 2026-10-09 even after the trigger was scoped to one org. So the triggers are permanent and fire only
+ * for an org listed in `pleks_test.forced_failures`: switching one on is a row insert, which takes no
+ * table lock and touches no other org.
+ *
+ * `pleks_test`, not `public`: the Category 7 RLS audit reads `public` (get_rls_audit, 009), and this
+ * table exists only on a test stack. The trigger function is SECURITY DEFINER because the RPCs insert
+ * as other roles that have no grant on `pleks_test`. teardownOrg runs with session_replication_role =
+ * replica, so these triggers never fire during teardown.
+ * Idempotent, and lock-free on a stack that already has them: the trigger is created only when absent.
+ */
+export function installFailureInjectors(): void {
+  psql(`CREATE SCHEMA IF NOT EXISTS pleks_test;
+CREATE TABLE IF NOT EXISTS pleks_test.forced_failures (tag text NOT NULL, org_id uuid NOT NULL, PRIMARY KEY (tag, org_id));
+CREATE OR REPLACE FUNCTION pleks_test.fail_if_forced() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $fn$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pleks_test.forced_failures f WHERE f.tag = TG_ARGV[0] AND f.org_id = NEW.org_id) THEN
+    RAISE EXCEPTION '%', TG_ARGV[1] USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $fn$;
+DO $do$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '_test_inject_trust_trg') THEN
+    CREATE TRIGGER _test_inject_trust_trg BEFORE INSERT ON public.trust_transactions
+      FOR EACH ROW EXECUTE FUNCTION pleks_test.fail_if_forced('trust', 'test-forced-trust-failure');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '_test_inject_deptxn_trg') THEN
+    CREATE TRIGGER _test_inject_deptxn_trg BEFORE INSERT ON public.deposit_transactions
+      FOR EACH ROW EXECUTE FUNCTION pleks_test.fail_if_forced('deptxn', 'test-forced-deposit-txn-failure');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '_test_inject_tpt_update_trg') THEN
+    CREATE TRIGGER _test_inject_tpt_update_trg BEFORE UPDATE ON public.tenant_portal_tokens
+      FOR EACH ROW EXECUTE FUNCTION pleks_test.fail_if_forced('tpt_update', 'test-forced-tenant-portal-token-update-failure');
+  END IF;
+  -- The old injectors' unscoped triggers, which a run that crashed mid-test leaves behind. Their off-toggle
+  -- used to heal them; nothing toggles them now, and one left up fails every trust or deposit insert.
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname IN ('_test_fail_trust_trg', '_test_fail_deptxn_trg', '_test_fail_tpt_update_trg')) THEN
+    DROP TRIGGER IF EXISTS _test_fail_trust_trg ON public.trust_transactions;
+    DROP TRIGGER IF EXISTS _test_fail_deptxn_trg ON public.deposit_transactions;
+    DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON public.tenant_portal_tokens;
+  END IF;
+END $do$;`)
+}
+
+/** Switches one registry row; the name says INSERT, and `tpt_update` is the one UPDATE injector. */
+function forceInsertFailure(tag: string, orgId: string, on: boolean): void {
+  if (!UUID_RE.test(orgId)) throw new Error(`forceInsertFailure(${tag}): "${orgId}" is not a uuid`) // interpolated into SQL
+  psql(on
+    ? `INSERT INTO pleks_test.forced_failures (tag, org_id) VALUES ('${tag}', '${orgId}') ON CONFLICT DO NOTHING;`
+    : `DELETE FROM pleks_test.forced_failures WHERE tag = '${tag}' AND org_id = '${orgId}';`)
+}
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Toggle a temporary BEFORE INSERT trigger on trust_transactions that raises for `orgId`'s rows. Lets a test
+ * prove a failing trust posting rolls the whole enclosing RPC transaction back (the disburse_deposit_atomic
  * hazard). The disburse trust postings pass statement_month=NULL, so the real closed-period trigger
  * can't force this — hence a dedicated failure injector. Always toggle off in a finally/afterEach.
  */
-export function forceTrustInsertFailure(on: boolean): void {
-  if (on) {
-    psql(`CREATE OR REPLACE FUNCTION _test_fail_trust() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE EXCEPTION 'test-forced-trust-failure' USING ERRCODE = 'check_violation'; END; $fn$;
-DROP TRIGGER IF EXISTS _test_fail_trust_trg ON trust_transactions;
-CREATE TRIGGER _test_fail_trust_trg BEFORE INSERT ON trust_transactions FOR EACH ROW EXECUTE FUNCTION _test_fail_trust();`)
-  } else {
-    psql(`DROP TRIGGER IF EXISTS _test_fail_trust_trg ON trust_transactions;
-DROP FUNCTION IF EXISTS _test_fail_trust();`)
-  }
+export function forceTrustInsertFailure(orgId: string, on: boolean): void {
+  forceInsertFailure("trust", orgId, on)
 }
 
 /**
- * Toggle a temporary BEFORE INSERT trigger on deposit_transactions that always raises — the deposit-side
- * analogue of forceTrustInsertFailure. Lets a test force a failure at the deposit_transactions step of a
- * multi-write RPC (e.g. settle_deposit_charge_pattern_a_atomic, which posts no trust row — the money moves
- * deposit→invoice internally — so the trust injector can't reach it). Always toggle off in a finally/afterEach.
+ * Toggle a temporary BEFORE INSERT trigger on deposit_transactions that raises for `orgId`'s rows — the
+ * deposit-side analogue of forceTrustInsertFailure. Lets a test force a failure at the deposit_transactions
+ * step of a multi-write RPC (e.g. settle_deposit_charge_pattern_a_atomic, which posts no trust row — the money
+ * moves deposit→invoice internally — so the trust injector can't reach it). Always toggle off in a
+ * finally/afterEach.
  */
-export function forceDepositTxnInsertFailure(on: boolean): void {
-  if (on) {
-    psql(`CREATE OR REPLACE FUNCTION _test_fail_deptxn() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE EXCEPTION 'test-forced-deposit-txn-failure' USING ERRCODE = 'check_violation'; END; $fn$;
-DROP TRIGGER IF EXISTS _test_fail_deptxn_trg ON deposit_transactions;
-CREATE TRIGGER _test_fail_deptxn_trg BEFORE INSERT ON deposit_transactions FOR EACH ROW EXECUTE FUNCTION _test_fail_deptxn();`)
-  } else {
-    psql(`DROP TRIGGER IF EXISTS _test_fail_deptxn_trg ON deposit_transactions;
-DROP FUNCTION IF EXISTS _test_fail_deptxn();`)
-  }
+export function forceDepositTxnInsertFailure(orgId: string, on: boolean): void {
+  forceInsertFailure("deptxn", orgId, on)
 }
 
 /**
- * Toggle a temporary BEFORE UPDATE trigger on tenant_portal_tokens that always raises — same injector
- * shape as forceTrustInsertFailure/forceDepositTxnInsertFailure, UPDATE instead of INSERT because the
+ * Toggle the BEFORE UPDATE injector on tenant_portal_tokens for `orgId`'s rows — same registry shape as
+ * forceTrustInsertFailure/forceDepositTxnInsertFailure, UPDATE instead of INSERT because the
  * resend-bounce-revoke webhook's failure path is `.update({ revoked: true })...`. Lets a test prove the
  * webhook's Sentry capture fires on a REAL DB failure, not just assert the 200 status code around it.
  * Always toggle off in a finally/afterEach.
  */
-export function forceTenantPortalTokenUpdateFailure(on: boolean): void {
-  if (on) {
-    psql(`CREATE OR REPLACE FUNCTION _test_fail_tpt_update() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN RAISE EXCEPTION 'test-forced-tenant-portal-token-update-failure' USING ERRCODE = 'check_violation'; END; $fn$;
-DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON tenant_portal_tokens;
-CREATE TRIGGER _test_fail_tpt_update_trg BEFORE UPDATE ON tenant_portal_tokens FOR EACH ROW EXECUTE FUNCTION _test_fail_tpt_update();`)
-  } else {
-    psql(`DROP TRIGGER IF EXISTS _test_fail_tpt_update_trg ON tenant_portal_tokens;
-DROP FUNCTION IF EXISTS _test_fail_tpt_update();`)
-  }
+export function forceTenantPortalTokenUpdateFailure(orgId: string, on: boolean): void {
+  forceInsertFailure("tpt_update", orgId, on)
 }

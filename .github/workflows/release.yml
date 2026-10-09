@@ -53,9 +53,10 @@ jobs:
       # THE RULE, so this cannot rot the same way: the gate names EVERY check that runs on a push to
       # main. A check that runs and that nothing waits on is not a gate (M-084).
       #
-      # ✅ VERIFIED 2026-08-23 against .github/workflows/ci.yml as at 686235c1. ci.yml defines seven
-      # jobs; exactly three carry `if: github.event_name == 'pull_request'` (FitScore parity,
-      # Release health, PR title) and never run here. The other four are the four named below.
+      # ✅ RE-VERIFIED 2026-10-09 against ci.yml on branch ci/faster-gates (first verified 2026-08-23 at
+      # 686235c1, with seven jobs). ci.yml defines eight jobs; exactly three carry
+      # `if: github.event_name == 'pull_request'` (FitScore parity, Release health, PR title) and never
+      # run here. The other five are the five named below.
       #
       # ⚠ AND THE REQUIRED SET IS A DIFFERENT FOUR — they differ in BOTH directions, which is why
       # neither list can be derived from the other. The `main-protection` ruleset (id 15261637, read
@@ -73,7 +74,9 @@ jobs:
       - uses: lewagon/wait-on-check-action@v1.9.1
         with:
           ref: ${{ github.sha }}
-          check-regexp: '(Lint & Typecheck|Marketing consistency|DB integration tier|Dependency CVE scan)'
+          # `Checks & unit tests` joined 2026-10-09: CI split `npm run check` into it and Lint & Typecheck
+          # (scripts/ci-partition.mjs). Without it here, Release would ship past a red unit test.
+          check-regexp: '(Lint & Typecheck|Checks & unit tests|Marketing consistency|DB integration tier|Dependency CVE scan)'
           # ✅ VERIFIED 2026-08-23 against v1.9.0's own action.yml. The draft worried that `cancelled`
           # might be in the default; it is not. The default is `success,skipped` — so the risk was
           # real but the mechanism was different: today a check that SKIPS satisfies this gate, and
@@ -81,9 +84,9 @@ jobs:
           # so. Naming `success` alone is therefore a genuine tightening, not a restatement.
           #
           # The cost of that tightening is stated rather than discovered: a skipped job now FAILS
-          # this gate. That is safe only because none of the four named above is conditional —
+          # this gate. That is safe only because none of the five named above is conditional —
           # verified at the same commit, the only job-level `if:` guards in ci.yml are on the three
-          # PR-only jobs. Add an `if:` to any of the four and this line must be revisited.
+          # PR-only jobs. Add an `if:` to any of the five and this line must be revisited.
           allowed-conclusions: success
           # Explicit because it is load-bearing and happens to be the default: if the regexp matches
           # NOTHING — a job renamed, a trigger changed — this fails instead of sailing through

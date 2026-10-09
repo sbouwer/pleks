@@ -35,8 +35,10 @@ async function state(s: SeededDeposit): Promise<{ depositTxns: number; trustTxns
 describe("disburse_deposit_atomic — main-sequence atomicity", () => {
   const seededOrgs: string[] = []
   afterEach(() => {
-    forceTrustInsertFailure(false)
-    for (const orgId of seededOrgs.splice(0)) teardownOrg(orgId)
+    for (const orgId of seededOrgs.splice(0)) {
+      forceTrustInsertFailure(orgId, false)
+      teardownOrg(orgId)
+    }
   })
 
   it("happy path — refund + deduction post their deposit+trust rows, recon marked refunded", async () => {
@@ -52,7 +54,7 @@ describe("disburse_deposit_atomic — main-sequence atomicity", () => {
   it("trust posting fails — the ENTIRE disbursement rolls back (no deposit txn, recon NOT refunded)", async () => {
     const s = await seedDepositCase(db, { refundCents: 80_000, deductionsCents: 20_000 })
     seededOrgs.push(s.orgId)
-    forceTrustInsertFailure(true)
+    forceTrustInsertFailure(s.orgId, true)
     const err = await disburse(s)
     expect(err, "RPC should raise when the trust posting fails").not.toBeNull()
     const c = await state(s)

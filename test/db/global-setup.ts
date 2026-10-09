@@ -9,7 +9,7 @@
  *         left untouched so function-hardening REVOKEs still hold locally. Idempotent; runs once per suite.
  */
 import { execSync } from "node:child_process"
-import { cleanupStrayTestOrgs } from "./tier"
+import { cleanupStrayTestOrgs, installFailureInjectors } from "./tier"
 import { dockerCandidates, resolveDockerFrom } from "./resolve-docker"
 
 const GRANTS = [
@@ -106,4 +106,8 @@ export default function setup(): void {
 
   // Sweep any orgs left by a crashed/aborted prior run so the DB doesn't accumulate test data.
   cleanupStrayTestOrgs()
+
+  // Before any worker starts: installing a trigger mid-run takes table locks that deadlock the parallel
+  // tier (tier.ts, installFailureInjectors).
+  installFailureInjectors()
 }

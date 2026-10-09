@@ -78,12 +78,12 @@ describe("deposit Pattern A + closed-period guard (ledger finale)", () => {
 
     // Pattern A posts no trust row (money moves deposit→invoice internally); force the deposit_transactions
     // step (which runs AFTER the payment + allocation) to fail — the whole settlement must roll back.
-    forceDepositTxnInsertFailure(true)
+    forceDepositTxnInsertFailure(c.orgId, true)
     try {
       const r = await patternA(c, chargeId)
       expect(r.error).not.toBeNull()
     } finally {
-      forceDepositTxnInsertFailure(false)
+      forceDepositTxnInsertFailure(c.orgId, false)
     }
     expect(await paymentCount(c.leaseId)).toBe(0)             // payment rolled back
     expect(await depTxnCount(c.leaseId)).toBe(0)
