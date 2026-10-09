@@ -92,6 +92,43 @@ CF-7 to CF-20 dropped to Filed on 2026-10-08 — canon took all fourteen between
 them as bash-gate v17 at `b9f9979` and v18 at `58faa9a`. Their reports are not restated here; canon's
 entries are the record.
 
+### CF-23 · The kit's gate runs uncached ESLint serially in CI, when lint in parallel costs no coverage and halves the step
+
+Stéan asked (2026-10-09) for this to become the standard commit and CI method on every project.
+
+```
+OBSERVED   pleks CI's "Lint & Typecheck" took ~6m, of which tsc + uncached serial ESLint were one 225s
+           stretch. Linting is uncached in CI on purpose (a cold cache on a fresh runner only adds cost,
+           and an uncached lint is what makes the local cache a speed choice rather than a coverage
+           one), so the cache cannot be the lever. ESLint >= 9.34 has `--concurrency`: every file, every
+           rule, split across worker threads.
+COMMAND    measured on pleks @ deada755, uncached, ESLint 10.11, typed linting (projectService):
+             npx eslint . --max-warnings 0                    → exit 0, 150s
+             npx eslint . --max-warnings 0 --concurrency 4    → exit 0,  69s
+             CI=1 node scripts/lint.mjs  (with the flag)      → exit 0,  69-83s
+           planted `export const probe: any = 1` with workers on → exit 1, error reported (fails closed)
+           warm local cache: serial 6-10s; with workers 12s, plus ESLint's own
+             "ESLintPoorConcurrencyWarning: You may reduce or disable concurrency"
+WHY IT IS  Nothing here is about pleks's stack beyond ESLint itself. Any repo that lints uncached in CI
+CANON'S    pays the serial cost on every PR and every push, and the saving grows with the size of the
+           repo. The two conditions that keep it safe, and the one that makes it slower, are about
+           ESLint, not about this project.
+SMALLEST   In the kit's lint runner, add `--concurrency min(4, os.availableParallelism())` on the
+FIX        UNCACHED path only (CI, and a local fallback that distrusts its cache). Leave the warm cached
+           path serial, because workers make it slower there.
+           It must not break:
+           (a) A rule that aggregates ACROSS files. Under workers, module-level state is per worker,
+               so a rule reporting e.g. unused baseline entries would see only its share of the files
+               and report entries as unused when they are not. Before adopting, audit each custom rule
+               for module-level state that is written, not merely read.
+           (b) Memory. Typed linting builds one TypeScript program per worker, so cap the count; 4
+               matches GitHub's hosted runner.
+           (c) ESLint < 9.34, where the flag does not exist. Gate on the version rather than assuming it.
+           pleks's own implementation is scripts/lint.mjs (PR "ci: lint in parallel on the uncached
+           path"), with the audit for (a) in its header.
+```
+
+
 ## 2 · Lesson answers
 
 From `node C:/dev/dev-standards/tools/check-lessons.mjs --emit-open pleks`. Read the entry from its
