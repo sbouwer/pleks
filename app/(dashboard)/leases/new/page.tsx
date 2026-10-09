@@ -4,14 +4,15 @@
  * Route:  /leases/new
  * Auth:   requireAdminAuth via getServerOrgMembership (redirects to /login if missing)
  * Data:   pre-fills property/unit/tenant from query params; owner tier auto-prefills from single property;
- *         ?application=<id> pre-fills from an approved application and carries its id to the create action (B2)
+ *         ?application=<id> pre-fills from an approved application and carries its id to the create action (B2);
+ *         opening it takes the application's "currently creating" marker, or shows a colleague's live one with a
+ *         take-over (&take_over=1) instead of the wizard
  * Notes:  ADDENDUM_LEASE_CREATION_MODAL Phase 1 — the page resolves prefill (incl. renewal) + disclaimer
  *         acceptance and opens LeaseWizardModal, returning to /leases on close (mirrors /properties/new).
  *         The disclaimer now gates the "Generate with Pleks" branch inside the modal only (D-10), not the
  *         whole flow.
  */
 import { createServiceClient } from "@/lib/supabase/server"
-import { getServerOrgMembership } from "@/lib/auth/server"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { redirect } from "next/navigation"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
@@ -21,6 +22,9 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { getPrimeRateOn } from "@/lib/deposits/interestConfig"
 import { saTodayISO } from "@/lib/dates"
 import { resolveApprovedApplication } from "@/lib/leases/applicationLink"
+import { startedAgoLabel, takeLeaseStartMarker, type LeaseStartHolder } from "@/lib/leases/leaseStartMarker"
+import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
+import { LeaseInProgressNotice } from "./LeaseInProgressNotice"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -149,6 +153,22 @@ async function resolveIds(
   }
 }
 
+/** Take the application's marker on open; a colleague's live marker comes back to be shown instead of the wizard. */
+async function startLeaseFromApplication(
+  supabase: SupabaseService,
+  orgId: string,
+  applicationId: string,
+  takeOver: boolean,
+): Promise<LeaseStartHolder | null> {
+  const user = await getServerUser()
+  if (!user) return null
+  const start = await takeLeaseStartMarker(supabase, orgId, applicationId, user.id, { takeOver })
+  // A take-over is one-shot: drop it from the URL so a refresh or Back never silently re-takes a colleague's
+  // later marker (walker F2). The plain URL re-takes my own marker as "mine".
+  if (takeOver) redirect(`/leases/new?application=${applicationId}`)
+  return start.taken ? null : start.holder
+}
+
 export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
@@ -165,6 +185,18 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const application = sp.application ? await resolveApprovedApplication(supabase, orgId, sp.application) : null
   if (application?.resultingLeaseId) redirect(`/leases/${application.resultingLeaseId}`)
   if (application) {
+    // Advisory "currently creating" marker (Stéan 2026-10-09): opening the wizard takes it; a colleague's live
+    // marker shows who is busy instead, with a take-over. The one-lease claim at Create is still the lock.
+    const holder = await startLeaseFromApplication(supabase, orgId, application.id, sp.take_over === "1")
+    if (holder) {
+      return (
+        <LeaseInProgressNotice
+          applicationId={application.id}
+          holderName={holder.name}
+          startedAgo={startedAgoLabel(holder.startedAt)}
+        />
+      )
+    }
     sp.property = application.propertyId ?? ""
     sp.unit = application.unitId
     sp.tenant = application.tenantId

@@ -35,6 +35,8 @@ interface ApplicationActionsProps {
   readonly immigrationConfirmed: boolean
   /** applications.resulting_lease_id — once set, the approved application links to its lease, not a new one */
   readonly resultingLeaseId: string | null
+  /** a colleague's live "currently creating" marker, worded — advisory, Create lease stays available */
+  readonly leaseInProgress: string | null
 }
 
 export function ApplicationActions({
@@ -45,6 +47,7 @@ export function ApplicationActions({
   isForeignNational,
   immigrationConfirmed,
   resultingLeaseId,
+  leaseInProgress,
 }: ApplicationActionsProps) {
   const { user } = useUser()
   const { isAdmin } = usePermissions()
@@ -148,7 +151,12 @@ export function ApplicationActions({
       {stage2Status === "approved" && (
         resultingLeaseId
           ? <ActionButton tone="secondary" onClick={() => router.push(`/leases/${resultingLeaseId}`)}>View lease</ActionButton>
-          : <ActionButton tone="primary" onClick={() => router.push(`/leases/new?application=${applicationId}`)}>Create lease</ActionButton>
+          : (
+            <>
+              {leaseInProgress && <span className="text-xs text-muted-foreground">{leaseInProgress}</span>}
+              <ActionButton tone="primary" onClick={() => router.push(`/leases/new?application=${applicationId}`)}>Create lease</ActionButton>
+            </>
+          )
       )}
       {isAdmin && <ActionButton tone="destructive" onClick={() => setDeleteOpen(true)}>Delete</ActionButton>}
       <DeclineDecisionModal

@@ -22,6 +22,7 @@ let tables: Record<string, Row[]>
 let updates: { table: string; patch: Row; filters: string[] }[]
 let deletes: string[][]
 let updateError: { message: string } | null
+let insertError: { code: string; message: string } | null
 let seq = 0
 
 /** Filters rows by every .eq/.is the chain applied, so an org or status mismatch genuinely returns nothing. */
@@ -50,12 +51,15 @@ function makeDb(): SupabaseClient {
         update: (p: Row) => { patch = p; return chain },
         delete: () => { deleting = true; return chain },
         insert: (r: Row) => {
+          if (insertError) { inserted = null; return chain }
           const row = { id: `lease${++seq}`, status: "draft", ...r }
           tables[table] = [...(tables[table] ?? []), row]
           inserted = row
           return chain
         },
-        single: async () => ({ data: inserted ? { id: inserted.id } : null, error: null }),
+        single: async () => (insertError
+          ? { data: null, error: insertError }
+          : { data: inserted ? { id: inserted.id } : null, error: null }),
         maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
         then: (res: (v: unknown) => unknown) => {
           if (deleting) {
@@ -87,6 +91,8 @@ beforeEach(() => {
       { id: "app3", org_id: "org2", tenant_id: "t1", unit_id: "u1", listing_id: "l1", stage2_status: "approved", resulting_lease_id: null },
       { id: "app4", org_id: "org1", tenant_id: "t4", unit_id: "u1", listing_id: "l1", stage2_status: "approved", resulting_lease_id: "lease0" },
     ],
+    // Holders are named only as live members of the org; uX belongs to org2.
+    user_orgs: [{ user_id: "uX", org_id: "org2", deleted_at: null }, { user_id: "u9", org_id: "org1", deleted_at: null }],
     // A foreign-org row first under the same id: dropping a read's org filter picks it.
     units: [{ id: "u1", org_id: "org2", property_id: "pX" }, { id: "u1", org_id: "org1", property_id: "p1" }],
     listings: [{ id: "l1", org_id: "org2", asking_rent_cents: 1 }, { id: "l1", org_id: "org1", asking_rent_cents: 1_200_000 }],
@@ -103,6 +109,7 @@ beforeEach(() => {
   updates = []
   deletes = []
   updateError = null
+  insertError = null
   seq = 0
 })
 
@@ -149,6 +156,13 @@ describe("checkOriginatingApplication", () => {
       .toEqual({ error: expect.stringMatching(/^Jane Smith is already creating/) })
   })
 
+  it("never names a lease creator who is not a member of the org", async () => {
+    tables.leases = [{ id: "lease0", org_id: "org1", created_by: "uX" }]
+    tables.user_profiles = [{ id: "uX", full_name: "Foreign Agent" }]
+    expect(await checkOriginatingApplication(makeDb(), "org1", "app4", { tenantId: "t4", unitId: "u1" }, "user1"))
+      .toEqual({ error: expect.stringMatching(/^A colleague is already creating/) })
+  })
+
   it("tells the holder it is their own lease (a double submit), not their name", async () => {
     tables.leases = [{ id: "lease0", org_id: "org1", created_by: "u9" }]
     expect(await checkOriginatingApplication(makeDb(), "org1", "app4", { tenantId: "t4", unitId: "u1" }, "u9"))
@@ -176,6 +190,21 @@ describe("insertLeaseClaimingApplication — one lease per application", () => {
     expect(tables.applications[0].resulting_lease_id).toBe("lease1")
     expect(updates[0].filters).toEqual(expect.arrayContaining(["id=app1", "org_id=org1", "resulting_lease_id is null"]))
     expect(deletes).toHaveLength(0)
+  })
+
+  it("the claim clears the 'currently creating' marker", async () => {
+    Object.assign(tables.applications[0], { lease_started_by: "user1", lease_started_at: "2026-10-09T12:00:00Z" })
+    await insertLeaseClaimingApplication(makeDb(), "org1", row, "app1", "user1")
+    expect(tables.applications[0]).toMatchObject({ lease_started_by: null, lease_started_at: null })
+  })
+
+  it("the unique index's 23505 is told as the named message, never the raw constraint", async () => {
+    tables.applications[0].resulting_lease_id = "lease0"
+    tables.leases = [{ id: "lease0", org_id: "org1", created_by: "u9" }]
+    tables.user_profiles = [{ id: "u9", full_name: "Jane Smith" }]
+    insertError = { code: "23505", message: "duplicate key value violates unique constraint" }
+    expect(await insertLeaseClaimingApplication(makeDb(), "org1", row, "app1", "user1"))
+      .toEqual({ error: expect.stringMatching(/^Jane Smith is already creating/) })
   })
 
   it("two creates from one application: the second discards its own draft and names the first", async () => {

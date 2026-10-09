@@ -536,7 +536,9 @@
       "cost_excl_vat_cents",
       "priced_party_count",
       "priced_entity",
-      "stage2_invited_at"
+      "stage2_invited_at",
+      "lease_started_by",
+      "lease_started_at"
     ],
     "arrears_actions": [
       "id",
