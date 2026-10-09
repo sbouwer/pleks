@@ -4092,3 +4092,23 @@ CREATE TRIGGER trg_screening_notification_events_immutable_t BEFORE TRUNCATE ON 
 REVOKE UPDATE, DELETE, TRUNCATE ON screening_notification_events FROM anon, authenticated, service_role;
 COMMENT ON TABLE screening_notification_events IS
   'ADDENDUM_14X §3: append-only trail of every attempted screening milestone send (N1…N6_absent) per party. Delivery state lives on communication_log (FK). UPDATE refused; DELETE refused unless the application is gone or purge_org_cascade is purging the org; TRUNCATE refused; U/D/T revoked from app roles.';
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ARC 2: who is creating this application's lease, and since when  (2026-10-09)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- One lease per application is held by the claim on resulting_lease_id (lib/leases/applicationLink.ts), but that only
+-- fires at Create: the lease wizard persists nothing while it is open, so a second agent could spend minutes on a
+-- lease that is then refused. Stéan 2026-10-09: show "<name> is currently creating a lease for this application"
+-- from the moment the wizard opens. These two columns are that marker. Written when /leases/new?application= opens,
+-- cleared when the claim lands or the draft is discarded; a marker older than the hold window (app-side) is stale
+-- and anyone may take it over. Advisory only — resulting_lease_id stays the lock.
+-- SET NULL, not CASCADE: a departed user must not delete the application (identity-scoped-tables cascade rule).
+-- No backfill: prod held test data only when this was written (Stéan, 2026-10-09).
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS lease_started_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS lease_started_at timestamptz;
+COMMENT ON COLUMN applications.lease_started_by IS
+  'Arc 2: the agent who opened the lease wizard for this application. Advisory "currently creating" marker; resulting_lease_id is the lock. NULL = nobody.';
+COMMENT ON COLUMN applications.lease_started_at IS
+  'Arc 2: when lease_started_by opened the lease wizard. Older than the app''s hold window = stale, may be taken over.';

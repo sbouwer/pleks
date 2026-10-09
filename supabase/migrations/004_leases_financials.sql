@@ -2976,3 +2976,18 @@ CREATE INDEX IF NOT EXISTS idx_leases_originating_application ON leases(originat
 COMMENT ON COLUMN leases.originating_application_id IS
   'The application this lease came from, if any. NULL for leases created directly or migrated in.
    Pairs with applications.resulting_lease_id (005). SET NULL on delete — never cascade.';
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+-- § ARC 2: one lease per application — the database backstop  (2026-10-09)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════════
+--
+-- The app holds one lease per application with an atomic claim on applications.resulting_lease_id
+-- (lib/leases/applicationLink.ts insertLeaseClaimingApplication, #379), whose loser discards its own draft. Two
+-- cases slip past it: the discard's DELETE fails, or the function dies between the lease INSERT and the claim.
+-- Either way a second draft carrying the same originating_application_id would survive (#379 walker F2; Stéan
+-- 2026-10-09: "we don't want multiple leases hanging around"). This partial unique index makes the second INSERT
+-- itself fail (23505), so the duplicate never exists. It replaces the plain index above, which it makes redundant.
+-- Prod held no duplicate originating_application_id when this was written (2026-10-09), so the build cannot fail.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_leases_originating_application ON leases(originating_application_id)
+  WHERE originating_application_id IS NOT NULL;
+DROP INDEX IF EXISTS idx_leases_originating_application;
