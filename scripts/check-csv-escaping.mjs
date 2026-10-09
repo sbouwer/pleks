@@ -35,7 +35,7 @@ const ALLOW = new Map([
   // back a finished string; they never touch a cell themselves.
   ["app/api/reports/export/route.ts", "delegates to lib/reports/exportCSV (escaped)"],
   ["app/api/cron/process-audit-exports/route.ts", "delegates to lib/admin/csv-export (escaped)"],
-  ["app/(dashboard)/finance/trust-ledger/page.tsx", "delegates to lib/finance/trustLedger:buildTrustLedgerCSV (escaped)"],
+  ["app/(dashboard)/finance/trust-ledger/(overview)/page.tsx", "delegates to lib/finance/trustLedger:buildTrustLedgerCSV (escaped)"],
   ["app/(dashboard)/settings/import/_components/Step0Upload.tsx", "INBOUND — accept=\"text/csv\" on an upload input"],
   ["lib/actions/recon.ts", "INBOUND — `text/csv` labels an agent-uploaded bank statement stored as-is in bank-statements (011 §29); it builds and serves no CSV"],
 ])

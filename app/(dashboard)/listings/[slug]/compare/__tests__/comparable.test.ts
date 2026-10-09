@@ -33,7 +33,7 @@ describe("compareHref", () => {
 
 describe("the page reads the set the link counts, in the active org, without the bank-extraction column", () => {
   const page = readFileSync("app/(dashboard)/listings/[slug]/compare/page.tsx", "utf8")
-  const listing = readFileSync("app/(dashboard)/listings/[slug]/page.tsx", "utf8")
+  const listing = readFileSync("app/(dashboard)/listings/[slug]/(overview)/page.tsx", "utf8")
 
   it("PLANTED: same stage set, and the listing page's submitted + not-deleted filters on both sides", () => {
     expect(page).toContain(`.in("stage1_status", [...COMPARABLE_STAGE1])`)

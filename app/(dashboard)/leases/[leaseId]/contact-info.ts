@@ -1,7 +1,7 @@
 /**
  * app/(dashboard)/leases/[leaseId]/contact-info.ts — the tenant and landlord shapes a lease's tabs render
  *
- * Data:   assembled in app/(dashboard)/leases/[leaseId]/page.tsx from leases, tenants, contacts and
+ * Data:   assembled in app/(dashboard)/leases/[leaseId]/(overview)/page.tsx from leases, tenants, contacts and
  *         portal state; this module declares the shapes only and reads nothing itself.
  * Notes:  Lives apart from ContactsTab so LeasePortalActions can import TenantContactInfo without
  *         importing its own parent. ContactsTab declared both and rendered LeasePortalActions,

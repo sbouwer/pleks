@@ -1,0 +1,37 @@
+/**
+ * app/(dashboard)/tenants/(overview)/page.tsx — Tenants list page (prefetch + hydrate the tenant list)
+ *
+ * Route:  /tenants  (?add=1 auto-opens the add-tenant modal — the canonical add surface)
+ * Auth:   getServerOrgMembership (redirects to /login)
+ * Data:   fetchTenants prefetched into React Query, hydrated client-side
+ */
+import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
+import { redirect } from "next/navigation"
+import { getServerOrgMembership } from "@/lib/auth/server"
+import { createServiceClient } from "@/lib/supabase/server"
+import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchTenants } from "@/lib/queries/portfolio"
+import { TenantsPageClient } from "../TenantsPageClient"
+
+export default async function TenantsPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ add?: string }> }>) {
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
+
+  const { org_id: orgId } = membership
+  const autoOpenAdd = (await searchParams).add === "1"
+  const queryClient = new QueryClient()
+  const supabase = await createServiceClient()
+
+  await queryClient.prefetchQuery({
+    queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
+    queryFn: () => fetchTenants(supabase, orgId),
+    staleTime: STALE_TIME.tenants,
+  })
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <TenantsPageClient orgId={orgId} autoOpenAdd={autoOpenAdd} />
+    </HydrationBoundary>
+  )
+}
