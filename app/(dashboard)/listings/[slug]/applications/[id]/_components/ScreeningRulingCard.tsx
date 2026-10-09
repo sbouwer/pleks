@@ -5,9 +5,12 @@
  * sees EVERY flag — including the Signal flags hidden from the applicant (e.g. net-pay-vs-credit gap) — plus
  * the evidence reconciliation, document-integrity signals, and the reconciler/ruling versions for replay.
  * Read-only; the page is already gateway-gated + org-filtered.
+ * Notes:  `docsChanged` is the re-queue test itself (docsChangedSinceLastPass). At MAX_SCREENING_ITERATIONS a document
+ *         change re-runs nothing, so without the marker the agent reads a ruling on documents the applicant has since
+ *         replaced (A18 walker N2). An unreadable answer (null) is said, never shown as current.
  */
 import { DetailCard } from "@/components/detail/DetailCard"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, MAX_SCREENING_ITERATIONS } from "@/lib/constants"
 import type { RulingFlag } from "@/lib/applications/ruling"
 import type { ReconciliationResult, FraudSignal } from "@/lib/extraction/types"
 
@@ -36,7 +39,18 @@ const AFFORD: Record<string, string> = { within: "Within 30% guideline", margina
 const CONF: Record<string, string> = { strong: "Strong", adequate: "Adequate", "needs-evidence": "Needs evidence" }
 const SEV: Record<string, string> = { block: "text-danger", major: "text-warning", minor: "text-muted-foreground", positive: "text-success" }
 
-export function ScreeningRulingCard({ evaluation }: Readonly<{ evaluation: ScreeningEvaluationRow }>) {
+/** The staleness line, or null when the ruling read the current documents. */
+export function stalenessNotice(docsChanged: boolean | null, iteration: number): string | null {
+  if (docsChanged === null) return "Could not check whether the documents changed after this ruling — treat it as possibly out of date."
+  if (!docsChanged) return null
+  const base = "Documents were added or removed after this ruling, so it may not reflect them."
+  return iteration >= MAX_SCREENING_ITERATIONS
+    ? `${base} The applicant has used all ${MAX_SCREENING_ITERATIONS} pre-screen passes, so it will not re-run — review the documents yourself.`
+    : base
+}
+
+export function ScreeningRulingCard({ evaluation, docsChanged }: Readonly<{ evaluation: ScreeningEvaluationRow; docsChanged: boolean | null }>) {
+  const stale = stalenessNotice(docsChanged, evaluation.iteration_number)
   const flags = evaluation.flags ?? []
   const todos = flags.filter((f) => f.type === "fixable" || f.type === "structural")
   const signals = flags.filter((f) => f.type === "signal")
@@ -48,6 +62,7 @@ export function ScreeningRulingCard({ evaluation }: Readonly<{ evaluation: Scree
   return (
     <DetailCard title="Verified ruling · Step 2" headerAction={<span className={`text-sm font-semibold ${r.cls}`}>{r.label}</span>}>
       <div className="space-y-4 text-sm">
+        {stale && <p role="status" className="text-xs text-warning border border-warning/40 rounded-[var(--r-button)] p-2">{stale}</p>}
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded border border-border p-3">
             <p className="text-xs text-muted-foreground">Affordability</p>

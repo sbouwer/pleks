@@ -33,6 +33,7 @@ import type { FreeAssessmentResult } from "@/lib/applications/freeAssessment"
 import { maritalConsistencyFlags, addressKey } from "@/lib/applications/maritalConsistency"
 import { decryptIdNumber, decryptSpouseInfo } from "@/lib/crypto/idNumber"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { docsChangedSinceLastPass, type PassEvaluation } from "@/lib/applications/screeningJobs"
 
 const STEP1_LABEL: Record<string, string> = {
   "verify-ready": "Verify-ready", backstopped: "Qualifies via surety", "missing-docs": "Missing docs", "does-not-qualify": "Doesn't qualify", incomplete: "Didn't finish",
@@ -176,6 +177,11 @@ export default async function ApplicationDetailPage({
     .eq("application_id", id).eq("org_id", orgId)
     .order("iteration_number", { ascending: false }).limit(1).maybeSingle()
   logQueryError("ApplicationDetailPage screening_evaluation", screeningEvalErr)
+  // Whether the documents moved after that ruling read them — at the cap no pass re-runs, so without this the agent
+  // reads a ruling on documents that are no longer the applicant's (A18 walker N2). null = could not tell.
+  const docsChangedSinceRuling = screeningEval
+    ? await docsChangedSinceLastPass(db, orgId, id, screeningEval as PassEvaluation)
+    : false
 
   const [{ data: s23Cap }, { data: orgRow }] = await Promise.all([
     db
@@ -364,7 +370,7 @@ export default async function ApplicationDetailPage({
     <>
       <FreeAssessmentCard assessment={fa} rentCents={rentCents} />
       {screeningEval
-        ? <ScreeningRulingCard evaluation={screeningEval as unknown as ScreeningEvaluationRow} />
+        ? <ScreeningRulingCard evaluation={screeningEval as unknown as ScreeningEvaluationRow} docsChanged={docsChangedSinceRuling} />
         : (
           <DetailCard title="Verified ruling · Step 2">
             <p className="text-sm text-muted-foreground">Not yet deep-scanned. The verified ruling — corroborated income, document confidence and fraud signals — appears here once this applicant is shortlisted and scanned.</p>
