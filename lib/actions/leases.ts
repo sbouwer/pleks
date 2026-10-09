@@ -397,10 +397,21 @@ export async function markAsSigned(leaseId: string) {
     .single()
   if (leaseErr || !lease) return { error: "Lease not found" }
 
+  // leases.tenant_id is a tenants.id; the CPA facts live on the tenant's contact. This read went to contacts by
+  // the tenant id until 2026-10-09 — two different uuids, so every manual activation stopped here.
+  const { data: tenant, error: tenantErr } = await db
+    .from("tenants")
+    .select("contact_id")
+    .eq("id", lease.tenant_id)
+    .eq("org_id", orgId)
+    .single()
+  if (tenantErr || !tenant) return { error: "Tenant not found" }
+
   const { data: contact, error: contactErr } = await db
     .from("contacts")
     .select("entity_type, juristic_type, turnover_under_2m, asset_value_under_2m, size_bands_captured_at")
-    .eq("id", lease.tenant_id)
+    .eq("id", tenant.contact_id)
+    .eq("org_id", orgId)
     .single()
   if (contactErr || !contact) return { error: "Tenant contact not found" }
 

@@ -4,7 +4,8 @@
  * Auth:   Server-only; called from DocuSeal webhook and manual activation actions
  * Data:   leases, units, organisations, tenancy_history, deposits, invoices via service client
  * Notes:  Each step returns a CascadeStep so failures are recorded without aborting the whole
- *         cascade. Fetches OrgCapabilities so BUILD_63 email step can use org-type-correct
+ *         cascade. Supabase returns `{ error }` rather than throwing, so every write checks it — a step's
+ *         try/catch alone reported a refused insert as "success" (2026-10-09). Fetches OrgCapabilities so BUILD_63 email step can use org-type-correct
  *         sender framing (signatureAttribution, tenantWelcomeSender) without an extra DB round-trip.
  *         BUILD_63 Phase 3: stepSendDepositReceived fires deposit.received comm after deposit record.
  */
@@ -54,12 +55,13 @@ async function stepUpdateUnit(
   triggeredBy: string,
 ): Promise<CascadeStep> {
   try {
-    await supabase.from("units").update({
+    const { error: unitError } = await supabase.from("units").update({
       status: "occupied",
       prospective_tenant_id: null,
       prospective_co_tenant_ids: [],
-    }).eq("id", lease.unit_id)
-    await supabase.from("unit_status_history").insert({
+    }).eq("id", lease.unit_id).eq("org_id", orgId)
+    if (unitError) return { step: "Update unit status", status: "failed", detail: unitError.message }
+    const { error: historyError } = await supabase.from("unit_status_history").insert({
       unit_id: lease.unit_id,
       org_id: orgId,
       from_status: "vacant",
@@ -67,6 +69,7 @@ async function stepUpdateUnit(
       changed_by: userId ?? null,
       reason: `Lease activated (${triggeredBy})`,
     })
+    if (historyError) return { step: "Update unit status", status: "failed", detail: `Unit occupied; history not written: ${historyError.message}` }
     return { step: "Update unit status", status: "success" }
   } catch (e) {
     return { step: "Update unit status", status: "failed", detail: String(e) }
@@ -85,7 +88,8 @@ async function stepCreateTenancy(
       { org_id: orgId, tenant_id: lease.tenant_id, unit_id: lease.unit_id, lease_id: leaseId, move_in_date: lease.start_date, status: "active" },
       ...coTenants.map((ct) => ({ org_id: orgId, tenant_id: ct.tenant_id, unit_id: lease.unit_id, lease_id: leaseId, move_in_date: lease.start_date, status: "active" })),
     ]
-    await supabase.from("tenancy_history").insert(rows)
+    const { error } = await supabase.from("tenancy_history").insert(rows)
+    if (error) return { step: "Create tenancy records", status: "failed", detail: error.message }
     return { step: "Create tenancy records", status: "success", detail: `${rows.length} tenant(s)` }
   } catch (e) {
     return { step: "Create tenancy records", status: "failed", detail: String(e) }
@@ -230,7 +234,7 @@ async function stepGenerateFirstInvoice(
     // PREVIOUS day for any timezone east of Greenwich — a first invoice one day short, every time.
     const periodEnd = monthEnd(invoiceMonthIso)
 
-    await supabase.from("rent_invoices").insert({
+    const { error: invoiceError } = await supabase.from("rent_invoices").insert({
       org_id: orgId, lease_id: leaseId, unit_id: lease.unit_id, tenant_id: lease.tenant_id,
       invoice_number: `PLEKS-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}`,
       invoice_date: saDateISO(now),
@@ -242,6 +246,7 @@ async function stepGenerateFirstInvoice(
       })),
       notes: isProRata ? `Pro-rata from ${lease.start_date}` : null,
     })
+    if (invoiceError) return { step: "Generate first invoice", status: "failed", detail: invoiceError.message }
     return { step: "Generate first invoice", status: "success", detail: `R ${(total / 100).toFixed(2)}${isProRata ? " (pro-rata)" : ""}` }
   } catch (e) {
     return { step: "Generate first invoice", status: "failed", detail: String(e) }
@@ -461,10 +466,12 @@ async function stepSendPortalInvite(
       toneVariant,
     })
 
-    await supabase
+    const { error: stampError } = await supabase
       .from("tenants")
       .update({ portal_invite_sent_at: new Date().toISOString() })
       .eq("id", lease.tenant_id)
+      .eq("org_id", orgId)
+    if (stampError) return { step: "Portal auto-invite (P1)", status: "failed", detail: `Invite sent; not stamped, so it may be sent again: ${stampError.message}` }
 
     return { step: "Portal auto-invite (P1)", status: "success" }
   } catch (e) {
@@ -480,7 +487,7 @@ async function stepLogLifecycleEvents(
   userId: string | undefined,
 ): Promise<CascadeStep> {
   try {
-    await supabase.from("lease_lifecycle_events").insert([
+    const { error } = await supabase.from("lease_lifecycle_events").insert([
       {
         org_id: orgId, lease_id: leaseId, event_type: "lease_signed",
         description: `Lease ${triggeredBy === "docuseal" ? "signed via DocuSeal" : "signed manually"}`,
@@ -492,6 +499,7 @@ async function stepLogLifecycleEvents(
         description: "Deposit recorded", triggered_by: "system",
       },
     ])
+    if (error) return { step: "Log lifecycle events", status: "failed", detail: error.message }
     return { step: "Log lifecycle events", status: "success" }
   } catch (e) {
     return { step: "Log lifecycle events", status: "failed", detail: String(e) }
@@ -523,7 +531,7 @@ export async function activateLeaseCascade(
   userId?: string
 ): Promise<ActivationResult> {
   const [{ data: lease }, { data: org }, { data: coTenants }] = await Promise.all([
-    supabase.from("leases").select("*, units(unit_number, properties(id, name))").eq("id", leaseId).single(),
+    supabase.from("leases").select("*, units(unit_number, properties(id, name))").eq("id", leaseId).eq("org_id", orgId).single(),
     supabase.from("organisations").select("type, name").eq("id", orgId).single(),
     supabase.from("lease_co_tenants").select("tenant_id").eq("lease_id", leaseId),
   ])
@@ -559,6 +567,7 @@ export async function activateLeaseCascade(
     .from("leases")
     .update({ status: "active", signed_at: new Date().toISOString(), payment_reference: paymentReference })
     .eq("id", leaseId)
+    .eq("org_id", orgId)
     .neq("status", "active")
     .select("id")
   if (claimErr) throw new Error(`Lease activation claim failed: ${claimErr.message}`)
