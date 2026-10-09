@@ -11,6 +11,7 @@
  *         the tenant + unit, stamped on originating_application_id, and back-linked via applicationLink.ts.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { hasCapability } from "@/lib/auth/can"
 import { getLeaseCreationGate, LEASE_GATE_BLOCKED_MESSAGE } from "@/lib/leases/leaseCreationGate"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
@@ -30,7 +31,7 @@ import { rendersLeaseDocument } from "@/lib/leases/leaseSource"
 import { checkOriginatingApplication, insertLeaseClaimingApplication } from "@/lib/leases/applicationLink"
 import { releaseLeaseStartMarker } from "@/lib/leases/leaseStartMarker"
 import { mandatoryGate, MissingMandatoryFieldsError, recomputeIncompleteMandatory } from "@/lib/migration/mandatoryGate"
-import { changedTerms, parseLeaseTermsEdit, type LeaseTermsInput } from "@/lib/leases/leaseTermsEdit"
+import { changedTerms, parseLeaseTermsEdit, SELECTABLE_ESCALATION_TYPES, type LeaseTermsInput } from "@/lib/leases/leaseTermsEdit"
 
 
 type DbClient = GatewayContext["db"]
@@ -661,7 +662,7 @@ export async function releaseLeaseStart(applicationId: string): Promise<void> {
   await releaseLeaseStartMarker(gw.db, gw.orgId, applicationId, gw.userId)
 }
 
-const EDITABLE_TERMS_SELECT = "status, unit_id, start_date, end_date, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_type, escalation_review_date, notice_period_days, generated_doc_path"
+const EDITABLE_TERMS_SELECT = "status, unit_id, start_date, end_date, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_type, escalation_review_date, notice_period_days, generated_doc_path, docuseal_document_url, incomplete_mandatory"
 
 /**
  * Edit a DRAFT lease's terms (/leases/[id]/edit — the target of the activation prerequisites' "Edit lease" links).
@@ -669,12 +670,16 @@ const EDITABLE_TERMS_SELECT = "status, unit_id, start_date, end_date, is_fixed_t
  * A Pleks-generated document no longer matches edited terms, so it is cleared and must be generated again before
  * signing (sendForSigning refuses without one) — sending the old file would put superseded terms before the signer.
  * Filling the start date and rent clears an import's incomplete_mandatory flag (21E corollary 12).
+ * escalation_review_date moves only with the start date — it is a stored term an import may have stated.
  */
 export async function updateDraftLeaseTerms(
   leaseId: string,
   input: LeaseTermsInput,
 ): Promise<{ error: string } | { success: true; documentCleared: boolean }> {
-  const { db, userId, orgId } = await requireAgentWriteAccess("edit_lease")
+  const gw = await requireAgentWriteAccess("edit_lease")
+  // edit_lease is unmapped in ACTION_CAPABILITY ("gated at their call sites"), so the call site gates it.
+  if (!(await hasCapability(gw, "leases"))) return { error: "Leases access is required" }
+  const { db, userId, orgId } = gw
   const parsed = parseLeaseTermsEdit(input)
   if ("error" in parsed) return parsed
 
@@ -692,11 +697,20 @@ export async function updateDraftLeaseTerms(
     if (overlap) return { error: overlap }
   }
 
-  const documentCleared = lease.generated_doc_path != null
+  // A stored non-fixed type (an import) may stay; changing TO one would sign a document stating a fixed rate.
+  if (changed.includes("escalation_type") && !SELECTABLE_ESCALATION_TYPES.some((t) => t.value === parsed.patch.escalation_type)) {
+    return { error: "Only fixed escalation can be chosen until the lease document states CPI or prime-linked terms." }
+  }
+  const startMoved = changed.includes("start_date")
+  const documentCleared = lease.generated_doc_path != null || lease.docuseal_document_url != null
+  // Both document fields are cleared on EVERY change, not only when the read saw one: a generate-docx landing
+  // between this read and the write would otherwise survive under the new terms.
   const update = {
     ...parsed.patch,
+    ...(startMoved ? { escalation_review_date: addCalendarMonths(parsed.patch.start_date, 12) } : {}),
     ...recomputeIncompleteMandatory("lease", lease, { ...parsed.patch }),
-    ...(documentCleared ? { generated_doc_path: null } : {}),
+    generated_doc_path: null,
+    docuseal_document_url: null,
   }
   // .eq status draft: a concurrent send-for-signing between the read and this write must not be overwritten.
   const { data: updated, error: updateError } = await db
@@ -705,11 +719,14 @@ export async function updateDraftLeaseTerms(
   if (updateError) return { error: "The lease could not be saved. Try again." }
   if (!updated?.length) return { error: "This lease is no longer a draft (it may have been sent for signing). Reload the page." }
 
-  const pick = (row: Record<string, unknown>) => Object.fromEntries(changed.map((k) => [k, row[k] ?? null]))
+  const audited: string[] = [
+    ...changed, "incomplete_mandatory", "generated_doc_path", "docuseal_document_url",
+    ...(startMoved ? ["escalation_review_date"] : []),
+  ]
+  const pick = (row: Record<string, unknown>) => Object.fromEntries(audited.map((k) => [k, row[k] ?? null]))
   await recordAudit(db, {
     orgId, table: "leases", recordId: leaseId, action: "UPDATE", actorId: userId,
-    before: { ...pick(lease), ...(documentCleared ? { generated_doc_path: lease.generated_doc_path } : {}) },
-    after: { ...pick(update), action: "lease_terms_edited", ...(documentCleared ? { generated_doc_path: null } : {}) },
+    before: pick(lease), after: { ...pick(update), action: "lease_terms_edited" },
   })
   revalidatePath(`/leases/${leaseId}`)
   revalidatePath("/leases")

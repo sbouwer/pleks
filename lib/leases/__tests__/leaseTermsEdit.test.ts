@@ -6,7 +6,11 @@
  *         reaches the database.
  */
 import { describe, it, expect } from "vitest"
-import { changedTerms, ESCALATION_TYPES, parseLeaseTermsEdit, type LeaseTermsInput } from "../leaseTermsEdit"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import {
+  changedTerms, ESCALATION_TYPES, parseLeaseTermsEdit, SELECTABLE_ESCALATION_TYPES, type LeaseTermsInput,
+} from "../leaseTermsEdit"
 
 const valid: LeaseTermsInput = {
   startDate: "2026-11-01", endDate: "2027-10-31", isFixedTerm: true, rent: "12500", deposit: "25000",
@@ -18,14 +22,21 @@ const errorOf = (over: Partial<LeaseTermsInput>) => {
 }
 
 describe("parseLeaseTermsEdit", () => {
-  it("turns a valid edit into the leases patch, with the review date a year after the start", () => {
+  it("turns a valid edit into the leases patch — never touching the stored escalation review date", () => {
     expect(parseLeaseTermsEdit(valid)).toEqual({
       patch: {
         start_date: "2026-11-01", end_date: "2027-10-31", is_fixed_term: true, rent_amount_cents: 1_250_000,
         deposit_amount_cents: 2_500_000, payment_due_day: "1", escalation_percent: 8, escalation_type: "fixed",
-        escalation_review_date: "2027-11-01", notice_period_days: 20,
+        notice_period_days: 20,
       },
     })
+  })
+
+  it("reads only plain decimals — hex, exponent and signed forms are refused", () => {
+    expect(errorOf({ rent: "0x10" })).toMatch(/rent/)
+    expect(errorOf({ rent: "1e3" })).toMatch(/rent/)
+    expect(errorOf({ deposit: "+5" })).toMatch(/deposit/)
+    expect(parseLeaseTermsEdit({ ...valid, rent: " 12500.50 " })).toMatchObject({ patch: { rent_amount_cents: 1_250_050 } })
   })
 
   it("keeps a stated 0% escalation, 0-day notice and R0 deposit; a blank deposit is no deposit", () => {
@@ -53,8 +64,15 @@ describe("parseLeaseTermsEdit", () => {
     expect(errorOf({ paymentDueDay: "31" })).toMatch(/due/)
   })
 
-  it("accepts exactly the escalation types the leases CHECK allows", () => {
-    expect(ESCALATION_TYPES.map((t) => t.value)).toEqual(["fixed", "cpi", "prime_plus"])
+  it("accepts exactly the escalation types the leases CHECK allows, as the schema manifest records it", () => {
+    const manifest = JSON.parse(readFileSync(resolve(process.cwd(), "scripts/schema-manifest.json"), "utf8")) as Record<string, unknown>
+    const check = Object.values(manifest)
+      .map((section) => (section as Record<string, { def?: string }> | null)?.leases_escalation_type_check?.def)
+      .find(Boolean)
+    const allowed = [...(check ?? "").matchAll(/'([a-z_]+)'::text/g)].map((m) => m[1])
+    expect(allowed.length).toBeGreaterThan(0)
+    expect(ESCALATION_TYPES.map((t) => t.value).sort()).toEqual(allowed.sort())
+    expect(SELECTABLE_ESCALATION_TYPES.map((t) => t.value)).toEqual(["fixed"])
     for (const t of ESCALATION_TYPES) expect(errorOf({ escalationType: t.value })).toBeNull()
     expect(errorOf({ escalationType: "cpi_linked" })).toMatch(/escalates/)
     expect(errorOf({ escalationType: "negotiable" })).toMatch(/escalates/)

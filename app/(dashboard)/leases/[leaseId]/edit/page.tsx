@@ -26,7 +26,7 @@ export default async function EditLeasePage({ params }: Readonly<{ params: Promi
 
   const { data: lease, error } = await gw.db
     .from("leases")
-    .select("id, status, start_date, end_date, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_type, notice_period_days, generated_doc_path, units(unit_number, properties(name))")
+    .select("id, status, start_date, end_date, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_type, notice_period_days, generated_doc_path, external_document_path, units(unit_number, properties(name))")
     .eq("id", leaseId)
     .eq("org_id", gw.orgId)
     .maybeSingle()
@@ -46,6 +46,7 @@ export default async function EditLeasePage({ params }: Readonly<{ params: Promi
         leaseId={leaseId}
         backHref={backHref}
         hasGeneratedDocument={lease.generated_doc_path != null}
+        hasUploadedDocument={lease.external_document_path != null}
         defaults={{
           startDate: (lease.start_date as string | null) ?? "",
           endDate: (lease.end_date as string | null) ?? "",

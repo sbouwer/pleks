@@ -2,13 +2,14 @@
  * app/api/leases/[leaseId]/document/route.ts — open a lease's stored document ("View lease")
  *
  * Route:  GET /api/leases/[leaseId]/document
- * Auth:   gateway() (agent session + org membership)
+ * Auth:   gateway() (agent session + org membership) + the leases capability
  * Data:   leaseDocumentSignedUrl — org-scoped lease read → "documents" storage signed URL (1h)
  * Notes:  A plain link target, so it REDIRECTS to the signed URL instead of returning JSON like download-document.
  *         The lease detail page linked here from before the route existed (arc 2: dead link).
  */
 import { NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { hasCapability } from "@/lib/auth/can"
 import { leaseDocumentSignedUrl } from "@/lib/leases/leaseDocumentUrl"
 
 export async function GET(
@@ -18,6 +19,8 @@ export async function GET(
   const { leaseId } = await params
   const gw = await gateway()
   if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  // The document carries the lessee's full ID number: a member without lease access must not open it.
+  if (!(await hasCapability(gw, "leases"))) return NextResponse.json({ error: "Leases access is required" }, { status: 403 })
 
   const doc = await leaseDocumentSignedUrl(gw.db, gw.orgId, leaseId)
   if ("error" in doc) return NextResponse.json({ error: doc.error }, { status: doc.status })

@@ -8,15 +8,24 @@
  *         period is refused, not filled with 10% / 20 days, because an edit that silently rewrites a term the agent
  *         did not touch is worse than an error.
  *         ESCALATION_TYPES is the leases.escalation_type CHECK (004: fixed | cpi | prime_plus), read on prod
- *         2026-10-09 (leases_escalation_type_check).
+ *         2026-10-09 (leases_escalation_type_check); a test holds it to scripts/schema-manifest.json.
+ *         escalation_review_date is NOT in the patch: it is a stored term (an import can state its own), so the
+ *         action re-derives it only when the start date moves.
  */
-import { addCalendarMonths } from "@/lib/dates"
 
 export const ESCALATION_TYPES = [
   { value: "fixed", label: "Fixed %" },
   { value: "cpi", label: "CPI-linked" },
   { value: "prime_plus", label: "Prime-linked" },
 ] as const
+
+/**
+ * The types an agent may CHOOSE. The Pleks lease document renders every escalation as "X% per annum"
+ * (generateDocument.ts ignores escalation_type), so a CPI or prime-linked choice would sign a document stating a
+ * fixed rate. Until the template renders by type, only fixed is offered; a lease already stored with another
+ * type (an import) keeps it — the edit form shows its current value too.
+ */
+export const SELECTABLE_ESCALATION_TYPES = ESCALATION_TYPES.filter((t) => t.value === "fixed")
 
 const DUE_DAYS = new Set([...Array.from({ length: 28 }, (_, i) => String(i + 1)), "last_day", "last_working_day"])
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -42,16 +51,13 @@ export interface LeaseTermsPatch {
   payment_due_day: string
   escalation_percent: number
   escalation_type: string
-  escalation_review_date: string
   notice_period_days: number
 }
 
-/** A stated number, or null when blank or unparseable — a deliberate 0 survives. */
+/** A plain decimal ("12500", "8.5", "0"), or null when blank or anything else — Number() would take "0x10" or "1e3". */
 function statedNumber(raw: string): number | null {
   const t = raw.trim()
-  if (!t) return null
-  const n = Number(t)
-  return Number.isFinite(n) ? n : null
+  return /^\d+(\.\d+)?$/.test(t) ? Number.parseFloat(t) : null
 }
 
 const toCents = (rands: number) => Math.round(rands * 100)
@@ -71,18 +77,18 @@ function parseMoney(input: LeaseTermsInput): { rentCents: number; depositCents: 
   if (rent === null || rent <= 0) return { error: "Add the monthly rent." }
   if (!input.deposit.trim()) return { rentCents: toCents(rent), depositCents: null }
   const deposit = statedNumber(input.deposit)
-  if (deposit === null || deposit < 0) return { error: "The deposit must be an amount of R0 or more." }
+  if (deposit === null) return { error: "The deposit must be an amount of R0 or more." }
   return { rentCents: toCents(rent), depositCents: toCents(deposit) }
 }
 
 function parseEscalationAndNotice(input: LeaseTermsInput):
   { percent: number; type: string; dueDay: string; notice: number } | { error: string } {
   const percent = statedNumber(input.escalationPercent)
-  if (percent === null || percent < 0 || percent > 100) return { error: "Escalation must be a percentage from 0 to 100." }
+  if (percent === null || percent > 100) return { error: "Escalation must be a percentage from 0 to 100." }
   if (!ESCALATION_TYPES.some((t) => t.value === input.escalationType)) return { error: "Choose how the rent escalates." }
   if (!DUE_DAYS.has(input.paymentDueDay)) return { error: "Choose the day rent is due." }
   const notice = statedNumber(input.noticePeriodDays)
-  if (notice === null || notice < 0 || !Number.isInteger(notice)) return { error: "The notice period must be a whole number of days." }
+  if (notice === null || !Number.isInteger(notice)) return { error: "The notice period must be a whole number of days." }
   return { percent, type: input.escalationType, dueDay: input.paymentDueDay, notice }
 }
 
@@ -103,8 +109,6 @@ export function parseLeaseTermsEdit(input: LeaseTermsInput): { patch: LeaseTerms
       payment_due_day: terms.dueDay,
       escalation_percent: terms.percent,
       escalation_type: terms.type,
-      // Same derivation as the wizard (parseLeaseFormData): the first review falls a year after the start.
-      escalation_review_date: addCalendarMonths(dates.start, 12),
       notice_period_days: terms.notice,
     },
   }

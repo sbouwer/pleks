@@ -175,10 +175,12 @@ function SectionHeader({ title }: Readonly<{ title: string }>) {
 // ─────────────────────────────────────────────────────────────
 
 function LeaseDocumentRows({
+  leaseId,
   leaseDocuments,
   signedLeasePath,
   filter,
 }: Readonly<{
+  leaseId: string
   leaseDocuments: LeaseDocRow[]
   signedLeasePath: string | null
   filter: FilterPill
@@ -205,7 +207,7 @@ function LeaseDocumentRows({
                   <p className="text-xs text-muted-foreground">Uploaded</p>
                 </div>
                 <InlineLink
-                  href={`/api/documents/lease?path=${encodeURIComponent(signedLeasePath)}`}
+                  href={`/api/leases/${leaseId}/document`}
                   external
                   withArrow={false}
                   className="ml-3 shrink-0"
@@ -473,6 +475,7 @@ export function DocumentsTab({
       <div className="rounded-xl border bg-card overflow-hidden">
         <LeaseDocumentRows
           leaseDocuments={leaseDocuments}
+          leaseId={leaseId}
           signedLeasePath={signedLeasePath}
           filter={activeFilter}
         />
