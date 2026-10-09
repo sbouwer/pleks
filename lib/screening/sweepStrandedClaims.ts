@@ -9,13 +9,17 @@
  *         catch in the runner cannot be the recovery mechanism; only a sweep that measures elapsed
  *         time can. Lives here rather than in the route so it can be probed directly: a Next.js
  *         route file may only export HTTP methods.
+ *         A swept co row is offered to settleErasedCoLine — a party erased mid-run would otherwise sit `failed` for good.
  */
 import * as Sentry from "@sentry/nextjs"
 import type { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { settleErasedCoLine } from "@/lib/screening/settleErasedCoLine"
 
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
+/** A swept row; only a co row carries the application it belongs to. */
+type SweptRow = { id: string; org_id: string; primary_application_id?: string }
 
 /**
  * How old a claim must be before it counts as abandoned.
@@ -64,10 +68,10 @@ export async function sweepStrandedClaims(service: Svc, nowMs: number = Date.now
       .update({ searchworx_check_status: "failed" })
       .eq("searchworx_check_status", "running")
       .lt("searchworx_run_started_at", cutoff)
-      .select("id, org_id")
+      .select(table === "applications" ? "id, org_id" : "id, org_id, primary_application_id")
     logQueryError(`sweepStrandedClaims ${table}`, error)
 
-    for (const row of data ?? []) {
+    for (const row of (data ?? []) as unknown as SweptRow[]) {
       swept++
       // Loud on purpose. A swept row means a run died without reaching any catch — the class the
       // catch block structurally cannot see — and nothing else would ever mention it.
@@ -75,12 +79,19 @@ export async function sweepStrandedClaims(service: Svc, nowMs: number = Date.now
         `[sweepStrandedClaims] ${table} ${row.id as string}: claim older than ${STRANDED_CLAIM_MINUTES}m, marked failed`,
       )
       await recordAudit(service, {
-        orgId: row.org_id as string,
+        orgId: row.org_id,
         table,
-        recordId: row.id as string,
+        recordId: row.id,
         action: "UPDATE",
         after: { searchworx_check_status: "failed", reason: "stranded_claim_swept" },
       })
+      // A co erased while its run died is `failed` now, and no queue re-reads `failed` — offer it to the settle, whose
+      // update matches only an erased, undeclined row (n3b walker W2). The Sentry below already names the sweep.
+      if (row.primary_application_id) {
+        await settleErasedCoLine(service, {
+          org_id: row.org_id, application_id: row.primary_application_id, subject_id: row.id, paid: true,
+        }).catch((e: unknown) => Sentry.captureException(e, { tags: { reason: "erased_settle_failed" }, extra: { subject_id: row.id } }))
+      }
     }
   }
 

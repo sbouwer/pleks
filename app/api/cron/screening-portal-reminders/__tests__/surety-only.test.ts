@@ -243,31 +243,59 @@ describe("screening-portal-reminders — routed by party_kind (P1-R1 commit 3)",
     expect(maybeRunOrchestrator).toHaveBeenCalledWith(expect.anything(), "org-1", "app-1")
   })
 
-  it("N3: an ERASED co inside its window is not reminded — its address is \"[erased]\"", async () => {
-    line = { ...baseLine, party_kind: "co_applicant" }
-    coApp = { ...baseCo, ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields, stage2_invited_at: daysAgo(4), role: "co_applicant" }
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
-    expect(sendCoApplicantInvited).not.toHaveBeenCalled()
-    expect(updates).toEqual([])
-  })
-
-  it("PLANTED (N3 walker F1): past its deadline an ERASED co is declined SILENTLY and the orchestrator offered — never stranded", async () => {
-    line = { ...baseLine, party_kind: "co_applicant" }
-    coApp = { ...baseCo, ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields, stage2_invited_at: daysAgo(15), role: "co_applicant" }
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+  // N3: an erased party has left — its line is settled at once, whatever its state, and it is never told anything.
+  const erasedCo = (over: Record<string, unknown>) =>
+    ({ ...baseCo, ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields, role: "co_applicant", ...over })
+  const settledSilently = () => {
+    expect(updates.map((u) => u.table)).toEqual(["application_co_applicants"])
     expect(updates[0].patch).toMatchObject({ decline_reason: "subject_erased" })
     expect(sendEmail).not.toHaveBeenCalled()
     expect(sendCoApplicantInvited).not.toHaveBeenCalled()
     expect(maybeFireAllGreen).toHaveBeenCalledWith(expect.anything(), "app-1")
     expect(maybeRunOrchestrator).toHaveBeenCalledWith(expect.anything(), "org-1", "app-1")
+  }
+
+  it("PLANTED (N3 walker F1): an ERASED co inside its window is settled now — not reminded, not held to its deadline", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = erasedCo({ stage2_invited_at: daysAgo(4) })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    settledSilently()
   })
 
-  it("PLANTED (N3 re-walk R1a): a PAID erased line without consent keeps its alarm at the deadline — never declined", async () => {
-    line = { ...baseLine, party_kind: "co_applicant", state: "paid_pending_consent" }
-    coApp = { ...baseCo, ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields, stage2_invited_at: daysAgo(15), role: "co_applicant" }
-    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 0, held: 0 })
-    expect(updates).toEqual([])
-    expect(captureMessage).toHaveBeenCalledWith("Paid screening line without consent reached its deadline", expect.anything())
+  it("…and past its deadline the same — never the N6′ an \"[erased]\" address cannot receive", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = erasedCo({ stage2_invited_at: daysAgo(15) })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    settledSilently()
+  })
+
+  it("PLANTED (N3 re-walk R3): an ERASED co never invited to stage 2 is settled too — its line no longer sits in the scan", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = erasedCo({ stage2_invited_at: null })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    settledSilently()
+  })
+
+  it("an ERASED surety is settled before the held-route read — the strip may have taken what that route reads", async () => {
+    line = { ...baseLine, party_kind: "surety" }
+    coApp = erasedCo({ stage2_invited_at: daysAgo(4), role: "guarantor" })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    settledSilently()
+  })
+
+  it("a PAID erased line is settled and its payment raised to a person — never refunded by the cron", async () => {
+    line = { ...baseLine, party_kind: "co_applicant", state: "paid_pending_consent", paid_at: "2026-10-01T00:00:00Z" }
+    coApp = erasedCo({ stage2_invited_at: daysAgo(4) })
+    expect(await run()).toEqual({ ok: true, reminders: 0, expirations: 1, held: 0 })
+    settledSilently()
+    expect(captureMessage).toHaveBeenCalledWith(expect.stringContaining("erased co party settled unrun"), expect.anything())
+  })
+
+  it("KNOWN-GOOD: an unpaid erased line raises nothing for a person", async () => {
+    line = { ...baseLine, party_kind: "co_applicant" }
+    coApp = erasedCo({ stage2_invited_at: daysAgo(4) })
+    await run()
+    expect(captureMessage).not.toHaveBeenCalled()
   })
 
   it("KNOWN-GOOD: a declared director surety still gets director copy", async () => {
