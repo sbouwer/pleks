@@ -472,6 +472,7 @@ const DEPOSIT_RECORDABLE_STATUSES = new Set(["active", "month_to_month", "notice
 export async function recordLeaseDepositReceived(leaseId: string) {
   const { recordDepositReceived, sendDepositReceived, depositTimerEvent } = await import("@/lib/leases/leaseDepositReceipt")
   const { getOrgCapabilities } = await import("@/lib/org/capabilities")
+  const { depositReceipt } = await import("@/lib/deposits/depositReceipt")
 
   const gw = await requireAgentWriteAccess("activate_lease")
   const { db, userId, orgId } = gw
@@ -489,15 +490,10 @@ export async function recordLeaseDepositReceived(leaseId: string) {
 
   // Check-then-write: a second click between the read and the RPC could post twice. The button disables while the
   // call runs; a database guard needs a column no spec names yet.
-  const { data: existing, error: existingError } = await db
-    .from("deposit_transactions")
-    .select("id")
-    .eq("lease_id", leaseId)
-    .eq("org_id", orgId)
-    .eq("transaction_type", "deposit_received")
-    .limit(1)
-  if (existingError) return { error: "Could not check the deposit ledger" }
-  if (existing && existing.length > 0) return { error: "The deposit is already recorded" }
+  // Both ledgers: the GL import records a deposit in trust_transactions only.
+  const receipt = await depositReceipt(db, leaseId, orgId)
+  if (!receipt.ok) return { error: "Could not check the deposit ledger" }
+  if (receipt.receivedAt) return { error: "The deposit is already recorded" }
 
   const recorded = await recordDepositReceived(db, lease, leaseId, orgId, userId)
   if (recorded.status !== "success") return { error: recorded.detail ?? "The deposit was not recorded" }

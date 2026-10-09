@@ -20,6 +20,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarMonths, fmtDateLongZA, saDateISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { depositReceipt } from "@/lib/deposits/depositReceipt"
 
 type Svc = Awaited<ReturnType<typeof createServiceClient>>
 interface DepositLease { id: string; org_id: string; tenant_id: string; start_date: string; deposit_amount_cents: number; deposit_interest_rate_percent: number | null }
@@ -44,6 +45,9 @@ async function resolvePropertyLabel(service: Svc, leaseId: string): Promise<stri
  *  idempotency guard). Extracted to keep GET under the cognitive-complexity limit. */
 async function sendDepositInterestStatement(service: Svc, lease: DepositLease, today: Date, currentMonth: number, currentYear: number): Promise<boolean> {
   if (new Date(lease.start_date).getFullYear() >= currentYear) return false   // not yet one year old
+  // "Deposit held: R X" is false until the deposit is on the ledger — a lease term is not a receipt (2026-10-09).
+  const receipt = await depositReceipt(service, lease.id, lease.org_id)
+  if (!receipt.ok || !receipt.receivedAt) return false
 
   const { data: tenant, error: tenantError } = await service
     .from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single()
