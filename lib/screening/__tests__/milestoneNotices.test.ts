@@ -32,6 +32,7 @@ import {
 } from "../milestoneNotices"
 import { heldFor } from "@/lib/comms/template-registry"
 import { ASSESSMENT_CLOSING_SENTENCE } from "../assessmentWording"
+import { ANONYMISE_PLAN, REDACTED } from "@/lib/popia/anonymisePlan"
 
 type Row = Record<string, unknown>
 /** consent_log rows by id: their metadata, or "boom" for a read that fails. */
@@ -60,7 +61,14 @@ function fakeDb(lead: Partial<Row> = {}, cos: Row[] = [], paid: string[] = []) {
         if (table === "application_co_applicants") coFilters[`is:${c}`] = v
         return b
       }
-      b.order = async () => ({ data: cos.filter((c) => !c.declined_at), error: null })
+      // `.neq` is honoured only when the reader calls it, so a roster that forgets the erased half reads the erased row.
+      const neq: Record<string, unknown> = {}
+      b.neq = (c: string, v: unknown) => {
+        if (table === "application_co_applicants") coFilters[`neq:${c}`] = v
+        neq[c] = v
+        return b
+      }
+      b.order = async () => ({ data: cos.filter((c) => !c.declined_at && Object.entries(neq).every(([k, v]) => c[k] !== v)), error: null })
       b.limit = async () => ({
         data: trail.filter((r) => Object.entries(filters).every(([k, v]) => r[k] === v)).map((r) => ({ id: r.milestone })),
         error: null,
@@ -160,6 +168,16 @@ describe("N3 — on a completion", () => {
       expect(s.contentHtml).toContain("1 of 3 parties have now completed.")
       expect(s.contentHtml).not.toContain("CO-3")
     }
+  })
+
+  it("an erased co has left the set (N3 erased-co filter): not mailed, not counted, though its declined_at is null", async () => {
+    const erased = co("co-3", { ...ANONYMISE_PLAN.find((g) => g.id === "C.application_co_applicants.self")!.fields })
+    expect(erased.declined_at).toBeNull()
+    const { db, coFilters } = fakeDb({}, [co("co-1"), co("co-2"), erased])
+    await notifyProgress(db, { orgId: "org-A", applicationId: "app-1", completed: { subjectType: "co_applicant", subjectId: "co-1" } })
+    expect(coFilters).toMatchObject({ "is:declined_at": null, "neq:applicant_email": REDACTED })
+    expect(recipients()).toEqual(["co-2@example.test", "lead@example.test"])
+    for (const s of sent) expect(s.contentHtml).toContain("1 of 3 parties have now completed.")
   })
 
   it("PLANTED (counsel Q1): N3 never names a party who has not completed — it counts them", async () => {

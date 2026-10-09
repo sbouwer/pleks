@@ -267,7 +267,7 @@ export async function runFitScoreOrchestrator(
       salary_reconciliation_status, document_consistency_status,
       bank_account_ownership_status, pleks_network_history_status,
       pleks_network_tenancy_count, co_applicant_index,
-      declined_at, searchworx_check_status
+      declined_at, searchworx_check_status, applicant_email
     `)
     .eq('primary_application_id', applicationId)
     .eq('org_id', app.org_id as string)

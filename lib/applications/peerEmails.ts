@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendApplicationReadyToSubmit, sendApplicationSubmittedToAgent, type ListingSummary, type OrgContext } from "./emails"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 
@@ -50,8 +51,9 @@ async function resolveFanout(service: SupabaseClient, applicationId: string): Pr
     .eq("application_id", applicationId).gt("expires_at", new Date().toISOString())
     .order("expires_at", { ascending: false }).limit(1).maybeSingle()
   logQueryError("peerEmails lead token", ltErr)
-  const { data: cos, error: cosErr } = await service.from("application_co_applicants")
-    .select("applicant_email, first_name, last_name, access_token").eq("primary_application_id", applicationId).is("declined_at", null)
+  // Live parties only: an erased co keeps a null declined_at, and "[erased]" is truthy (N3).
+  const { data: cos, error: cosErr } = await onlyLiveCoParties(service.from("application_co_applicants")
+    .select("applicant_email, first_name, last_name, access_token").eq("primary_application_id", applicationId))
   logQueryError("peerEmails cos", cosErr)
 
   const recipients: PeerRecipient[] = []

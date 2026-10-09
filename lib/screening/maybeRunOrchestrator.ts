@@ -17,7 +17,7 @@ import type { createServiceClient } from "@/lib/supabase/server"
 import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 import { notifyOutcome } from "@/lib/screening/milestoneNotices"
 import { optionalEnv } from "@/lib/env"
-import { REDACTED } from "@/lib/popia/anonymisePlan"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 
 export async function maybeRunOrchestrator(
   service: Awaited<ReturnType<typeof createServiceClient>>, orgId: string, applicationId: string,
@@ -39,13 +39,12 @@ export async function maybeRunOrchestrator(
 
   // All LIVE co-applicants must be complete. A declined party has left the set (the view drops it too), so it never
   // completes — counting it held FitScore back for good once residential lines reached this runner (walker F8).
-  const { data: coApps, error: coErr } = await service
+  // An erased co has left the set as a declined one has (dsar-next walker F3).
+  const { data: coApps, error: coErr } = await onlyLiveCoParties(service
     .from("application_co_applicants")
     .select("searchworx_check_status")
     .eq("primary_application_id", applicationId)
-    .eq("org_id", orgId)
-    .is("declined_at", null)
-    .neq("applicant_email", REDACTED) // an erased co has left the set as a declined one has (dsar-next walker F3)
+    .eq("org_id", orgId))
   if (coErr) {
     console.error("[maybeRunOrchestrator] co-applicant read failed:", coErr.message)
     return

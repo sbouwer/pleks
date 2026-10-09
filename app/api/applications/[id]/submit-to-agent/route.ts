@@ -18,6 +18,7 @@ import { enqueueScreening, fireScreening } from "@/lib/applications/screeningJob
 import { sendSubmissionNotifications } from "@/lib/applications/submissionEmails"
 import { notifyAllSubmitted } from "@/lib/applications/peerEmails"
 import { incompleteApplicantCount } from "@/lib/applications/submitGate"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SUPABASE_URL, requireEnv } from "@/lib/env"
 
@@ -63,8 +64,10 @@ export async function POST(req: NextRequest, { params }: Props) {
   // group — one submission applies to all, so it can't go in half-complete. Full peers: the lead (the app row)
   // counts the same as every co. POPIA-safe — a count, not names (named "waiting on …" arrives with the Phase-4
   // roster). The lead's section sign-off is also the POPIA processing-consent record.
-  const { data: coRows, error: coErr } = await service
-    .from("application_co_applicants").select("stage1_consent_given").eq("primary_application_id", id)
+  // Live peers only (N3): an erased co that never finished would otherwise hold the group's submission for good, and
+  // a declined one has left the set it is counted against.
+  const { data: coRows, error: coErr } = await onlyLiveCoParties(service
+    .from("application_co_applicants").select("stage1_consent_given").eq("primary_application_id", id))
   logQueryError("submit-to-agent co-applicants", coErr)
   const incompleteCount = incompleteApplicantCount(
     app.stage1_consent_given === true,

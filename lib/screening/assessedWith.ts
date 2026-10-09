@@ -2,17 +2,22 @@
  * lib/screening/assessedWith.ts — which parties a FitScore was computed on, and out of how many (14X §4, rows 35–36)
  *
  * Data:   pure; reads nothing. The orchestrator hands it the application's co rows.
- * Notes:  N is the lead plus every co party that is live (not declined) AND whose line completed. M is the lead plus
- *         EVERY co row on the application, declined or not: the excluded rows are the "of M − N" (row 35).
+ * Notes:  N is the lead plus every co party that is live (not declined, not erased) AND whose line completed. M is the
+ *         lead plus EVERY co row on the application, declined or not: the excluded rows are the "of M − N" (row 35).
  *         Deliberately not an allowlist of decline reasons (walker 14x-p3 F2). As read at 2e270f2d, the only writer of
  *         application_co_applicants.declined_at is the 14X cron's deadline decline, and the only removal is the POPIA
  *         purge — so every row here is a party who was asked and did or did not complete. A future path that REMOVES
  *         a party from the application (rather than declining one who ran out of time) must exclude itself here; until
  *         it does, M over-counts and the stamp reads as incomplete — never as a complete assessment it was not. Nor is
  *         `decline_reason` read: that column is marked deprecated, to be dropped.
+ *         ERASURE is not that path (N3): the strip keeps the row and nulls its data, leaving `declined_at` null and
+ *         `searchworx_check_status` as it was. An erased party is never SCORED (`isLiveCoParty` — its income and bureau
+ *         data are gone) and stays one of the M, so the stamp fails toward incomplete, as for a declined party.
  *         Kept out of fitScoreEngine.v1.ts on purpose: that file is frozen post-ship (its header), and this stamp
  *         changes no score — it describes the input set the score was computed on.
  */
+
+import { isLiveCoParty } from "@/lib/applications/liveCoParties"
 
 /** Persisted on fitscore_component_snapshot as `assessedWith`. Subject ids are applications.id for the lead and
  *  application_co_applicants.id for a co party — the same ids as componentSnapshot.applicants[].id. */
@@ -26,11 +31,13 @@ export interface RosterCoRow {
   id: string
   declined_at: string | null
   searchworx_check_status: string | null
+  /** REDACTED once the subject is erased; read only to leave an erased party unscored (N3). */
+  applicant_email?: string | null
 }
 
 /** Split an application's co rows into the ones the score is computed on, and the count of co parties it is OUT OF. */
 export function screeningRoster<T extends RosterCoRow>(rows: T[]): { completed: T[]; counted: number } {
-  const completed = rows.filter(r => r.declined_at === null && r.searchworx_check_status === "complete")
+  const completed = rows.filter(r => isLiveCoParty(r) && r.searchworx_check_status === "complete")
   return { completed, counted: rows.length }
 }
 

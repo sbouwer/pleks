@@ -12,6 +12,7 @@ import {
   readAssessedWith, sameAssessedWith, screeningRoster, stampAssessedWith, type RosterCoRow,
 } from "../assessedWith"
 import { assessedWithLine } from "@/lib/reports/screening/_primitives/theme"
+import { REDACTED } from "@/lib/popia/anonymisePlan"
 
 vi.mock("@/lib/env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/env")>()), optionalEnv: () => "1", gitCommitSha: () => "test-sha",
@@ -41,6 +42,14 @@ describe("screeningRoster + stampAssessedWith", () => {
     expect(counted).toBe(4)
     expect(stampAssessedWith("app-1", completed.map(r => r.id), counted))
       .toEqual({ n: 2, m: 5, completedSubjectIds: ["app-1", "co-done"] })
+  })
+
+  it("PLANTED (N3): an erased co whose line had completed is counted, never scored — its data is gone", () => {
+    const erased = co("co-erased", { applicant_email: REDACTED })
+    const { completed, counted } = screeningRoster([co("co-done"), erased])
+    expect(completed.map(r => r.id)).toEqual(["co-done"])
+    expect(stampAssessedWith("app-1", completed.map(r => r.id), counted))
+      .toEqual({ n: 2, m: 3, completedSubjectIds: ["app-1", "co-done"] })
   })
 
   it("KNOWN-GOOD: every party completed → N = M, lead first", () => {

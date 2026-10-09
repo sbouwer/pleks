@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { incompleteApplicantCount } from "./submitGate"
 import { notifyAllReadyToSubmit } from "./peerEmails"
+import { onlyLiveCoParties } from "./liveCoParties"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function maybeFireAllGreen(service: SupabaseClient, applicationId: string): Promise<boolean> {
@@ -23,8 +24,10 @@ export async function maybeFireAllGreen(service: SupabaseClient, applicationId: 
   logQueryError("peerCompletion app", appErr)
   if (!app) return false
 
-  const { data: cos, error: cosErr } = await service
-    .from("application_co_applicants").select("stage1_consent_given").eq("primary_application_id", applicationId).is("declined_at", null)
+  // Live parties only: an erased co keeps stage1_consent_given, so it would count as a finished peer (N3). With it
+  // gone a group left with no live co is solo again, and returns false like any solo application.
+  const { data: cos, error: cosErr } = await onlyLiveCoParties(service
+    .from("application_co_applicants").select("stage1_consent_given").eq("primary_application_id", applicationId))
   logQueryError("peerCompletion cos", cosErr)
   const coList = cos ?? []
   if (coList.length === 0) return false // solo application — no joint fan-out / last-to-complete routing

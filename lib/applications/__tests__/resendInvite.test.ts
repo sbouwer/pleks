@@ -30,7 +30,7 @@ vi.mock("@/lib/applications/buildEmailContext", () => ({
 
 function builder(table: string) {
   const b: Record<string, unknown> = {}
-  for (const m of ["select", "eq", "is"]) b[m] = () => b
+  for (const m of ["select", "eq", "is", "neq"]) b[m] = () => b
   const row = table === "applications" ? { org_id: "org-1", ...application } : party
   b.maybeSingle = async () => ({ data: row, error: null })
   b.update = (patch: Record<string, unknown>) => {

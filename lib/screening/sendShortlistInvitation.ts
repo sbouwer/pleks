@@ -42,7 +42,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import { inviteRoute, suretyInviteRole } from "@/lib/applications/juristicParties"
 import { sendDirectorInvite } from "@/lib/applications/directorInvite"
 import { canInviteToStage2 } from "@/lib/applications/stage2Invite"
-import { REDACTED } from "@/lib/popia/anonymisePlan"
+import { onlyLiveCoParties } from "@/lib/applications/liveCoParties"
 import { SCREENING_WINDOW_DAYS } from "@/lib/constants"
 import type { SendEmailResult } from "@/lib/comms/send-email"
 import { deadlineAsStated } from "@/lib/screening/notificationSchedule"
@@ -193,13 +193,12 @@ async function sendCoPartyInvites(
 ): Promise<{ ok: true; toStamp: CoRow[] } | { ok: false; error: { error: string } }> {
   const applicationId = application.id
   const orgId = n1.orgId
-  const { data: parties, error } = await db
+  // An erased co is out of the set: never stamped invited (dsar-next walker F3).
+  const { data: parties, error } = await onlyLiveCoParties(db
     .from("application_co_applicants")
     .select("id, first_name, applicant_email, access_token, access_token_expires, stage2_invited_at, stage2_consent_given_at, role, is_surety_director, declared_director")
     .eq("org_id", orgId)
-    .eq("primary_application_id", applicationId)
-    .is("declined_at", null)
-    .neq("applicant_email", REDACTED) // an erased co is out of the set: never stamped invited (dsar-next walker F3)
+    .eq("primary_application_id", applicationId))
   if (error) {
     logQueryError("sendShortlistInvitation application_co_applicants", error)
     return { ok: false, error: NOT_SENT }
