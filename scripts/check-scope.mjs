@@ -73,6 +73,8 @@ export const MAP = {
   "node scripts/check-csv-escaping.mjs": [TS],
   "node scripts/check-file-headers.mjs": ["**/*.{ts,tsx,yml,yaml}"],
   "node scripts/check-rules-tracked.mjs": [".claude/**"],
+  "node scripts/check-loading-boundaries.mjs --selftest": ["app/**"],
+  "node scripts/check-loading-boundaries.mjs": ["app/**"],
   "node scripts/check-import-cycles.mjs": [TS],
   "node scripts/check-import-cycles.mjs --selftest": [TS],
   "node scripts/check-knip-floor.mjs": [SRC],

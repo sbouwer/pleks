@@ -1,9 +1,4 @@
 {
-  "scripts/architecture-audit.mjs": {
-    "sonarjs/super-linear-regex": {
-      "count": 2
-    }
-  },
   "scripts/backfill-insurance-checklists.ts": {
     "pleks/no-raw-process-env": {
       "count": 2

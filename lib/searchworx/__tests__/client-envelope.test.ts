@@ -8,6 +8,9 @@
  *         The client is imported once in beforeAll so its first TRANSFORM is paid there: on a cold cache
  *         under the full parallel suite it took the first case past the 5s test timeout (main, 2026-10-03).
  *         resetModules re-evaluates the module per case, which is cheap; it does not re-transform it.
+ *         That moved the cost into beforeAll, whose 10s hook timeout it then exceeded on two consecutive
+ *         pre-push runs (2026-10-10), so the hook carries its own 60s budget: the wait is one cold
+ *         transform, not a hang, and a genuine hang still fails.
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -25,7 +28,7 @@ function stubVendor(productBody: unknown) {
 describe("searchworxCall envelope wiring", () => {
   beforeAll(async () => {
     await import("../client")
-  })
+  }, 60_000)
   beforeEach(() => {
     vi.stubEnv("SEARCHWORX_USERNAME", "probe")
     vi.stubEnv("SEARCHWORX_PASSWORD", "probe")

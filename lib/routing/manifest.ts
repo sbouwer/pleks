@@ -56,7 +56,6 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/onboarding":            { auth: false },
   "/onboarding/severed":    { auth: true,  skipOrgCheck: true },
   "/accept-terms":          { auth: true,  skipOrgCheck: true },
-  "/pricing":               { auth: false },
   "/privacy":               { auth: false },
   "/terms":                 { auth: false },
   "/credit-check-policy":   { auth: false },
@@ -136,9 +135,9 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/managing-schemes":      { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/utilities":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/statements":            { auth: true, roles: AGENT_ROLES, requiresAal2: true },
-
-  // ── Marketing (apex-only in production; /marketing/* prefix in dev/preview) ──
-  "/marketing":             { auth: false },
+  // "/pricing" and "/marketing" were removed 2026-10-09: neither names a page any more (/pricing was deleted
+  // in 7b33a584 for /#pricing). Unlisted, they match no rule ("/" matches only "/"), and proxy.ts treats a
+  // null rule exactly as { auth: false }, so nothing is gated differently. architecture-audit CHECK 7.
 } as const
 
 /**

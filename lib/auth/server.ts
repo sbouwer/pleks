@@ -136,7 +136,7 @@ export const getIdentityForkState = cache(async (): Promise<IdentityForkState | 
  * safe?" to be re-answered later by someone with less context, and `name` looking harmless today is
  * the same argument as `role` being UI-only — an argument about the current call sites, not about
  * the mechanism. `caps.hasHOA` and `caps.hasLandlordsList` gate route redirects
- * (`app/(dashboard)/hoa/page.tsx`, `app/(dashboard)/landlords/page.tsx`), so `type: "hoa"` in your
+ * (`app/(dashboard)/hoa/(overview)/page.tsx`, `app/(dashboard)/landlords/(overview)/page.tsx`), so `type: "hoa"` in your
  * own cookie passed the first of them.
  *
  * The write gate was never on this path and still is not: `requireAgentWriteAccess` reads

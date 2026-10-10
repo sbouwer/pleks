@@ -7,6 +7,8 @@
  *         component means editing one primitive. Rule: mirror the SSR first paint, never the hydrated state —
  *         reserve no space for anything a useEffect or client fetch paints later (walker F1, #384).
  *         Tailwind needs literal class names, so numeric knobs (cols, gap, width) map through lookup tables.
+ *         A segment's own page.tsx and loading.tsx live together in `<segment>/(overview)/`: at the segment root
+ *         the skeleton would also wrap every child route (scripts/check-loading-boundaries.mjs).
  */
 import type { ReactNode } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
