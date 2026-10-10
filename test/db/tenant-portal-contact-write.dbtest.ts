@@ -47,6 +47,7 @@ import { svc, seedEmptyOrg, teardownOrg } from "@/test/db/tier"
 import type { TenantPortalSession } from "@/lib/portal/getTenantSession"
 
 vi.mock("@/lib/portal/getTenantSession", () => ({ getTenantSession: vi.fn() }))
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() })) // no request store outside Next
 
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { updatePortalContactDetails } from "@/app/(tenant)/tenant/account/actions"

@@ -11,6 +11,7 @@
  */
 import { gateway } from "@/lib/supabase/gateway"
 import { matchSettingsPage } from "./catalog"
+import { revalidatePath } from "next/cache"
 
 export interface SettingsUiState {
   dismissedSetup: string[]
@@ -66,5 +67,6 @@ export async function dismissSetupCard(id: string): Promise<void> {
   const { error: upErr } = await db
     .from("settings_ui_state")
     .upsert({ user_id: userId, org_id: orgId, dismissed_setup: [...cur, id], updated_at: new Date().toISOString() }, { onConflict: "user_id,org_id" })
-  if (upErr) console.error("dismissSetupCard upsert:", upErr.message)
+  if (upErr) { console.error("dismissSetupCard upsert:", upErr.message); return }
+  revalidatePath("/settings")
 }

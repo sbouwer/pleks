@@ -8,6 +8,7 @@
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { revalidatePath } from "next/cache"
 
 interface RescheduleResponsePayload {
   requestId: string
@@ -51,14 +52,21 @@ export async function respondToRescheduleRequest(payload: RescheduleResponsePayl
 
   // If approved or countered, update the inspection's scheduled_date
   if ((payload.action === "approved" || payload.action === "countered") && payload.resolvedDate) {
-    await db
+    const { error: dateError } = await db
       .from("inspections")
       .update({ scheduled_date: payload.resolvedDate })
       .eq("id", payload.inspectionId)
       .eq("org_id", orgId)
+    if (dateError) {
+      console.error("[respondToRescheduleRequest] date update failed:", dateError.message)
+      return { error: "Could not move the inspection date. Please try again." }
+    }
   }
 
   await recordAudit(db, { orgId: orgId, table: "inspection_reschedule_requests", recordId: payload.requestId, action: "UPDATE", actorId: userId, after: { action: `reschedule_${payload.action}`, inspection_id: payload.inspectionId } })
 
+  // The panel only flips its own row; the page's scheduled date and the list are server-rendered.
+  revalidatePath(`/inspections/${payload.inspectionId}`)
+  revalidatePath("/inspections")
   return { success: true }
 }

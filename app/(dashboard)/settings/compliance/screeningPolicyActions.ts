@@ -14,6 +14,7 @@ import { resolvePoolingRule } from "@/lib/screening/screeningPolicy"
 import { INCOME_AFFORDABILITY_THRESHOLD } from "@/lib/constants"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { revalidatePath } from "next/cache"
 import type { PoolingRule } from "@/lib/applications/companyRuling"
 
 const VALID: readonly PoolingRule[] = ["strongestSingle", "combined", "suretyGroupPooled"]
@@ -46,6 +47,7 @@ export async function setCompanyPoolingRule(rule: PoolingRule): Promise<{ ok: bo
   logQueryError("setCompanyPoolingRule insert", insErr)
   if (insErr || !row) return { ok: false, error: "Could not save the policy." }
   await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "screening_policies", recordId: row.id as string, after: { pooling_rule: rule } })
+  revalidatePath("/settings/compliance")
   return { ok: true }
 }
 
@@ -81,5 +83,6 @@ export async function setCompanyAffordabilityThreshold(threshold: number): Promi
   logQueryError("setCompanyAffordabilityThreshold insert", insErr)
   if (insErr || !row) return { ok: false, error: "Could not save the policy." }
   await recordAudit(db, { orgId, actorId: userId, action: "UPDATE", table: "screening_policies", recordId: row.id as string, after: { affordability_threshold: threshold } })
+  revalidatePath("/settings/compliance")
   return { ok: true }
 }

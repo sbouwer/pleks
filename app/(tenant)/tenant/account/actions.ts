@@ -39,6 +39,7 @@ import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { syncPrimaryContactPhone } from "@/lib/contacts/syncPrimaryPhone"
 import { syncPrimaryContactEmail } from "@/lib/contacts/syncPrimaryEmail"
+import { revalidatePath } from "next/cache"
 
 interface UpdateContactPayload {
   phone: string | null
@@ -146,6 +147,8 @@ export async function updatePortalContactDetails(payload: UpdateContactPayload) 
     })
   }
 
+  // The form seeds from page props; without this a revisit inside the router cache shows the old values.
+  if (landed.length > 0) revalidatePath("/tenant/account")
   if (phoneResult.error) return { error: "Could not save your phone number." }
   if (emailResult.error) return { error: "Could not save your email address." }
   return { success: true }

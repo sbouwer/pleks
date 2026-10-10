@@ -16,6 +16,7 @@
 import * as React from "react"
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { revalidatePath } from "next/cache"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit } from "@/lib/audit/recordAudit"
@@ -26,7 +27,7 @@ import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/ten
  * Send a magic-link invite to the tenant's primary email.
  * Sets `tenants.portal_invite_sent_at` and logs to audit_log.
  */
-export async function inviteTenantPortal(tenantId: string, _leaseId: string) {
+export async function inviteTenantPortal(tenantId: string, leaseId: string) {
   const gw = await requireAgentWriteAccess("invite_user")
 
   const { db, userId, orgId } = gw
@@ -70,6 +71,8 @@ export async function inviteTenantPortal(tenantId: string, _leaseId: string) {
 
   await recordAudit(db, { orgId: orgId, table: "tenants", recordId: tenantId, action: "UPDATE", actorId: userId, after: { action: "portal_invite_sent", sent_to: tenant.email } })
 
+  // The lease page's portal card reads portal_invite_sent_at from page props.
+  revalidatePath(`/leases/${leaseId}`)
   return { success: true }
 }
 
@@ -268,5 +271,7 @@ export async function revokeTenantPortalAccess(tenantId: string): Promise<{ succ
 
   await recordAudit(db, { orgId: orgId, table: "tenants", recordId: tenantId, action: "UPDATE", actorId: userId, after: { action: "portal_access_revoked" } })
 
+  // Keyed by tenant only, so every lease page under the segment; a typed pattern must name its route groups.
+  revalidatePath("/(dashboard)/leases/[leaseId]", "layout")
   return { success: true }
 }

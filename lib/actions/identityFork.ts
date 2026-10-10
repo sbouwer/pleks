@@ -9,6 +9,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerUser } from "@/lib/auth/server"
+import { revalidatePath } from "next/cache"
 
 export async function dismissForkBanner(
   surface: "agent" | "landlord",
@@ -28,5 +29,8 @@ export async function dismissForkBanner(
     console.error("[dismissForkBanner] update failed:", error.message)
     return { ok: false }
   }
+  // Both surfaces that render the banner, so a revisit inside the router cache does not bring it back.
+  revalidatePath("/settings/profile")
+  revalidatePath("/(dashboard)/landlords/[id]/(overview)", "page") // typed patterns name their route groups
   return { ok: true }
 }

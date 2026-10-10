@@ -17,10 +17,18 @@ import { inviteLandlord } from "@/lib/portal/inviteLandlord"
 import { fmtDateLongZA } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
+import { revalidatePath } from "next/cache"
 
 export async function inviteLandlordPortal(landlordId: string): Promise<{ success?: boolean; error?: string }> {
   const gw = await requireAgentWriteAccess("invite_user")
-  return inviteLandlord(landlordId, gw.userId, gw.orgId)
+  const result = await inviteLandlord(landlordId, gw.userId, gw.orgId)
+  if (result.success) {
+    // OwnerCard only flips local state, so a revisit inside the router cache brings the invite button back.
+    // The owner shows on every lease of theirs, and a typed pattern must name the route groups to match.
+    revalidatePath("/(dashboard)/leases/[leaseId]", "layout")
+    revalidatePath(`/landlords/${landlordId}`)
+  }
+  return result
 }
 
 export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResult & { error?: string }> {
