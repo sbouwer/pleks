@@ -2934,3 +2934,19 @@ The author identified the hazard, and defended the single field in front of them
   Probes both directions.
 - **Provenance:** freshness walker F3 → internal-server-functions census, 2026-10-10.
 - **Covering spec:** none — a control defect found in passing, not by a verification row
+
+### M-146 — a form-supplied foreign key is written without proving it is the caller org's
+
+- **Rule:** every caller-supplied id a server action reads or writes is proved the caller org's (`isRowInOrg`, or `.eq("org_id", orgId)` on the read).
+- **Where it lives (the instance):** as at `819dfe62`, `createMaintenanceRequest` inserted `contractor_id` from the
+  form unchecked, and three later `contractor_view` reads were classified safe "because the request was read with
+  `.eq(org_id)`" (`.handoff/service-read-burndown/03-census.md`). A read is only as org-bound as every FK written
+  into its parent row, and the read rule cannot see the write that poisoned it. Fixed in `fix/service-read-defects`
+  (`.handoff/service-read-burndown/06-walker.md` F1). The same class is open in `lib/actions/units.ts`
+  (`createUnit` inserts a caller `propertyId` and form `building_id`, walker F4).
+- **Rung:** eslint · **Blast:** data-boundary
+- **Satisfied when:** a rule flags an `.insert`/`.update` payload key ending `_id` whose value derives from
+  `formData.get` or an action parameter, unless the same function passes that value to `isRowInOrg` or reads it
+  with an org filter first. Probes both directions, including the contractor case.
+- **Provenance:** service-read burndown walker, 2026-10-10.
+- **Covering spec:** none — a control defect found in passing, not by a verification row

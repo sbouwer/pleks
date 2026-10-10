@@ -127,6 +127,7 @@ export async function buildTenantWelcomePackData(
 
   type LeaseRow = {
     id: string
+    tenant_id: string
     unit_id: string | null
     property_id: string | null
     start_date: string
@@ -180,7 +181,7 @@ export async function buildTenantWelcomePackData(
   const [leaseRes, tenantRes, coTenantsRes, bankRes, inspectionRes, clausesRes] =
     await Promise.all([
       db.from("leases")
-        .select("id, unit_id, property_id, start_date, end_date, lease_type, is_fixed_term, rent_amount_cents, deposit_amount_cents, deposit_account_id, trust_account_id, payment_due_day, escalation_percent, escalation_review_date, arrears_interest_enabled, arrears_interest_margin_percent, notice_period_days, units(unit_number, properties(name, address_line1, suburb, city))")
+        .select("id, tenant_id, unit_id, property_id, start_date, end_date, lease_type, is_fixed_term, rent_amount_cents, deposit_amount_cents, deposit_account_id, trust_account_id, payment_due_day, escalation_percent, escalation_review_date, arrears_interest_enabled, arrears_interest_margin_percent, notice_period_days, units(unit_number, properties(name, address_line1, suburb, city))")
         .eq("id", leaseId)
         .eq("org_id", orgId)
         .single(),
@@ -188,6 +189,7 @@ export async function buildTenantWelcomePackData(
       db.from("tenant_view")
         .select("id, first_name, last_name, company_name, entity_type, email, phone")
         .eq("id", tenantId)
+        .eq("org_id", orgId)
         .maybeSingle(),
 
       db.from("lease_co_tenants")
@@ -219,6 +221,14 @@ export async function buildTenantWelcomePackData(
 
   const lease = leaseRes.data as LeaseRow | null
   if (!lease) throw new Error(`Lease ${leaseId} not found`)
+  // The tenant must be ON this lease, not merely in this org: the pack carries the lease's rent, payment
+  // reference and trust bank details, and the send route emails it to the tenant the request names.
+  if (lease.tenant_id !== tenantId) {
+    const { data: onLease, error: onLeaseErr } = await db.from("lease_co_tenants")
+      .select("tenant_id").eq("lease_id", leaseId).eq("tenant_id", tenantId).eq("org_id", orgId).maybeSingle()
+    if (onLeaseErr) console.error("buildTenantWelcomePackData co-tenant check failed:", onLeaseErr.message)
+    if (!onLease) throw new Error(`Tenant ${tenantId} is not on lease ${leaseId}`)
+  }
 
   const tenant = tenantRes.data as TenantRow | null
   const { full: tenantName, first: tenantFirstName } = tenantDisplayName(

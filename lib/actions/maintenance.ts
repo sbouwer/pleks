@@ -35,6 +35,7 @@ import { formatPropertyLabel } from "@/lib/properties/propertyLabel"
 import { SA_TIMEZONE } from "@/lib/dates"
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit, recordAuditReturningId, recordAuditMany } from "@/lib/audit/recordAudit"
+import { isRowInOrg } from "@/lib/auth/orgScope"
 
 async function fireTenantCommsOnCreate(
   orgId: string,
@@ -53,8 +54,8 @@ async function fireTenantCommsOnCreate(
   try {
     const service = await createServiceClient()
     const [tenantRes, unitRes, orgSettings] = await Promise.all([
-      service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", tenantId).single(),
-      service.from("units").select("unit_number, properties(name)").eq("id", unitId).single(),
+      service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", tenantId).eq("org_id", orgId).single(),
+      service.from("units").select("unit_number, properties(name)").eq("id", unitId).eq("org_id", orgId).single(),
       fetchOrgSettings(orgId),
     ])
     const tenant = tenantRes.data
@@ -125,6 +126,13 @@ export async function createMaintenanceRequest(formData: FormData) {
   const categoryOverride = formData.get("category_override") as string || null
   const urgencyOverride = formData.get("urgency_override") as string || null
 
+  // Every id below comes from the form, and the service client bypasses RLS: a foreign id would be read (the
+  // tenant's contact details, a building's heritage flags) and written onto this org's request.
+  if (!(await formIdsInOrg(db, orgId, [
+    ["units", unitId, true], ["properties", propertyId, true],
+    ["buildings", buildingId, false], ["tenants", tenantId, false], ["leases", leaseId, false], ["contractors", contractorId, false],
+  ]))) return { error: "Unit not found" }
+
   // Fetch building maintenance_rhythm to inform SLA notes
   let buildingRhythm: string | null = null
   if (buildingId) {
@@ -132,6 +140,7 @@ export async function createMaintenanceRequest(formData: FormData) {
       .from("buildings")
       .select("maintenance_rhythm, heritage_pre_approval_required, heritage_approved_contractors_only")
       .eq("id", buildingId)
+      .eq("org_id", orgId)
       .single()
     if (bldError) console.error("createMaintenanceRequest buildings read failed:", bldError.message)
     buildingRhythm = bld?.maintenance_rhythm ?? null
@@ -243,6 +252,26 @@ export async function createMaintenanceRequest(formData: FormData) {
 
 type GatewayDb = import("@supabase/supabase-js").SupabaseClient
 
+/** True when every form-supplied id is a row of this org; an empty optional id passes, an empty required one fails. */
+async function formIdsInOrg(
+  db: GatewayDb, orgId: string, ids: Array<[table: string, id: string | null, required: boolean]>,
+): Promise<boolean> {
+  for (const [table, id, required] of ids) {
+    if (!id && !required) continue
+    if (!(await isRowInOrg(db, table, id, orgId))) return false
+  }
+  return true
+}
+
+/** Why addMaintenanceNote refuses, or null. requestId is the caller's: unchecked, the note's audit row
+ *  would land in this org against another org's request. */
+async function noteRejection(db: GatewayDb, orgId: string, requestId: string, trimmed: string): Promise<string | null> {
+  if (!trimmed) return "Note cannot be empty"
+  if (trimmed.length > 1000) return "Note exceeds 1,000 character limit"
+  if (!(await isRowInOrg(db, "maintenance_requests", requestId, orgId))) return "Request not found"
+  return null
+}
+
 /**
  * 25A §3: resolve the recipient `to` for a company-addressed send — function/primary person when one
  * exists, else the contact's own email (never drops a send). Centralised so call sites stay simple.
@@ -282,6 +311,7 @@ async function prepareWorkOrderSent(
     .from("contractor_view")
     .select("first_name, last_name, company_name, email, contact_id")
     .eq("id", req.contractor_id)
+    .eq("org_id", orgId)
     .single()
   if (contractorError) console.error("contractors read failed:", contractorError.message)
 
@@ -624,8 +654,8 @@ export async function addMaintenanceNote(
   const { db, userId, orgId } = gw
 
   const trimmed = note.trim()
-  if (!trimmed) return { error: "Note cannot be empty" }
-  if (trimmed.length > 1000) return { error: "Note exceeds 1,000 character limit" }
+  const rejected = await noteRejection(db, orgId, requestId, trimmed)
+  if (rejected) return { error: rejected }
 
   const { data: profile, error: profileError } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
   if (profileError) console.error("addMaintenanceNote user_profiles read failed:", profileError.message)
@@ -643,6 +673,7 @@ export async function addMaintenanceNote(
         .from("maintenance_requests")
         .select("title, work_order_number, unit_id, property_id")
         .eq("id", requestId)
+        .eq("org_id", orgId)
         .single()
 
       if (reqError) console.error("addMaintenanceNote maintenance_requests read failed:", reqError.message)
@@ -773,8 +804,8 @@ async function notifyCancelledContractor({ orgId, userId, requestId, req }: { or
   try {
     const service = await createServiceClient()
     const [contractorRes, unitRes, orgSettings] = await Promise.all([
-      service.from("contractor_view").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id).single(),
-      req.unit_id ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single() : Promise.resolve({ data: null }),
+      service.from("contractor_view").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id).eq("org_id", orgId).single(),
+      req.unit_id ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).eq("org_id", orgId).single() : Promise.resolve({ data: null }),
       fetchOrgSettings(orgId),
     ])
     const c = contractorRes.data
@@ -888,7 +919,7 @@ export async function changeContractor(
       const service = await createServiceClient()
       const [oldCRes, unitRes, orgSettings] = await Promise.all([
         req.contractor_id
-          ? service.from("contractor_view").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id as string).single()
+          ? service.from("contractor_view").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id as string).eq("org_id", orgId).single()
           : Promise.resolve({ data: null }),
         req.unit_id
           ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single()
