@@ -13,7 +13,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { sendEmail } from "@/lib/comms/send-email"
-import { assignableRoleSlugs } from "@/lib/auth/orgRoles"
+import { assignableRoleSlugs } from "@/lib/auth/assignableRoleSlugs"
 import { APP_URL } from "@/lib/env"
 
 // POST /api/team/invite

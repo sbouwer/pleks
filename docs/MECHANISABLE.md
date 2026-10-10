@@ -2914,3 +2914,23 @@ The author identified the hazard, and defended the single field in front of them
   bad column in a hoisted constant FAILS; the current tree passes.
 - **Provenance:** co DSAR follow-ups walker, 2026-10-06.
 - **Covering spec:** none — a control defect found in passing, not by a verification row
+
+### M-145 — the server-action census allowlist is never checked against the files it excuses
+
+- **Rule:** every top-level `"use server"` export is gated, or its module is allowlisted in `ACTION_ALLOWLIST` with a reason (Cat-15, `scripts/security/server-action-census.mjs`).
+- **Where it lives (the instance):** as at `9a57ff6c`, the allowlist held 21 entries reasoned "internal". Five
+  named a file that did not exist or never carried the directive. Eleven excused an ungated lib function that
+  trusted caller-supplied ids (`buildEmailContext`, `createTenantFromCoApplicant`, `startTrial`, `inviteLandlord`, …)
+  on the grounds that "only gated callers import it", which is no boundary, because every export of a
+  `"use server"` module is a callable endpoint. Three more gave a wrong reason (`.handoff/internal-server-functions/01-census.md`).
+  Fixed in `fix/internal-server-functions`. The control is what remains.
+- **Rung:** check · **Blast:** auth
+- **Satisfied when:** the census fails on an allowlist key whose file is missing or does not start with
+  `"use server"`, and on any reason beginning `internal`. An ungated lib function drops the directive instead;
+  it is never allowlisted. **And the gate verdict is per EXPORT, not per file**: as at `47cbb266` one gated export
+  passed its whole module, which hid `saveLeaseConsent`, `recordNoticePageView` and `assignableRoleSlugs` beside
+  gated siblings (`.handoff/internal-server-functions/02-walker.md` F1; moved out in the same PR). Share the
+  directive-prologue and export parsing with `check-action-freshness.mjs` rather than keep a second parser.
+  Probes both directions.
+- **Provenance:** freshness walker F3 → internal-server-functions census, 2026-10-10.
+- **Covering spec:** none — a control defect found in passing, not by a verification row

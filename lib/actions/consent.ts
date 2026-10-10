@@ -1,15 +1,14 @@
 "use server"
 
 /**
- * lib/actions/consent.ts — records lease-template disclaimer + tenant messaging consent
+ * lib/actions/consent.ts — records lease-template disclaimer acceptance
  *
  * Auth:   recordLeaseDisclaimerAcceptance → requireAgentWriteAccess("create_lease");
- *         saveLeaseConsent → none of its own (service client; validated-caller of gated createLease)
+ *         (saveLeaseConsent moved to lib/consent/saveLeaseConsent.ts: ungated, so not an action)
  * Data:   writes consent_log (idempotent per version) and tenant_messaging_consent (upsert on tenant_id)
  */
 import { headers } from "next/headers"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
-import { createServiceClient } from "@/lib/supabase/server"
 import { DISCLAIMER_VERSION } from "@/lib/leases/disclaimer"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -46,39 +45,4 @@ export async function recordLeaseDisclaimerAcceptance() {
 
   if (error) return { error: "Failed to record consent" }
   return { ok: true }
-}
-
-// ── Tenant messaging consent (WhatsApp / SMS / email) ─────────────────────────
-
-export async function saveLeaseConsent(params: {
-  tenantId: string
-  orgId: string
-  emailEnabled: boolean
-  whatsappEnabled: boolean
-  smsEnabled: boolean
-}): Promise<{ error?: string }> {
-  const db = await createServiceClient()
-
-  const { error } = await db
-    .from("tenant_messaging_consent")
-    // eslint-disable-next-line pleks/require-org-scope-on-service-write -- validated-caller: sole caller is createLease (lib/actions/leases.ts:292, requireAgentWriteAccess-gated) passing gw.orgId + the lease's tenantId; org_id in payload is that gateway orgId
-    .upsert(
-      {
-        tenant_id: params.tenantId,
-        org_id: params.orgId,
-        email_enabled: params.emailEnabled,
-        whatsapp_enabled: params.whatsappEnabled,
-        sms_enabled: params.smsEnabled,
-        consent_captured_by: "lease_creation",
-        consent_captured_at: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-      },
-      { onConflict: "tenant_id" }
-    )
-
-  if (error) {
-    console.error("saveLeaseConsent failed:", error.message)
-    return { error: "Failed to save consent" }
-  }
-  return {}
 }

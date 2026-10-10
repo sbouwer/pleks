@@ -1,5 +1,3 @@
-"use server"
-
 /**
  * lib/statements/generateOwnerStatement.ts — Generate and persist monthly owner statement data
  *

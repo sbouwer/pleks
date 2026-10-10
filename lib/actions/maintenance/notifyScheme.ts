@@ -1,5 +1,3 @@
-"use server"
-
 /**
  * lib/actions/maintenance/notifyScheme.ts — notify the managing scheme / body corporate of a critical incident
  *

@@ -1,10 +1,10 @@
-"use server"
-
 /**
  * lib/contractors/sendPortalInvite.ts — invite a contractor/supplier to the supplier portal
  *
- * Auth:   internal — reached only via a gated caller (supplier portal-invite route); caller passes its
- *         authenticated agentId + orgId. Service client for the privileged auth invite.
+ * Auth:   none of its own — reached only via a gated caller (supplier portal-invite route), which passes its
+ *         authenticated agentId + orgId.
+ *         NOT a "use server" module: every export of one is a callable action endpoint, and this one
+ *         trusts its caller's orgId. Service client for the privileged auth invite.
  * Data:   contractor_view (read, org-scoped), contractors (portal_access_enabled/portal_invite_sent_at),
  *         Supabase auth admin invite, audit_log
  * Notes:  Provisions the user via Supabase auth.admin.generateLink({type:"invite"}) — identical to

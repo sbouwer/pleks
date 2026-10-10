@@ -224,7 +224,7 @@ export async function createLease(formData: FormData) {
   const consentEmail = formData.get("consent_email") === "true"
   const consentWhatsApp = formData.get("consent_whatsapp") === "true"
   const consentSms = formData.get("consent_sms") === "true"
-  const { saveLeaseConsent } = await import("./consent")
+  const { saveLeaseConsent } = await import("@/lib/consent/saveLeaseConsent")
   await saveLeaseConsent({
     tenantId: f.tenantId,
     orgId,

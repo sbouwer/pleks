@@ -13,7 +13,7 @@ import { recordAudit } from "@/lib/audit/recordAudit"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { logQueryError } from "@/lib/supabase/logQueryError"
-import { assignableRoleSlugs } from "@/lib/auth/orgRoles"
+import { assignableRoleSlugs } from "@/lib/auth/assignableRoleSlugs"
 import { requireStepUp } from "@/lib/auth/step-up"
 
 const ALLOWED_PROFILE_FIELDS = ["title", "first_name", "last_name", "mobile", "emergency_phone", "emergency_contact_name"] as const

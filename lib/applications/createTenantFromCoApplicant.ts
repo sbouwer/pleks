@@ -1,9 +1,7 @@
-"use server"
-
 /**
  * lib/applications/createTenantFromCoApplicant.ts — promote a co-applicant to a tenant at account-creation (14R §4a).
  *
- * Auth:   server action — called by the co's own account-creation at completion (link-account), with the co's new
+ * Auth:   none of its own, and NOT "use server" (it trusts the caller's ids) — called by link-account, with the co's new
  *         auth.users id. The co becomes a tenant-in-pre-lease-state, symmetric to the primary
  *         (application_co_applicants.tenant_id → tenants.auth_user_id).
  * Data:   reads the application_co_applicants row → dedups (by auth user, then id_number_hash) → creates contact +

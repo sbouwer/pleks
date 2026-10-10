@@ -1,5 +1,3 @@
-"use server"
-
 /**
  * lib/actions/maintenance/notifyOwner.ts — notify the landlord of a critical maintenance incident
  *

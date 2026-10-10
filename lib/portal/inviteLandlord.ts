@@ -1,11 +1,10 @@
-"use server"
-
 /**
  * lib/portal/inviteLandlord.ts — invite a landlord to the owner portal
  *
- * Auth:   internal — reached only via gated callers (portal-invite route + requireAgentWriteAccess
- *         inviteLandlordPortal action wrapper); the client imports the wrapper, never this lib fn. Caller
- *         passes its authenticated agentId + orgId; service client for the privileged writes.
+ * Auth:   none of its own — reached only via gated callers (portal-invite route + requireAgentWriteAccess
+ *         inviteLandlordPortal action wrapper), which pass their authenticated agentId + orgId.
+ *         NOT a "use server" module: every export of one is a callable action endpoint, and this one
+ *         trusts its caller's orgId. Service client for the privileged writes.
  * Data:   landlord_view (read, org-scoped), landlords (portal_status/portal_invited_at), Supabase auth
  *         admin invite, audit_log
  * Notes:  Provisions the user via Supabase auth.admin.generateLink({type:"invite"}) — identical to
