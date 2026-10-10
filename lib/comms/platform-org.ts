@@ -28,14 +28,13 @@ export const PLATFORM_ORG_ID = "00000000-0000-0000-0000-000000000002"
  * constant rots.
  *
  *   const { data } = await excludePlatformOrg(db.from("organisations").select("id, name"))
- * @knipignore An unenforced invariant, not dead code — filed as M-067 in docs/MECHANISABLE.md. Censusing every
- * org-iterating query comes before any wire-or-delete decision.
- * @invariant M-067 — declared to check-invariant-has-callers, and currently recorded in its
- * baseline as having no reader. The two tags above say different things: the knip one answers
- * "may this be deleted?" (no); this one answers "must something apply it?" (yes, and nothing does).
+ * @invariant M-067 — declared to check-invariant-has-callers. Wired 2026-10-10 into every org-iterating
+ * query found by a grep of `from("organisations")`. Nothing yet FAILS a new iterator that omits it (M-067).
  */
-export function excludePlatformOrg<T extends { eq(col: string, val: boolean): T }>(query: T): T {
-  return query.eq("is_platform", false)
+export function excludePlatformOrg<T extends object>(query: T): T {
+  // No structural bound on T: matching `eq` against the typed PostgREST builder sends tsc into TS2589
+  // (excessively deep) on the service client. Callers pass an organisations query builder.
+  return (query as unknown as { eq(col: string, val: boolean): T }).eq("is_platform", false)
 }
 
 /**

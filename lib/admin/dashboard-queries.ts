@@ -9,6 +9,7 @@
  */
 /* eslint-disable pleks/require-org-scope-on-service-read -- every query here is a PLATFORM aggregate (MRR, trials, waitlist, cron health, VAT rate) whose whole meaning is cross-org. An org filter would not narrow these reads, it would empty them. */
 import { createServiceClient } from "@/lib/supabase/server"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 export interface AttentionItem {
   source: "feedback" | "contact_lead" | "lease_request" | "expiring_trial" | "past_due_sub"
@@ -101,12 +102,11 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
     db.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").neq("tier", "owner"),
 
     // Org count — the Pleks system org is not a customer, so it must not inflate the count (010 §50).
-    db.from("organisations").select("id", { count: "exact", head: true }).eq("is_platform", false),
+    excludePlatformOrg(db.from("organisations").select("id", { count: "exact", head: true })),
 
     // Recent signups — likewise: the system org never "signed up".
-    db.from("organisations")
-      .select("id, name, created_at, subscriptions(tier, status, created_at)")
-      .eq("is_platform", false)
+    excludePlatformOrg(db.from("organisations")
+      .select("id, name, created_at, subscriptions(tier, status, created_at)"))
       .order("created_at", { ascending: false })
       .limit(7),
 

@@ -10,6 +10,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { saDateISO } from "@/lib/dates"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 // ── Anthropic token prices (USD cents per million tokens) ─────────────────────
 // Source: https://docs.anthropic.com/en/docs/about-claude/models/overview
@@ -302,9 +303,10 @@ async function fetchAiUsageByOrg(
 async function fetchActiveOrgs(
   db: ServiceClient,
 ): Promise<Array<{ id: string; last_login_at: string | null; active_leases: number }>> {
-  const { data, error } = await db
+  // The Pleks system org is not a customer (010 §50), so it gets no per-org cost snapshot.
+  const { data, error } = await excludePlatformOrg(db
     .from("organisations")
-    .select("id")
+    .select("id"))
   if (error) {
     console.error("[cost-snapshots] fetchActiveOrgs failed:", error.message)
     return []

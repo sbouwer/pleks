@@ -28,6 +28,7 @@ import { fmtDateLongZA } from "@/lib/dates"
 
 import { absoluteUrl } from "@/lib/routing/absoluteUrl"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
 
@@ -300,9 +301,9 @@ async function runCancelledPurgeScan(
 }
 
 async function runDormancyPurgeScan(supabase: SupabaseClient, now: Date): Promise<number> {
-  const { data: dormancyPurgeDue, error: dormErr } = await supabase
+  const { data: dormancyPurgeDue, error: dormErr } = await excludePlatformOrg(supabase
     .from("organisations")
-    .select("id, dormancy_warning_sent_at, dormancy_final_sent_at")
+    .select("id, dormancy_warning_sent_at, dormancy_final_sent_at"))
     .not("dormancy_final_sent_at", "is", null)
     .lt("dormancy_final_sent_at", now.toISOString())
     .is("deleted_at", null)  // skip already-purged / claim-slot-reserved orgs

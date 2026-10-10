@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { requireCronAuth } from "@/lib/cron/auth"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 export const runtime = "nodejs"
 
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const service = await createServiceClient()
 
-  const { data: orgs, error: orgsError } = await service.from("organisations").select("id")
+  const { data: orgs, error: orgsError } = await excludePlatformOrg(service.from("organisations").select("id"))  // not a customer (010 §50)
   if (orgsError) {
     console.error("[recovery-email-drift] org list failed:", orgsError.message)
     return NextResponse.json({ ok: false, error: "org list failed" }, { status: 500 })

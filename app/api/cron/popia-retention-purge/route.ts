@@ -21,6 +21,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { purgeApplicationDocs } from "@/lib/applications/purgeDocs"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { optionalEnv } from "@/lib/env"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 type CatResult = { evaluated: number; deleted: number; skipped_carveout: number }
 type CatSummary = { orgs_processed: number; deleted: number; skipped: number; errors: string[] }
@@ -186,10 +187,10 @@ export async function GET(req: NextRequest) {
     summary[category] = { orgs_processed: 0, deleted: 0, skipped: 0, errors: [] }
   }
 
-  const { data: orgs, error: orgsErr } = await db
+  // The Pleks system org holds no agency data (010 §50).
+  const { data: orgs, error: orgsErr } = await excludePlatformOrg(db
     .from("organisations")
-    .select("id")
-    .eq("is_platform", false)  // the Pleks system org holds no agency data (010 §50)
+    .select("id"))
     .is("deleted_at", null)   // purge sets deleted_at — this already excludes purged orgs
 
   if (orgsErr || !orgs) {

@@ -19,6 +19,7 @@ import {
 import { trackSend, settleSends } from "@/lib/cron/settleSends"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 export async function GET(req: NextRequest) {
   const denied = requireCronAuth(req)
@@ -130,9 +131,9 @@ export async function GET(req: NextRequest) {
   // 3. Founding agent expiry warning (month 23 — ~35 days before expiry)
   let foundingWarned = 0
   const thirtyFiveDaysFromNow = new Date(now.getTime() + 35 * 24 * 60 * 60 * 1000)
-  const { data: expiringFounders, error: expiringFoundersError } = await supabase
+  const { data: expiringFounders, error: expiringFoundersError } = await excludePlatformOrg(supabase
     .from("organisations")
-    .select("id, name, founding_agent_expires_at")
+    .select("id, name, founding_agent_expires_at"))
     .eq("founding_agent", true)
     .gte("founding_agent_expires_at", now.toISOString())
     .lte("founding_agent_expires_at", thirtyFiveDaysFromNow.toISOString())

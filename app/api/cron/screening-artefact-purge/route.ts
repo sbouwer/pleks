@@ -21,6 +21,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { purgeScreeningArtefactsForOrg } from "@/lib/popia/screeningArtefactPurge"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { optionalEnv } from "@/lib/env"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 export const runtime = "nodejs"
 
@@ -32,10 +33,10 @@ export async function GET(req: NextRequest) {
   const db = await createServiceClient()
   const now = new Date()
 
-  const { data: orgs, error: orgsErr } = await db
+  // The Pleks system org holds no agency data (010 §50).
+  const { data: orgs, error: orgsErr } = await excludePlatformOrg(db
     .from("organisations")
-    .select("id")
-    .eq("is_platform", false)  // the Pleks system org holds no agency data (010 §50)
+    .select("id"))
     .is("deleted_at", null)
 
   if (orgsErr || !orgs) {
