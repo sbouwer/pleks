@@ -70,6 +70,8 @@ export const MAP = {
   "node scripts/check-audit-columns.mjs": [TS],
   "node scripts/check-import-fields.mjs": ["lib/import/**", "app/(dashboard)/settings/import/**"],
   "node scripts/check-server-action-exports.mjs": [TS],
+  "node scripts/check-action-freshness.mjs --selftest": [TS, "scripts/check-action-freshness.mjs"],
+  "node scripts/check-action-freshness.mjs": [TS, "scripts/check-action-freshness.mjs", "scripts/action-freshness.baseline.json"],
   "node scripts/check-csv-escaping.mjs": [TS],
   "node scripts/check-file-headers.mjs": ["**/*.{ts,tsx,yml,yaml}"],
   "node scripts/check-rules-tracked.mjs": [".claude/**"],

@@ -1,0 +1,533 @@
+{
+  "_comment": [
+    "Exported server actions that call no revalidatePath/revalidateTag/updateTag/refresh/redirect, each READ AND",
+    "CLASSIFIED by a caller-trace (.handoff/check-action-freshness/01-census.md, tree 7cf6feb3) — never EXEMPT.",
+    "Keyed per action, so a new action in a listed file is not covered. This file only shrinks: an action that",
+    "starts refreshing, or is deleted, fails the check until its entry leaves. Classes: read · indirect (a callee",
+    "elsewhere refreshes) · client-refresh (every caller refreshes or rebuilds the view itself) · no-view (writes nothing a",
+    "view reads back) · internal (no client calls it; its route or action caller owns freshness) · uncalled.",
+    "The 14 the census and its walker found stale or resting on local state were fixed, not listed."
+  ],
+  "entries": {
+    "app/(admin)/admin/orgs/[orgId]/adminOrgActions.server.ts::activateFoundingAgent": {
+      "class": "client-refresh",
+      "reason": "AdminOrgActions.tsx:47 router.refresh() after await"
+    },
+    "app/(admin)/admin/orgs/[orgId]/adminOrgActions.server.ts::changeTier": {
+      "class": "client-refresh",
+      "reason": "AdminOrgActions.tsx:78 router.refresh() after await"
+    },
+    "app/(admin)/admin/orgs/[orgId]/adminOrgActions.server.ts::startTrial": {
+      "class": "client-refresh",
+      "reason": "AdminOrgActions.tsx:60 router.refresh() on success; wrapper over lib/trial/startTrial.ts"
+    },
+    "app/(dashboard)/billing/actions.ts::sendBulkRentReminders": {
+      "class": "no-view",
+      "reason": "BillingPageClient.tsx:55 toast only; sends SMS (+comms log), billing page renders no comms log"
+    },
+    "app/(dashboard)/billing/bulk-import/actions.ts::matchCsvRows": {
+      "class": "read",
+      "reason": "matches uploaded CSV rows against existing records and returns them; writes nothing (its only redirect is the auth guard)"
+    },
+    "app/(dashboard)/leases/[leaseId]/actions.tsx::emailLeaseToTenant": {
+      "class": "no-view",
+      "reason": "LeasePortalActions.tsx:51 toast only; sends lease email to tenant, no view reads it back"
+    },
+    "app/(dashboard)/listings/[slug]/applications/[id]/_actions.ts::generatePopiaS23Response": {
+      "class": "no-view",
+      "reason": "PopiaResponseAction.tsx:33; writes S23 PDF to storage + audit, signedUrl returned for download"
+    },
+    "app/(dashboard)/listings/[slug]/applications/[id]/_actions.ts::revealIdNumber": {
+      "class": "no-view",
+      "reason": "IdReveal.tsx:38; reads ID and writes only recordAudit row; value shown from return"
+    },
+    "app/(dashboard)/settings/compliance/screeningPolicyActions.ts::getCompanyAffordabilityThreshold": {
+      "class": "read",
+      "reason": "ComplianceSettingsClient.tsx:533 select screening_policies only"
+    },
+    "app/(dashboard)/settings/compliance/screeningPolicyActions.ts::getCompanyPoolingRule": {
+      "class": "read",
+      "reason": "ComplianceSettingsClient.tsx:532 pure lookup via resolvePoolingRule"
+    },
+    "app/(dashboard)/settings/subscription/actions.ts::confirmCancellation": {
+      "class": "client-refresh",
+      "reason": "page.tsx:255 onSuccess reload; confirm-cancel/page.tsx:20 server redirect() to /settings/subscription"
+    },
+    "app/(dashboard)/settings/subscription/actions.ts::initiateCancellation": {
+      "class": "client-refresh",
+      "reason": "subscription/(overview)/page.tsx:710 onSuccess -> location.reload(); email-link path navigates away"
+    },
+    "app/(dashboard)/settings/subscription/actions.ts::pauseSubscription": {
+      "class": "client-refresh",
+      "reason": "subscription/(overview)/page.tsx:702 onSuccess -> globalThis.location.reload()"
+    },
+    "app/(dashboard)/settings/subscription/actions.ts::resumeSubscription": {
+      "class": "client-refresh",
+      "reason": "subscription/(overview)/page.tsx:447 globalThis.location.reload() on success"
+    },
+    "app/(public)/property-info/[token]/actions.ts::submitOwnerChecklistResponse": {
+      "class": "no-view",
+      "reason": "public one-shot token page; ChecklistInfoForm.tsx:106 setSubmitted(true) replaces the form, nothing renders the answers back to the submitter"
+    },
+    "app/(public)/property-info/[token]/actions.ts::submitPropertyInfo": {
+      "class": "no-view",
+      "reason": "public one-shot token page; PropertyInfoForm.tsx:181 setSubmitted(true) replaces the form, nothing renders the answers back to the submitter"
+    },
+    "app/(tenant)/tenant/maintenance/new/actions.ts::submitMaintenanceRequest": {
+      "class": "client-refresh",
+      "reason": "MaintenanceNewForm.tsx:110 router.push(\"/tenant/maintenance\") after success"
+    },
+    "lib/actions/billing.ts::getAiUsageCount": {
+      "class": "read",
+      "reason": "subscription/(overview)/page.tsx:57; count query on ai_usage only"
+    },
+    "lib/actions/billing.ts::getMessagingUsage": {
+      "class": "read",
+      "reason": "subscription/(overview)/page.tsx:90; select messaging_usage only"
+    },
+    "lib/actions/buildings.ts::fetchBuildingsForProperty": {
+      "class": "read",
+      "reason": "LogMaintenanceForm.tsx:287; select buildings only"
+    },
+    "lib/actions/companyContacts.ts::addCompanyPerson": {
+      "class": "client-refresh",
+      "reason": "CompanyPeopleSection.tsx:103 and SupplierPeople.tsx:54 onCreated -> router.refresh()"
+    },
+    "lib/actions/companyContacts.ts::removeCompanyPerson": {
+      "class": "client-refresh",
+      "reason": "CompanyPeopleSection.tsx:81 router.refresh() on ok"
+    },
+    "lib/actions/consent.ts::recordLeaseDisclaimerAcceptance": {
+      "class": "client-refresh",
+      "reason": "LeaseDisclaimerGate.tsx:82 setStatus(\"accepted\") local gate state"
+    },
+    "lib/actions/consent.ts::saveLeaseConsent": {
+      "class": "indirect",
+      "reason": "only caller lib/actions/leases.ts:227 createLease -> revalidatePath(\"/leases\") + redirect(/leases/id)"
+    },
+    "lib/actions/delivery-notice.ts::acknowledgeNotice": {
+      "class": "no-view",
+      "reason": "public notice page; NoticeAcknowledge.tsx:26 setDone(true), nothing renders the acknowledgement back to the recipient"
+    },
+    "lib/actions/delivery-notice.ts::recordNoticePageView": {
+      "class": "no-view",
+      "reason": "public/notice/[token]/page.tsx:99 void-called during render; writes view-log row only"
+    },
+    "lib/actions/documents.ts::getActiveCsWindow": {
+      "class": "read",
+      "reason": "DocumentEditorClient.tsx:271; select whatsapp_cs_windows only"
+    },
+    "lib/actions/documents.ts::getDocumentSignedUrl": {
+      "class": "read",
+      "reason": "PropertyDocumentsTab.tsx:174; storage createSignedUrl only"
+    },
+    "lib/actions/emailVerification.ts::getEmailVerificationState": {
+      "class": "read",
+      "reason": "dashboard/page.tsx:306; select user_profiles only"
+    },
+    "lib/actions/emailVerification.ts::sendEmailVerification": {
+      "class": "no-view",
+      "reason": "DashboardAlertsBell.tsx:77; supabase signInWithOtp sends verification email, no DB write"
+    },
+    "lib/actions/insurance.ts::createInsuranceChecklistOwnerRequest": {
+      "class": "indirect",
+      "reason": "createPropertyInfoRequest (lib/actions/propertyInfoRequests.ts) revalidatePath(/properties/{id}) lines 157,259"
+    },
+    "lib/actions/invite.ts::acceptInviteExistingUser": {
+      "class": "client-refresh",
+      "reason": "invite/[token]/page.tsx:114 redirectForRole(role, router) navigates after success"
+    },
+    "lib/actions/invite.ts::acceptInviteNewUser": {
+      "class": "client-refresh",
+      "reason": "invite/[token]/page.tsx:115 redirectForRole(role, router) navigates after success"
+    },
+    "lib/actions/leases.ts::ensureTenantForContact": {
+      "class": "client-refresh",
+      "reason": "TenantStep.tsx:170 rebuilds co-tenants from the returned tenantId; the /tenants list is react-query and refetches on its staleTime"
+    },
+    "lib/actions/leases.ts::releaseLeaseStart": {
+      "class": "no-view",
+      "reason": "NewLeaseRoute.tsx:29 fire-and-forget; clears a self-expiring creation marker, router.push(/leases) after"
+    },
+    "lib/actions/login.ts::signInWithPasswordAction": {
+      "class": "no-view",
+      "reason": "login/page.tsx:167; sets session cookie + login/auth events, page navigates after"
+    },
+    "lib/actions/maintenance.ts::fetchPropertyContactsAction": {
+      "class": "read",
+      "reason": "LogMaintenanceForm.tsx:286; select properties/landlords/contacts only"
+    },
+    "lib/actions/maintenance.ts::fetchTenantForUnit": {
+      "class": "read",
+      "reason": "LogMaintenanceForm.tsx:318; select leases/tenant_view only"
+    },
+    "lib/actions/maintenance.ts::fetchUnitsForProperty": {
+      "class": "read",
+      "reason": "LogMaintenanceForm.tsx:285; select units only"
+    },
+    "lib/actions/maintenance/insuranceDecision.ts::recordInsuranceDecision": {
+      "class": "client-refresh",
+      "reason": "CriticalIncidentWrapper.tsx:35 onDecisionRecorded -> router.refresh()"
+    },
+    "lib/actions/maintenance/notifyBroker.ts::notifyBroker": {
+      "class": "client-refresh",
+      "reason": "only caller recordInsuranceDecision; its UI caller CriticalIncidentWrapper.tsx:35 router.refresh(); writes notification log"
+    },
+    "lib/actions/maintenance/notifyOwner.ts::notifyOwner": {
+      "class": "client-refresh",
+      "reason": "only caller recordInsuranceDecision; its UI caller CriticalIncidentWrapper.tsx:35 router.refresh(); writes notification log"
+    },
+    "lib/actions/maintenance/notifyScheme.ts::notifyScheme": {
+      "class": "client-refresh",
+      "reason": "only caller recordInsuranceDecision; its UI caller CriticalIncidentWrapper.tsx:35 router.refresh(); writes notification log"
+    },
+    "lib/actions/notices.ts::getNoticeServiceState": {
+      "class": "read",
+      "reason": "DemandToVacatePicker.tsx:205; select notice_service_events only"
+    },
+    "lib/actions/notices.ts::issueDemandToVacate": {
+      "class": "client-refresh",
+      "reason": "DemandToVacatePicker.tsx:71 setIssued; IssuedPanel \"Back to lease\" is plain <a href> full-page load"
+    },
+    "lib/actions/notices.ts::previewDemandToVacate": {
+      "class": "read",
+      "reason": "DemandToVacatePicker.tsx:62; renders preview, gatherNoticeFacts reads only"
+    },
+    "lib/actions/notices.ts::recordPhysicalService": {
+      "class": "client-refresh",
+      "reason": "DemandToVacatePicker.tsx:215 await refresh() re-reads getNoticeServiceState into local state"
+    },
+    "lib/actions/notices.ts::waivePhysicalService": {
+      "class": "client-refresh",
+      "reason": "DemandToVacatePicker.tsx:221 await refresh() re-reads getNoticeServiceState into local state"
+    },
+    "lib/actions/orgBanking.ts::createOrgBankAccount": {
+      "class": "client-refresh",
+      "reason": "ComplianceSettingsClient.tsx:636 onSaved -> setAccounts([...prev, acct]) from return value"
+    },
+    "lib/actions/orgBanking.ts::getOrgBanking": {
+      "class": "read",
+      "reason": "settings/details/page.tsx:120 server-component select bank_accounts"
+    },
+    "lib/actions/orgBanking.ts::saveOrgBusinessAccount": {
+      "class": "client-refresh",
+      "reason": "EditOrgModal.tsx:181 onSaved -> OrgDetailsCards.tsx:150 router.refresh()"
+    },
+    "lib/actions/parties.ts::addContractorParty": {
+      "class": "client-refresh",
+      "reason": "SuppliersClient.tsx:471 invalidateQueries+router.refresh; QuickAddMenu.tsx:102 and OnboardingWizard.tsx:105 router.refresh"
+    },
+    "lib/actions/parties.ts::addLandlordParty": {
+      "class": "client-refresh",
+      "reason": "LandlordsPageClient.tsx:42 invalidate+router.refresh; QuickAddMenu:102, OnboardingWizard:105 refresh; PropertyWizardModal nonce refetch"
+    },
+    "lib/actions/parties.ts::addTenantParty": {
+      "class": "client-refresh",
+      "reason": "TenantsPageClient.tsx:48 invalidate+router.refresh; TenantPicker.tsx:188 invalidate; LeaseWizardModal nonce refetch; QuickAdd refresh"
+    },
+    "lib/actions/parties.ts::fetchAgentContactParty": {
+      "class": "read",
+      "reason": "settings/profile/page.tsx:50 and apply/[slug]/page.tsx:239 server-component selects"
+    },
+    "lib/actions/parties.ts::fetchContractorParty": {
+      "class": "read",
+      "reason": "SuppliersClient.tsx:430 select contractor_view/contacts only"
+    },
+    "lib/actions/parties.ts::fetchLandlordParty": {
+      "class": "read",
+      "reason": "LandlordsClient.tsx:433 select landlord_view/contacts only"
+    },
+    "lib/actions/parties.ts::fetchTenantParty": {
+      "class": "read",
+      "reason": "TenantsClient.tsx:396 select tenant_view/contacts only"
+    },
+    "lib/actions/parties.ts::updateAgentContactParty": {
+      "class": "client-refresh",
+      "reason": "EditProfileModal.tsx:69 onSaved -> MyProfileCards.tsx:100 router.refresh()"
+    },
+    "lib/actions/parties.ts::updateContractorParty": {
+      "class": "client-refresh",
+      "reason": "SuppliersClient.tsx:431 invalidateQueries+router.refresh; SupplierDetailActions.tsx:90 router.refresh"
+    },
+    "lib/actions/parties.ts::updateLandlordParty": {
+      "class": "client-refresh",
+      "reason": "LandlordsClient.tsx:434 invalidateQueries + router.refresh()"
+    },
+    "lib/actions/parties.ts::updateTenantParty": {
+      "class": "client-refresh",
+      "reason": "TenantsClient.tsx:397 invalidateQueries + router.refresh()"
+    },
+    "lib/actions/partyArchive.ts::fetchArchivedLandlords": {
+      "class": "read",
+      "reason": "LandlordsClient.tsx:138; fetchArchived() select only"
+    },
+    "lib/actions/partyArchive.ts::fetchArchivedTenants": {
+      "class": "read",
+      "reason": "TenantsClient.tsx:124; fetchArchived() select only"
+    },
+    "lib/actions/passwordReset.ts::requestPasswordReset": {
+      "class": "no-view",
+      "reason": "forgot-password/page.tsx:32; supabase resetPasswordForEmail sends email, no rendered state"
+    },
+    "lib/actions/portal-comms.ts::recordPortalView": {
+      "class": "no-view",
+      "reason": "tenant/communications/[id]/page.tsx:78 void-called during render; portal_view log insert only"
+    },
+    "lib/actions/recon.ts::syncYodleeTransactions": {
+      "class": "client-refresh",
+      "reason": "callers api/bank-feed/sync + cron; BankFeedSection.tsx:143 setConnections, reconciliation/page.tsx:134 loadImports()"
+    },
+    "lib/actions/selfLandlord.ts::getSelfLandlordPrefill": {
+      "class": "read",
+      "reason": "OnboardingWizard.tsx:112; reads user_profiles + auth user only"
+    },
+    "lib/actions/signatures.ts::checkTokenConsumed": {
+      "class": "read",
+      "reason": "SignatureSettings.tsx:284 3s poll; select signature_sign_tokens only"
+    },
+    "lib/actions/signatures.ts::createSignatureToken": {
+      "class": "no-view",
+      "reason": "SignatureSettings.tsx:267; inserts QR sign token used only by the phone, returned token rendered as QR from state"
+    },
+    "lib/actions/signatures.ts::removeSignature": {
+      "class": "client-refresh",
+      "reason": "SignatureSettings.tsx:404 router.refresh() on success"
+    },
+    "lib/actions/signatures.ts::saveSignatureDataUrl": {
+      "class": "client-refresh",
+      "reason": "SignatureSettings.tsx:374 onSaved -> router.refresh()"
+    },
+    "lib/actions/signatures.ts::saveSignatureFile": {
+      "class": "client-refresh",
+      "reason": "SignatureSettings.tsx:374 onSaved -> router.refresh()"
+    },
+    "lib/actions/signatures.ts::saveSignatureFromMobile": {
+      "class": "client-refresh",
+      "reason": "SignaturePadCapture.tsx:105 setSaved(true); desktop QrCapture poll then router.refresh() at SignatureSettings:374"
+    },
+    "lib/actions/submitContactForm.ts::submitContactForm": {
+      "class": "no-view",
+      "reason": "ContactForm.tsx:51 setSubmitted; inserts public contact inquiry read only by staff"
+    },
+    "lib/actions/supplierArchive.ts::fetchArchivedSuppliers": {
+      "class": "read",
+      "reason": "SuppliersClient.tsx:141; select contractors only"
+    },
+    "lib/actions/supplierArchive.ts::reactivateSupplier": {
+      "class": "client-refresh",
+      "reason": "SuppliersClient.tsx:149 setArchived filter + invalidateQueries + router.refresh()"
+    },
+    "lib/actions/supplierQuote.ts::submitSupplierQuote": {
+      "class": "client-refresh",
+      "reason": "supplier/jobs/[requestId]/quote/page.tsx:78 router.push(/supplier/jobs/{id}) on success"
+    },
+    "lib/actions/teamMembers.ts::getMemberEmails": {
+      "class": "read",
+      "reason": "TeamSettingsClient.tsx:558; user_orgs select + auth.admin.getUserById"
+    },
+    "lib/actions/welcome.ts::markWelcomeSeen": {
+      "class": "client-refresh",
+      "reason": "WelcomeClient.tsx:104 hardNavigate(/auth/resolver) full-page load after await"
+    },
+    "lib/applications/buildEmailContext.ts::buildEmailContext": {
+      "class": "read",
+      "reason": "called from routes/crons/actions as a helper; selects only (applications, organisations, user_orgs, tokens)"
+    },
+    "lib/applications/commercial.ts::resendDirectorInvite": {
+      "class": "no-view",
+      "reason": "ResendInviteButton.tsx:36 button state only; rotates invite token + sends email to director"
+    },
+    "lib/applications/createTenantFromApplication.ts::createTenantFromApplication": {
+      "class": "client-refresh",
+      "reason": "ApplicationActions.tsx:88 followed by approveAction then router.push(/leases/new) at :104"
+    },
+    "lib/applications/createTenantFromCoApplicant.ts::createTenantFromCoApplicant": {
+      "class": "no-view",
+      "reason": "only caller api/applications/[id]/link-account route (applicant JSON); no agent view in caller session"
+    },
+    "lib/auth/capabilityActions.ts::fetchMyCapabilities": {
+      "class": "read",
+      "reason": "CapabilitiesProvider.tsx:22; getMyCapabilities lookup"
+    },
+    "lib/auth/orgRoles.ts::assignableRoleSlugs": {
+      "class": "read",
+      "reason": "api/team/invite + api/team/member routes; select org_roles"
+    },
+    "lib/auth/orgRoles.ts::capabilitiesForRole": {
+      "class": "read",
+      "reason": "no external caller; select org_roles only"
+    },
+    "lib/auth/orgRoles.ts::deleteOrgRole": {
+      "class": "client-refresh",
+      "reason": "RolesManager.tsx:123 router.refresh()"
+    },
+    "lib/auth/orgRoles.ts::getOrgRoles": {
+      "class": "read",
+      "reason": "TeamSettingsClient.tsx:534, RolesTab.tsx:19; buildOrgRoles select"
+    },
+    "lib/auth/orgRoles.ts::listAssignableRoles": {
+      "class": "read",
+      "reason": "TeamInviteButton.tsx:27; tier + roles lookup"
+    },
+    "lib/auth/orgRoles.ts::saveOrgRole": {
+      "class": "client-refresh",
+      "reason": "RolesManager.tsx:113 router.refresh()"
+    },
+    "lib/contractors/sendPortalInvite.ts::sendPortalInvite": {
+      "class": "internal",
+      "reason": "only caller api/suppliers/[id]/portal-invite; ContractorPortalSection.tsx:40 sets its status from the response"
+    },
+    "lib/deposits/calculateReturn.ts::calculateDepositReturn": {
+      "class": "client-refresh",
+      "reason": "DepositActions.tsx:42 router.refresh() after await"
+    },
+    "lib/deposits/disburse.ts::disburseDeposit": {
+      "class": "client-refresh",
+      "reason": "DepositActions.tsx:72 router.refresh() after await"
+    },
+    "lib/dev/devRole.ts::devSetRole": {
+      "class": "client-refresh",
+      "reason": "DevTierToggle.tsx:73 globalThis.location.reload() (dev toggle)"
+    },
+    "lib/dev/devSubStatus.ts::devSetSubStatus": {
+      "class": "client-refresh",
+      "reason": "DevTierToggle.tsx:82 globalThis.location.reload() (dev toggle)"
+    },
+    "lib/dev/devTier.ts::devSetTier": {
+      "class": "client-refresh",
+      "reason": "DevTierToggle.tsx:64 globalThis.location.reload() (dev toggle)"
+    },
+    "lib/hoa/levyCalculation.ts::calculateLevyAmounts": {
+      "class": "internal",
+      "reason": "only caller api/hoa/.../calculate route; LevyScheduleManager.tsx:139 renders the route's JSON response"
+    },
+    "lib/insurance-checklist/sendBrokerBrief.ts::sendBrokerBrief": {
+      "class": "no-view",
+      "reason": "InsuranceChecklist.tsx:332 toast only; emails broker + incident_notifications insert, not rendered"
+    },
+    "lib/portal/inviteLandlord.ts::inviteLandlord": {
+      "class": "internal",
+      "reason": "callers: the inviteLandlordPortal wrapper (revalidates) and api/landlords/[id]/portal-invite (LandlordPortalSection.tsx:43 setStatus) own freshness"
+    },
+    "lib/portal/inviteTenant.ts::issueTenantPortalLinkForHandover": {
+      "class": "uncalled",
+      "reason": "no caller outside lib/portal/__tests__/no-session-credential-leak.test.ts"
+    },
+    "lib/portal/inviteTenant.ts::sendTenantPortalLink": {
+      "class": "no-view",
+      "reason": "LeasePortalActions.tsx:63 toast only; inserts tenant_portal_tokens + emails link, nothing rendered reads it"
+    },
+    "lib/queries/portfolioActions.ts::fetchContractorsAction": {
+      "class": "read",
+      "reason": "SuppliersPageClient.tsx:38; fetchContractors select"
+    },
+    "lib/queries/portfolioActions.ts::fetchInspectionsAction": {
+      "class": "read",
+      "reason": "InspectionsPageClient.tsx:107; fetchInspections select"
+    },
+    "lib/queries/portfolioActions.ts::fetchLandlordsAction": {
+      "class": "read",
+      "reason": "LandlordsPageClient.tsx:33; fetchLandlords select"
+    },
+    "lib/queries/portfolioActions.ts::fetchLeasesAction": {
+      "class": "read",
+      "reason": "LeasesPageClient.tsx:74, PortfolioPrefetcher.tsx:21; fetchLeases select"
+    },
+    "lib/queries/portfolioActions.ts::fetchMaintenanceAction": {
+      "class": "read",
+      "reason": "MaintenancePageClient.tsx:37; fetchMaintenance select"
+    },
+    "lib/queries/portfolioActions.ts::fetchPaymentsAction": {
+      "class": "read",
+      "reason": "BillingPageClient.tsx:47; fetchPayments select"
+    },
+    "lib/queries/portfolioActions.ts::fetchTenantsAction": {
+      "class": "read",
+      "reason": "TenantsPageClient.tsx:39, PortfolioPrefetcher.tsx:20; fetchTenants select"
+    },
+    "lib/screening/sendCreditReport.ts::sendCreditReportToApplicant": {
+      "class": "no-view",
+      "reason": "only caller api/webhooks/searchworx/route.ts:79; emails report + comms log, webhook context"
+    },
+    "lib/settings/uiState.ts::getSettingsUiState": {
+      "class": "read",
+      "reason": "settings/(overview)/page.tsx:23; select settings_ui_state only"
+    },
+    "lib/settings/uiState.ts::recordSettingsVisit": {
+      "class": "no-view",
+      "reason": "SettingsUsageRecorder.tsx:16 best-effort visit telemetry upsert, fire-and-forget"
+    },
+    "lib/statements/generateOwnerStatement.ts::generateOwnerStatement": {
+      "class": "no-view",
+      "reason": "only caller api/cron/owner-statement-gen/route.ts:61; cron inserts statement rows"
+    },
+    "lib/trial/startTrial.ts::startTrial": {
+      "class": "client-refresh",
+      "reason": "reached only via admin wrapper; AdminOrgActions.tsx:60 router.refresh() on success"
+    },
+    "lib/trust/close.ts::closeTrustPeriod": {
+      "class": "client-refresh",
+      "reason": "trust-ledger/close/page.tsx:177 router.push(/finance/trust-ledger/audit/{periodId}) on success"
+    },
+    "lib/work/assignees.ts::listOrgAgents": {
+      "class": "read",
+      "reason": "TeamsTab.tsx:49, AssigneePicker.tsx:40; user_orgs select"
+    },
+    "lib/work/assignees.ts::reassignWorkItem": {
+      "class": "client-refresh",
+      "reason": "AssigneePicker.tsx:51 router.refresh() on success"
+    },
+    "lib/work/myPortfolio.ts::getMyPortfolio": {
+      "class": "read",
+      "reason": "hooks/useMyPortfolio.ts:18; selects only"
+    },
+    "lib/work/reassign.ts::bulkReassignAgent": {
+      "class": "client-refresh",
+      "reason": "ReassignBeforeArchiveModal.tsx:37 onReassigned -> handleRemove -> loadMembers() (TeamSettingsClient.tsx:803)"
+    },
+    "lib/work/reassign.ts::getAgentWorkload": {
+      "class": "read",
+      "reason": "TeamSettingsClient.tsx:609; head count selects only"
+    },
+    "lib/work/reassign.ts::getPropertyHandoverCount": {
+      "class": "read",
+      "reason": "AgentPicker.tsx:86; head count selects only"
+    },
+    "lib/work/reassign.ts::movePropertyItems": {
+      "class": "client-refresh",
+      "reason": "AgentPicker.tsx:101 router.refresh() on success"
+    },
+    "lib/work/teams.ts::addTeamMember": {
+      "class": "client-refresh",
+      "reason": "TeamsTab.tsx:274 run() -> invalidates [\"teams\"] query"
+    },
+    "lib/work/teams.ts::archiveTeam": {
+      "class": "client-refresh",
+      "reason": "TeamsTab.tsx:99 refresh() -> qc.invalidateQueries([\"teams\"])"
+    },
+    "lib/work/teams.ts::createTeam": {
+      "class": "client-refresh",
+      "reason": "TeamsTab.tsx:88 refresh() -> qc.invalidateQueries([\"teams\"])"
+    },
+    "lib/work/teams.ts::getMyTeams": {
+      "class": "read",
+      "reason": "hooks/useMyTeams.ts:17; selects only"
+    },
+    "lib/work/teams.ts::listTeamOptions": {
+      "class": "read",
+      "reason": "AgentPicker.tsx:61, AssigneePicker.tsx:41; teams select"
+    },
+    "lib/work/teams.ts::listTeams": {
+      "class": "read",
+      "reason": "TeamsTab.tsx:48; teams/team_members/profiles selects"
+    },
+    "lib/work/teams.ts::removeTeamMember": {
+      "class": "client-refresh",
+      "reason": "TeamsTab.tsx:262 run() -> invalidates [\"teams\"] query"
+    },
+    "lib/work/teams.ts::updateTeam": {
+      "class": "client-refresh",
+      "reason": "TeamsTab.tsx:301 run() -> invalidates [\"teams\"] query"
+    }
+  }
+}

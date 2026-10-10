@@ -207,6 +207,7 @@ export async function setWhatsAppTone(
     )
 
   if (error) return { error: error.message }
+  revalidatePath("/settings/templates")
   return {}
 }
 

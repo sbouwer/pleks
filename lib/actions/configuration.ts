@@ -11,6 +11,7 @@
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { isOrgLeaseSourceDefault, type OrgLeaseSourceDefault } from "@/lib/leases/leaseSource"
+import { revalidatePath } from "next/cache"
 
 export type LeaseDocumentSource = OrgLeaseSourceDefault
 
@@ -35,6 +36,7 @@ export async function setDefaultLeaseDocumentSource(
     console.error("setDefaultLeaseDocumentSource:", error.message)
     return { error: "Could not save your lease default" }
   }
+  revalidatePath("/settings/lease-templates")
   return {}
 }
 
@@ -73,5 +75,7 @@ export async function saveOrgConfiguration(formData: FormData): Promise<{ error?
     console.error("saveOrgConfiguration:", error.message)
     return { error: "Could not save configuration" }
   }
+  revalidatePath("/settings/configuration")
+  revalidatePath("/settings/details")
   return {}
 }

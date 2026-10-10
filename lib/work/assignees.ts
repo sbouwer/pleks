@@ -12,6 +12,7 @@
 import { gateway } from "@/lib/supabase/gateway"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { revalidatePath } from "next/cache"
 
 export interface OrgAgent { userId: string; name: string }
 
@@ -96,5 +97,7 @@ export async function setPropertyManager(
     before: { managing_agent_id: prev?.managing_agent_id ?? null, managing_team_id: prev?.managing_team_id ?? null },
     after: { managing_agent_id: agentUserId, managing_team_id: teamId },
   })
+  // AgentPicker's sole-member auto-assign runs in an effect with no refresh of its own (.handoff/check-action-freshness/01-census.md).
+  revalidatePath(`/properties/${propertyId}`)
   return { ok: true }
 }

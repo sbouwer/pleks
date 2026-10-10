@@ -7,6 +7,7 @@
  * Data:   maintenance_requests, maintenance_delay_events
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { revalidatePath } from "next/cache"
 
 interface RecordDelayPayload {
   requestId: string
@@ -72,5 +73,6 @@ export async function recordMaintenanceDelay(payload: RecordDelayPayload) {
     return { error: "Could not record delay. Please try again." }
   }
 
+  revalidatePath(`/maintenance/${payload.requestId}`)
   return { success: true, event }
 }
