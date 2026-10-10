@@ -1,10 +1,8 @@
-"use server"
-
 /**
  * lib/screening/sendCreditReport.ts — email the completed credit/FitScore report to an applicant, once per application
  *
  * Data:   reads communication_log (dedup on template_key + entity_id) and the application email context; dispatches via sendCreditReportDelivered; service client.
- * Notes:  "use server" module; no-ops if a report was already sent for the application.
+ * Notes:  plain server fn with no gate (only the searchworx webhook calls it), so NOT "use server"; no-ops if a report was already sent for the application.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"

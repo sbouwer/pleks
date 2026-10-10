@@ -1,5 +1,3 @@
-"use server"
-
 /**
  * lib/actions/maintenance/notifyBroker.ts — notify the property's insurance broker of a critical incident
  *

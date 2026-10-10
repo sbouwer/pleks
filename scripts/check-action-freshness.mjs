@@ -232,9 +232,10 @@ function main() {
 
   const actions = files.flatMap((f) => actionsOf(f, readFileSync(f, "utf8")).map((a) => ({ ...a, key: `${f}::${a.name}` })))
 
-  // The enumeration asserts itself (L-10): a scan that finds nothing reports a clean tree. Measured 247 / 97
-  // on 2026-10-10; the floors sit just under so a lost module or a handful of lost actions is seen (walker F7).
-  const FLOOR = { actions: 240, modules: 95 }
+  // The enumeration asserts itself (L-10): a scan that finds nothing reports a clean tree. Measured 233 / 86
+  // on 2026-10-10, after fourteen ungated lib exports stopped being actions; the floors sit just under so a
+  // lost module or a handful of lost actions is seen (walker F7).
+  const FLOOR = { actions: 230, modules: 84 }
   const modules = new Set(actions.map((a) => a.key.split("::")[0])).size
   if (actions.length < FLOOR.actions || modules < FLOOR.modules) {
     console.error(`\n❌ action freshness — found ${actions.length} actions in ${modules} modules (floors ${FLOOR.actions} / ${FLOOR.modules}).`)

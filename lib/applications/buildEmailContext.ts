@@ -1,8 +1,7 @@
-"use server"
-
 /**
  * Fetches all data needed to send emails about an application.
- * Used by server actions and API routes — never call from client components.
+ * Used by server actions and API routes — never call from client components. NOT "use server": it has no gate
+ * and returns applicant PII and live application tokens for any application id.
  */
 
 import { createServiceClient } from "@/lib/supabase/server"

@@ -10,7 +10,6 @@
  * Notes:  Enforcement (can()) consumes capabilitiesForRole; gating real pages/actions is a later phase.
  */
 import { gateway } from "@/lib/supabase/gateway"
-import { createServiceClient } from "@/lib/supabase/server"
 import { recordAudit } from "@/lib/audit/recordAudit"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { allowedRoleSlugs, canAddCustomRoles } from "./roleTiers"
@@ -96,29 +95,6 @@ export async function listAssignableRoles(): Promise<{ slug: string; label: stri
     .filter((r) => r.enabled)
     .filter((r) => !r.isSystem || allowed === "all" || allowed.has(r.slug))
     .map((r) => ({ slug: r.slug, label: r.label, group: r.group }))
-}
-
-/** Server-side allowlist of assignable role slugs for an org (service client; for the invite/member APIs
- *  which authenticate via getMembership, not gateway). Built-ins gated by tier + enabled; customs if enabled. */
-export async function assignableRoleSlugs(orgId: string): Promise<Set<string>> {
-  const tier = await getOrgTierCanonical(orgId)
-  const allowed = allowedRoleSlugs(tier)
-  const service = await createServiceClient()
-  const { data, error } = await service.from("org_roles").select("slug, is_system, enabled").eq("org_id", orgId)
-  if (error) console.error("assignableRoleSlugs:", error.message)
-  const rows = (data ?? []) as { slug: string; is_system: boolean; enabled: boolean }[]
-  const overrides = new Map(rows.map((r) => [r.slug, r]))
-  const set = new Set<string>()
-  for (const b of BUILTIN_ROLES) {
-    if (allowed !== "all" && !allowed.has(b.slug)) continue
-    if (overrides.get(b.slug)?.enabled === false) continue
-    set.add(b.slug)
-  }
-  for (const r of rows) {
-    if (BUILTIN_ROLE_BY_SLUG[r.slug] || r.is_system) continue
-    if (r.enabled) set.add(r.slug)
-  }
-  return set
 }
 
 /**

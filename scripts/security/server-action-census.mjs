@@ -41,46 +41,36 @@ export const ACTION_ALLOWLIST = {
   // Applicant / token flow — token possession is the credential.
   "app/(public)/property-info/[token]/actions.ts::*": "public: property-info token is the credential",
   "lib/applications/commercial.ts::*": "public: applicant commercial flow (token-gated upstream)",
-  "lib/applications/createTenantFromCoApplicant.ts::*": "internal: called by gated co-applicant save",
-  "lib/applications/buildEmailContext.ts::*": "internal: pure email-context builder, no data mutation",
-  "lib/applications/commercial-emails.tsx::*": "internal: email template builders (no auth surface)",
   // Contractor / portal invite senders — token/portal flows.
-  "lib/contractors/sendPortalInvite.ts::*": "internal: gated supplier portal-invite route; client imports the route, not this lib fn (caller-verified 2026-07-03). Service client + orgId-scoped read.",
-  "lib/portal/inviteLandlord.ts::*": "internal: gated portal-invite route + requireAgentWriteAccess wrapper; client imports the wrapper, not this lib fn (caller-verified 2026-07-03). Service client + orgId-scoped read.",
   "lib/actions/supplierQuote.ts::*": "public: contractor work-order token is the credential",
-  "lib/actions/invite.ts::*": "internal: called by gated team/portal invite actions",
-  "lib/actions/delivery-notice.ts::*": "internal: called by gated arrears/lease actions",
+  "lib/actions/invite.ts::*": "public: token-gated invite acceptance (unguessable token, expiry, accepted_at; the existing-user path also needs a session with a matching email); org and role come from the invite row",
+  "lib/actions/delivery-notice.ts::*": "public: token-gated — acknowledgeNotice looks up the unguessable token and checks expiry; org and comm-log derive from the token row",
   "lib/actions/welcome.ts::*": "internal: resolver-owned welcome, called post-auth",
   // Email / notification builders — invoked by gated callers or crons; no data surface of their own.
-  "lib/actions/maintenance/notifyBroker.ts::*": "internal: notification builder, gated caller",
-  "lib/actions/maintenance/notifyOwner.ts::*": "internal: notification builder, gated caller",
-  "lib/actions/maintenance/notifyScheme.ts::*": "internal: notification builder, gated caller",
-  "lib/statements/generateOwnerStatement.ts::*": "internal: called by gated statement action + cron",
   // Deposit pure computation — no DB mutation; called by gated deposit actions.
   "lib/deposits/calculateReturn.ts::*": "intentional gateway()-on-write: calculateDepositReturn self-gates with gateway() (auth + orgId), org-scopes the lease read + every query, and upserts the deposit_reconciliation draft under the caller's orgId. Lockdown-free BY DESIGN like disburse — computing a deposit return is a statutory RHA obligation, must work when paused (caller-ID census 2026-07-06; the old 'pure calculation, no mutation' reason was wrong — it upserts, and was previously ungated + cross-org).",
-  "lib/deposits/buildDeductionSchedule.ts::*": "internal: pure calculation, no mutation",
-  "lib/deposits/generateJustification.ts::*": "internal: AI justification builder, gated caller",
   "lib/deposits/disburse.ts::*": "intentional gateway()-on-write: disburseDeposit self-gates with gateway() (auth + orgId scope + session userId), lockdown-free BY DESIGN — returning a tenant's deposit is a statutory RHA obligation-closeout, NOT net-new value creation, so it must work when paused/cancelled ('Your Data, Always'). Every query org-scoped (caller-ID census hotfix 2026-07-06 — was previously ungated + cross-org + attribution-forgeable; the old 'called by a gated caller' reason was wrong and masked the hole).",
   // Screening internals — called by gated screen route / cron.
-  "lib/screening/bankStatementClassification.ts::*": "internal: called by gated screen path + cron",
-  "lib/screening/recordDecision.ts::*": "internal: called by gated shortlist action",
-  "lib/screening/sendCreditReport.ts::*": "internal: sender called by gated screen path + cron",
-  "lib/screening/sendShortlistInvitation.ts::*": "internal: sender called by gated shortlist action + cron",
   // Injectable cores — receive an authed client + orgId from a gated caller (non-serializable
   // client param means they can't be meaningfully invoked directly as an RPC).
-  "lib/hoa/levyCalculation.ts::*": "internal: gated /calculate route (pre-verifies schedule org); creates a service client, org from the verified schedule; not client-imported (caller-verified 2026-07-03)",
   // Caller-supplied-ID / cookie-client census REVIEW trio — now ALL resolved (CD 2026-07-02..03).
   // Of the original 6 "guilty until read" items: quoteApproval + handleDispute were live IDOR/doctrine
   // violations (DELETED as dead code), convertTrial was dead (DELETED), and the two below are
   // caller-verified. No REVIEW items remain — the allowlist is provably clean.
-  "lib/trial/startTrial.ts::*": "internal: reached only via the requireAdminAuth wrapper in adminOrgActions.server.ts; client imports the wrapper, not this lib fn (caller-verified 2026-07-03). Service client, orgId-scoped.",
   "lib/auth/capabilityActions.ts::*": "internal: no-param, self-scoped read of the caller's OWN capabilities via gateway()-authed getMyCapabilities (service db, .eq user_id + org_id from session); no caller-supplied id, no mutation. Affordance-only hydration — server can()/RLS is the boundary. Sole caller: CapabilitiesProvider (client). Caller-verified 2026-07-03.",
 }
 
 /** Detect a top-level `"use server"` directive (module-scope, before imports). */
+/** Next's rule: "use server" must be the module's first statement — comments and blank lines may precede it,
+ *  however many. A fixed 12-line window missed two real action modules whose headers ran past it (walker F2). */
 function isServerActionModule(src) {
-  const head = src.split("\n").slice(0, 12).join("\n")
-  return /(^|\n)\s*["']use server["']\s*;?\s*(\n|$)/.test(head)
+  let s = src.replace(/^﻿/, "")
+  for (;;) {
+    const t = s.trimStart()
+    if (t.startsWith("//")) { const nl = t.indexOf("\n"); s = nl < 0 ? "" : t.slice(nl + 1) }
+    else if (t.startsWith("/*")) { const end = t.indexOf("*/"); s = end < 0 ? "" : t.slice(end + 2) }
+    else return /^["']use server["']\s*;?\s*(\n|$)/.test(t)
+  }
 }
 
 /** Strip comments so doc mentions of gate names don't count as calls. */

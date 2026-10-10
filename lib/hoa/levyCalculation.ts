@@ -1,11 +1,10 @@
-"use server"
-
 /**
  * lib/hoa/levyCalculation.ts — compute + persist per-unit levy amounts for a levy schedule
  *
  * Auth:   internal — called only by the gated /calculate route (requireAgentWriteAccess, and it
  *         pre-verifies the schedule belongs to the caller's org before invoking). Creates a service
- *         client for the writes; org is derived from the pre-verified schedule row. Not a client action.
+ *         client for the writes; org is derived from the pre-verified schedule row. NOT a "use server" module:
+ *         it has no gate or org scope of its own, and every export of one is a callable action endpoint.
  * Data:   levy_schedules + hoa_unit_owners (read), levy_unit_amounts (upsert) — all org-consistent via
  *         the schedule's org_id / hoa_id.
  */

@@ -1,10 +1,8 @@
-"use server"
-
 /**
  * lib/trial/startTrial.ts — start a 14-day trial for an org (admin-initiated)
  *
  * Auth:   internal — reached ONLY via the requireAdminAuth() wrapper in adminOrgActions.server.ts
- *         (the client imports that wrapper, never this lib fn), so it is not a client-callable action.
+ *         (the client imports that wrapper); NOT "use server", so this raw fn is not an endpoint.
  * Data:   subscriptions (read + update, org-scoped by the caller-supplied orgId), audit_log. Service client.
  * Notes:  Caller-verified gated (#124 census). orgId is supplied by the admin acting on the target org.
  */

@@ -101,17 +101,9 @@
       "class": "client-refresh",
       "reason": "LeaseDisclaimerGate.tsx:82 setStatus(\"accepted\") local gate state"
     },
-    "lib/actions/consent.ts::saveLeaseConsent": {
-      "class": "indirect",
-      "reason": "only caller lib/actions/leases.ts:227 createLease -> revalidatePath(\"/leases\") + redirect(/leases/id)"
-    },
     "lib/actions/delivery-notice.ts::acknowledgeNotice": {
       "class": "no-view",
       "reason": "public notice page; NoticeAcknowledge.tsx:26 setDone(true), nothing renders the acknowledgement back to the recipient"
-    },
-    "lib/actions/delivery-notice.ts::recordNoticePageView": {
-      "class": "no-view",
-      "reason": "public/notice/[token]/page.tsx:99 void-called during render; writes view-log row only"
     },
     "lib/actions/documents.ts::getActiveCsWindow": {
       "class": "read",
@@ -168,18 +160,6 @@
     "lib/actions/maintenance/insuranceDecision.ts::recordInsuranceDecision": {
       "class": "client-refresh",
       "reason": "CriticalIncidentWrapper.tsx:35 onDecisionRecorded -> router.refresh()"
-    },
-    "lib/actions/maintenance/notifyBroker.ts::notifyBroker": {
-      "class": "client-refresh",
-      "reason": "only caller recordInsuranceDecision; its UI caller CriticalIncidentWrapper.tsx:35 router.refresh(); writes notification log"
-    },
-    "lib/actions/maintenance/notifyOwner.ts::notifyOwner": {
-      "class": "client-refresh",
-      "reason": "only caller recordInsuranceDecision; its UI caller CriticalIncidentWrapper.tsx:35 router.refresh(); writes notification log"
-    },
-    "lib/actions/maintenance/notifyScheme.ts::notifyScheme": {
-      "class": "client-refresh",
-      "reason": "only caller recordInsuranceDecision; its UI caller CriticalIncidentWrapper.tsx:35 router.refresh(); writes notification log"
     },
     "lib/actions/notices.ts::getNoticeServiceState": {
       "class": "read",
@@ -329,10 +309,6 @@
       "class": "client-refresh",
       "reason": "WelcomeClient.tsx:104 hardNavigate(/auth/resolver) full-page load after await"
     },
-    "lib/applications/buildEmailContext.ts::buildEmailContext": {
-      "class": "read",
-      "reason": "called from routes/crons/actions as a helper; selects only (applications, organisations, user_orgs, tokens)"
-    },
     "lib/applications/commercial.ts::resendDirectorInvite": {
       "class": "no-view",
       "reason": "ResendInviteButton.tsx:36 button state only; rotates invite token + sends email to director"
@@ -341,17 +317,9 @@
       "class": "client-refresh",
       "reason": "ApplicationActions.tsx:88 followed by approveAction then router.push(/leases/new) at :104"
     },
-    "lib/applications/createTenantFromCoApplicant.ts::createTenantFromCoApplicant": {
-      "class": "no-view",
-      "reason": "only caller api/applications/[id]/link-account route (applicant JSON); no agent view in caller session"
-    },
     "lib/auth/capabilityActions.ts::fetchMyCapabilities": {
       "class": "read",
       "reason": "CapabilitiesProvider.tsx:22; getMyCapabilities lookup"
-    },
-    "lib/auth/orgRoles.ts::assignableRoleSlugs": {
-      "class": "read",
-      "reason": "api/team/invite + api/team/member routes; select org_roles"
     },
     "lib/auth/orgRoles.ts::capabilitiesForRole": {
       "class": "read",
@@ -373,10 +341,6 @@
       "class": "client-refresh",
       "reason": "RolesManager.tsx:113 router.refresh()"
     },
-    "lib/contractors/sendPortalInvite.ts::sendPortalInvite": {
-      "class": "internal",
-      "reason": "only caller api/suppliers/[id]/portal-invite; ContractorPortalSection.tsx:40 sets its status from the response"
-    },
     "lib/deposits/calculateReturn.ts::calculateDepositReturn": {
       "class": "client-refresh",
       "reason": "DepositActions.tsx:42 router.refresh() after await"
@@ -397,17 +361,9 @@
       "class": "client-refresh",
       "reason": "DevTierToggle.tsx:64 globalThis.location.reload() (dev toggle)"
     },
-    "lib/hoa/levyCalculation.ts::calculateLevyAmounts": {
-      "class": "internal",
-      "reason": "only caller api/hoa/.../calculate route; LevyScheduleManager.tsx:139 renders the route's JSON response"
-    },
     "lib/insurance-checklist/sendBrokerBrief.ts::sendBrokerBrief": {
       "class": "no-view",
       "reason": "InsuranceChecklist.tsx:332 toast only; emails broker + incident_notifications insert, not rendered"
-    },
-    "lib/portal/inviteLandlord.ts::inviteLandlord": {
-      "class": "internal",
-      "reason": "callers: the inviteLandlordPortal wrapper (revalidates) and api/landlords/[id]/portal-invite (LandlordPortalSection.tsx:43 setStatus) own freshness"
     },
     "lib/portal/inviteTenant.ts::issueTenantPortalLinkForHandover": {
       "class": "uncalled",
@@ -445,10 +401,6 @@
       "class": "read",
       "reason": "TenantsPageClient.tsx:39, PortfolioPrefetcher.tsx:20; fetchTenants select"
     },
-    "lib/screening/sendCreditReport.ts::sendCreditReportToApplicant": {
-      "class": "no-view",
-      "reason": "only caller api/webhooks/searchworx/route.ts:79; emails report + comms log, webhook context"
-    },
     "lib/settings/uiState.ts::getSettingsUiState": {
       "class": "read",
       "reason": "settings/(overview)/page.tsx:23; select settings_ui_state only"
@@ -456,14 +408,6 @@
     "lib/settings/uiState.ts::recordSettingsVisit": {
       "class": "no-view",
       "reason": "SettingsUsageRecorder.tsx:16 best-effort visit telemetry upsert, fire-and-forget"
-    },
-    "lib/statements/generateOwnerStatement.ts::generateOwnerStatement": {
-      "class": "no-view",
-      "reason": "only caller api/cron/owner-statement-gen/route.ts:61; cron inserts statement rows"
-    },
-    "lib/trial/startTrial.ts::startTrial": {
-      "class": "client-refresh",
-      "reason": "reached only via admin wrapper; AdminOrgActions.tsx:60 router.refresh() on success"
     },
     "lib/trust/close.ts::closeTrustPeriod": {
       "class": "client-refresh",
