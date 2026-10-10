@@ -371,7 +371,7 @@ function checkCookieReadability() {
 // A key is a PREFIX (proxy.ts matches `/apply` for `/apply/[slug]/…`), so it must name at least one route
 // URL equal to it or beneath it.
 const ROUTE_FILES = new Set(["page.tsx", "page.ts", "route.ts", "route.tsx"])
-const MANIFEST_KEY_FLOOR = 30
+const MANIFEST_KEY_FLOOR = 50  // 54 keys at 2026-10-10; close to the count, so a lost shape trips it
 
 function routeUrlsOnDisk() {
   const urls = []
@@ -390,7 +390,14 @@ function routeUrlsOnDisk() {
 
 function checkRouteManifest() {
   const manifest = readFile(join(ROOT, "lib/routing/manifest.ts"))
-  const keys = [...manifest.matchAll(/^ *["'](\/[^"']*)["'] *: *\{/gm)].map((m) => m[1])
+  // Every `"/…":` inside the object literal is a key, whatever its indentation, line-mates or value shape
+  // (`"/x": PUBLIC_RULE` included). A line-anchored `{`-valued pattern skipped those shapes silently while
+  // the floor sat 24 below the real count (.handoff/loading-boundaries/02-walker.md F2).
+  const start = manifest.indexOf("ROUTE_MANIFEST")
+  const end = manifest.indexOf("} as const", start)
+  const body = start < 0 || end < 0 ? "" : manifest.slice(start, end)
+    .split("\n").filter((l) => !l.trim().startsWith("//")).join("\n")
+  const keys = [...body.matchAll(/["'](\/[^"']*)["'][ \t]*:/g)].map((m) => m[1])
   if (keys.length < MANIFEST_KEY_FLOOR) {
     fail("route-manifest", `ROUTE_MANIFEST extraction found ${keys.length} key(s) (floor ${MANIFEST_KEY_FLOOR})`,
          `The manifest's shape changed or the extraction broke; a scan of nothing reports every key valid`)

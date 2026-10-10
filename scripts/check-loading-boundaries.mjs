@@ -56,11 +56,11 @@ function selftest() {
     ["loading.jsx is a loading boundary", LOADING_RE, "loading.jsx", true],
     ["KNOWN-GOOD: page.test.tsx is not a page", PAGE_RE, "page.test.tsx", false],
   ]
+  let bad = 0
   for (const [label, re, name, want] of fileCases) {
     if (re.test(name) !== want) { bad++; console.log(`  ✗ ${label}`) }
     else console.log(`  ✓ ${label}`)
   }
-  let bad = 0
   for (const [label, dir, pageDirs, want] of cases) {
     const got = wrappedChildRoutes(dir, pageDirs).length
     if (got !== want) { bad++; console.log(`  ✗ ${label} — expected ${want}, got ${got}`) }
