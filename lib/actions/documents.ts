@@ -14,10 +14,18 @@ import { sendEmail } from "@/lib/comms/send-email"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 import { SA_TIMEZONE } from "@/lib/dates"
 import { recordAudit } from "@/lib/audit/recordAudit"
+import { isRowInOrg } from "@/lib/auth/orgScope"
+
+/** property_documents.document_type CHECK (003_properties.sql). Checked BEFORE the upload: the type is a path
+ *  segment of the storage key, and a value the CHECK later rejects would leave an orphan object. */
+const PROPERTY_DOCUMENT_TYPES = new Set([
+  "title_deed", "compliance_certificate", "insurance", "rates_clearance", "levy_schedule", "plans",
+  "electrical_coc", "gas_coc", "beetle_coc", "other",
+])
 
 export async function uploadPropertyDocument(formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
-  const { db, userId } = gw
+  const { db, userId, orgId } = gw
 
   const propertyId = formData.get("property_id") as string
   const documentType = formData.get("document_type") as string
@@ -28,18 +36,12 @@ export async function uploadPropertyDocument(formData: FormData) {
   if (!file || !propertyId || !documentType) {
     return { error: "Missing required fields" }
   }
+  if (!PROPERTY_DOCUMENT_TYPES.has(documentType)) return { error: "Unknown document type" }
 
-  // Get org_id
-  const { data: property, error: propertyError } = await db
-    .from("properties")
-    .select("org_id")
-    .eq("id", propertyId)
-    .single()
-    logQueryError("uploadPropertyDocument properties", propertyError)
+  // The property must be the caller's: its org_id was once read FROM the row, which filed a foreign
+  // property's document under the victim org.
+  if (!(await isRowInOrg(db, "properties", propertyId, orgId))) return { error: "Property not found" }
 
-  if (!property) return { error: "Property not found" }
-
-  const orgId = property.org_id
   const sanitizedName = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, "_")
   const storagePath = `${orgId}/${propertyId}/${documentType}/${Date.now()}-${sanitizedName}`
 
@@ -349,10 +351,12 @@ export async function getActiveCsWindow(leaseId: string): Promise<{
 }> {
   const gw = await gateway()
   if (!gw) return { isActive: false, expiresAt: null }
-  const { db } = gw
+  const { db, orgId } = gw
+  if (!(await isRowInOrg(db, "leases", leaseId, orgId))) return { isActive: false, expiresAt: null }
 
   const { data, error } = await db
     .from("whatsapp_cs_windows")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- whatsapp_cs_windows has no org_id; the lease was proved the caller's by isRowInOrg above
     .select("expires_at")
     .eq("lease_id", leaseId)
     .eq("is_active", true)

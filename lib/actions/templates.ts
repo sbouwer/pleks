@@ -67,6 +67,7 @@ export async function customiseSystemTemplate(
   const { db, orgId } = gw
 
   const { data: source, error: fetchError } = await db
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- platform-scoped: system templates are shared by every org, and .eq("scope", "system") admits no org's private row
     .from("document_templates").select("*").eq("id", templateId).eq("scope", "system").single()
   if (fetchError || !source) return { error: "Template not found" }
   if (source.comms_class === "statutory") return { error: "Statutory templates can't be customised yet" }
@@ -158,8 +159,11 @@ export async function duplicateTemplateToOrg(
 
   const { data: source, error: fetchError } = await db
     .from("document_templates")
+    // eslint-disable-next-line pleks/require-org-scope-on-service-read -- org-bound by the .or below: a system template or this org's own, never another org's private one
     .select("*")
     .eq("id", templateId)
+    // A system template or this org's own; never another org's private one. orgId is the gateway's uuid.
+    .or(`scope.eq.system,org_id.eq.${orgId}`)
     .single()
 
   if (fetchError || !source) return { error: "Template not found" }
