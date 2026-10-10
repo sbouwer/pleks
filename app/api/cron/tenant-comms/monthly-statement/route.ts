@@ -19,6 +19,7 @@ import { logQueryError } from "@/lib/supabase/logQueryError"
 import { requireCronAuth } from "@/lib/cron/auth"
 import { addCalendarDays, addCalendarMonths, fmtDateZA, fmtZA, monthEnd, monthStart, saTodayISO } from "@/lib/dates"
 import { formatZAR } from "@/lib/constants"
+import { excludePlatformOrg } from "@/lib/comms/platform-org"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -185,8 +186,8 @@ export async function GET(req: NextRequest) {
 
   // The Pleks system org is not a customer (010 §50; lib/comms/platform-org.ts) — exclude it so this
   // loop never treats it as an agency.
-  const { data: orgs, error: orgError } = await service
-    .from("organisations").select("id, name, settings").eq("is_platform", false)
+  const { data: orgs, error: orgError } = await excludePlatformOrg(service
+    .from("organisations").select("id, name, settings"))
   if (orgError) {
     console.error("[monthly-statement] org query failed:", orgError.message)
     return Response.json({ ok: false, error: orgError.message }, { status: 500 })

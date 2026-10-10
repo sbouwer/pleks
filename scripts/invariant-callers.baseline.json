@@ -12,8 +12,8 @@
     "gained a real reader and left, and the count in the prose did not follow it out. A hardcoded",
     "number describing the contents of the file it sits in is the same defect class as M-082.)",
     "",
-    "⚠ A CHECK IS NOT A CALLER. Both remaining entries have since acquired a MECHANISM that reads",
-    "them (see each reason), and neither is thereby healed: the ratchet asks whether the declared",
+    "⚠ A CHECK IS NOT A CALLER. The remaining entry has since acquired a MECHANISM that reads",
+    "it (see its reason), and is not thereby healed: the ratchet asks whether the declared",
     "invariant governs the system's BEHAVIOUR, and a gate asserting two artefacts agree does not",
     "make either one load-bearing at runtime. Do not close an entry by widening 'read' to include",
     "the checks — that weakens the ratchet to retire the findings that motivated it.",
@@ -21,14 +21,13 @@
     "TO REMOVE AN ENTRY: wire a real reader. The check then FAILS until the line is deleted from here,",
     "which is the ratchet — a baseline that silently tolerated a healed entry would drift back to",
     "meaning nothing. Do NOT remove an entry by deleting the export: that removes the record of the",
-    "rule and leaves the obligation, which is strictly worse than the gap it closes."
+    "rule and leaves the obligation, which is strictly worse than the gap it closes.",
+    "",
+    "excludePlatformOrg LEFT 2026-10-10: wired into the eight org-iterating queries (crons, cost snapshots,",
+    "admin dashboard), two of which (recovery-email-drift, cost snapshots) had no exclusion at all. M-067's",
+    "general rule — EVERY for-each-org query excludes it — still has no check of its own."
   ],
   "entries": {
-    "excludePlatformOrg": {
-      "file": "lib/comms/platform-org.ts",
-      "register": "M-067",
-      "reason": "A stated MUST ('every for-each-org query MUST exclude the platform org') with zero call sites. The census ran 2026-08-23 and the answer was NOT 'already safe': the platform org (0 members, 44 days old against a 60-day threshold) was returned live by find_dormant_org_candidates(now()) and was on a scheduled path to being purged. Fixed — but in SQL (is_platform = false in both dormancy RPCs, a RAISE in purge_org_cascade) plus a TS guard in purgeOrg, because the defect was in a SECURITY DEFINER function that this TypeScript helper cannot reach. So the hole is closed and THIS EXPORT IS STILL UNREAD, which makes it more misleading than before, not less: a reader now finds a stated MUST, no callers, and a protected system, and would reasonably conclude the helper is what protects it. M-067 stays open for the general rule and for that."
-    },
     "RETENTION_PROTECTED_TABLES": {
       "file": "lib/subscriptions/retention.ts",
       "register": "M-082",
