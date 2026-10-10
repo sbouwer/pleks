@@ -4,12 +4,15 @@
  * Route:  /leases/[leaseId]
  * Auth:   gatewaySSR() — authenticated agent session + org membership; every read scoped to gw.orgId
  * Data:   reads leases, tenant_view, units/properties, lease_co_tenants, payments, rent_invoices, arrears_cases, landlord_view, inspections, maintenance_requests + more
- * Notes:  active tab from ?tab=; finance/communications tab data fetched only when that tab is active
+ * Notes:  active tab from ?tab=. The page awaits only the lease and the header's three reads, then streams
+ *         the tab body (LeaseTabBody) behind <Suspense key={tab}>; each tab query runs only for the tabs
+ *         that render it, so a tab switch repaints the body under a header that stays.
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { depositReceipt } from "@/lib/deposits/depositReceipt"
 import { redirect, notFound } from "next/navigation"
+import { Suspense } from "react"
 import { Badge } from "@/components/ui/badge"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
@@ -20,6 +23,7 @@ import { decryptIdNumber } from "@/lib/crypto/idNumber"
 import { BackLink } from "@/components/ui/BackLink"
 import { MandatoryFieldsBanner } from "@/components/migration/MandatoryFieldsBanner"
 import { LeaseTabs } from "../LeaseTabs"
+import { LeaseTabSkeleton } from "../LeaseTabSkeleton"
 import { OverviewTab } from "../OverviewTab"
 import { LeaseDetailsTab } from "../LeaseDetailsTab"
 import { ContactsTab } from "../ContactsTab"
@@ -420,6 +424,36 @@ async function fetchDocumentsTabData(
   }
 }
 
+type Db = Awaited<ReturnType<typeof createServiceClient>>
+
+/** SA tax year starts 1 March. */
+function saTaxYearStart(today: Date): string {
+  const year = today.getMonth() >= 2 ? today.getFullYear() : today.getFullYear() - 1
+  return `${year}-03-01`
+}
+
+function fetchLease(db: Db, leaseId: string, orgId: string) {
+  return db
+    .from("leases")
+    .select(`
+      *,
+      tenant_view(id, contact_id, first_name, last_name, company_name, entity_type, email, phone, id_number),
+      units(unit_number, properties(id, name, address_line1, suburb, city, landlord_id, managing_agent_id))
+    `)
+    .eq("id", leaseId)
+    .eq("org_id", orgId)
+    .single()
+}
+
+type LeaseRow = NonNullable<Awaited<ReturnType<typeof fetchLease>>["data"]>
+
+type UnitRow = {
+  unit_number: string
+  properties: { id: string; name: string; address_line1: string | null; suburb: string | null; city: string | null; landlord_id: string | null; managing_agent_id: string | null }
+} | null
+
+type LandlordRow = { id: string; contact_id: string | null; entity_type: string | null; first_name: string | null; last_name: string | null; company_name: string | null; registration_number: string | null; email: string | null; phone: string | null } | null
+
 export default async function LeaseDetailPage({
   params,
   searchParams,
@@ -442,157 +476,40 @@ export default async function LeaseDetailPage({
   if (!gw) redirect("/login")
   const { db: supabase, orgId } = gw
 
-  const accepted = await hasAcceptedLeaseDisclaimer()
-
-  const { data: lease, error: leaseError } = await supabase
-    .from("leases")
-    .select(`
-      *,
-      tenant_view(id, contact_id, first_name, last_name, company_name, entity_type, email, phone, id_number),
-      units(unit_number, properties(id, name, address_line1, suburb, city, landlord_id, managing_agent_id))
-    `)
-    .eq("id", leaseId)
-    .eq("org_id", orgId)
-    .single()
+  const [accepted, { data: lease, error: leaseError }] = await Promise.all([
+    hasAcceptedLeaseDisclaimer(),
+    fetchLease(supabase, leaseId, orgId),
+  ])
 
   if (leaseError) {
     console.error("LeaseDetailPage: lease fetch failed:", leaseError.message)
     notFound()
   }
   if (!lease) notFound()
+  // Every read below is bounded by THIS lease's ownership; fetchLease scopes it, and this guard states it
+  // in the function the reads live in (validate-then-act, pleks/require-org-scope-on-service-read).
+  if (lease.org_id !== orgId) notFound()
 
-  const unit = lease.units as unknown as {
-    unit_number: string
-    properties: { id: string; name: string; address_line1: string | null; suburb: string | null; city: string | null; landlord_id: string | null; managing_agent_id: string | null }
-  } | null
-
-  const tv = lease.tenant_view as unknown as {
-    id: string
-    contact_id: string | null
-    first_name: string | null
-    last_name: string | null
-    company_name: string | null
-    entity_type: string
-    email: string | null
-    phone: string | null
-    id_number: string | null
-  } | null
-
+  const unit = lease.units as unknown as UnitRow
+  const tv = lease.tenant_view as unknown as PrimaryTenantView | null
   const ownerIdForProperty = unit?.properties?.landlord_id ?? null
-  const managingAgentId = unit?.properties?.managing_agent_id ?? null
-  const isDraft = lease.status === "draft"
 
-  // SA tax year starts 1 March
-  const today = new Date()
-  const taxYear = today.getMonth() >= 2 ? today.getFullYear() : today.getFullYear() - 1
-  const taxYearStart = `${taxYear}-03-01`
-
-  const [
-    coTenantsRes,
-    recentPaymentsRes,
-    latestInvoiceRes,
-    arrearsCaseRes,
-    lifecycleEventsRes,
-    amendmentsRes,
-    editedClauseCountRes,
-    landlordRes,
-    bankDetails,
-    prereqs,
-    tenantPortalRes,
-    inspectionsRes,
-    maintenanceRes,
-    primaryContactRes,
-    landlordPortalRes,
-    ytdPaymentsRes,
-    maintenanceCostRes,
-    primaryAddressRes,
-    managingAgentRes,
-  ] = await Promise.all([
+  // Only what the header needs is awaited here; everything a tab needs streams in <LeaseTabBody>
+  // behind <Suspense>, so the header and tabs paint without waiting on the tab's queries.
+  const [coTenantsRes, landlordRes, editedClauseCountRes] = await Promise.all([
     supabase
       .from("lease_co_tenants")
       .select("tenant_id, is_signatory, tenants(id, contacts(first_name, last_name, company_name, entity_type, primary_email, primary_phone, is_verified, registration_number, id_number))")
       .eq("lease_id", leaseId),
-    supabase
-      .from("payments")
-      .select("id, amount_cents, payment_date, payment_method, receipt_number")
-      .eq("lease_id", leaseId)
-      .order("payment_date", { ascending: false })
-      .limit(5),
-    supabase
-      .from("rent_invoices")
-      .select("id, balance_cents, status")
-      .eq("lease_id", leaseId)
-      .order("due_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("arrears_cases")
-      .select("total_arrears_cents, interest_accrued_cents, status, months_in_arrears")
-      .eq("lease_id", leaseId)
-      .in("status", ["open", "payment_arrangement", "legal"])
-      .maybeSingle(),
-    supabase
-      .from("lease_lifecycle_events")
-      .select("id, event_type, description, created_at")
-      .eq("lease_id", leaseId)
-      .order("created_at", { ascending: false })
-      .limit(10),
-    supabase
-      .from("lease_amendments")
-      .select("*")
-      .eq("lease_id", leaseId)
-      .order("created_at", { ascending: false }),
+    // landlord_view gives name/contact/registration data reliably via its JOIN
+    ownerIdForProperty
+      ? supabase.from("landlord_view").select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, email, phone").eq("id", ownerIdForProperty).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
     supabase
       .from("lease_clause_selections")
       .select("id", { count: "exact", head: true })
       .eq("lease_id", leaseId)
       .not("custom_body", "is", null),
-    // landlord_view gives name/contact/registration data reliably via its JOIN
-    ownerIdForProperty
-      ? supabase.from("landlord_view").select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, email, phone").eq("id", ownerIdForProperty).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    getLessorBankDetails(orgId),
-    isDraft ? checkLeasePrerequisites(supabase, leaseId, orgId).catch(() => null) : Promise.resolve(null),
-    lease.tenant_id
-      ? supabase.from("tenants").select("portal_invite_sent_at, auth_user_id").eq("id", lease.tenant_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    lease.unit_id
-      ? supabase.from("inspections").select("id, inspection_type, status, scheduled_date, conducted_date").eq("unit_id", lease.unit_id).order("scheduled_date", { ascending: false }).limit(3)
-      : Promise.resolve({ data: [], error: null }),
-    lease.unit_id
-      ? supabase.from("maintenance_requests").select("id, title, work_order_number, urgency, status, created_at").eq("unit_id", lease.unit_id).order("created_at", { ascending: false }).limit(3)
-      : Promise.resolve({ data: [], error: null }),
-    // Primary tenant FICA + reg number (from contacts table — not in tenant_view)
-    tv?.contact_id != null
-      ? supabase.from("contacts").select("is_verified, registration_number").eq("id", tv.contact_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    // Landlord portal_status (not in landlord_view)
-    ownerIdForProperty
-      ? supabase.from("landlords").select("portal_status").eq("id", ownerIdForProperty).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    // YTD payments for collection chart
-    supabase
-      .from("payments")
-      .select("amount_cents, payment_date")
-      .eq("lease_id", leaseId)
-      .gte("payment_date", taxYearStart)
-      .order("payment_date", { ascending: true }),
-    // Maintenance cost YTD
-    lease.unit_id
-      ? supabase
-          .from("maintenance_requests")
-          .select("actual_cost_cents")
-          .eq("unit_id", lease.unit_id)
-          .eq("org_id", orgId)
-          .gte("created_at", `${taxYearStart}T00:00:00Z`)
-          .not("actual_cost_cents", "is", null)
-      : Promise.resolve({ data: [], error: null }),
-    // Primary tenant address
-    tv?.contact_id != null
-      ? supabase.from("contact_addresses").select("street_line1, suburb, city, postal_code, address_type").eq("org_id", orgId).eq("contact_id", tv.contact_id).in("address_type", ["physical", "postal"]).limit(2)
-      : Promise.resolve({ data: [], error: null }),
-    // Managing agent name — empty string returns no rows (no ternary needed)
-    supabase.from("user_profiles").select("full_name, first_name, last_name").eq("id", managingAgentId ?? "").maybeSingle(),
   ])
 
   const coTenantsRaw = (coTenantsRes.data ?? []) as unknown as CoTenantRow[]
@@ -613,23 +530,249 @@ export default async function LeaseDetailPage({
   if (landlordRes.error) console.error("landlord_view query failed:", landlordRes.error.message, "ownerIdForProperty:", ownerIdForProperty)
   if (!landlordRes.data && ownerIdForProperty) console.warn("landlord_view returned no row for id:", ownerIdForProperty)
 
-  type LandlordRow = { id: string; contact_id: string | null; entity_type: string | null; first_name: string | null; last_name: string | null; company_name: string | null; registration_number: string | null; email: string | null; phone: string | null } | null
   const landlordRaw = landlordRes.data as LandlordRow
-  const landlordPortalStatus = (landlordPortalRes.data as { portal_status: string | null } | null)?.portal_status ?? "none"
   const landlordName = landlordRaw
     ? (landlordRaw.company_name ?? `${landlordRaw.first_name ?? ""} ${landlordRaw.last_name ?? ""}`.trim())
     : null
+
+  const editedClauseCount = editedClauseCountRes.count ?? 0
+  const unitLabel = formatPropertyLabel(unit, { separator: " — ", fallback: "" })
+  const areaLabel = [unit?.properties.suburb, unit?.properties.city].filter(Boolean).join(", ")
+  const statusColor = buildStatusColor(lease.status)
+
+  return (
+    <LeaseDisclaimerGate initialAccepted={accepted}>
+      <div>
+        <BackLink href="/leases" label="Leases" />
+
+        {/* 21E §3 first-touch: an import-incomplete lease (held 'draft') prompts completion — it cannot activate
+            until start_date + rent are filled (checkLeasePrerequisites gate). */}
+        <MandatoryFieldsBanner entity="lease" missing={(lease as { incomplete_mandatory?: string[] | null }).incomplete_mandatory} editHref={`/leases/${leaseId}/edit`} />
+
+        <LeasePageHeader
+          landlordName={landlordName}
+          tenantDisplayText={tenantDisplayText}
+          unitLabel={unitLabel}
+          areaLabel={areaLabel}
+          statusColor={statusColor}
+          status={lease.status}
+          leaseType={lease.lease_type}
+          isFixedTerm={lease.is_fixed_term ?? null}
+          cpaApplies={lease.cpa_applies ?? null}
+          migrated={lease.migrated ?? null}
+          editedClauseCount={editedClauseCount}
+        />
+
+        {/* Tab nav */}
+        <LeaseTabs activeTab={activeTab} leaseId={leaseId} />
+
+        {/* Tab content — keyed so a tab switch shows that tab's skeleton under the header that stays */}
+        <Suspense key={activeTab} fallback={<LeaseTabSkeleton tab={activeTab} />}>
+          <LeaseTabBody
+            db={supabase}
+            orgId={orgId}
+            leaseId={leaseId}
+            activeTab={activeTab}
+            lease={lease}
+            unit={unit}
+            tv={tv}
+            coTenantsRaw={coTenantsRaw}
+            landlordRaw={landlordRaw}
+            landlordName={landlordName}
+            tenantDisplayText={tenantDisplayText}
+            unitLabel={unitLabel}
+          />
+        </Suspense>
+      </div>
+    </LeaseDisclaimerGate>
+  )
+}
+
+interface LeaseTabBodyProps {
+  db: Db
+  orgId: string
+  leaseId: string
+  activeTab: Tab
+  lease: LeaseRow
+  unit: UnitRow
+  tv: PrimaryTenantView | null
+  coTenantsRaw: CoTenantRow[]
+  landlordRaw: LandlordRow
+  landlordName: string | null
+  tenantDisplayText: string
+  unitLabel: string
+}
+
+// Only the org-scoped lease row crosses in: every key a read uses (its id, unit, parties) is derived from
+// that row inside the function, so the guard and the keys are one value (.handoff/stream-lease-detail F1).
+type TabQueryInput = { db: Db; orgId: string; activeTab: Tab; lease: LeaseRow; taxYearStart: string }
+
+/**
+ * The tab body's reads. Each runs only for the tabs that render its result (`on(...)`); the rest resolve
+ * to the empty shape their consumers already tolerate, so a tab never pays for another tab's data.
+ */
+async function fetchTabQueries({ db: supabase, orgId, activeTab, lease, taxYearStart }: TabQueryInput) {
+  // The lease was read org-scoped by the page; every read here is keyed by that lease or its unit,
+  // so this guard is what bounds them to the caller's org (validate-then-act).
+  if (lease.org_id !== orgId) throw new Error("fetchTabQueries: lease is not in the caller's org")
+  const leaseId = lease.id
+  const on = (...tabs: Tab[]) => tabs.includes(activeTab)
+  const none = { data: null, error: null }
+  const noRows = { data: [], error: null }
+  const isDraft = lease.status === "draft"
+
+  return Promise.all([
+    on("finance")
+      ? supabase
+          .from("payments")
+          .select("id, amount_cents, payment_date, payment_method, receipt_number")
+          .eq("lease_id", leaseId)
+          .order("payment_date", { ascending: false })
+          .limit(5)
+      : Promise.resolve(noRows),
+    on("overview", "finance")
+      ? supabase
+          .from("rent_invoices")
+          .select("id, balance_cents, status")
+          .eq("lease_id", leaseId)
+          .order("due_date", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve(none),
+    on("overview", "finance")
+      ? supabase
+          .from("arrears_cases")
+          .select("total_arrears_cents, interest_accrued_cents, status, months_in_arrears")
+          .eq("lease_id", leaseId)
+          .in("status", ["open", "payment_arrangement", "legal"])
+          .maybeSingle()
+      : Promise.resolve(none),
+    on("overview", "operations")
+      ? supabase
+          .from("lease_lifecycle_events")
+          .select("id, event_type, description, created_at")
+          .eq("lease_id", leaseId)
+          .order("created_at", { ascending: false })
+          .limit(10)
+      : Promise.resolve(noRows),
+    on("details")
+      ? supabase
+          .from("lease_amendments")
+          .select("*")
+          .eq("lease_id", leaseId)
+          .order("created_at", { ascending: false })
+      : Promise.resolve(noRows),
+    on("details") ? getLessorBankDetails(orgId) : Promise.resolve(null),
+    on("details") && isDraft ? checkLeasePrerequisites(supabase, leaseId, orgId).catch(() => null) : Promise.resolve(null),
+    on("overview", "operations") && lease.unit_id
+      ? supabase.from("inspections").select("id, inspection_type, status, scheduled_date, conducted_date").eq("unit_id", lease.unit_id).order("scheduled_date", { ascending: false }).limit(3)
+      : Promise.resolve(noRows),
+    on("operations") && lease.unit_id
+      ? supabase.from("maintenance_requests").select("id, title, work_order_number, urgency, status, created_at").eq("unit_id", lease.unit_id).order("created_at", { ascending: false }).limit(3)
+      : Promise.resolve(noRows),
+    // YTD payments for collection chart
+    on("overview", "finance")
+      ? supabase
+          .from("payments")
+          .select("amount_cents, payment_date")
+          .eq("lease_id", leaseId)
+          .gte("payment_date", taxYearStart)
+          .order("payment_date", { ascending: true })
+      : Promise.resolve(noRows),
+    // Maintenance cost YTD
+    on("overview", "finance") && lease.unit_id
+      ? supabase
+          .from("maintenance_requests")
+          .select("actual_cost_cents")
+          .eq("unit_id", lease.unit_id)
+          .eq("org_id", orgId)
+          .gte("created_at", `${taxYearStart}T00:00:00Z`)
+          .not("actual_cost_cents", "is", null)
+      : Promise.resolve(noRows),
+  ])
+}
+
+/** The reads about the lease's parties (tenant, owner, managing agent): overview and contacts only. */
+async function fetchPartyQueries({ db: supabase, orgId, activeTab, lease }: TabQueryInput) {
+  // Same bound as fetchTabQueries: these are keyed by the org-scoped lease's own parties.
+  if (lease.org_id !== orgId) throw new Error("fetchPartyQueries: lease is not in the caller's org")
+  const unit = lease.units as unknown as UnitRow
+  const tv = lease.tenant_view as unknown as PrimaryTenantView | null
+  const on = (...tabs: Tab[]) => tabs.includes(activeTab)
+  const none = { data: null, error: null }
+  const noRows = { data: [], error: null }
+  const ownerIdForProperty = unit?.properties?.landlord_id ?? null
+  const managingAgentId = unit?.properties?.managing_agent_id ?? null
+
+  return Promise.all([
+    on("overview", "contacts") && lease.tenant_id
+      ? supabase.from("tenants").select("portal_invite_sent_at, auth_user_id").eq("id", lease.tenant_id).maybeSingle()
+      : Promise.resolve(none),
+    // Primary tenant FICA + reg number (from contacts table — not in tenant_view)
+    on("overview", "contacts") && tv?.contact_id != null
+      ? supabase.from("contacts").select("is_verified, registration_number").eq("id", tv.contact_id).maybeSingle()
+      : Promise.resolve(none),
+    // Landlord portal_status (not in landlord_view)
+    on("contacts") && ownerIdForProperty
+      ? supabase.from("landlords").select("portal_status").eq("id", ownerIdForProperty).maybeSingle()
+      : Promise.resolve(none),
+    // Primary tenant address
+    on("overview", "contacts") && tv?.contact_id != null
+      ? supabase.from("contact_addresses").select("street_line1, suburb, city, postal_code, address_type").eq("org_id", orgId).eq("contact_id", tv.contact_id).in("address_type", ["physical", "postal"]).limit(2)
+      : Promise.resolve(noRows),
+    // Managing agent name — empty string returns no rows (no ternary needed)
+    on("overview", "contacts")
+      ? supabase.from("user_profiles").select("full_name, first_name, last_name").eq("id", managingAgentId ?? "").maybeSingle()
+      : Promise.resolve(none),
+    // Portfolio overview sent status for owner card. Its two-step read used to run after the batch
+    // above on every tab; only the contacts tab renders it.
+    on("contacts") && ownerIdForProperty
+      ? fetchPortfolioOverviewStatus(supabase, orgId, ownerIdForProperty)
+      : Promise.resolve({ sentAt: null, outdated: false }),
+  ])
+}
+
+/** The active tab's body: its reads (fetchTabQueries + fetchPartyQueries, in parallel), then that tab's component. */
+async function LeaseTabBody(props: Readonly<LeaseTabBodyProps>) {
+  const { db: supabase, orgId, leaseId, activeTab, lease, unit, tv, coTenantsRaw, landlordRaw, landlordName, tenantDisplayText, unitLabel } = props
+  const today = new Date()
+  const taxYearStart = saTaxYearStart(today)
+
+  const [
+    [
+      recentPaymentsRes,
+      latestInvoiceRes,
+      arrearsCaseRes,
+      lifecycleEventsRes,
+      amendmentsRes,
+      bankDetails,
+      prereqs,
+      inspectionsRes,
+      maintenanceRes,
+      ytdPaymentsRes,
+      maintenanceCostRes,
+    ],
+    [
+      tenantPortalRes,
+      primaryContactRes,
+      landlordPortalRes,
+      primaryAddressRes,
+      managingAgentRes,
+      portfolioOverview,
+    ],
+  ] = await Promise.all([
+    fetchTabQueries({ db: supabase, orgId, activeTab, lease, taxYearStart }),
+    fetchPartyQueries({ db: supabase, orgId, activeTab, lease, taxYearStart }),
+  ])
+
+  const landlordPortalStatus = (landlordPortalRes.data as { portal_status: string | null } | null)?.portal_status ?? "none"
 
   const tenantPortal = tenantPortalRes.data as { portal_invite_sent_at: string | null; auth_user_id: string | null } | null
   const amendments = amendmentsRes.data ?? []
   const lifecycleEvents = lifecycleEventsRes.data ?? []
   const arrearsCase = arrearsCaseRes.data ?? null
   const latestInvoice = latestInvoiceRes.data ?? null
-  const editedClauseCount = editedClauseCountRes.count ?? 0
   const recentPayments = recentPaymentsRes.data ?? []
-
-  const unitLabel = formatPropertyLabel(unit, { separator: " — ", fallback: "" })
-  const areaLabel = [unit?.properties.suburb, unit?.properties.city].filter(Boolean).join(", ")
 
   const primaryContact = primaryContactRes.data as { is_verified: boolean | null; registration_number: string | null } | null
   const primaryPortalStatus = derivePortalStatus(tenantPortal?.auth_user_id, tenantPortal?.portal_invite_sent_at)
@@ -659,15 +802,10 @@ export default async function LeaseDetailPage({
   const maintenanceCostRows = (maintenanceCostRes.data ?? []) as Array<{ actual_cost_cents: number }>
   const maintenanceCostCents = maintenanceCostRows.reduce((s, r) => s + (r.actual_cost_cents ?? 0), 0)
   const maintenanceJobCount = maintenanceCostRows.length
-  const nextInspectionDate = getNextInspectionDate(inspectionsRes.data ?? [], today)
+  const inspections = (inspectionsRes.data ?? []) as Array<{ id: string; inspection_type: string; status: string; scheduled_date: string | null; conducted_date: string | null }>
+  const nextInspectionDate = getNextInspectionDate(inspections, today)
   const propertyId = unit?.properties?.id ?? null
   const complianceItems = buildComplianceItems(lease, today, nextInspectionDate)
-  const statusColor = buildStatusColor(lease.status)
-
-  // Portfolio overview sent status for owner card
-  const { sentAt: portfolioOverviewSentAt, outdated: portfolioOverviewOutdated } = ownerIdForProperty
-    ? await fetchPortfolioOverviewStatus(supabase, orgId, ownerIdForProperty)
-    : { sentAt: null, outdated: false }
 
   // ── Tab-specific data (fetched only when tab is active) ──────────────────
   const [financeExtras, documentsData] = await Promise.all([
@@ -680,197 +818,171 @@ export default async function LeaseDetailPage({
   ])
 
   return (
-    <LeaseDisclaimerGate initialAccepted={accepted}>
-      <div>
-        <BackLink href="/leases" label="Leases" />
+    <>
+      {activeTab === "overview" && (
+        <OverviewTab
+          propertyId={propertyId}
+          lease={{
+            rent_amount_cents: lease.rent_amount_cents ?? null,
+            start_date: lease.start_date ?? null,
+            end_date: lease.end_date ?? null,
+            deposit_amount_cents: lease.deposit_amount_cents ?? null,
+            deposit_interest_to: lease.deposit_interest_to ?? null,
+            deposit_interest_rate: lease.deposit_interest_rate ?? null,
+            escalation_percent: lease.escalation_percent ?? null,
+            escalation_review_date: lease.escalation_review_date ?? null,
+            payment_due_day: parsePaymentDueDay(lease.payment_due_day),
+            is_fixed_term: lease.is_fixed_term ?? null,
+            cpa_applies_at_signing: (lease as unknown as { cpa_applies_at_signing: string | null }).cpa_applies_at_signing ?? null,
+            cpa_determination_category: (lease as unknown as { cpa_determination_category: string | null }).cpa_determination_category ?? null,
+          }}
+          latestInvoice={latestInvoice}
+          arrearsCase={arrearsCase}
+          allTenants={allTenants}
+          landlord={landlordRaw ? {
+            id: landlordRaw.id,
+            name: landlordName ?? "Unknown",
+            company: landlordRaw.company_name ?? null,
+            entityType: landlordRaw.entity_type ?? null,
+            email: landlordRaw.email ?? null,
+            phone: landlordRaw.phone ?? null,
+            managedBy: managedByLabel,
+          } : null}
+          lifecycleEvents={lifecycleEvents}
+          ytdPayments={ytdPayments}
+          maintenanceCostCents={maintenanceCostCents}
+          maintenanceJobCount={maintenanceJobCount}
+          upcomingDeadlines={complianceItems}
+        />
+      )}
 
-        {/* 21E §3 first-touch: an import-incomplete lease (held 'draft') prompts completion — it cannot activate
-            until start_date + rent are filled (checkLeasePrerequisites gate). */}
-        <MandatoryFieldsBanner entity="lease" missing={(lease as { incomplete_mandatory?: string[] | null }).incomplete_mandatory} editHref={`/leases/${leaseId}/edit`} />
-
-        <LeasePageHeader
-          landlordName={landlordName}
+      {activeTab === "details" && bankDetails && (
+        <LeaseDetailsTab
+          lease={{
+            id: leaseId,
+            status: lease.status,
+            rent_amount_cents: lease.rent_amount_cents ?? null,
+            deposit_amount_cents: lease.deposit_amount_cents ?? null,
+            deposit_interest_to: lease.deposit_interest_to ?? null,
+            escalation_percent: lease.escalation_percent ?? null,
+            escalation_type: lease.escalation_type ?? null,
+            escalation_review_date: lease.escalation_review_date ?? null,
+            payment_due_day: lease.payment_due_day ?? null,
+            start_date: lease.start_date ?? null,
+            end_date: lease.end_date ?? null,
+            is_fixed_term: lease.is_fixed_term ?? null,
+            notice_period_days: lease.notice_period_days ?? null,
+            cpa_applies: lease.cpa_applies ?? null,
+            auto_renewal_notice_sent_at: lease.auto_renewal_notice_sent_at ?? null,
+            special_terms: lease.special_terms ?? null,
+            migrated: lease.migrated ?? null,
+            external_document_path: lease.external_document_path ?? null,
+            generated_doc_path: lease.generated_doc_path ?? null,
+            template_source: lease.template_source ?? null,
+            docuseal_document_url: lease.docuseal_document_url ?? null,
+          }}
+          leaseId={leaseId}
+          amendments={amendments.map((a) => ({
+            id: a.id,
+            amendment_type: a.amendment_type,
+            effective_date: a.effective_date,
+            signed_at: a.signed_at ?? null,
+          }))}
+          bankDetailsConfigured={bankDetails.configured}
+          prereqs={prereqs}
           tenantDisplayText={tenantDisplayText}
           unitLabel={unitLabel}
-          areaLabel={areaLabel}
-          statusColor={statusColor}
-          status={lease.status}
-          leaseType={lease.lease_type}
-          isFixedTerm={lease.is_fixed_term ?? null}
-          cpaApplies={lease.cpa_applies ?? null}
-          migrated={lease.migrated ?? null}
-          editedClauseCount={editedClauseCount}
         />
+      )}
 
-        {/* Tab nav */}
-        <LeaseTabs activeTab={activeTab} leaseId={leaseId} />
+      {activeTab === "contacts" && (
+        <ContactsTab
+          tenants={allTenants}
+          landlord={contactsLandlord}
+          leaseId={leaseId}
+          orgId={orgId}
+          propertyId={propertyId}
+          managedBy={managedByLabel}
+          portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
+          hasAuthUser={!!tenantPortal?.auth_user_id}
+          primaryTenantId={lease.tenant_id ?? null}
+          portfolioOverviewSentAt={portfolioOverview.sentAt}
+          portfolioOverviewOutdated={portfolioOverview.outdated}
+        />
+      )}
 
-        {/* Tab content */}
-        {activeTab === "overview" && (
-          <OverviewTab
-            propertyId={propertyId}
-            lease={{
-              rent_amount_cents: lease.rent_amount_cents ?? null,
-              start_date: lease.start_date ?? null,
-              end_date: lease.end_date ?? null,
-              deposit_amount_cents: lease.deposit_amount_cents ?? null,
-              deposit_interest_to: lease.deposit_interest_to ?? null,
-              deposit_interest_rate: lease.deposit_interest_rate ?? null,
-              escalation_percent: lease.escalation_percent ?? null,
-              escalation_review_date: lease.escalation_review_date ?? null,
-              payment_due_day: parsePaymentDueDay(lease.payment_due_day),
-              is_fixed_term: lease.is_fixed_term ?? null,
-              cpa_applies_at_signing: (lease as unknown as { cpa_applies_at_signing: string | null }).cpa_applies_at_signing ?? null,
-              cpa_determination_category: (lease as unknown as { cpa_determination_category: string | null }).cpa_determination_category ?? null,
-            }}
-            latestInvoice={latestInvoice}
-            arrearsCase={arrearsCase}
-            allTenants={allTenants}
-            landlord={landlordRaw ? {
-              id: landlordRaw.id,
-              name: landlordName ?? "Unknown",
-              company: landlordRaw.company_name ?? null,
-              entityType: landlordRaw.entity_type ?? null,
-              email: landlordRaw.email ?? null,
-              phone: landlordRaw.phone ?? null,
-              managedBy: managedByLabel,
-            } : null}
-            lifecycleEvents={lifecycleEvents}
-            ytdPayments={ytdPayments}
-            maintenanceCostCents={maintenanceCostCents}
-            maintenanceJobCount={maintenanceJobCount}
-            upcomingDeadlines={complianceItems}
-          />
-        )}
+      {activeTab === "finance" && (
+        <FinanceTab
+          leaseId={leaseId}
+          balanceCents={latestInvoice?.balance_cents ?? null}
+          lastPaymentDate={recentPayments[0]?.payment_date ?? null}
+          arrearsCase={arrearsCase}
+          depositAmountCents={lease.deposit_amount_cents ?? null}
+          depositReceivedAt={financeExtras?.depositReceivedAt ?? null}
+          canRecordDeposit={
+            ["active", "month_to_month", "notice"].includes(lease.status as string)
+            && (lease.deposit_amount_cents ?? 0) > 0
+            && !!financeExtras && !financeExtras.depositReceivedAt && !financeExtras.depositReceiptUnknown
+          }
+          depositRateDescription={financeExtras?.depositRateDescription ?? null}
+          depositInterestCents={financeExtras?.depositInterestCents ?? 0}
+          depositInterestTo={lease.deposit_interest_to ?? null}
+          trustBankName={financeExtras?.trustBankName ?? null}
+          recentPayments={recentPayments}
+          rentAmountCents={lease.rent_amount_cents ?? null}
+          escalationPercent={lease.escalation_percent ?? null}
+          escalationReviewDate={lease.escalation_review_date ?? null}
+          paymentDueDay={
+            typeof lease.payment_due_day === "string"
+              ? Number.parseInt(lease.payment_due_day, 10) || null
+              : (lease.payment_due_day ?? null)
+          }
+          paymentMethod={financeExtras?.paymentMethod ?? null}
+          paymentReference={financeExtras?.paymentReference ?? null}
+          ytdCollectedCents={ytdPayments.reduce((s, p) => s + p.amount_cents, 0)}
+          ytdExpectedCents={financeExtras?.ytdExpectedCents ?? 0}
+          arrearsCaseInterestCents={arrearsCase?.interest_accrued_cents ?? null}
+          arrearsInterestRate={lease.arrears_interest_rate ?? null}
+          totalCollectedCents={financeExtras?.totalCollectedCents ?? 0}
+          maintenanceCostCents={maintenanceCostCents}
+          trustTransactions={financeExtras?.trustTransactions ?? []}
+        />
+      )}
 
-        {activeTab === "details" && (
-          <LeaseDetailsTab
-            lease={{
-              id: leaseId,
-              status: lease.status,
-              rent_amount_cents: lease.rent_amount_cents ?? null,
-              deposit_amount_cents: lease.deposit_amount_cents ?? null,
-              deposit_interest_to: lease.deposit_interest_to ?? null,
-              escalation_percent: lease.escalation_percent ?? null,
-              escalation_type: lease.escalation_type ?? null,
-              escalation_review_date: lease.escalation_review_date ?? null,
-              payment_due_day: lease.payment_due_day ?? null,
-              start_date: lease.start_date ?? null,
-              end_date: lease.end_date ?? null,
-              is_fixed_term: lease.is_fixed_term ?? null,
-              notice_period_days: lease.notice_period_days ?? null,
-              cpa_applies: lease.cpa_applies ?? null,
-              auto_renewal_notice_sent_at: lease.auto_renewal_notice_sent_at ?? null,
-              special_terms: lease.special_terms ?? null,
-              migrated: lease.migrated ?? null,
-              external_document_path: lease.external_document_path ?? null,
-              generated_doc_path: lease.generated_doc_path ?? null,
-              template_source: lease.template_source ?? null,
-              docuseal_document_url: lease.docuseal_document_url ?? null,
-            }}
-            leaseId={leaseId}
-            amendments={amendments.map((a) => ({
-              id: a.id,
-              amendment_type: a.amendment_type,
-              effective_date: a.effective_date,
-              signed_at: a.signed_at ?? null,
-            }))}
-            bankDetailsConfigured={bankDetails.configured}
-            prereqs={prereqs}
-            tenantDisplayText={tenantDisplayText}
-            unitLabel={unitLabel}
-          />
-        )}
+      {activeTab === "communications" && (
+        <DocumentsTab
+          leaseId={leaseId}
+          orgId={orgId}
+          signedLeasePath={lease.generated_doc_path ?? lease.external_document_path ?? null}
+          communicationLog={documentsData?.communicationLog ?? []}
+          leaseDocuments={documentsData?.leaseDocuments ?? []}
+        />
+      )}
 
-        {activeTab === "contacts" && (
-          <ContactsTab
-            tenants={allTenants}
-            landlord={contactsLandlord}
-            leaseId={leaseId}
-            orgId={orgId}
-            propertyId={propertyId}
-            managedBy={managedByLabel}
-            portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
-            hasAuthUser={!!tenantPortal?.auth_user_id}
-            primaryTenantId={lease.tenant_id ?? null}
-            portfolioOverviewSentAt={portfolioOverviewSentAt}
-            portfolioOverviewOutdated={portfolioOverviewOutdated}
-          />
-        )}
-
-        {activeTab === "finance" && (
-          <FinanceTab
-            leaseId={leaseId}
-            balanceCents={latestInvoice?.balance_cents ?? null}
-            lastPaymentDate={recentPayments[0]?.payment_date ?? null}
-            arrearsCase={arrearsCase}
-            depositAmountCents={lease.deposit_amount_cents ?? null}
-            depositReceivedAt={financeExtras?.depositReceivedAt ?? null}
-            canRecordDeposit={
-              ["active", "month_to_month", "notice"].includes(lease.status as string)
-              && (lease.deposit_amount_cents ?? 0) > 0
-              && !!financeExtras && !financeExtras.depositReceivedAt && !financeExtras.depositReceiptUnknown
-            }
-            depositRateDescription={financeExtras?.depositRateDescription ?? null}
-            depositInterestCents={financeExtras?.depositInterestCents ?? 0}
-            depositInterestTo={lease.deposit_interest_to ?? null}
-            trustBankName={financeExtras?.trustBankName ?? null}
-            recentPayments={recentPayments}
-            rentAmountCents={lease.rent_amount_cents ?? null}
-            escalationPercent={lease.escalation_percent ?? null}
-            escalationReviewDate={lease.escalation_review_date ?? null}
-            paymentDueDay={
-              typeof lease.payment_due_day === "string"
-                ? Number.parseInt(lease.payment_due_day, 10) || null
-                : (lease.payment_due_day ?? null)
-            }
-            paymentMethod={financeExtras?.paymentMethod ?? null}
-            paymentReference={financeExtras?.paymentReference ?? null}
-            ytdCollectedCents={ytdPayments.reduce((s, p) => s + p.amount_cents, 0)}
-            ytdExpectedCents={financeExtras?.ytdExpectedCents ?? 0}
-            arrearsCaseInterestCents={arrearsCase?.interest_accrued_cents ?? null}
-            arrearsInterestRate={lease.arrears_interest_rate ?? null}
-            totalCollectedCents={financeExtras?.totalCollectedCents ?? 0}
-            maintenanceCostCents={maintenanceCostCents}
-            trustTransactions={financeExtras?.trustTransactions ?? []}
-          />
-        )}
-
-        {activeTab === "communications" && (
-          <DocumentsTab
-            leaseId={leaseId}
-            orgId={orgId}
-            signedLeasePath={lease.generated_doc_path ?? lease.external_document_path ?? null}
-            communicationLog={documentsData?.communicationLog ?? []}
-            leaseDocuments={documentsData?.leaseDocuments ?? []}
-          />
-        )}
-
-        {activeTab === "operations" && (
-          <OperationsTab
-            leaseId={leaseId}
-            unitId={lease.unit_id ?? null}
-            unitNumber={unit?.unit_number ?? null}
-            inspections={(inspectionsRes.data ?? []).map((ins: { id: string; inspection_type: string; status: string; scheduled_date: string | null; conducted_date: string | null }) => ({
-              id: ins.id,
-              inspection_type: ins.inspection_type,
-              status: ins.status,
-              scheduled_date: ins.scheduled_date,
-              completed_at: ins.conducted_date,
-            }))}
-            maintenanceRequests={(maintenanceRes.data ?? []).map((m: { id: string; title: string; work_order_number: string | null; urgency: string | null; status: string; created_at: string }) => ({
-              id: m.id,
-              title: m.title,
-              work_order_number: m.work_order_number,
-              urgency: m.urgency,
-              status: m.status,
-              created_at: m.created_at,
-            }))}
-            lifecycleEvents={lifecycleEvents}
-            complianceItems={complianceItems}
-          />
-        )}
-      </div>
-    </LeaseDisclaimerGate>
+      {activeTab === "operations" && (
+        <OperationsTab
+          leaseId={leaseId}
+          unitId={lease.unit_id ?? null}
+          unitNumber={unit?.unit_number ?? null}
+          inspections={inspections.map((ins) => ({
+            id: ins.id,
+            inspection_type: ins.inspection_type,
+            status: ins.status,
+            scheduled_date: ins.scheduled_date,
+            completed_at: ins.conducted_date,
+          }))}
+          maintenanceRequests={((maintenanceRes.data ?? []) as Array<{ id: string; title: string; work_order_number: string | null; urgency: string | null; status: string; created_at: string }>).map((m) => ({
+            id: m.id,
+            title: m.title,
+            work_order_number: m.work_order_number,
+            urgency: m.urgency,
+            status: m.status,
+            created_at: m.created_at,
+          }))}
+          lifecycleEvents={lifecycleEvents}
+          complianceItems={complianceItems}
+        />
+      )}
+    </>
   )
 }
