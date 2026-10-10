@@ -4,12 +4,17 @@
  * Route:  /properties/[id]
  * Auth:   gateway (dashboard layout)
  * Data:   properties, units, leases, inspections, insurance, scheme via service client; tab-specific fetchers
+ * Notes:  The header awaits only the property, tier and base units. The agent picker and the active tab's
+ *         body each stream behind their own <Suspense>, and only the active tab's reads run. Each streamed
+ *         section takes its key from ownedPropertyId(), which proves the row is the caller's org.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTierCanonical } from "@/lib/tier/getOrgTier"
 import { redirect, notFound } from "next/navigation"
+import { Suspense } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { BackLink } from "@/components/ui/BackLink"
 import { MandatoryFieldsBanner } from "@/components/migration/MandatoryFieldsBanner"
@@ -26,6 +31,7 @@ import { AgentPicker } from "../AgentPicker"
 import { InlineLink } from "@/components/ui/actions"
 import { LandlordPicker } from "../LandlordPicker"
 import { CompletenessWidgetWrapper } from "../CompletenessWidgetWrapper"
+import { PropertyTabSkeleton } from "../PropertyTabSkeleton"
 import { ReclassifyDialog } from "../ReclassifyDialog"
 import { PropertyArchiveButton } from "@/components/properties/PropertyArchiveButton"
 import { SCENARIOS, type ScenarioType } from "@/lib/properties/scenarios"
@@ -62,8 +68,6 @@ interface UnitsData {
   buildings: BuildingTabData[]
   tenantByUnit: Record<string, { name: string }>
   maintenanceByUnit: Record<string, number>
-  agentMap: Record<string, { id: string; name: string; initials: string; role: string }>
-  teamMembers: { userId: string; name: string; role: string }[]
 }
 
 async function fetchUnitsTabData(
@@ -75,7 +79,6 @@ async function fetchUnitsTabData(
     { data: units },
     { data: activeLeases },
     { data: maintenanceCounts },
-    { data: teamMemberRows },
     { data: buildings },
   ] = await Promise.all([
     // NOT filtered by deleted_at — the detail page shows BOTH active + archived units (split below for
@@ -94,7 +97,6 @@ async function fetchUnitsTabData(
       .eq("property_id", propertyId)
       .eq("org_id", orgId)
       .in("status", ["pending_review", "approved", "pending_landlord", "landlord_approved", "work_order_sent", "acknowledged", "in_progress", "pending_completion"]),
-    service.from("user_orgs").select("user_id, role, user_profiles(id, full_name)").eq("org_id", orgId).is("deleted_at", null),
     service
       .from("buildings")
       .select("id, name, building_type, is_primary, is_visible_in_ui")
@@ -102,21 +104,6 @@ async function fetchUnitsTabData(
       .is("deleted_at", null)
       .order("is_primary", { ascending: false }),
   ])
-
-  type AgentEntry = { id: string; name: string; initials: string; role: string }
-  const agentMap: Record<string, AgentEntry> = {}
-  const teamMembers: { userId: string; name: string; role: string }[] = []
-  for (const m of teamMemberRows ?? []) {
-    const profile = m.user_profiles as unknown as { full_name: string | null }
-    const name = profile?.full_name || "Unnamed"
-    agentMap[m.user_id] = {
-      id: m.user_id,
-      name,
-      initials: name.split(" ").map((w: string) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase(),
-      role: m.role,
-    }
-    teamMembers.push({ userId: m.user_id, name, role: m.role })
-  }
 
   const tenantByUnit: Record<string, { name: string }> = {}
   for (const lease of activeLeases ?? []) {
@@ -136,8 +123,6 @@ async function fetchUnitsTabData(
     buildings:       (buildings ?? []) as BuildingTabData[],
     tenantByUnit,
     maintenanceByUnit,
-    agentMap,
-    teamMembers,
   }
 }
 
@@ -160,7 +145,6 @@ interface OverviewData {
   managingAgentName: string | null
   activity: RecentActivityItem[]
   managingScheme: string | null
-  teamMembers: { userId: string; name: string; role: string }[]
   latestDeeds: LatestPull | null
   latestLightstone: LatestPull | null
 }
@@ -182,7 +166,6 @@ async function fetchOverviewData(
     { data: recentLeases },
     managingAgentResult,
     managingSchemeResult,
-    { data: teamMemberRows },
     { data: latestDeedsRaw },
     { data: latestLightstoneRaw },
   ] = await Promise.all([
@@ -215,7 +198,6 @@ async function fetchOverviewData(
       ? service.from("user_orgs").select("user_profiles(full_name)").eq("user_id", managingAgentId).eq("org_id", orgId).limit(1)
       : Promise.resolve({ data: null }),
     service.from("contractors").select("id").eq("org_id", orgId).limit(1),
-    service.from("user_orgs").select("user_id, role, user_profiles(id, full_name)").eq("org_id", orgId).is("deleted_at", null),
     service.from("property_intelligence_pulls").select("id, product_type, status, completed_at, extracted_facts_jsonb, subject_label").eq("property_id", propertyId).eq("org_id", orgId).eq("product_type", "deeds_search").in("status", ["complete", "no_data_found", "failed", "running", "pending"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     service.from("property_intelligence_pulls").select("id, product_type, status, completed_at, extracted_facts_jsonb, subject_label").eq("property_id", propertyId).eq("org_id", orgId).eq("product_type", "lightstone_erf_short").in("status", ["complete", "no_data_found", "failed", "running", "pending"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ])
@@ -258,11 +240,6 @@ async function fetchOverviewData(
   }
   activity.sort((a, b) => b.date.localeCompare(a.date))
 
-  const teamMembers = (teamMemberRows ?? []).map((m) => {
-    const profile = m.user_profiles as unknown as { full_name: string | null }
-    return { userId: m.user_id as string, name: profile?.full_name ?? "Unknown", role: m.role as string }
-  })
-
   return {
     landlord:         landlordResult.data as OverviewData["landlord"],
     allLandlords:     (allLandlords ?? []) as OverviewData["allLandlords"],
@@ -273,7 +250,6 @@ async function fetchOverviewData(
     managingAgentName,
     activity:         activity.slice(0, 5),
     managingScheme,
-    teamMembers,
     latestDeeds:      (latestDeedsRaw ?? null) as LatestPull | null,
     latestLightstone: (latestLightstoneRaw ?? null) as LatestPull | null,
   }
@@ -613,6 +589,213 @@ async function fetchSchemeData(
   }
 }
 
+// ── Streamed sections ─────────────────────────────────────────────────────────
+
+type PropertyRow = NonNullable<Awaited<ReturnType<typeof fetchProperty>>["data"]>
+type Tier = Awaited<ReturnType<typeof getOrgTierCanonical>>
+
+// By-id carve-out (D-5): NOT filtered by deleted_at — an archived property still resolves here so it
+// can be viewed + restored (e.g. landing on it via Back after archiving). notFound() handles truly-absent.
+function fetchProperty(service: ServiceClient, id: string, orgId: string) {
+  return service.from("properties").select("*").eq("id", id).eq("org_id", orgId).maybeSingle()
+}
+
+// The streamed sections run outside the function that read the property org-scoped, so each proves the
+// row is the caller's here and takes its key from that same row — the guard and the key are one value
+// (.handoff/stream-lease-detail F1, the same shape as the lease page).
+function ownedPropertyId(property: PropertyRow, orgId: string): string {
+  if (property.org_id !== orgId) throw new Error("property detail: property is not in the caller's org")
+  return property.id
+}
+
+type TabBodyProps = { service: ServiceClient; orgId: string; property: PropertyRow; tier: Tier }
+
+// The header's agent picker needs the team list; it streams on its own so the header never waits for it.
+async function PropertyAgentPicker({ service, orgId, property }: Omit<TabBodyProps, "tier">) {
+  const id = ownedPropertyId(property, orgId)
+  const { data: rows, error } = await service
+    .from("user_orgs")
+    .select("user_id, role, user_profiles(id, full_name)")
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+  logQueryError("PropertyAgentPicker user_orgs", error)
+  const teamMembers = (rows ?? []).map((m) => {
+    const profile = m.user_profiles as unknown as { full_name: string | null }
+    return { userId: m.user_id as string, name: profile?.full_name ?? "Unknown", role: m.role as string }
+  })
+  return (
+    <AgentPicker
+      propertyId={id}
+      currentAgentId={property.managing_agent_id ?? null}
+      currentTeamId={property.managing_team_id ?? null}
+      teamMembers={teamMembers}
+    />
+  )
+}
+
+async function OverviewTabBody({ service, orgId, property, tier }: TabBodyProps) {
+  const id = ownedPropertyId(property, orgId)
+  const propRaw = property as unknown as Record<string, unknown>
+  const canAccessIntelligence = hasFeature(tier, "property_intelligence")
+  const [overviewData, piPrices] = await Promise.all([
+    fetchOverviewData(service, id, orgId, property.landlord_id ?? null, property.managing_agent_id ?? null),
+    // ADDENDUM_14V: display-only quotes for the verification card; /initiate re-quotes and stamps at the click
+    canAccessIntelligence
+      ? quotePropertyIntelligencePrices(["deeds_search", "lightstone_erf_short"], "property-verification-card")
+      : Promise.resolve({} as Record<string, number | null>),
+  ])
+  const { addressParts } = propertyAddress(property)
+  const mapsQuery = encodeURIComponent([...addressParts, "South Africa"].join(", "))
+  return (
+    <>
+      {/* Setup completeness widget — first 30 days post-creation OR until 100% */}
+      <CompletenessWidgetWrapper
+        propertyId={id}
+        orgId={orgId}
+        isOwnerProBrokerVisible={tier !== "owner"}
+        isOwnerStewardTier={tier === "owner" || tier === "steward"}
+      />
+      {/* LandlordPicker rendered inline for assign flow */}
+      {!property.landlord_id && (
+        <div className="mb-4">
+          <LandlordPicker propertyId={id} orgId={orgId} landlords={overviewData.allLandlords} current={null} />
+        </div>
+      )}
+      <OverviewTab
+        propertyId={id}
+        property={{
+          type:                    property.type ?? null,
+          erf_number:              (propRaw.erf_number as string | null) ?? null,
+          sectional_title_number:  (propRaw.sectional_title_number as string | null) ?? null,
+          is_sectional_title:      (propRaw.is_sectional_title as boolean | null) ?? null,
+          levy_amount_cents:       (propRaw.levy_amount_cents as number | null) ?? null,
+          description:             property.description ?? null,
+          insurance_provider:      (propRaw.insurance_provider as string | null) ?? null,
+          insurance_renewal_date:  (propRaw.insurance_renewal_date as string | null) ?? null,
+          scenario_label:          resolveScenarioLabel(propRaw.scenario_type as ScenarioType | null),
+          operating_hours_preset:  (propRaw.operating_hours_preset as string | null) ?? null,
+          municipality:            (propRaw.municipality as string | null) ?? null,
+        }}
+        landlord={overviewData.landlord}
+        activeUnits={overviewData.activeUnits}
+        buildingCount={overviewData.buildingCount}
+        arrearsCents={overviewData.arrearsCents}
+        arrearsCount={overviewData.arrearsCount}
+        mapsQuery={mapsQuery}
+        googleMapsUrl={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
+        managingAgentName={overviewData.managingAgentName}
+        activity={overviewData.activity}
+        managingScheme={overviewData.managingScheme}
+        hasManagingScheme={(propRaw.has_managing_scheme as boolean) ?? false}
+        canAccessIntelligence={canAccessIntelligence}
+        latestDeeds={overviewData.latestDeeds}
+        latestLightstone={overviewData.latestLightstone}
+        piPrices={{
+          deeds_search:         piPrices.deeds_search ?? null,
+          lightstone_erf_short: piPrices.lightstone_erf_short ?? null,
+        }}
+      />
+    </>
+  )
+}
+
+async function UnitsTabBody({ service, orgId, property, tier }: TabBodyProps) {
+  const id = ownedPropertyId(property, orgId)
+  const unitsData = await fetchUnitsTabData(service, id, orgId)
+  return (
+    <UnitsTab
+      units={unitsData.activeUnits}
+      archivedUnits={unitsData.archivedUnits}
+      buildings={unitsData.buildings}
+      propertyId={id}
+      propertyName={property.name}
+      propertyType={property.type ?? "residential"}
+      tier={tier}
+      tenantByUnit={unitsData.tenantByUnit}
+      maintenanceByUnit={unitsData.maintenanceByUnit}
+    />
+  )
+}
+
+async function InsuranceTabBody({ service, orgId, property, tier }: TabBodyProps) {
+  const id = ownedPropertyId(property, orgId)
+  const insuranceData = await fetchInsuranceData(service, id, orgId, property as unknown as Record<string, unknown>)
+  return (
+    <InsuranceTab
+      propertyId={id}
+      policy={insuranceData.policy}
+      broker={insuranceData.broker}
+      buildings={insuranceData.buildings}
+      activeClaims={insuranceData.activeClaims}
+      // Broker visibility: Steward+ tiers see the insurance broker card; free Owner does not.
+      canSeeBroker={tier !== "owner"}
+      checklist={insuranceData.checklist}
+      canTick={tier !== "owner"}
+    />
+  )
+}
+
+async function SchemeTabBody({ service, orgId, property, tier }: TabBodyProps) {
+  const id = ownedPropertyId(property, orgId)
+  const propRaw = property as unknown as Record<string, unknown>
+  const managingSchemeId = (propRaw.managing_scheme_id as string | null) ?? null
+  const schemeData = managingSchemeId
+    ? await fetchSchemeData(service, managingSchemeId, orgId, (propRaw.levy_amount_cents as number | null) ?? null)
+    : null
+  if (!schemeData) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">No managing scheme linked to this property.</p>
+        <InlineLink href={`/properties/${id}/scheme/edit`}>Add managing scheme</InlineLink>
+      </div>
+    )
+  }
+  return <SchemeTab propertyId={id} scheme={schemeData} tier={tier ?? "owner"} />
+}
+
+async function DocumentsTabBody({ service, orgId, property }: TabBodyProps) {
+  const id = ownedPropertyId(property, orgId)
+  const { data: docs, error } = await service
+    .from("property_documents")
+    .select("id, name, document_type, storage_path, expiry_date, notes, created_at")
+    .eq("property_id", id)
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+  logQueryError("PropertyDetailPage property_documents", error)
+  return <PropertyDocumentsTab propertyId={id} initialDocuments={docs ?? []} />
+}
+
+async function OperationsTabBody({ service, orgId, property }: TabBodyProps) {
+  const id = ownedPropertyId(property, orgId)
+  const operationsData = await fetchOperationsData(service, id, orgId)
+  return (
+    <OperationsTab
+      propertyId={id}
+      inspections={operationsData.inspections}
+      maintenance={operationsData.maintenance}
+      complianceItems={operationsData.complianceItems}
+      auditItems={operationsData.auditItems}
+    />
+  )
+}
+
+function PropertyTabBody({ activeTab, ...props }: TabBodyProps & { activeTab: TabId }) {
+  switch (activeTab) {
+    case "units":      return <UnitsTabBody {...props} />
+    case "insurance":  return <InsuranceTabBody {...props} />
+    case "scheme":     return <SchemeTabBody {...props} />
+    case "documents":  return <DocumentsTabBody {...props} />
+    case "operations": return <OperationsTabBody {...props} />
+    default:           return <OverviewTabBody {...props} />
+  }
+}
+
+function propertyAddress(property: PropertyRow) {
+  const addressParts = [property.address_line1, property.suburb, property.city, property.province].filter(Boolean)
+  return { addressParts, fullAddress: addressParts.join(", ") }
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function PropertyDetailPage({
@@ -630,39 +813,38 @@ export default async function PropertyDetailPage({
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
   const { org_id: orgId } = membership
-  // Was `(membership.tier ?? "owner")` — the unsigned pleks_org cookie's own field — and it decides
-  // `hasFeature(tier, "property_intelligence")` below, plus the broker and scheme-tick surfaces. A
-  // caller could set tier:"firm" in their own cookie and unlock all of it. Canonical read now.
-  const tier = await getOrgTierCanonical(orgId)
   // Owners are always admin; other roles (admin, manager) gated server-side on action submit.
-  const isAdminUi         = membership.role === "owner"
+  const isAdminUi = membership.role === "owner"
 
   const service = await createServiceClient()
 
-  // By-id carve-out (D-5): NOT filtered by deleted_at — an archived property still resolves here so it
-  // can be viewed + restored (e.g. landing on it via Back after archiving). notFound() handles truly-absent.
-  const { data: property, error: propertyError } = await service
-    .from("properties")
-    .select("*")
-    .eq("id", id)
-    .eq("org_id", orgId)
-    .maybeSingle()
-    logQueryError("PropertyDetailPage properties", propertyError)
+  // The header awaits only the property, the org's tier and the base units; every tab body streams in
+  // behind <Suspense key={tab}> below, so a tab switch repaints only the body.
+  const [
+    // Was `(membership.tier ?? "owner")` — the unsigned pleks_org cookie's own field — and it decides
+    // `hasFeature(tier, "property_intelligence")`, plus the broker and scheme-tick surfaces. A caller
+    // could set tier:"firm" in their own cookie and unlock all of it. Canonical read now.
+    tier,
+    { data: property, error: propertyError },
+    // Always fetch base units for mobile view + header stats
+    { data: baseUnits, error: baseUnitsError },
+  ] = await Promise.all([
+    getOrgTierCanonical(orgId),
+    fetchProperty(service, id, orgId),
+    service
+      .from("units")
+      .select("id, status, asking_rent_cents, unit_number")
+      .eq("property_id", id)
+      .eq("org_id", orgId)
+      .is("deleted_at", null),
+  ])
+  logQueryError("PropertyDetailPage properties", propertyError)
+  logQueryError("PropertyDetailPage units", baseUnitsError)
 
   if (!property) notFound()
+  if (property.org_id !== orgId) notFound()
 
-  // Always fetch base units for mobile view + header stats
-  const { data: baseUnits, error: baseUnitsError } = await service
-    .from("units")
-    .select("id, status, asking_rent_cents, unit_number")
-    .eq("property_id", id)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .is("deleted_at", null)
-    logQueryError("PropertyDetailPage units", baseUnitsError)
-
-  const addressParts  = [property.address_line1, property.suburb, property.city, property.province].filter(Boolean)
-  const fullAddress   = addressParts.join(", ")
+  const { addressParts, fullAddress } = propertyAddress(property)
   const mapsQuery     = encodeURIComponent([...addressParts, "South Africa"].join(", "))
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
 
@@ -674,41 +856,8 @@ export default async function PropertyDetailPage({
     tenantName: null, rentCents: u.asking_rent_cents ?? 0, maintenanceCount: 0,
   }))
 
-  const propRaw          = property as unknown as Record<string, unknown>
+  const propRaw           = property as unknown as Record<string, unknown>
   const hasManagingScheme = (propRaw.has_managing_scheme as boolean) ?? false
-  const managingSchemeId  = (propRaw.managing_scheme_id as string | null) ?? null
-
-  // Broker visibility: Steward+ tiers see the insurance broker card; free Owner does not.
-  const canSeeBroker = tier !== "owner"
-
-  // Tab-specific data fetching
-  const canAccessIntelligence = hasFeature(tier, "property_intelligence")
-  const [overviewData, unitsData, operationsData, insuranceData, schemeData, piPrices] = await Promise.all([
-    activeTab === "overview"
-      ? fetchOverviewData(service, id, orgId, property.landlord_id ?? null, property.managing_agent_id ?? null)
-      : Promise.resolve(null),
-    activeTab === "units" || activeTab === "documents"
-      ? fetchUnitsTabData(service, id, orgId)
-      : Promise.resolve(null),
-    activeTab === "operations"
-      ? fetchOperationsData(service, id, orgId)
-      : Promise.resolve(null),
-    activeTab === "insurance"
-      ? fetchInsuranceData(service, id, orgId, propRaw)
-      : Promise.resolve(null),
-    activeTab === "scheme" && managingSchemeId
-      ? fetchSchemeData(service, managingSchemeId, orgId, (propRaw.levy_amount_cents as number | null) ?? null)
-      : Promise.resolve(null),
-    // ADDENDUM_14V: display-only quotes for the verification card; /initiate re-quotes and stamps at the click
-    activeTab === "overview" && canAccessIntelligence
-      ? quotePropertyIntelligencePrices(["deeds_search", "lightstone_erf_short"], "property-verification-card")
-      : Promise.resolve({} as Record<string, number | null>),
-  ])
-
-  // Documents only need property_documents
-  const propertyDocs = activeTab === "documents"
-    ? (await service.from("property_documents").select("id, name, document_type, storage_path, expiry_date, notes, created_at").eq("property_id", id).eq("org_id", orgId).is("deleted_at", null).order("created_at", { ascending: false })).data ?? []
-    : []
 
   const typeLabel: Record<string, string> = { residential: "Residential", commercial: "Commercial", mixed: "Mixed use" }
 
@@ -774,133 +923,19 @@ export default async function PropertyDetailPage({
           </div>
           <p className="text-muted-foreground text-sm mt-0.5">{fullAddress}</p>
           {activeTab === "overview" && (
-            <AgentPicker
-              propertyId={id}
-              currentAgentId={property.managing_agent_id ?? null}
-              currentTeamId={property.managing_team_id ?? null}
-              teamMembers={overviewData?.teamMembers ?? unitsData?.teamMembers ?? []}
-            />
+            <Suspense fallback={<Skeleton className="mt-1 h-7 w-44 rounded-[var(--r-button)]" />}>
+              <PropertyAgentPicker service={service} orgId={orgId} property={property} />
+            </Suspense>
           )}
         </div>
 
         {/* Tabs */}
         <PropertyTabs activeTab={activeTab} propertyId={id} hasManagingScheme={hasManagingScheme} />
 
-        {/* Tab content */}
-        {activeTab === "overview" && overviewData && (
-          <>
-            {/* Setup completeness widget — first 30 days post-creation OR until 100% */}
-            <CompletenessWidgetWrapper
-              propertyId={id}
-              orgId={orgId}
-              isOwnerProBrokerVisible={canSeeBroker}
-              isOwnerStewardTier={tier === "owner" || tier === "steward"}
-            />
-            {/* LandlordPicker rendered inline for assign flow */}
-            {!property.landlord_id && (
-              <div className="mb-4">
-                <LandlordPicker
-                  propertyId={id}
-                  orgId={orgId}
-                  landlords={overviewData.allLandlords}
-                  current={null}
-                />
-              </div>
-            )}
-            <OverviewTab
-              propertyId={id}
-              property={{
-                type:                    property.type ?? null,
-                erf_number:              (propRaw.erf_number as string | null) ?? null,
-                sectional_title_number:  (propRaw.sectional_title_number as string | null) ?? null,
-                is_sectional_title:      (propRaw.is_sectional_title as boolean | null) ?? null,
-                levy_amount_cents:       (propRaw.levy_amount_cents as number | null) ?? null,
-                description:             property.description ?? null,
-                insurance_provider:      (propRaw.insurance_provider as string | null) ?? null,
-                insurance_renewal_date:  (propRaw.insurance_renewal_date as string | null) ?? null,
-                scenario_label:          resolveScenarioLabel(propRaw.scenario_type as ScenarioType | null),
-                operating_hours_preset:  (propRaw.operating_hours_preset as string | null) ?? null,
-                municipality:            (propRaw.municipality as string | null) ?? null,
-              }}
-              landlord={overviewData.landlord}
-              activeUnits={overviewData.activeUnits}
-              buildingCount={overviewData.buildingCount}
-              arrearsCents={overviewData.arrearsCents}
-              arrearsCount={overviewData.arrearsCount}
-              mapsQuery={mapsQuery}
-              googleMapsUrl={googleMapsUrl}
-              managingAgentName={overviewData.managingAgentName}
-              activity={overviewData.activity}
-              managingScheme={overviewData.managingScheme}
-              hasManagingScheme={hasManagingScheme}
-              canAccessIntelligence={canAccessIntelligence}
-              latestDeeds={overviewData.latestDeeds}
-              latestLightstone={overviewData.latestLightstone}
-              piPrices={{
-                deeds_search:         piPrices.deeds_search ?? null,
-                lightstone_erf_short: piPrices.lightstone_erf_short ?? null,
-              }}
-            />
-          </>
-        )}
-
-        {activeTab === "units" && unitsData && (
-          <UnitsTab
-            units={unitsData.activeUnits}
-            archivedUnits={unitsData.archivedUnits}
-            buildings={unitsData.buildings}
-            propertyId={id}
-            propertyName={property.name}
-            propertyType={property.type ?? "residential"}
-            tier={tier}
-            tenantByUnit={unitsData.tenantByUnit}
-            maintenanceByUnit={unitsData.maintenanceByUnit}
-          />
-        )}
-
-        {activeTab === "insurance" && insuranceData && (
-          <InsuranceTab
-            propertyId={id}
-            policy={insuranceData.policy}
-            broker={insuranceData.broker}
-            buildings={insuranceData.buildings}
-            activeClaims={insuranceData.activeClaims}
-            canSeeBroker={canSeeBroker}
-            checklist={insuranceData.checklist}
-            canTick={tier !== "owner"}
-          />
-        )}
-
-        {activeTab === "scheme" && schemeData && (
-          <SchemeTab propertyId={id} scheme={schemeData} tier={tier ?? "owner"} />
-        )}
-
-        {activeTab === "scheme" && !schemeData && (
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">No managing scheme linked to this property.</p>
-            <InlineLink href={`/properties/${id}/scheme/edit`}>Add managing scheme</InlineLink>
-          </div>
-        )}
-
-        {activeTab === "documents" && (
-          <PropertyDocumentsTab
-            propertyId={id}
-            initialDocuments={propertyDocs as Array<{
-              id: string; name: string; document_type: string; storage_path: string;
-              expiry_date: string | null; notes: string | null; created_at: string
-            }>}
-          />
-        )}
-
-        {activeTab === "operations" && operationsData && (
-          <OperationsTab
-            propertyId={id}
-            inspections={operationsData.inspections}
-            maintenance={operationsData.maintenance}
-            complianceItems={operationsData.complianceItems}
-            auditItems={operationsData.auditItems}
-          />
-        )}
+        {/* Tab content — streamed; the key remounts the boundary so a tab switch shows its own skeleton */}
+        <Suspense key={activeTab} fallback={<PropertyTabSkeleton tab={activeTab} />}>
+          <PropertyTabBody activeTab={activeTab} service={service} orgId={orgId} property={property} tier={tier} />
+        </Suspense>
       </div>
     </div>
   )
